@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.nook</groupId>
+        <artifactId>nook</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>nook-spring-boot-starter-security</artifactId>
+    <description>
+        鉴权 starter:
+          - StpSystemUtil / StpMemberUtil  (sa-token loginType=system/member)
+          - SaTokenConfig                  (路由拦截 /admin/** /portal/**)
+          - SaTokenExceptionHandler        (NotLoginException → Result 401)
+          - PasswordEncoderConfig          (BCryptPasswordEncoder Bean)
+        sa-token 复用项目的 RedissonClient 做 SaTokenDao 持久化，故依赖 starter-redis。
+        SaTokenExceptionHandler 用 @RestControllerAdvice，故依赖 starter-web。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-redis</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-spring-boot3-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-redisson-jackson</artifactId>
+        </dependency>
+
+        <!-- 仅取 BCryptPasswordEncoder，不引入完整 Spring Security 框架 -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>

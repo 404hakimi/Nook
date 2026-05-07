@@ -8,71 +8,24 @@
         <groupId>com.nook</groupId>
         <artifactId>nook</artifactId>
         <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>nook-framework</artifactId>
+    <packaging>pom</packaging>
     <description>
-        项目级框架配置层，与 nook-common 的边界:
-
-          nook-common    跨项目可复用的轻基础组件 (Result / ErrorCode / BusinessException /
-                         BaseEntity / MetaObjectHandler / MybatisPlusConfig / GlobalExceptionHandler)。
-                         未来抽出独立 jar 也能直接给别的项目用。
-
-          nook-framework 本项目特异性的 Spring 配置与组件:
-                         - com.nook.framework.web      WebMvcConfigurer / CORS / Jackson
-                         - com.nook.framework.security Token 拦截器 / 鉴权过滤器
-                         - com.nook.framework.redis    RedisTemplate 序列化 / 连接池
-                         - com.nook.framework.async    @Async 线程池
-                         - com.nook.framework.knife4j  接口分组 / 文档配置
-                         这些配置依赖项目特定的常量(如 CORS 域名白名单)，不适合放 common。
-
-        biz 模块依赖 nook-framework 即可，通过传递依赖拿到 nook-common + 常用 starter。
+        框架聚合 pom，按职责拆 4 个子模块（参考 RuoYi-Plus 风格）：
+          nook-common                          基础组件: BaseEntity / Result / ErrorCode / BusinessException / HandlerOrder / MyBatis-Plus 配置
+          nook-spring-boot-starter-web         Web MVC: GlobalExceptionHandler / FastJson2 / ClientIpResolver
+          nook-spring-boot-starter-redis       Redis 客户端 starter (Redisson)
+          nook-spring-boot-starter-security    鉴权 starter: sa-token + BCrypt
+        本 pom 仅作 modules 聚合，不做 dependencyManagement(由根 pom 统一管理)。
     </description>
 
-    <dependencies>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-common</artifactId>
-        </dependency>
-
-        <!-- sa-token 鉴权(后台 + 会员); redis-jackson 同时带来 spring-data-redis 与 RedisTemplate Bean -->
-        <dependency>
-            <groupId>cn.dev33</groupId>
-            <artifactId>sa-token-spring-boot3-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>cn.dev33</groupId>
-            <artifactId>sa-token-redis-jackson</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.github.xiaoymin</groupId>
-            <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
-        </dependency>
-
-        <!-- fastjson2: Web MVC 主 JSON 序列化器，由 FastJson2Config 注册 HttpMessageConverter -->
-        <dependency>
-            <groupId>com.alibaba.fastjson2</groupId>
-            <artifactId>fastjson2-extension-spring6</artifactId>
-        </dependency>
-        <!-- 仅取 BCryptPasswordEncoder，不引入完整 Spring Security 框架 -->
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-crypto</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
-        </dependency>
-    </dependencies>
+    <modules>
+        <module>nook-common</module>
+        <module>nook-spring-boot-starter-web</module>
+        <module>nook-spring-boot-starter-redis</module>
+        <module>nook-spring-boot-starter-security</module>
+    </modules>
 </project>

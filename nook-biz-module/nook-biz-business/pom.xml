@@ -17,7 +17,7 @@
     <dependencies>
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-framework</artifactId>
+            <artifactId>nook-spring-boot-starter-security</artifactId>
         </dependency>
 
         <!-- 仅引用对方 api 包(约定式边界) -->

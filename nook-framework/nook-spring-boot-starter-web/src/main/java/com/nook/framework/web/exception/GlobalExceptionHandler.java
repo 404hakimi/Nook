@@ -1,7 +1,8 @@
-package com.nook.common.web.exception;
+package com.nook.framework.web.exception;
 
 import com.nook.common.web.constant.HandlerOrder;
 import com.nook.common.web.error.CommonErrorCode;
+import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;

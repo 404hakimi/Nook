@@ -19,10 +19,9 @@
     <description>独享 IP 代理服务</description>
 
     <modules>
-        <module>nook-common</module>
         <module>nook-framework</module>
         <module>nook-biz-module</module>
-        <module>nook-bootstrap</module>
+        <module>nook-server</module>
     </modules>
 
     <properties>
@@ -40,6 +39,7 @@
         <knife4j.version>4.5.0</knife4j.version>
         <sa-token.version>1.39.0</sa-token.version>
         <fastjson2.version>2.0.53</fastjson2.version>
+        <redisson.version>3.34.1</redisson.version>
     </properties>
 
     <dependencyManagement>
@@ -52,7 +52,17 @@
             </dependency>
             <dependency>
                 <groupId>com.nook</groupId>
-                <artifactId>nook-framework</artifactId>
+                <artifactId>nook-spring-boot-starter-web</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nook</groupId>
+                <artifactId>nook-spring-boot-starter-redis</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nook</groupId>
+                <artifactId>nook-spring-boot-starter-security</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -125,7 +135,7 @@
                 <version>${knife4j.version}</version>
             </dependency>
 
-            <!-- sa-token 鉴权 -->
+            <!-- sa-token 鉴权 (Redisson 版本: 与 redisson-spring-boot-starter 配合) -->
             <dependency>
                 <groupId>cn.dev33</groupId>
                 <artifactId>sa-token-spring-boot3-starter</artifactId>
@@ -133,8 +143,15 @@
             </dependency>
             <dependency>
                 <groupId>cn.dev33</groupId>
-                <artifactId>sa-token-redis-jackson</artifactId>
+                <artifactId>sa-token-redisson-jackson</artifactId>
                 <version>${sa-token.version}</version>
+            </dependency>
+
+            <!-- Redisson: Redis 客户端 + 分布式锁/集合等高级抽象 -->
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>${redisson.version}</version>
             </dependency>
 
             <!-- fastjson2: 主 JSON 序列化器 -->

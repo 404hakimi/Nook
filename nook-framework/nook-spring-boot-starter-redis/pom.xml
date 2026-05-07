@@ -11,18 +11,16 @@
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
-    <artifactId>nook-biz-member</artifactId>
-    <description>会员体系: member_user / member_device / member_log / member_subscription + Controller</description>
+    <artifactId>nook-spring-boot-starter-redis</artifactId>
+    <description>
+        Redis starter: 引入 Redisson Spring Boot Starter，自动读取 spring.data.redis.* 创建 RedissonClient。
+        当前无业务代码；后续 RedisTemplate 序列化策略 / 分布式锁封装放在 com.nook.framework.redis 下。
+    </description>
 
     <dependencies>
         <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-spring-boot-starter-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-boot-starter</artifactId>
         </dependency>
     </dependencies>
 </project>

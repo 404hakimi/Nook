@@ -16,11 +16,13 @@ import {
 } from 'lucide-vue-next'
 import { useUserStore } from '@/stores/user'
 import { useTheme } from '@/composables/useTheme'
+import { useConfirm } from '@/composables/useConfirm'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const { theme, toggle: toggleTheme } = useTheme()
+const { confirm } = useConfirm()
 
 interface MenuItem {
   path: string
@@ -41,8 +43,14 @@ const menus: MenuItem[] = [
 const activePath = computed(() => route.path)
 
 async function onLogout() {
-  // 临时用原生 confirm；后续换 DaisyUI modal 包装的 useConfirm
-  if (!window.confirm('确定要退出登录吗？')) return
+  const ok = await confirm({
+    title: '退出登录',
+    message: '退出后需重新登录，是否继续？',
+    type: 'warning',
+    confirmText: '退出',
+    cancelText: '取消'
+  })
+  if (!ok) return
   await userStore.logout()
   router.replace({ name: 'login' })
 }

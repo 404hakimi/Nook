@@ -20,7 +20,7 @@ spring:
 
 sa-token:
   timeout: 28800
-  is-print: true
+  is-print: false
 
 nook:
   xray:
@@ -30,6 +30,6 @@ nook:
 
 logging:
   level:
-    com.nook: DEBUG
-    cn.dev33.satoken: DEBUG
-    com.nook.biz: DEBUG
+    com.nook: INFO
+    cn.dev33.satoken: INFO
+    com.nook.biz: INFO

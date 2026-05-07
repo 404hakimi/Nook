@@ -11,7 +11,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>nook-bootstrap</artifactId>
+    <artifactId>nook-server</artifactId>
     <description>启动模块: 引入全部 biz 模块，含主类 + application.yml，最终打可执行 jar</description>
 
     <dependencies>
@@ -42,7 +42,7 @@
     </dependencies>
 
     <build>
-        <finalName>nook-app</finalName>
+        <finalName>nook-server</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
