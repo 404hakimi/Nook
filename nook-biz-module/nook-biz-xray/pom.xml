@@ -55,6 +55,12 @@
             <groupId>com.hierynomus</groupId>
             <artifactId>sshj</artifactId>
         </dependency>
+
+        <!-- 3x-ui 面板 HTTP API demo 使用：JSON 序列化 -->
+        <dependency>
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
