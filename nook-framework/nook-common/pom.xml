@@ -13,37 +13,24 @@
 
     <artifactId>nook-common</artifactId>
     <description>
-        通用基础组件: 跨项目可复用的轻基础。
-          mybatis/{entity,handler,config}    BaseEntity + 自动填充 + 分页/乐观锁配置
-          web/response                       Result
-          web/error                          ErrorCode + CommonErrorCode
-          web/exception                      BusinessException (GlobalExceptionHandler 已挪到 starter-web)
-          web/constant                       HandlerOrder
-        不直接依赖 Spring Web。
+        通用基础组件 (POJO 层): 跨项目可复用的轻基础。
+          web/response       Result
+          web/error          ErrorCode + CommonErrorCode
+          web/exception      BusinessException (GlobalExceptionHandler 在 starter-web)
+          web/constant       HandlerOrder
+        不依赖 Spring Web、不依赖 MyBatis-Plus；任何 starter-* 子模块均可引入此模块。
     </description>
 
     <dependencies>
-        <!-- BaseEntity / MybatisPlusConfig 需要 MP -->
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-        </dependency>
-
-        <!-- BaseEntity 上的 @JsonFormat -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-annotations</artifactId>
-        </dependency>
-
         <!-- 工具 -->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
         </dependency>
+        <!-- 序列化注解(部分 Web POJO 字段会用 @JsonFormat 等) -->
         <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
         </dependency>
     </dependencies>
 </project>

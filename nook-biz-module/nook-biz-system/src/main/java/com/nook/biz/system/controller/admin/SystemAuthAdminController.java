@@ -1,5 +1,6 @@
 package com.nook.biz.system.controller.admin;
 
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.system.dto.LoginRequest;
 import com.nook.biz.system.entity.SystemUser;
 import com.nook.biz.system.service.SystemAuthService;
@@ -25,19 +26,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class SystemAuthAdminController {
 
-    private final SystemAuthService authService;
-    private final SystemUserService userService;
+    private final SystemAuthService systemAuthService;
+    private final SystemUserService systemUserService;
 
     /** 登录，返回 token + 当前用户信息。 */
     @PostMapping("/login")
     public Result<LoginVO> login(@RequestBody @Valid LoginRequest req, HttpServletRequest httpReq) {
-        return Result.ok(authService.login(req, ClientIpResolver.resolve(httpReq)));
+        return Result.ok(systemAuthService.login(req, ClientIpResolver.resolve(httpReq)));
     }
 
     /** 登出当前 token；幂等。 */
     @PostMapping("/logout")
     public Result<Void> logout() {
-        authService.logout();
+        systemAuthService.logout();
         return Result.ok();
     }
 
@@ -45,8 +46,8 @@ public class SystemAuthAdminController {
     @GetMapping("/me")
     public Result<SystemUserVO> me() {
         // SaTokenConfig 已强校验登录态，到这里 getLoginIdAsString 一定有值
-        SystemUser user = userService.findById(StpSystemUtil.getLoginIdAsString());
-        if (user == null) {
+        SystemUser user = systemUserService.findById(StpSystemUtil.getLoginIdAsString());
+        if (ObjectUtil.isNull(user)) {
             // 极端场景：token 还在但用户已被物理删除
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
         }

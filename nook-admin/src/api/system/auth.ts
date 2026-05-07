@@ -1,19 +1,11 @@
 import request from '@/api/request'
+import type { SystemUser } from './user'
+
+export type { SystemUser }
 
 export interface LoginRequest {
   username: string
   password: string
-}
-
-export interface SystemUser {
-  id: string
-  username: string
-  realName?: string
-  email?: string
-  phone?: string
-  role: string
-  status: number
-  lastLoginAt?: string
 }
 
 export interface LoginVO {

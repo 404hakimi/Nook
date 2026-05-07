@@ -24,6 +24,19 @@
         <module>nook-server</module>
     </modules>
 
+    <!--
+        全局编译期依赖：所有子模块自动继承，无需重复声明。
+        - lombok: optional=true，不会传递到运行时 jar；annotation processor 仍正常工作。
+        其它工具(hutool / jackson 注解等)通过 nook-common 的传递依赖间接拥有，不放这里。
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+
     <properties>
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
@@ -48,6 +61,11 @@
             <dependency>
                 <groupId>com.nook</groupId>
                 <artifactId>nook-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nook</groupId>
+                <artifactId>nook-spring-boot-starter-mybatis</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

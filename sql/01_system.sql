@@ -9,7 +9,6 @@ CREATE TABLE `system_user` (
     `password_hash`  VARCHAR(255)    NOT NULL COMMENT 'BCrypt 密码哈希',
     `real_name`      VARCHAR(64)     DEFAULT NULL COMMENT '真实姓名',
     `email`          VARCHAR(128)    DEFAULT NULL COMMENT '邮箱',
-    `phone`          VARCHAR(20)     DEFAULT NULL COMMENT '手机号',
     `role`           VARCHAR(16)     NOT NULL DEFAULT 'operator' COMMENT '角色: super_admin/operator/devops',
     `status`         TINYINT         NOT NULL DEFAULT 1 COMMENT '状态: 1=正常 2=禁用',
     `last_login_at`  DATETIME        DEFAULT NULL COMMENT '最后登录时间',

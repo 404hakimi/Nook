@@ -3,7 +3,10 @@ import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   LayoutDashboard,
+  UserCog,
+  UserCircle,
   Users,
+  Settings,
   Package,
   Server,
   Cable,
@@ -12,7 +15,8 @@ import {
   Menu,
   Sun,
   Moon,
-  LogOut
+  LogOut,
+  ScrollText
 } from 'lucide-vue-next'
 import { useUserStore } from '@/stores/user'
 import { useTheme } from '@/composables/useTheme'
@@ -25,15 +29,31 @@ const { theme, toggle: toggleTheme } = useTheme()
 const { confirm } = useConfirm()
 
 interface MenuItem {
-  path: string
+  /** 叶子菜单的路径；分组菜单为 undefined */
+  path?: string
   title: string
   icon: typeof LayoutDashboard
+  /** 分组菜单的子项；叶子菜单无 */
+  children?: MenuItem[]
 }
 
-// 占位菜单：每个 biz 模块一项，详细页面陆续填充
 const menus: MenuItem[] = [
   { path: '/dashboard', title: '总览', icon: LayoutDashboard },
-  { path: '/system/users', title: '后台用户', icon: Users },
+  {
+    title: '系统管理',
+    icon: Settings,
+    children: [
+      { path: '/system/users', title: '系统用户', icon: UserCog }
+    ]
+  },
+  {
+    title: '会员管理',
+    icon: Users,
+    children: [
+      { path: '/member/accounts', title: '会员账户', icon: UserCircle },
+      { path: '/member/logs', title: '操作日志', icon: ScrollText }
+    ]
+  },
   { path: '/business/plans', title: '套餐与 CDK', icon: Package },
   { path: '/resource/servers', title: '服务器与 IP', icon: Server },
   { path: '/xray/inbounds', title: 'Xray 配置', icon: Cable },
@@ -41,6 +61,16 @@ const menus: MenuItem[] = [
 ]
 
 const activePath = computed(() => route.path)
+
+/** 判断分组是否包含当前激活路由(用于 details 自动展开)。 */
+function groupActive(group: MenuItem): boolean {
+  return group.children?.some((c) => c.path && activePath.value.startsWith(c.path)) ?? false
+}
+
+/** 判断单条菜单是否激活(高亮)。 */
+function leafActive(path?: string): boolean {
+  return !!path && activePath.value.startsWith(path)
+}
 
 async function onLogout() {
   const ok = await confirm({
@@ -71,7 +101,6 @@ async function onLogout() {
         </div>
         <div class="flex-1 text-base font-medium">{{ route.meta.title }}</div>
         <div class="flex-none flex items-center gap-1">
-          <!-- 主题切换 -->
           <button
             class="btn btn-ghost btn-circle btn-sm"
             :title="theme === 'dark' ? '切换为浅色' : '切换为深色'"
@@ -81,7 +110,6 @@ async function onLogout() {
             <Moon v-else class="w-5 h-5" />
           </button>
 
-          <!-- 用户菜单 -->
           <div class="dropdown dropdown-end">
             <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-1">
               <div class="avatar placeholder">
@@ -89,17 +117,16 @@ async function onLogout() {
                   <span class="text-sm">{{ (userStore.user?.username || 'A')[0].toUpperCase() }}</span>
                 </div>
               </div>
-              <span class="hidden sm:inline">{{ userStore.user?.realName || userStore.user?.username || '未登录' }}</span>
+              <span class="hidden sm:inline">
+                {{ userStore.user?.realName || userStore.user?.username || '未登录' }}
+              </span>
               <ChevronDown class="w-4 h-4 opacity-60" />
             </div>
             <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box w-44 mt-2 shadow-lg border border-base-300 z-40">
-              <li class="menu-title text-xs">
-                <span>{{ userStore.user?.role || '-' }}</span>
-              </li>
+              <li class="menu-title text-xs"><span>{{ userStore.user?.role || '-' }}</span></li>
               <li>
                 <a @click="onLogout">
-                  <LogOut class="w-4 h-4" />
-                  退出登录
+                  <LogOut class="w-4 h-4" />退出登录
                 </a>
               </li>
             </ul>
@@ -121,18 +148,40 @@ async function onLogout() {
           <span class="inline-block w-7 h-7 bg-primary text-primary-content rounded mr-2 leading-7 text-center text-sm">N</span>
           Nook 管理端
         </div>
+
         <ul class="menu menu-md p-2 gap-0.5 flex-1">
-          <li v-for="m in menus" :key="m.path">
-            <RouterLink
-              :to="m.path"
-              :class="{ active: activePath.startsWith(m.path) }"
-              class="rounded-md"
-            >
-              <component :is="m.icon" class="w-4 h-4" />
-              <span>{{ m.title }}</span>
-            </RouterLink>
-          </li>
+          <template v-for="m in menus" :key="m.title">
+            <!-- 叶子菜单 -->
+            <li v-if="m.path">
+              <RouterLink :to="m.path" :class="{ active: leafActive(m.path) }" class="rounded-md">
+                <component :is="m.icon" class="w-4 h-4" />
+                <span>{{ m.title }}</span>
+              </RouterLink>
+            </li>
+            <!-- 分组菜单：含当前激活子项时自动展开 -->
+            <li v-else>
+              <details :open="groupActive(m)">
+                <summary class="rounded-md">
+                  <component :is="m.icon" class="w-4 h-4" />
+                  <span>{{ m.title }}</span>
+                </summary>
+                <ul>
+                  <li v-for="c in m.children" :key="c.path">
+                    <RouterLink
+                      :to="c.path!"
+                      :class="{ active: leafActive(c.path) }"
+                      class="rounded-md"
+                    >
+                      <component :is="c.icon" class="w-4 h-4" />
+                      <span>{{ c.title }}</span>
+                    </RouterLink>
+                  </li>
+                </ul>
+              </details>
+            </li>
+          </template>
         </ul>
+
         <div class="p-3 text-xs text-base-content/40 border-t border-base-300">
           v1.0.0-SNAPSHOT
         </div>

@@ -19,6 +19,10 @@
             <groupId>com.nook</groupId>
             <artifactId>nook-spring-boot-starter-security</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-mybatis</artifactId>
+        </dependency>
 
         <!-- 仅引用对方 api 包(约定式边界) -->
         <dependency>
@@ -32,11 +36,6 @@
         <dependency>
             <groupId>com.nook</groupId>
             <artifactId>nook-biz-xray</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
         </dependency>
     </dependencies>
 </project>

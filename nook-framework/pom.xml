@@ -14,8 +14,9 @@
     <artifactId>nook-framework</artifactId>
     <packaging>pom</packaging>
     <description>
-        框架聚合 pom，按职责拆 4 个子模块（参考 RuoYi-Plus 风格）：
-          nook-common                          基础组件: BaseEntity / Result / ErrorCode / BusinessException / HandlerOrder / MyBatis-Plus 配置
+        框架聚合 pom，按职责拆 5 个子模块（参考 RuoYi-Plus 风格）：
+          nook-common                          POJO 基础: Result / ErrorCode / BusinessException / HandlerOrder
+          nook-spring-boot-starter-mybatis     ORM 基础: BaseEntity / MetaObjectHandler / MybatisPlusConfig
           nook-spring-boot-starter-web         Web MVC: GlobalExceptionHandler / FastJson2 / ClientIpResolver
           nook-spring-boot-starter-redis       Redis 客户端 starter (Redisson)
           nook-spring-boot-starter-security    鉴权 starter: sa-token + BCrypt
@@ -24,6 +25,7 @@
 
     <modules>
         <module>nook-common</module>
+        <module>nook-spring-boot-starter-mybatis</module>
         <module>nook-spring-boot-starter-web</module>
         <module>nook-spring-boot-starter-redis</module>
         <module>nook-spring-boot-starter-security</module>

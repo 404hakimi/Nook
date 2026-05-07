@@ -2,7 +2,7 @@ package com.nook.biz.system.entity;
 
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.nook.common.mybatis.entity.BaseEntity;
+import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -21,8 +21,6 @@ public class SystemUser extends BaseEntity {
     private String realName;
 
     private String email;
-
-    private String phone;
 
     /** super_admin / operator / devops */
     private String role;

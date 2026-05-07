@@ -21,6 +21,10 @@
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-mybatis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
             <artifactId>nook-biz-resource</artifactId>
         </dependency>
 
@@ -50,11 +54,6 @@
         <dependency>
             <groupId>com.hierynomus</groupId>
             <artifactId>sshj</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
         </dependency>
     </dependencies>
 

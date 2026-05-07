@@ -9,9 +9,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 扫描包覆盖全部 biz 模块（com.nook 下所有子包）。
  */
 @SpringBootApplication(scanBasePackages = "com.nook")
-public class NookApplication {
+public class NookServerApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(NookApplication.class, args);
+        SpringApplication.run(NookServerApplication.class, args);
     }
 }

@@ -1,4 +1,4 @@
-package com.nook.common.mybatis.handler;
+package com.nook.framework.mybatis.handler;
 
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import org.apache.ibatis.reflection.MetaObject;

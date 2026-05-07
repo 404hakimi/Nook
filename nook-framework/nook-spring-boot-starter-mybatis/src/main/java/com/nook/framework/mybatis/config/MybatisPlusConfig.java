@@ -1,4 +1,4 @@
-package com.nook.common.mybatis.config;
+package com.nook.framework.mybatis.config;
 
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;

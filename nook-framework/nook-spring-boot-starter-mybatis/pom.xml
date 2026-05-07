@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.nook</groupId>
+        <artifactId>nook</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>nook-spring-boot-starter-mybatis</artifactId>
+    <description>
+        MyBatis-Plus starter:
+          - BaseEntity                 实体基类(id + 审计字段)
+          - MetaObjectHandlerImpl      createdAt/updatedAt 自动填充
+          - MybatisPlusConfig          分页、乐观锁拦截器、Mapper 扫描
+        biz 模块依赖此 starter 即可获得 ORM 能力。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-common</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+        </dependency>
+
+        <!-- JDBC 驱动: 运行时由 Spring Boot 数据源配置加载 (com.mysql.cj.jdbc.Driver) -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+    </dependencies>
+</project>

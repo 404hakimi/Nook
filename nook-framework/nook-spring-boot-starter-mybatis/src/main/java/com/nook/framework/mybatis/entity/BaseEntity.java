@@ -1,4 +1,4 @@
-package com.nook.common.mybatis.entity;
+package com.nook.framework.mybatis.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;

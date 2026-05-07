@@ -14,12 +14,18 @@ public class SystemUserVO {
     private String username;
     private String realName;
     private String email;
-    private String phone;
     private String role;
     private Integer status;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastLoginAt;
+
+    private String lastLoginIp;
+
+    private String remark;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime createdAt;
 
     /** 从实体转 VO，password_hash 等字段不会暴露。 */
     public static SystemUserVO from(SystemUser e) {
@@ -31,10 +37,12 @@ public class SystemUserVO {
         v.username = e.getUsername();
         v.realName = e.getRealName();
         v.email = e.getEmail();
-        v.phone = e.getPhone();
         v.role = e.getRole();
         v.status = e.getStatus();
         v.lastLoginAt = e.getLastLoginAt();
+        v.lastLoginIp = e.getLastLoginIp();
+        v.remark = e.getRemark();
+        v.createdAt = e.getCreatedAt();
         return v;
     }
 }

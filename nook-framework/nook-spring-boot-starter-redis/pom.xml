@@ -13,14 +13,28 @@
 
     <artifactId>nook-spring-boot-starter-redis</artifactId>
     <description>
-        Redis starter: 引入 Redisson Spring Boot Starter，自动读取 spring.data.redis.* 创建 RedissonClient。
-        当前无业务代码；后续 RedisTemplate 序列化策略 / 分布式锁封装放在 com.nook.framework.redis 下。
+        Redis starter:
+          - 引入 redisson-spring-boot-starter，自动读取 spring.data.redis.* 创建 RedissonClient
+          - NookRedisAutoConfiguration: 自定义 RedisTemplate 序列化 (Jackson + JavaTime)
+        后续分布式锁封装放 com.nook.framework.redis 下。
     </description>
 
     <dependencies>
+        <!-- nook-common 引入 hutool (NookRedisAutoConfiguration 用 ReflectUtil) -->
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-common</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- LocalDateTime 等 Java 8 时间类型的 Jackson 序列化模块 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
     </dependencies>
 </project>

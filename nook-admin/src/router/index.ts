@@ -18,6 +18,24 @@ const routes: RouteRecordRaw[] = [
         name: 'dashboard',
         component: () => import('@/views/dashboard/Index.vue'),
         meta: { title: '总览' }
+      },
+      {
+        path: 'system/users',
+        name: 'system-users',
+        component: () => import('@/views/system/UserList.vue'),
+        meta: { title: '系统用户' }
+      },
+      {
+        path: 'member/accounts',
+        name: 'member-accounts',
+        component: () => import('@/views/member/AccountList.vue'),
+        meta: { title: '会员账户' }
+      },
+      {
+        path: 'member/logs',
+        name: 'member-logs',
+        component: () => import('@/views/member/OperationLog.vue'),
+        meta: { title: '操作日志' }
       }
     ]
   },
