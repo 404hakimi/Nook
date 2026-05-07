@@ -5,9 +5,8 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.system.constant.SystemErrorCode;
-import com.nook.biz.system.dto.CreateSystemUserDTO;
-import com.nook.biz.system.dto.SystemUserQuery;
-import com.nook.biz.system.dto.UpdateSystemUserDTO;
+import com.nook.biz.system.controller.user.vo.SystemUserPageReqVO;
+import com.nook.biz.system.controller.user.vo.SystemUserSaveReqVO;
 import com.nook.biz.system.entity.SystemUser;
 import com.nook.biz.system.mapper.SystemUserMapper;
 import com.nook.biz.system.service.SystemUserService;
@@ -42,49 +41,50 @@ public class SystemUserServiceImpl implements SystemUserService {
     }
 
     @Override
-    public PageResult<SystemUser> page(SystemUserQuery query) {
+    public PageResult<SystemUser> page(SystemUserPageReqVO reqVO) {
         IPage<SystemUser> result = systemUserMapper.selectPageByQuery(
-                Page.of(query.getPage(), query.getSize()), query);
+                Page.of(reqVO.getPageNo(), reqVO.getPageSize()), reqVO);
         return PageResult.of(result.getTotal(), result.getRecords());
     }
 
     @Override
-    public SystemUser create(CreateSystemUserDTO dto) {
-        if (systemUserMapper.existsByUsername(dto.getUsername())) {
-            throw new BusinessException(SystemErrorCode.USERNAME_EXISTS, dto.getUsername());
+    public SystemUser create(SystemUserSaveReqVO reqVO) {
+        if (systemUserMapper.existsByUsername(reqVO.getUsername())) {
+            throw new BusinessException(SystemErrorCode.USERNAME_EXISTS, reqVO.getUsername());
         }
-        if (StrUtil.isNotBlank(dto.getEmail()) && systemUserMapper.existsByEmail(dto.getEmail())) {
-            throw new BusinessException(SystemErrorCode.EMAIL_EXISTS, dto.getEmail());
+        if (StrUtil.isNotBlank(reqVO.getEmail()) && systemUserMapper.existsByEmail(reqVO.getEmail())) {
+            throw new BusinessException(SystemErrorCode.EMAIL_EXISTS, reqVO.getEmail());
         }
         SystemUser e = new SystemUser();
-        e.setUsername(dto.getUsername());
-        e.setPasswordHash(bCryptPasswordEncoder.encode(dto.getPassword()));
-        e.setRealName(dto.getRealName());
-        e.setEmail(dto.getEmail());
-        e.setRole(dto.getRole());
+        e.setUsername(reqVO.getUsername());
+        e.setPasswordHash(bCryptPasswordEncoder.encode(reqVO.getPassword()));
+        e.setRealName(reqVO.getRealName());
+        e.setEmail(reqVO.getEmail());
+        e.setRole(reqVO.getRole());
         e.setStatus(1);
-        e.setRemark(dto.getRemark());
+        e.setRemark(reqVO.getRemark());
         systemUserMapper.insert(e);
         return e;
     }
 
     @Override
-    public SystemUser update(String id, UpdateSystemUserDTO dto) {
+    public SystemUser update(String id, SystemUserSaveReqVO reqVO) {
         SystemUser exist = systemUserMapper.selectById(id);
         if (ObjectUtil.isNull(exist)) {
             throw new BusinessException(SystemErrorCode.USER_NOT_FOUND);
         }
         // 邮箱发生改动时才查重，避免误命中自己
-        if (StrUtil.isNotBlank(dto.getEmail())
-                && !StrUtil.equals(dto.getEmail(), exist.getEmail())
-                && systemUserMapper.existsByEmailExcludingId(dto.getEmail(), id)) {
-            throw new BusinessException(SystemErrorCode.EMAIL_EXISTS, dto.getEmail());
+        if (StrUtil.isNotBlank(reqVO.getEmail())
+                && !StrUtil.equals(reqVO.getEmail(), exist.getEmail())
+                && systemUserMapper.existsByEmailExcludingId(reqVO.getEmail(), id)) {
+            throw new BusinessException(SystemErrorCode.EMAIL_EXISTS, reqVO.getEmail());
         }
-        exist.setRealName(dto.getRealName());
-        exist.setEmail(dto.getEmail());
-        if (StrUtil.isNotBlank(dto.getRole())) exist.setRole(dto.getRole());
-        if (ObjectUtil.isNotNull(dto.getStatus())) exist.setStatus(dto.getStatus());
-        exist.setRemark(dto.getRemark());
+        // 编辑场景：username / password 字段在此处不生效，由前端不展示 + 校验组解耦
+        exist.setRealName(reqVO.getRealName());
+        exist.setEmail(reqVO.getEmail());
+        if (StrUtil.isNotBlank(reqVO.getRole())) exist.setRole(reqVO.getRole());
+        if (ObjectUtil.isNotNull(reqVO.getStatus())) exist.setStatus(reqVO.getStatus());
+        exist.setRemark(reqVO.getRemark());
         systemUserMapper.updateById(exist);
         return exist;
     }
@@ -98,7 +98,6 @@ public class SystemUserServiceImpl implements SystemUserService {
         if (ObjectUtil.isNull(exist)) {
             throw new BusinessException(SystemErrorCode.USER_NOT_FOUND);
         }
-        // BaseEntity 上的 @TableLogic 让 deleteById 自动转 UPDATE 设 deleted=1
         systemUserMapper.deleteById(id);
     }
 

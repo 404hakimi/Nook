@@ -1,5 +1,6 @@
-package com.nook.biz.system.vo;
+package com.nook.biz.system.controller.auth.vo;
 
+import com.nook.biz.system.controller.user.vo.SystemUserRespVO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -8,11 +9,11 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginVO {
+public class AuthLoginRespVO {
 
     private String token;
 
     private long expiresIn;
 
-    private SystemUserVO user;
+    private SystemUserRespVO user;
 }

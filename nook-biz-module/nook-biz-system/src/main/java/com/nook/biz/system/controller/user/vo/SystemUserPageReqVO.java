@@ -1,14 +1,13 @@
-package com.nook.biz.system.dto;
+package com.nook.biz.system.controller.user.vo;
 
+import com.nook.common.web.request.PageParam;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
-/** 后台用户列表查询参数。 */
+/** 后台用户列表分页查询参数。 */
 @Data
-public class SystemUserQuery {
-
-    private Integer page = 1;
-
-    private Integer size = 20;
+@EqualsAndHashCode(callSuper = true)
+public class SystemUserPageReqVO extends PageParam {
 
     /** 模糊匹配 username / realName / email */
     private String keyword;

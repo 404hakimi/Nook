@@ -2,12 +2,12 @@ package com.nook.biz.system.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.system.constant.SystemErrorCode;
-import com.nook.biz.system.dto.LoginRequest;
+import com.nook.biz.system.controller.auth.vo.AuthLoginReqVO;
+import com.nook.biz.system.controller.auth.vo.AuthLoginRespVO;
+import com.nook.biz.system.convert.SystemUserConvert;
 import com.nook.biz.system.entity.SystemUser;
 import com.nook.biz.system.service.SystemAuthService;
 import com.nook.biz.system.service.SystemUserService;
-import com.nook.biz.system.vo.LoginVO;
-import com.nook.biz.system.vo.SystemUserVO;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.framework.security.stp.StpSystemUtil;
 import lombok.RequiredArgsConstructor;
@@ -24,11 +24,11 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     private final BCryptPasswordEncoder bCryptPasswordEncoder;
 
     @Override
-    public LoginVO login(LoginRequest req, String clientIp) {
-        SystemUser user = systemUserService.findByUsername(req.getUsername());
+    public AuthLoginRespVO login(AuthLoginReqVO reqVO, String clientIp) {
+        SystemUser user = systemUserService.findByUsername(reqVO.getUsername());
         // 用户不存在 / 密码错误统一返回 LOGIN_FAILED，避免账户枚举
-        if (ObjectUtil.isNull(user) || !bCryptPasswordEncoder.matches(req.getPassword(), user.getPasswordHash())) {
-            log.warn("[后台登录失败] username={} ip={}", req.getUsername(), clientIp);
+        if (ObjectUtil.isNull(user) || !bCryptPasswordEncoder.matches(reqVO.getPassword(), user.getPasswordHash())) {
+            log.warn("[后台登录失败] username={} ip={}", reqVO.getUsername(), clientIp);
             throw new BusinessException(SystemErrorCode.LOGIN_FAILED);
         }
         if (ObjectUtil.equal(user.getStatus(), 2)) {
@@ -40,7 +40,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         systemUserService.updateLastLogin(user.getId(), clientIp);
         log.info("[后台登录成功] userId={} username={} ip={}", user.getId(), user.getUsername(), clientIp);
 
-        return new LoginVO(StpSystemUtil.getTokenValue(), StpSystemUtil.getTokenTimeout(), SystemUserVO.from(user));
+        return new AuthLoginRespVO(
+                StpSystemUtil.getTokenValue(),
+                StpSystemUtil.getTokenTimeout(),
+                SystemUserConvert.INSTANCE.convert(user));
     }
 
     @Override

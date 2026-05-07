@@ -5,7 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.system.dto.SystemUserQuery;
+import com.nook.biz.system.controller.user.vo.SystemUserPageReqVO;
 import com.nook.biz.system.entity.SystemUser;
 import org.apache.ibatis.annotations.Mapper;
 
@@ -56,14 +56,14 @@ public interface SystemUserMapper extends BaseMapper<SystemUser> {
     }
 
     /** 列表分页查询；keyword 模糊匹配 username/realName/email。 */
-    default IPage<SystemUser> selectPageByQuery(IPage<SystemUser> page, SystemUserQuery query) {
+    default IPage<SystemUser> selectPageByQuery(IPage<SystemUser> page, SystemUserPageReqVO reqVO) {
         return selectPage(page, Wrappers.<SystemUser>lambdaQuery()
-                .eq(ObjectUtil.isNotNull(query.getStatus()), SystemUser::getStatus, query.getStatus())
-                .eq(StrUtil.isNotBlank(query.getRole()), SystemUser::getRole, query.getRole())
-                .and(StrUtil.isNotBlank(query.getKeyword()), q -> q
-                        .like(SystemUser::getUsername, query.getKeyword())
-                        .or().like(SystemUser::getRealName, query.getKeyword())
-                        .or().like(SystemUser::getEmail, query.getKeyword()))
+                .eq(ObjectUtil.isNotNull(reqVO.getStatus()), SystemUser::getStatus, reqVO.getStatus())
+                .eq(StrUtil.isNotBlank(reqVO.getRole()), SystemUser::getRole, reqVO.getRole())
+                .and(StrUtil.isNotBlank(reqVO.getKeyword()), q -> q
+                        .like(SystemUser::getUsername, reqVO.getKeyword())
+                        .or().like(SystemUser::getRealName, reqVO.getKeyword())
+                        .or().like(SystemUser::getEmail, reqVO.getKeyword()))
                 .orderByDesc(SystemUser::getCreatedAt));
     }
 }

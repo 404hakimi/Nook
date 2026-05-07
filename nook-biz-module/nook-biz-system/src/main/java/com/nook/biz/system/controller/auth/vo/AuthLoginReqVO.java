@@ -1,4 +1,4 @@
-package com.nook.biz.system.dto;
+package com.nook.biz.system.controller.auth.vo;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -6,7 +6,7 @@ import lombok.Data;
 
 /** 后台登录入参。 */
 @Data
-public class LoginRequest {
+public class AuthLoginReqVO {
 
     @NotBlank(message = "用户名不能为空")
     @Size(max = 64, message = "用户名长度不能超过 64")

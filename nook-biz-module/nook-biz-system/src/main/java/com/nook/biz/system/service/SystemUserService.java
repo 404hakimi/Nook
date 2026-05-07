@@ -1,8 +1,7 @@
 package com.nook.biz.system.service;
 
-import com.nook.biz.system.dto.CreateSystemUserDTO;
-import com.nook.biz.system.dto.SystemUserQuery;
-import com.nook.biz.system.dto.UpdateSystemUserDTO;
+import com.nook.biz.system.controller.user.vo.SystemUserPageReqVO;
+import com.nook.biz.system.controller.user.vo.SystemUserSaveReqVO;
 import com.nook.biz.system.entity.SystemUser;
 import com.nook.common.web.response.PageResult;
 
@@ -19,13 +18,13 @@ public interface SystemUserService {
     void updateLastLogin(String id, String loginIp);
 
     /** 分页查询。 */
-    PageResult<SystemUser> page(SystemUserQuery query);
+    PageResult<SystemUser> page(SystemUserPageReqVO reqVO);
 
     /** 新增；用户名重复抛 USERNAME_EXISTS，邮箱重复抛 EMAIL_EXISTS。 */
-    SystemUser create(CreateSystemUserDTO dto);
+    SystemUser create(SystemUserSaveReqVO reqVO);
 
-    /** 更新基础信息；不修改用户名与密码。 */
-    SystemUser update(String id, UpdateSystemUserDTO dto);
+    /** 编辑基础信息；username/password 不在此处改 (密码走 resetPassword)。 */
+    SystemUser update(String id, SystemUserSaveReqVO reqVO);
 
     /** 逻辑删除；不能删除当前登录账号。 */
     void delete(String id, String currentLoginId);

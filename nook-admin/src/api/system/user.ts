@@ -17,8 +17,8 @@ export interface SystemUser {
 }
 
 export interface SystemUserQuery {
-  page?: number
-  size?: number
+  pageNo?: number
+  pageSize?: number
   keyword?: string
   status?: number
   role?: string

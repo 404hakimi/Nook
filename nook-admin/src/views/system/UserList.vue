@@ -19,9 +19,9 @@ const { confirm } = useConfirm()
 const userStore = useUserStore()
 
 // ===== 列表 + 查询 =====
-const query = reactive<Required<Pick<SystemUserQuery, 'page' | 'size'>> & SystemUserQuery>({
-  page: 1,
-  size: 20,
+const query = reactive<Required<Pick<SystemUserQuery, 'pageNo' | 'pageSize'>> & SystemUserQuery>({
+  pageNo: 1,
+  pageSize: 10,
   keyword: '',
   status: undefined,
   role: ''
@@ -29,14 +29,14 @@ const query = reactive<Required<Pick<SystemUserQuery, 'page' | 'size'>> & System
 const list = ref<SystemUser[]>([])
 const total = ref(0)
 const loading = ref(false)
-const totalPages = computed(() => Math.max(1, Math.ceil(total.value / query.size)))
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / query.pageSize)))
 
 async function loadList() {
   loading.value = true
   try {
     const res = await pageSystemUsers({
-      page: query.page,
-      size: query.size,
+      pageNo: query.pageNo,
+      pageSize: query.pageSize,
       keyword: query.keyword || undefined,
       status: query.status,
       role: query.role || undefined
@@ -51,7 +51,7 @@ async function loadList() {
 }
 
 function resetQuery() {
-  query.page = 1
+  query.pageNo = 1
   query.keyword = ''
   query.status = undefined
   query.role = ''
@@ -59,13 +59,13 @@ function resetQuery() {
 }
 
 function onSearch() {
-  query.page = 1
+  query.pageNo = 1
   loadList()
 }
 
 function goPage(p: number) {
   if (p < 1 || p > totalPages.value) return
-  query.page = p
+  query.pageNo = p
   loadList()
 }
 
@@ -285,7 +285,7 @@ onMounted(loadList)
           <div class="text-sm text-base-content/60">共 {{ total }} 条</div>
           <div class="flex items-center gap-2">
             <select
-              v-model="query.size"
+              v-model="query.pageSize"
               class="select select-bordered select-sm"
               @change="onSearch"
             >
@@ -296,16 +296,16 @@ onMounted(loadList)
             <div class="join">
               <button
                 class="join-item btn btn-sm"
-                :disabled="query.page === 1"
-                @click="goPage(query.page - 1)"
+                :disabled="query.pageNo === 1"
+                @click="goPage(query.pageNo - 1)"
               >«</button>
               <button class="join-item btn btn-sm pointer-events-none">
-                {{ query.page }} / {{ totalPages }}
+                {{ query.pageNo }} / {{ totalPages }}
               </button>
               <button
                 class="join-item btn btn-sm"
-                :disabled="query.page >= totalPages"
-                @click="goPage(query.page + 1)"
+                :disabled="query.pageNo >= totalPages"
+                @click="goPage(query.pageNo + 1)"
               >»</button>
             </div>
           </div>

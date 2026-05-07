@@ -1,12 +1,13 @@
-package com.nook.biz.system.controller.admin;
+package com.nook.biz.system.controller.auth;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.system.dto.LoginRequest;
+import com.nook.biz.system.controller.auth.vo.AuthLoginReqVO;
+import com.nook.biz.system.controller.auth.vo.AuthLoginRespVO;
+import com.nook.biz.system.controller.user.vo.SystemUserRespVO;
+import com.nook.biz.system.convert.SystemUserConvert;
 import com.nook.biz.system.entity.SystemUser;
 import com.nook.biz.system.service.SystemAuthService;
 import com.nook.biz.system.service.SystemUserService;
-import com.nook.biz.system.vo.LoginVO;
-import com.nook.biz.system.vo.SystemUserVO;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.Result;
@@ -24,15 +25,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/system/auth")
 @RequiredArgsConstructor
-public class SystemAuthAdminController {
+public class SystemAuthController {
 
     private final SystemAuthService systemAuthService;
     private final SystemUserService systemUserService;
 
     /** 登录，返回 token + 当前用户信息。 */
     @PostMapping("/login")
-    public Result<LoginVO> login(@RequestBody @Valid LoginRequest req, HttpServletRequest httpReq) {
-        return Result.ok(systemAuthService.login(req, ClientIpResolver.resolve(httpReq)));
+    public Result<AuthLoginRespVO> login(@RequestBody @Valid AuthLoginReqVO reqVO, HttpServletRequest httpReq) {
+        return Result.ok(systemAuthService.login(reqVO, ClientIpResolver.resolve(httpReq)));
     }
 
     /** 登出当前 token；幂等。 */
@@ -44,13 +45,12 @@ public class SystemAuthAdminController {
 
     /** 获取当前登录用户信息（前端刷新页面后回填）。 */
     @GetMapping("/me")
-    public Result<SystemUserVO> me() {
-        // SaTokenConfig 已强校验登录态，到这里 getLoginIdAsString 一定有值
+    public Result<SystemUserRespVO> me() {
         SystemUser user = systemUserService.findById(StpSystemUtil.getLoginIdAsString());
         if (ObjectUtil.isNull(user)) {
             // 极端场景：token 还在但用户已被物理删除
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
         }
-        return Result.ok(SystemUserVO.from(user));
+        return Result.ok(SystemUserConvert.INSTANCE.convert(user));
     }
 }

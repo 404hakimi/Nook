@@ -1,4 +1,4 @@
-package com.nook.biz.system.dto;
+package com.nook.biz.system.controller.user.vo;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -6,7 +6,7 @@ import lombok.Data;
 
 /** 重置后台用户密码入参。 */
 @Data
-public class ResetPasswordDTO {
+public class SystemUserUpdatePasswordReqVO {
 
     @NotBlank(message = "新密码不能为空")
     @Size(min = 6, max = 64, message = "密码长度需在 6-64 之间")
