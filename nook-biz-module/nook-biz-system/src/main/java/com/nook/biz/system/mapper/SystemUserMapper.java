@@ -55,6 +55,22 @@ public interface SystemUserMapper extends BaseMapper<SystemUser> {
                 .eq(SystemUser::getId, id));
     }
 
+    /**
+     * 编辑后台用户档案。
+     * realName/email/remark 一律 set(可为 null)——支持把字段"清空"。
+     * role/status 只在非空时写入，避免覆盖现有值。
+     */
+    default int updateProfile(String id, String realName, String email,
+                              String role, Integer status, String remark) {
+        return update(null, Wrappers.<SystemUser>lambdaUpdate()
+                .set(SystemUser::getRealName, realName)
+                .set(SystemUser::getEmail, email)
+                .set(StrUtil.isNotBlank(role), SystemUser::getRole, role)
+                .set(ObjectUtil.isNotNull(status), SystemUser::getStatus, status)
+                .set(SystemUser::getRemark, remark)
+                .eq(SystemUser::getId, id));
+    }
+
     /** 列表分页查询；keyword 模糊匹配 username/realName/email。 */
     default IPage<SystemUser> selectPageByQuery(IPage<SystemUser> page, SystemUserPageReqVO reqVO) {
         return selectPage(page, Wrappers.<SystemUser>lambdaQuery()

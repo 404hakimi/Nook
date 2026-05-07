@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { KeyRound, Pencil, Plus, RefreshCcw, Search, Trash2 } from 'lucide-vue-next'
+import { KeyRound, MoreVertical, Pencil, Plus, RefreshCcw, Search, Trash2 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useUserStore } from '@/stores/user'
@@ -12,7 +12,27 @@ import {
   type SystemUser,
   type SystemUserQuery
 } from '@/api/system/user'
+import { formatDateTime } from '@/utils/date'
+import Select from '@/components/Select.vue'
 import UserFormDialog from './UserFormDialog.vue'
+
+// 筛选/分页选项常量；放到外面便于多页面复用，但这里业务集中、暂不抽
+const STATUS_OPTIONS: { label: string; value: number | undefined }[] = [
+  { label: '全部', value: undefined },
+  { label: '正常', value: 1 },
+  { label: '禁用', value: 2 }
+]
+const ROLE_OPTIONS: { label: string; value: string }[] = [
+  { label: '全部', value: '' },
+  { label: '超级管理员', value: 'super_admin' },
+  { label: '运营', value: 'operator' },
+  { label: '运维', value: 'devops' }
+]
+const PAGE_SIZE_OPTIONS: { label: string; value: number }[] = [
+  { label: '10 条/页', value: 10 },
+  { label: '20 条/页', value: 20 },
+  { label: '50 条/页', value: 50 }
+]
 
 const toast = useToast()
 const { confirm } = useConfirm()
@@ -41,6 +61,14 @@ async function loadList() {
       status: query.status,
       role: query.role || undefined
     })
+    // 删完最后一页的最后一条 → 当前 pageNo 已超出真实总页数；自动回退一页重拉
+    const maxPage = res.total > 0 ? Math.ceil(res.total / query.pageSize) : 1
+    if (query.pageNo > maxPage) {
+      query.pageNo = maxPage
+      loading.value = false
+      await loadList()
+      return
+    }
     list.value = res.records
     total.value = res.total
   } catch {
@@ -73,6 +101,14 @@ function roleLabel(role: string): string {
   return ROLE_LABELS[role] || role
 }
 
+/** DaisyUI dropdown 用 :focus-within 保持展开，点选菜单项后 blur 当前焦点元素让它收起。 */
+function runAndCloseDropdown(fn: () => void) {
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
+  fn()
+}
+
 // ===== 新增/编辑 =====
 const formOpen = ref(false)
 const formMode = ref<'create' | 'edit'>('create')
@@ -90,8 +126,9 @@ function openEdit(u: SystemUser) {
   formOpen.value = true
 }
 
-function onFormSaved() {
-  loadList()
+async function onFormSaved() {
+  // 等列表真的回来了再让用户操作，避免再次点编辑时拿到旧行
+  await loadList()
 }
 
 // ===== 删除 =====
@@ -176,20 +213,11 @@ onMounted(loadList)
           </div>
           <div>
             <label class="label py-0"><span class="label-text">状态</span></label>
-            <select v-model="query.status" class="select select-bordered select-sm w-32">
-              <option :value="undefined">全部</option>
-              <option :value="1">正常</option>
-              <option :value="2">禁用</option>
-            </select>
+            <Select v-model="query.status" :options="STATUS_OPTIONS" width="w-32" />
           </div>
           <div>
             <label class="label py-0"><span class="label-text">角色</span></label>
-            <select v-model="query.role" class="select select-bordered select-sm w-40">
-              <option value="">全部</option>
-              <option value="super_admin">超级管理员</option>
-              <option value="operator">运营</option>
-              <option value="devops">运维</option>
-            </select>
+            <Select v-model="query.role" :options="ROLE_OPTIONS" width="w-40" />
           </div>
           <button class="btn btn-primary btn-sm" @click="onSearch">
             <Search class="w-4 h-4" />搜索
@@ -207,8 +235,13 @@ onMounted(loadList)
 
     <!-- 表格 -->
     <div class="card bg-base-100 shadow-sm">
+      <!--
+        说明：刻意不再外层包 overflow-x-auto，否则 CSS 规范会把 overflow-y 推断为 auto，
+        导致行操作 DaisyUI Dropdown 的菜单被纵向裁剪。后台管理页只面向桌面端，
+        极窄屏由页面级横向滚动兜底。
+      -->
       <div class="card-body p-0">
-        <div class="overflow-x-auto">
+        <div>
           <table class="table table-zebra">
             <thead>
               <tr>
@@ -248,31 +281,40 @@ onMounted(loadList)
                   </span>
                 </td>
                 <td class="text-sm">{{ u.email || '-' }}</td>
-                <td class="text-sm text-base-content/70">{{ u.lastLoginAt || '-' }}</td>
-                <td class="text-sm text-base-content/70">{{ u.createdAt || '-' }}</td>
+                <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(u.lastLoginAt) }}</td>
+                <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(u.createdAt) }}</td>
                 <td>
-                  <div class="flex justify-end gap-1">
-                    <button
-                      class="btn btn-ghost btn-xs"
-                      title="编辑"
-                      @click="openEdit(u)"
-                    >
-                      <Pencil class="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      class="btn btn-ghost btn-xs"
-                      title="重置密码"
-                      @click="openReset(u)"
-                    >
-                      <KeyRound class="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      class="btn btn-ghost btn-xs text-error"
-                      title="删除"
-                      @click="onDelete(u)"
-                    >
-                      <Trash2 class="w-3.5 h-3.5" />
-                    </button>
+                  <div class="flex justify-end">
+                    <div class="dropdown dropdown-end">
+                      <div
+                        tabindex="0"
+                        role="button"
+                        class="btn btn-ghost btn-xs btn-square"
+                        aria-label="更多操作"
+                      >
+                        <MoreVertical class="w-4 h-4" />
+                      </div>
+                      <ul
+                        tabindex="0"
+                        class="dropdown-content menu menu-sm bg-base-100 rounded-box shadow-lg border border-base-200 z-20 w-32 p-1"
+                      >
+                        <li>
+                          <a @click="runAndCloseDropdown(() => openEdit(u))">
+                            <Pencil class="w-4 h-4" />编辑
+                          </a>
+                        </li>
+                        <li>
+                          <a @click="runAndCloseDropdown(() => openReset(u))">
+                            <KeyRound class="w-4 h-4" />重置密码
+                          </a>
+                        </li>
+                        <li>
+                          <a class="text-error" @click="runAndCloseDropdown(() => onDelete(u))">
+                            <Trash2 class="w-4 h-4" />删除
+                          </a>
+                        </li>
+                      </ul>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -284,15 +326,14 @@ onMounted(loadList)
         <div class="flex items-center justify-between p-4 border-t border-base-200">
           <div class="text-sm text-base-content/60">共 {{ total }} 条</div>
           <div class="flex items-center gap-2">
-            <select
+            <Select
               v-model="query.pageSize"
-              class="select select-bordered select-sm"
+              :options="PAGE_SIZE_OPTIONS"
+              width="w-28"
+              align="end"
+              direction="top"
               @change="onSearch"
-            >
-              <option :value="10">10 条/页</option>
-              <option :value="20">20 条/页</option>
-              <option :value="50">50 条/页</option>
-            </select>
+            />
             <div class="join">
               <button
                 class="join-item btn btn-sm"

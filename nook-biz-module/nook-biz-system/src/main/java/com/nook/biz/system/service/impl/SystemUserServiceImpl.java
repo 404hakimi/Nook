@@ -73,20 +73,21 @@ public class SystemUserServiceImpl implements SystemUserService {
         if (ObjectUtil.isNull(exist)) {
             throw new BusinessException(SystemErrorCode.USER_NOT_FOUND);
         }
+        // 空白字符串归一为 null，统一"清空"语义
+        String realName = StrUtil.blankToDefault(reqVO.getRealName(), null);
+        String email = StrUtil.blankToDefault(reqVO.getEmail(), null);
+        String remark = StrUtil.blankToDefault(reqVO.getRemark(), null);
         // 邮箱发生改动时才查重，避免误命中自己
-        if (StrUtil.isNotBlank(reqVO.getEmail())
-                && !StrUtil.equals(reqVO.getEmail(), exist.getEmail())
-                && systemUserMapper.existsByEmailExcludingId(reqVO.getEmail(), id)) {
-            throw new BusinessException(SystemErrorCode.EMAIL_EXISTS, reqVO.getEmail());
+        if (StrUtil.isNotBlank(email)
+                && !StrUtil.equals(email, exist.getEmail())
+                && systemUserMapper.existsByEmailExcludingId(email, id)) {
+            throw new BusinessException(SystemErrorCode.EMAIL_EXISTS, email);
         }
-        // 编辑场景：username / password 字段在此处不生效，由前端不展示 + 校验组解耦
-        exist.setRealName(reqVO.getRealName());
-        exist.setEmail(reqVO.getEmail());
-        if (StrUtil.isNotBlank(reqVO.getRole())) exist.setRole(reqVO.getRole());
-        if (ObjectUtil.isNotNull(reqVO.getStatus())) exist.setStatus(reqVO.getStatus());
-        exist.setRemark(reqVO.getRemark());
-        systemUserMapper.updateById(exist);
-        return exist;
+        // 编辑场景：username / password 字段在此处不生效（前端不展示 + 校验组解耦）；
+        // 走 mapper.updateProfile 显式 set 每个字段，realName/email/remark 可写 null 以支持清空。
+        systemUserMapper.updateProfile(id, realName, email,
+                reqVO.getRole(), reqVO.getStatus(), remark);
+        return systemUserMapper.selectById(id);
     }
 
     @Override

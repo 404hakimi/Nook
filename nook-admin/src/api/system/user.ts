@@ -24,16 +24,15 @@ export interface SystemUserQuery {
   role?: string
 }
 
-export interface CreateSystemUserDTO {
-  username: string
-  password: string
-  realName?: string
-  email?: string
-  role: string
-  remark?: string
-}
-
-export interface UpdateSystemUserDTO {
+/**
+ * 新增/编辑后台用户的统一入参，与后端 SystemUserSaveReqVO 对齐。
+ * 字段是否必填由调用语境决定：
+ *   - createSystemUser: username / password / role 必填(走 @Validated(Create.class))
+ *   - updateSystemUser: 仅传需要修改的字段；username / password 在编辑路径会被后端忽略
+ */
+export interface SystemUserSaveDTO {
+  username?: string
+  password?: string
   realName?: string
   email?: string
   role?: string
@@ -61,11 +60,11 @@ export function getSystemUserDetail(id: string) {
   return request.get<unknown, SystemUser>(`/admin/system/users/${id}`)
 }
 
-export function createSystemUser(dto: CreateSystemUserDTO) {
+export function createSystemUser(dto: SystemUserSaveDTO) {
   return request.post<unknown, SystemUser>('/admin/system/users', dto)
 }
 
-export function updateSystemUser(id: string, dto: UpdateSystemUserDTO) {
+export function updateSystemUser(id: string, dto: SystemUserSaveDTO) {
   return request.put<unknown, SystemUser>(`/admin/system/users/${id}`, dto)
 }
 
