@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-ssr/
+*.log
+.vite/
+.DS_Store
+.env.local
+.env.*.local
+
+# 自动生成
+auto-imports.d.ts
+components.d.ts

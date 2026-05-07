@@ -1,0 +1,35 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://101.200.85.122:35996/nook?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: nWSDjJWE2r3fH8f7!ly8@21
+  data:
+    redis:
+      host: 101.200.85.122
+      port: 6379
+      password: zqwl2024
+      database: 15
+
+sa-token:
+  timeout: 28800
+  is-print: true
+
+nook:
+  xray:
+    grpc-local-port-base: 10085
+  monitor:
+    snapshot-interval-seconds: 300
+
+logging:
+  level:
+    com.nook: DEBUG
+    cn.dev33.satoken: DEBUG
+    com.nook.biz: DEBUG

@@ -1,28 +1,20 @@
-server:
-  port: 8080
-
 spring:
+  profiles:
+    active: dev
   application:
     name: nook
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/nook?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: ${NOOK_DB_USER:root}
-    password: ${NOOK_DB_PASSWORD:}
-  data:
-    redis:
-      host: ${NOOK_REDIS_HOST:127.0.0.1}
-      port: ${NOOK_REDIS_PORT:6379}
-      password: ${NOOK_REDIS_PASSWORD:}
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   type-aliases-package: com.nook.biz.**.entity
   global-config:
     db-config:
-      # 主键策略与 BaseEntity 上的 @TableId 注解保持一致
       id-type: ASSIGN_UUID
-      # 逻辑删除值(实体上加 @TableLogic 才生效)
       logic-delete-field: deleted
       logic-delete-value: 1
       logic-not-delete-value: 0
@@ -33,17 +25,15 @@ mybatis-plus:
     cache-enabled: false
     local-cache-scope: STATEMENT
 
-# Nook 业务自定义配置
-nook:
-  token:
-    member-ttl-seconds: 604800     # 会员令牌 7 天
-    system-ttl-seconds: 7200       # 后台令牌 2 小时
-  xray:
-    grpc-local-port-base: 10085    # SSH 隧道本地端口起始值
-  monitor:
-    snapshot-interval-seconds: 300 # 流量采集间隔 5 分钟
+sa-token:
+  token-name: Authorization
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: simple-uuid
+  is-read-header: true
+  is-read-cookie: false
 
 logging:
   level:
-    com.nook: INFO
     org.springframework: WARN

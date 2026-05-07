@@ -10,7 +10,7 @@
 | `04_business.sql` | business | business_plan, business_cdk, business_recharge, business_order_log |
 | `05_xray.sql` | xray | xray_inbound |
 | `06_monitor.sql` | monitor (含统计) | monitor_traffic_snapshot, monitor_traffic_daily, monitor_server_bw, monitor_ip_health, monitor_alert |
-| `99_seed.sql` | 初始数据 | resource_ip_type 三条种子 |
+| `99_seed.sql` | 初始数据 | resource_ip_type 三条种子 + 默认管理员 admin/admin123 |
 
 ## 现阶段约定
 

@@ -1,11 +1,13 @@
 package com.nook.common.web.exception;
 
+import com.nook.common.web.constant.HandlerOrder;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.response.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
@@ -22,6 +24,7 @@ import java.util.stream.Collectors;
 
 /** 全局异常处理器，把所有 Controller 抛出的异常统一转为 Result。 */
 @Slf4j
+@Order(HandlerOrder.GLOBAL_EXCEPTION)
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
