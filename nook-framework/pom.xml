@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.nook</groupId>
+        <artifactId>nook</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>nook-framework</artifactId>
+    <description>
+        项目级框架配置层，与 nook-common 的边界:
+
+          nook-common    跨项目可复用的轻基础组件 (Result / ErrorCode / BusinessException /
+                         BaseEntity / MetaObjectHandler / MybatisPlusConfig / GlobalExceptionHandler)。
+                         未来抽出独立 jar 也能直接给别的项目用。
+
+          nook-framework 本项目特异性的 Spring 配置与组件:
+                         - com.nook.framework.web      WebMvcConfigurer / CORS / Jackson
+                         - com.nook.framework.security Token 拦截器 / 鉴权过滤器
+                         - com.nook.framework.redis    RedisTemplate 序列化 / 连接池
+                         - com.nook.framework.async    @Async 线程池
+                         - com.nook.framework.knife4j  接口分组 / 文档配置
+                         这些配置依赖项目特定的常量(如 CORS 域名白名单)，不适合放 common。
+
+        biz 模块依赖 nook-framework 即可，通过传递依赖拿到 nook-common + 常用 starter。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-common</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.xiaoymin</groupId>
+            <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+        </dependency>
+    </dependencies>
+</project>

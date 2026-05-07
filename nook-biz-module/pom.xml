@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.nook</groupId>
+        <artifactId>nook</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>nook-biz-module</artifactId>
+    <packaging>pom</packaging>
+    <description>业务模块聚合: 仅作为 modules aggregator，不做依赖管理（依赖管理仍在根 pom）</description>
+
+    <modules>
+        <module>nook-biz-system</module>
+        <module>nook-biz-member</module>
+        <module>nook-biz-resource</module>
+        <module>nook-biz-xray</module>
+        <module>nook-biz-business</module>
+        <module>nook-biz-monitor</module>
+    </modules>
+</project>
