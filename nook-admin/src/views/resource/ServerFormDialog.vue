@@ -53,6 +53,7 @@ const form = reactive({
   panelUsername: 'admin',
   panelPassword: '',
   panelIgnoreTls: 0,
+  backendTimeoutSeconds: 20,
   xrayGrpcHost: '',
   xrayGrpcPort: undefined as number | undefined,
   totalBandwidth: 1000,
@@ -77,6 +78,7 @@ function fill(s: ResourceServer) {
   form.panelUsername = s.panelUsername ?? 'admin'
   form.panelPassword = ''
   form.panelIgnoreTls = s.panelIgnoreTls ?? 0
+  form.backendTimeoutSeconds = s.backendTimeoutSeconds ?? 20
   form.xrayGrpcHost = s.xrayGrpcHost ?? ''
   form.xrayGrpcPort = s.xrayGrpcPort
   form.totalBandwidth = s.totalBandwidth ?? 1000
@@ -99,6 +101,7 @@ function reset() {
   form.panelUsername = 'admin'
   form.panelPassword = ''
   form.panelIgnoreTls = 0
+  form.backendTimeoutSeconds = 20
   form.xrayGrpcHost = ''
   form.xrayGrpcPort = undefined
   form.totalBandwidth = 1000
@@ -145,6 +148,11 @@ function validate(): boolean {
   } else if (form.sshTimeoutSeconds < 5 || form.sshTimeoutSeconds > 300) {
     errors.sshTimeoutSeconds = 'SSH 超时需在 5-300 秒之间'
   }
+  if (form.backendTimeoutSeconds == null || isNaN(form.backendTimeoutSeconds)) {
+    errors.backendTimeoutSeconds = 'Backend 超时不能为空'
+  } else if (form.backendTimeoutSeconds < 5 || form.backendTimeoutSeconds > 120) {
+    errors.backendTimeoutSeconds = 'Backend 超时需在 5-120 秒之间'
+  }
 
   if (props.mode === 'create') {
     if (!form.sshPassword && !form.sshPrivateKey) {
@@ -180,6 +188,7 @@ async function onSubmit() {
       panelUsername: form.panelUsername.trim() || undefined,
       panelPassword: form.panelPassword || undefined,
       panelIgnoreTls: form.panelIgnoreTls,
+      backendTimeoutSeconds: form.backendTimeoutSeconds,
       xrayGrpcHost: form.xrayGrpcHost.trim() || undefined,
       xrayGrpcPort: form.xrayGrpcPort,
       totalBandwidth: form.totalBandwidth,
@@ -331,7 +340,21 @@ function close() {
           />
           <div v-if="isEdit" class="text-xs text-base-content/50 mt-1">backend 类型不可变更（重建一台新服务器）</div>
         </div>
-        <div></div>
+        <div>
+          <label class="label py-1">
+            <span class="label-text">Backend 超时 (秒) <span class="text-error">*</span></span>
+            <span class="label-text-alt text-base-content/50">5-120, 建议 20</span>
+          </label>
+          <input
+            v-model.number="form.backendTimeoutSeconds"
+            type="number"
+            min="5"
+            max="120"
+            class="input input-bordered input-sm w-full"
+            :class="{ 'input-error': errors.backendTimeoutSeconds }"
+          />
+          <div v-if="errors.backendTimeoutSeconds" class="text-error text-xs mt-1">{{ errors.backendTimeoutSeconds }}</div>
+        </div>
         <!-- 3x-ui 字段 -->
         <template v-if="form.backendType === 'threexui'">
           <div class="sm:col-span-2">

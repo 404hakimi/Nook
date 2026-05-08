@@ -57,7 +57,7 @@ public class ThreexUiPanelClient {
         this.baseUrl = trimTrailingSlash(cred.panelBaseUrl());
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .cookieHandler(new CookieManager())
-                .connectTimeout(Duration.ofSeconds(cred.timeoutSecondsOrDefault()))
+                .connectTimeout(Duration.ofSeconds(cred.backendTimeoutSecondsOrDefault()))
                 .followRedirects(HttpClient.Redirect.NORMAL);
         if (cred.panelIgnoreTls()) {
             builder.sslContext(trustAllSslContext());
@@ -70,7 +70,7 @@ public class ThreexUiPanelClient {
         String form = "username=" + URLEncoder.encode(cred.panelUsername(), StandardCharsets.UTF_8)
                 + "&password=" + URLEncoder.encode(cred.panelPassword(), StandardCharsets.UTF_8);
         HttpRequest req = HttpRequest.newBuilder(uri("/login"))
-                .timeout(Duration.ofSeconds(cred.timeoutSecondsOrDefault()))
+                .timeout(Duration.ofSeconds(cred.backendTimeoutSecondsOrDefault()))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString(form))
                 .build();
@@ -209,14 +209,14 @@ public class ThreexUiPanelClient {
 
     private HttpResponse<String> get(String path) {
         return send(HttpRequest.newBuilder(uri(path))
-                .timeout(Duration.ofSeconds(cred.timeoutSecondsOrDefault()))
+                .timeout(Duration.ofSeconds(cred.backendTimeoutSecondsOrDefault()))
                 .GET()
                 .build());
     }
 
     private HttpResponse<String> postJson(String path, String json) {
         return send(HttpRequest.newBuilder(uri(path))
-                .timeout(Duration.ofSeconds(cred.timeoutSecondsOrDefault()))
+                .timeout(Duration.ofSeconds(cred.backendTimeoutSecondsOrDefault()))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))

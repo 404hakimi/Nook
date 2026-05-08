@@ -57,7 +57,7 @@ public interface ResourceServerConvert {
                 .panelIgnoreTls(e.getPanelIgnoreTls() != null && e.getPanelIgnoreTls() == 1)
                 .xrayGrpcHost(e.getXrayGrpcHost())
                 .xrayGrpcPort(e.getXrayGrpcPort())
-                .timeoutSeconds(0) // 走 DTO.timeoutSecondsOrDefault 的 8s 兜底
+                .backendTimeoutSeconds(e.getBackendTimeoutSeconds())
                 .build();
     }
 }

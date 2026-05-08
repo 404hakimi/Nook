@@ -21,6 +21,7 @@ CREATE TABLE `resource_server` (
     `panel_username`   VARCHAR(64)     DEFAULT NULL COMMENT '3x-ui 面板登录名',
     `panel_password`   VARCHAR(255)    DEFAULT NULL COMMENT '3x-ui 面板密码(明文,TODO 加密)',
     `panel_ignore_tls` TINYINT         NOT NULL DEFAULT 0 COMMENT '是否跳过面板 HTTPS 证书校验: 0=否 1=是(自签证书时)',
+    `backend_timeout_seconds` INT      NOT NULL DEFAULT 20 COMMENT 'backend HTTP/gRPC 调用超时(秒)；跨洲建议 20-60',
     `xray_grpc_host`   VARCHAR(128)    DEFAULT NULL COMMENT 'Xray gRPC API 主机；通常 127.0.0.1，需借助 SSH 隧道访问',
     `xray_grpc_port`   INT             DEFAULT NULL COMMENT 'Xray gRPC API 端口(内网/本地)',
     `total_bandwidth`  INT             NOT NULL DEFAULT 1000 COMMENT '总带宽 Mbps',

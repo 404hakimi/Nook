@@ -64,6 +64,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         e.setPanelUsername(StrUtil.blankToDefault(reqVO.getPanelUsername(), null));
         e.setPanelPassword(StrUtil.blankToDefault(reqVO.getPanelPassword(), null));
         e.setPanelIgnoreTls(reqVO.getPanelIgnoreTls() == null ? 0 : reqVO.getPanelIgnoreTls());
+        e.setBackendTimeoutSeconds(reqVO.getBackendTimeoutSeconds() == null ? 20 : reqVO.getBackendTimeoutSeconds());
         e.setXrayGrpcHost(StrUtil.blankToDefault(reqVO.getXrayGrpcHost(), null));
         e.setXrayGrpcPort(reqVO.getXrayGrpcPort());
         e.setTotalBandwidth(reqVO.getTotalBandwidth() == null ? 1000 : reqVO.getTotalBandwidth());
@@ -103,6 +104,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         if (StrUtil.isNotBlank(reqVO.getPanelUsername())) exist.setPanelUsername(reqVO.getPanelUsername());
         if (StrUtil.isNotBlank(reqVO.getPanelPassword())) exist.setPanelPassword(reqVO.getPanelPassword());
         if (ObjectUtil.isNotNull(reqVO.getPanelIgnoreTls())) exist.setPanelIgnoreTls(reqVO.getPanelIgnoreTls());
+        if (ObjectUtil.isNotNull(reqVO.getBackendTimeoutSeconds())) exist.setBackendTimeoutSeconds(reqVO.getBackendTimeoutSeconds());
         if (StrUtil.isNotBlank(reqVO.getXrayGrpcHost())) exist.setXrayGrpcHost(reqVO.getXrayGrpcHost());
         if (ObjectUtil.isNotNull(reqVO.getXrayGrpcPort())) exist.setXrayGrpcPort(reqVO.getXrayGrpcPort());
         if (ObjectUtil.isNotNull(reqVO.getTotalBandwidth())) exist.setTotalBandwidth(reqVO.getTotalBandwidth());

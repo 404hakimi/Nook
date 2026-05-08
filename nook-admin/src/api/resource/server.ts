@@ -17,6 +17,8 @@ export interface ResourceServer {
   panelPasswordConfigured?: boolean
   /** 0=否 1=是 */
   panelIgnoreTls?: number
+  /** backend HTTP/gRPC 调用超时(秒)；20 较合理，跨洲可调到 60 */
+  backendTimeoutSeconds?: number
   xrayGrpcHost?: string
   xrayGrpcPort?: number
   totalBandwidth?: number
@@ -54,6 +56,7 @@ export interface ResourceServerSaveDTO {
   panelPassword?: string
   /** 0=否 1=是 */
   panelIgnoreTls?: number
+  backendTimeoutSeconds?: number
   xrayGrpcHost?: string
   xrayGrpcPort?: number
   totalBandwidth?: number

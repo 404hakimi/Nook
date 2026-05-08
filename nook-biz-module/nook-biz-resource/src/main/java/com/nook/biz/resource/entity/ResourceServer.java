@@ -39,6 +39,9 @@ public class ResourceServer extends BaseEntity {
     /** 0=否 1=是；自签证书时设 1 */
     private Integer panelIgnoreTls;
 
+    /** backend HTTP/gRPC 调用超时(秒)；建议 20-60 */
+    private Integer backendTimeoutSeconds;
+
     private String xrayGrpcHost;
 
     private Integer xrayGrpcPort;

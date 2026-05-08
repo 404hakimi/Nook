@@ -28,6 +28,7 @@ public class ResourceServerRespVO {
     /** 是否已配置面板密码 */
     private Boolean panelPasswordConfigured;
     private Integer panelIgnoreTls;
+    private Integer backendTimeoutSeconds;
 
     private String xrayGrpcHost;
     private Integer xrayGrpcPort;

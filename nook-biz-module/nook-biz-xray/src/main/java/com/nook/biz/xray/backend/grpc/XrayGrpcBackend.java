@@ -87,7 +87,7 @@ public class XrayGrpcBackend implements XrayBackend, AutoCloseable {
     public void verifyConnectivity() {
         ConnectivityState state = channel.getState(true);
         long deadlineNs = System.nanoTime()
-                + TimeUnit.SECONDS.toNanos(cred.timeoutSecondsOrDefault());
+                + TimeUnit.SECONDS.toNanos(cred.backendTimeoutSecondsOrDefault());
         while (state != ConnectivityState.READY && System.nanoTime() < deadlineNs) {
             try {
                 Thread.sleep(100);

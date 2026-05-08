@@ -63,6 +63,15 @@ public class ResourceServerSaveReqVO {
     /** 0=否 1=是 */
     private Integer panelIgnoreTls;
 
+    /**
+     * backend HTTP/gRPC 调用超时(秒)。Create 必填；Update 可空表示不改。
+     * 5-120 范围：跨洲 HTTPS+TLS 握手 + login + listInbounds 一连串，建议 20-60。
+     */
+    @NotNull(message = "Backend 超时不能为空", groups = Create.class)
+    @Min(value = 5, message = "Backend 超时最小 5 秒")
+    @Max(value = 120, message = "Backend 超时最大 120 秒")
+    private Integer backendTimeoutSeconds;
+
     @Size(max = 128)
     private String xrayGrpcHost;
 

@@ -38,10 +38,11 @@ public record ServerCredentialDTO(
         Integer xrayGrpcPort,
         String xrayGrpcAuthToken,
 
-        int timeoutSeconds
+        /** backend HTTP/gRPC 调用超时(秒)；0/null 走兜底 */
+        Integer backendTimeoutSeconds
 ) {
-    /** 默认 8s 起步；调用方传 ≤0 时兜底。 */
-    public int timeoutSecondsOrDefault() {
-        return timeoutSeconds <= 0 ? 8 : timeoutSeconds;
+    /** 默认 20s 起步；HTTP/TLS 跨洲常态 5-15s，给 20s 余量。 */
+    public int backendTimeoutSecondsOrDefault() {
+        return (backendTimeoutSeconds == null || backendTimeoutSeconds <= 0) ? 20 : backendTimeoutSeconds;
     }
 }
