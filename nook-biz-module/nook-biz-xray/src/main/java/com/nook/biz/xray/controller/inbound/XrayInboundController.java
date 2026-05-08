@@ -35,39 +35,46 @@ public class XrayInboundController {
 
     private final XrayInboundService xrayInboundService;
 
+    /** 分页列 client 配置；过滤条件见 PageReqVO。 */
     @GetMapping
     public Result<PageResult<XrayInboundRespVO>> page(@ModelAttribute XrayInboundPageReqVO reqVO) {
         return Result.ok(XrayInboundConvert.INSTANCE.convertPage(xrayInboundService.page(reqVO)));
     }
 
+    /** 详情；同样会被 mask UUID。 */
     @GetMapping("/{id}")
     public Result<XrayInboundRespVO> detail(@PathVariable @NotBlank String id) {
         return Result.ok(XrayInboundConvert.INSTANCE.convert(xrayInboundService.findById(id)));
     }
 
+    /** 手动开通；远端 backend.addClient 成功后才落 DB。重复 (memberId, ipId) 抛 CLIENT_DUPLICATE。 */
     @PostMapping("/provision")
     public Result<XrayInboundRespVO> provision(@RequestBody @Valid XrayInboundProvisionReqVO reqVO) {
         XrayInbound e = xrayInboundService.provision(reqVO);
         return Result.ok(XrayInboundConvert.INSTANCE.convert(e));
     }
 
+    /** 吊销；远端先删 client 再软删 DB；远端 CLIENT_NOT_FOUND 视为成功(目标状态本就是没了)。 */
     @DeleteMapping("/{id}")
     public Result<Void> revoke(@PathVariable @NotBlank String id) {
         xrayInboundService.revoke(id);
         return Result.ok();
     }
 
+    /** 轮换协议密钥；del→add→update DB 三步，中途失败会标 status=3 待 reconciler 修复。 */
     @PostMapping("/{id}/rotate")
     public Result<XrayInboundRespVO> rotate(@PathVariable @NotBlank String id) {
         return Result.ok(XrayInboundConvert.INSTANCE.convert(xrayInboundService.rotate(id)));
     }
 
+    /** 实时流量与配额(从 backend 拉，不读 DB)。 */
     @GetMapping("/{id}/traffic")
     public Result<XrayInboundTrafficRespVO> traffic(@PathVariable @NotBlank String id) {
         XrayInbound e = xrayInboundService.findById(id);
         return Result.ok(XrayInboundConvert.INSTANCE.toTrafficVO(e, xrayInboundService.getTraffic(id)));
     }
 
+    /** 把累计上下行计数清零；不影响 client 本身。 */
     @PostMapping("/{id}/reset-traffic")
     public Result<Void> resetTraffic(@PathVariable @NotBlank String id) {
         xrayInboundService.resetTraffic(id);

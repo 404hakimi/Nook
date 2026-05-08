@@ -19,6 +19,8 @@ public enum XrayErrorCode implements ErrorCode {
     CLIENT_NOT_FOUND(6008, "client %s 不存在"),
     CLIENT_DUPLICATE(6009, "client %s 已存在"),
     GRPC_NOT_IMPLEMENTED(6010, "gRPC backend 该操作未实现: %s"),
+    /** xray_inbound DB 行不存在；与 CLIENT_NOT_FOUND(远端 client 不存在)区分开 */
+    INBOUND_ENTITY_NOT_FOUND(6011, "xray_inbound 行 %s 不存在"),
     ;
 
     private final int code;

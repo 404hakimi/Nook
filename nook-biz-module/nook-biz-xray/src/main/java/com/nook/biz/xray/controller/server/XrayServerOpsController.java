@@ -34,7 +34,7 @@ public class XrayServerOpsController {
     private final ResourceServerApi resourceServerApi;
     private final SshExecutor sshExecutor;
 
-    /** 探活：调 backend.verifyConnectivity；成功返回耗时，失败返回 success=false + 错误描述。 */
+    /** 探活：调 backend.verifyConnectivity；任何异常都包成 success=false 返回，前端"测试连通性"按钮交互上必须有结构化结果。 */
     @PostMapping("/{id}/test")
     public Result<ConnectivityTestRespVO> testConnectivity(@PathVariable @NotBlank String id) {
         ConnectivityTestRespVO vo = new ConnectivityTestRespVO();
@@ -45,9 +45,13 @@ public class XrayServerOpsController {
             vo.setSuccess(true);
             vo.setElapsedMs(elapsed);
         } catch (BusinessException be) {
-            // 业务异常以友好结构返回，不再走 GlobalExceptionHandler
             vo.setSuccess(false);
             vo.setError(be.getMessage());
+        } catch (Exception e) {
+            // 非预期异常(NPE 之类)也要给前端友好响应——本接口语义就是"探活"，
+            // 只要没探通都视为"失败"，不让用户看到 500
+            vo.setSuccess(false);
+            vo.setError("探活异常: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
         return Result.ok(vo);
     }

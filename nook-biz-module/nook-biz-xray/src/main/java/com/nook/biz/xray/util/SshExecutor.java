@@ -25,7 +25,8 @@ import java.util.concurrent.TimeUnit;
  * 需要自己用 GenericObjectPool 之类包，先不做)。
  *
  * <p><b>安全：</b>使用 {@link PromiscuousVerifier}(接受任何 host key)，**仅适合受控环境**。
- * 生产应该改为 known_hosts/指纹白名单——TODO，等批量上量后做。
+ * 生产应改为 known_hosts/指纹白名单。
+ * TODO(@team, 2026-06-30): 接 known_hosts 校验，给 resource_server 加 ssh_host_fingerprint 字段。
  */
 @Slf4j
 @Component
@@ -79,7 +80,9 @@ public class SshExecutor {
                         ? ssh.loadKeys(keyMaterial, cred.sshPrivateKeyPassphrase())
                         : ssh.loadKeys(keyMaterial);
             } else {
-                // 视为内联 PEM：sshj 没有 loadKeys(String pem) 重载，写到临时文件
+                // 视为内联 PEM：sshj 没有 loadKeys(String pem) 重载，写到临时文件再 load。
+                // TODO(@team, 2026-06-30): JVM kill 时 deleteOnExit 不生效；
+                // 应在 try-finally 里 Files.deleteIfExists 显式删，并设 600 权限(setPosixFilePermissions)
                 Path tmp = Files.createTempFile("nook-ssh-", ".pem");
                 tmp.toFile().deleteOnExit();
                 Files.writeString(tmp, keyMaterial, StandardCharsets.UTF_8);

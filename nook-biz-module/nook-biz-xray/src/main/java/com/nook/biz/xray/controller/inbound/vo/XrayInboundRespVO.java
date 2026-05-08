@@ -18,7 +18,11 @@ public class XrayInboundRespVO {
     private String transport;
     private String listenIp;
     private Integer listenPort;
-    /** 协议密钥仅对 super_admin / 排查现场可见；普通运营列表里前端可隐藏 */
+    /**
+     * 协议密钥；属敏感字段(规范 §11)。
+     * list 页走 mask(前 8 + *** + 后 8)避免在表格里大面积曝光；detail 页应直接读 entity 拿明文回填编辑表单。
+     * 当前 controller 的 list / detail 都用同一份 RespVO，统一 mask；明文取值通过专门的 secret-reveal 接口暴露(后续做)。
+     */
     private String clientUuid;
     private String clientEmail;
     private Integer status;

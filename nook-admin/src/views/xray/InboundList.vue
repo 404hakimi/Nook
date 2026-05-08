@@ -12,6 +12,7 @@ import {
   type XrayInbound,
   type XrayInboundQuery
 } from '@/api/xray/inbound'
+import { pageServers, type ResourceServer } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import Select from '@/components/Select.vue'
 import InboundProvisionDialog from './InboundProvisionDialog.vue'
@@ -52,6 +53,25 @@ const list = ref<XrayInbound[]>([])
 const total = ref(0)
 const loading = ref(false)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / query.pageSize)))
+
+// serverId → 服务器名/host 缓存；进入页面时拉一次，便于把 inbound 行里的裸 UUID 翻译成可读
+const serverMap = ref<Record<string, ResourceServer>>({})
+async function loadServerMap() {
+  try {
+    // 服务器总数有限，一把拉 200 条够用
+    const res = await pageServers({ pageNo: 1, pageSize: 200 })
+    serverMap.value = Object.fromEntries(res.records.map((s) => [s.id, s]))
+  } catch {
+    /* 拉不到不影响主流程，列表会回落到显示原始 ID */
+  }
+}
+function serverLabel(id: string): string {
+  const s = serverMap.value[id]
+  return s ? s.name : id.slice(0, 8) + '…'
+}
+function serverHost(id: string): string {
+  return serverMap.value[id]?.host ?? ''
+}
 
 async function loadList() {
   loading.value = true
@@ -172,7 +192,11 @@ function runAndCloseDropdown(fn: () => void) {
   fn()
 }
 
-onMounted(loadList)
+onMounted(() => {
+  // 并发拉服务器映射 + inbound 列表，二者无依赖
+  loadServerMap()
+  loadList()
+})
 </script>
 
 <template>
@@ -256,7 +280,12 @@ onMounted(loadList)
                 <td>
                   <span class="badge badge-outline badge-sm">{{ e.protocol }}</span>
                 </td>
-                <td class="font-mono text-xs">{{ e.serverId }}</td>
+                <td>
+                  <div class="flex flex-col">
+                    <span class="text-sm" :title="e.serverId">{{ serverLabel(e.serverId) }}</span>
+                    <span v-if="serverHost(e.serverId)" class="font-mono text-xs text-base-content/50">{{ serverHost(e.serverId) }}</span>
+                  </div>
+                </td>
                 <td class="font-mono text-xs">{{ e.externalInboundRef }}</td>
                 <td class="font-mono text-xs">{{ e.memberUserId }}</td>
                 <td class="font-mono text-xs">{{ e.ipId }}</td>

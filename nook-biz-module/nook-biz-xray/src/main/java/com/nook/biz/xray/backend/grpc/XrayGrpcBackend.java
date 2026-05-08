@@ -80,8 +80,10 @@ public class XrayGrpcBackend implements XrayBackend, AutoCloseable {
     }
 
     /**
-     * 触发 channel 主动建连并等待 READY 状态——没有真正发 RPC 也能粗略验通信。
-     * 这是 best-effort：到达 READY 仅证明 TCP/TLS 通了，不证明对端是 Xray，需要等 RPC 实现后改成调一次 GetSysStats 之类。
+     * 触发 channel 主动建连并等待 READY；best-effort 探活。
+     * READY 仅证明 TCP/TLS 通了，不证明对端是 Xray。
+     * TODO(@team, 2026-06-30): proto 接入后改成调一次轻量 RPC 再判定，
+     * 同时把 100ms 忙轮询换成 channel.notifyWhenStateChanged 回调。
      */
     @Override
     public void verifyConnectivity() {

@@ -127,7 +127,9 @@ public class ThreexUiBackend implements XrayBackend {
             case "trojan" -> c.put("password", secret);
             case "shadowsocks", "ss" -> {
                 c.put("password", secret);
-                c.put("method", "aes-256-gcm"); // 默认值，调用方需要自己改可后续扩 spec
+                // TODO(@team, 2026-06-30): SS 加密 method 暂硬编码 aes-256-gcm，
+                // 真上 SS 时给 XrayClientSpec 加 method 字段并在此读取
+                c.put("method", "aes-256-gcm");
             }
             default -> throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
                     cred.serverId(), "未支持的协议: " + protocol);

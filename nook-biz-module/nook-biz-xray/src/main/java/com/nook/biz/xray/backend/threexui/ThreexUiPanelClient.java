@@ -185,7 +185,10 @@ public class ThreexUiPanelClient {
 
     // ===== HTTP / 鉴权基础 =====
 
-    /** 包一层：第一次没 login 先 login；操作返回非 JSON / 提示登录失效时重 login 一次再重试。 */
+    /**
+     * 第一次没 login 先 login；响应像是会话失效就重 login 一次再重试。
+     * <p>三类失效信号都判：HTTP 401/403、HTML 响应体(被重定向到登录页)、JSON success=false 且 msg 含 login 关键字。
+     */
     private JSONObject call(java.util.function.Supplier<HttpResponse<String>> action) {
         if (!loggedIn.get()) login();
         HttpResponse<String> resp = action.get();
@@ -199,12 +202,23 @@ public class ThreexUiPanelClient {
     }
 
     private static boolean looksLikeAuthLost(HttpResponse<String> resp) {
-        // 401 很直接；HTML 通常意味着被重定向到登录页(我们 followRedirect=NORMAL 已经被吃掉，但部分版本直出 200+HTML)
         if (resp.statusCode() == 401 || resp.statusCode() == 403) return true;
         String body = resp.body();
         if (StrUtil.isBlank(body)) return false;
+        // 检 HTML——3x-ui 会话失效偶尔走重定向，followRedirect=NORMAL 之后落到登录页 HTML
         String head = body.length() > 32 ? body.substring(0, 32).trim().toLowerCase() : body.trim().toLowerCase();
-        return head.startsWith("<!doctype") || head.startsWith("<html");
+        if (head.startsWith("<!doctype") || head.startsWith("<html")) return true;
+        // 检 JSON {success:false, msg:"please login first"}——更隐蔽，纯靠 status code/HTML 抓不到
+        try {
+            JSONObject obj = JSON.parseObject(body);
+            if (obj != null && !obj.getBooleanValue("success") && StrUtil.isNotBlank(obj.getString("msg"))) {
+                String lower = obj.getString("msg").toLowerCase();
+                return lower.contains("login") || lower.contains("登录") || lower.contains("unauthorized");
+            }
+        } catch (Exception ignored) {
+            // 不是 JSON 也不是 HTML 直接放行，让上层 parseJson 抛 BACKEND_RESPONSE_INVALID
+        }
+        return false;
     }
 
     private HttpResponse<String> get(String path) {

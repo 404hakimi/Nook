@@ -41,7 +41,8 @@ public class XrayInboundServiceImpl implements XrayInboundService {
     public XrayInbound findById(String id) {
         XrayInbound e = xrayInboundMapper.selectById(id);
         if (ObjectUtil.isNull(e)) {
-            throw new BusinessException(XrayErrorCode.CLIENT_NOT_FOUND, id);
+            // 注意：这里抛的是 INBOUND_ENTITY_NOT_FOUND(DB 行)，与 CLIENT_NOT_FOUND(远端 client)语义不同
+            throw new BusinessException(XrayErrorCode.INBOUND_ENTITY_NOT_FOUND, id);
         }
         return e;
     }
@@ -67,7 +68,8 @@ public class XrayInboundServiceImpl implements XrayInboundService {
 
     @Override
     public XrayInbound provision(XrayInboundProvisionReqVO reqVO) {
-        // 同 (memberUserId, ipId) 唯一；已存在直接抛错
+        // 同 (memberUserId, ipId) 唯一；@TableLogic 让 selectByMemberAndIp 自动跳过软删行，
+        // 所以"先 revoke 再 provision"的复用流程不会撞这个 duplicate 检查
         XrayInbound dup = xrayInboundMapper.selectByMemberAndIp(reqVO.getMemberUserId(), reqVO.getIpId());
         if (ObjectUtil.isNotNull(dup)) {
             throw new BusinessException(XrayErrorCode.CLIENT_DUPLICATE,
@@ -78,7 +80,7 @@ public class XrayInboundServiceImpl implements XrayInboundService {
         XrayBackend backend = xrayBackendFactory.get(cred);
 
         String clientUuid = UUID.randomUUID().toString();
-        // 推荐 email 格式: member_{memberId}_{ipId}; 同时也保证 server 内全局唯一
+        // email 格式 member_{memberId}_{ipId}: 同 server 全局唯一，便于人肉对账与日志检索
         String clientEmail = "member_" + reqVO.getMemberUserId() + "_" + reqVO.getIpId();
 
         XrayClientSpec spec = XrayClientSpec.builder()
@@ -92,13 +94,17 @@ public class XrayInboundServiceImpl implements XrayInboundService {
                 .limitIp(reqVO.getLimitIp() == null ? 0 : reqVO.getLimitIp())
                 .build();
 
-        // 先调远端，成功后再落 DB——失败留一个干净状态
+        // 先调远端：addClient 抛错则没有副作用(DB 也没写)；DB insert 抛错则留下"幽灵 client"——
+        // 远端有 client 但本地无映射。下次 provision 同 (member, ip) 不会撞，但会再造一个；
+        // 真正清理依赖反向 reconciler(列远端 - 减去 DB = 孤儿)，本期未实现。
         backend.addClient(spec);
 
         XrayInbound e = new XrayInbound();
         e.setServerId(reqVO.getServerId());
         e.setIpId(reqVO.getIpId());
         e.setMemberUserId(reqVO.getMemberUserId());
+        // 用当下 cred 的 backendType，与该 server 当前选型保持一致；
+        // server 改 backendType 会让 ServerCredentialChangedEvent 触发缓存失效，旧 row 不会被错路由
         e.setBackendType(cred.backendType());
         e.setExternalInboundRef(reqVO.getExternalInboundRef());
         e.setProtocol(reqVO.getProtocol());
@@ -137,20 +143,29 @@ public class XrayInboundServiceImpl implements XrayInboundService {
         XrayBackend backend = xrayBackendFactory.get(cred);
 
         String newUuid = UUID.randomUUID().toString();
-        // 先 del 旧；远端报 CLIENT_NOT_FOUND 视为已删成功
+        // 先 del 旧；远端报 CLIENT_NOT_FOUND 视为已删成功(目标状态本就是没了)
         try {
             backend.delClient(new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail()));
         } catch (BusinessException be) {
             if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) throw be;
         }
-        // 再 add 新；如果失败这条 inbound 当前没有可用 client，需要 reconciler 修复或重试 rotate
+        // 再 add 新；如果 add 失败，远端此时既没有旧 client 也没有新 client，
+        // 而 DB 里 client_uuid 还指向已被删的旧 UUID——必须把行标 status=3(待同步)
+        // 让 reconciler 介入，否则后续 revoke/getTraffic 都会无脑去拉那个不存在的 UUID
         XrayClientSpec spec = XrayClientSpec.builder()
                 .externalInboundRef(e.getExternalInboundRef())
                 .email(e.getClientEmail())
                 .uuid(newUuid)
                 .protocol(e.getProtocol())
                 .build();
-        backend.addClient(spec);
+        try {
+            backend.addClient(spec);
+        } catch (RuntimeException addErr) {
+            log.error("rotate 在 del→add 中间失败 server={} email={}, 标 status=3 待 reconciler 修复",
+                    e.getServerId(), e.getClientEmail(), addErr);
+            xrayInboundMapper.updateStatus(e.getId(), 3, java.time.LocalDateTime.now());
+            throw addErr;
+        }
 
         xrayInboundMapper.updateClientUuid(e.getId(), newUuid);
         e.setClientUuid(newUuid);
