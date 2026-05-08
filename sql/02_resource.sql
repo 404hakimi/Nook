@@ -35,6 +35,7 @@ CREATE TABLE `resource_ip_type` (
     `name`        VARCHAR(64)     NOT NULL COMMENT '展示名称',
     `description` VARCHAR(255)    DEFAULT NULL COMMENT '描述',
     `sort_order`  INT             NOT NULL DEFAULT 0 COMMENT '排序',
+    `cooling_minutes` INT         NOT NULL DEFAULT 30 COMMENT 'IP 退订后冷却分钟数 (家宽 IP 一般更长)',
     `created_at`  DATETIME        NOT NULL COMMENT '创建时间',
     `updated_at`  DATETIME        NOT NULL COMMENT '更新时间',
     `deleted`     TINYINT         NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0=未删 1=已删',

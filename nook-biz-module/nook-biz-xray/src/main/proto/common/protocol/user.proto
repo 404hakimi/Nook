@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+// xtls/xray-core: common/protocol/user.proto
+// User 是 inbound clients[] 里每条 client 的运行时表达;
+// account 字段用 TypedMessage 包不同协议的 Account proto.
+package xray.common.protocol;
+
+import "common/serial/typed_message.proto";
+
+option java_package = "com.xray.common.protocol";
+option java_multiple_files = true;
+option java_outer_classname = "UserProto";
+
+message User {
+    // 用户级别, Xray policy 按此分级; 默认 0
+    uint32 level = 1;
+    // 邮箱形式的人类可读标识; 用于路由 attrs.user / 流量 stats key 拼接
+    string email = 2;
+    // 协议特定的 Account, 用 TypedMessage 包 vmess.Account / vless.Account / trojan.Account 等
+    xray.common.serial.TypedMessage account = 3;
+}

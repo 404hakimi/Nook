@@ -32,6 +32,12 @@ public class BusinessException extends RuntimeException {
         this.code = errorCode.getCode();
     }
 
+    /** 抛指定错误码 + 格式化参数 + 保留下层 cause；外部依赖异常包装时常用。 */
+    public BusinessException(ErrorCode errorCode, Throwable cause, Object... args) {
+        super(errorCode.format(args), cause);
+        this.code = errorCode.getCode();
+    }
+
     /** 直接给 code+message，兜底场景；业务代码优先使用 ErrorCode 枚举。 */
     public BusinessException(int code, String message) {
         super(message);

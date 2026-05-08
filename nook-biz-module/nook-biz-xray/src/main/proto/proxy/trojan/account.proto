@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+// xtls/xray-core: proxy/trojan/account.proto
+package xray.proxy.trojan;
+
+option java_package = "com.xray.proxy.trojan";
+option java_multiple_files = true;
+option java_outer_classname = "AccountProto";
+
+message Account {
+    // trojan 用密码做认证(等价于其他协议的 UUID)
+    string password = 1;
+}

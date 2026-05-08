@@ -17,17 +17,13 @@ import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
 public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
-    /** 退订冷却默认 30 分钟; 给 SOCKS5 链路、客户端 cache 一些时间释放。 */
-    private static final int DEFAULT_COOLING_MINUTES = 30;
-
-    /** 抢占失败重试次数; 多个会员并发兑换时偶发竞争。 */
+    /** 抢占失败重试次数; SELECT-then-UPDATE 防双卖偶尔会与并发兑换抢同一行, 这是技术常量不是业务参数。 */
     private static final int OCCUPY_RETRY = 2;
 
     private final ResourceIpPoolMapper resourceIpPoolMapper;
@@ -55,19 +51,20 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
         if (resourceIpPoolMapper.selectByIpAddress(reqVO.getIpAddress()) != null) {
             throw new BusinessException(ResourceErrorCode.IP_POOL_IP_DUPLICATE, reqVO.getIpAddress());
         }
+        // status / score / assign_count 在 DB 是 NOT NULL DEFAULT, 上层不传时 MyBatis-Plus 默认策略
+        // 会跳过 null 列让 DB 兜默认值; 业务侧不再 fallback。
         ResourceIpPool e = new ResourceIpPool();
         e.setRegion(reqVO.getRegion());
         e.setIpTypeId(reqVO.getIpTypeId());
         e.setIpAddress(reqVO.getIpAddress());
         e.setSocks5Host(reqVO.getSocks5Host());
         e.setSocks5Port(reqVO.getSocks5Port());
-        e.setSocks5Username(StrUtil.blankToDefault(reqVO.getSocks5Username(), null));
-        e.setSocks5Password(StrUtil.blankToDefault(reqVO.getSocks5Password(), null));
-        e.setStatus(reqVO.getStatus() == null ? 1 : reqVO.getStatus());
-        e.setScore(reqVO.getScore() == null ? BigDecimal.ZERO : reqVO.getScore());
+        e.setSocks5Username(reqVO.getSocks5Username());
+        e.setSocks5Password(reqVO.getSocks5Password());
+        e.setStatus(reqVO.getStatus());
+        e.setScore(reqVO.getScore());
         e.setScamalyticsScore(reqVO.getScamalyticsScore());
         e.setIpqsScore(reqVO.getIpqsScore());
-        e.setAssignCount(0);
         e.setRemark(reqVO.getRemark());
         resourceIpPoolMapper.insert(e);
         return e;
@@ -124,7 +121,7 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
                 candidate.setStatus(2);
                 candidate.setAssignedMemberId(memberUserId);
                 candidate.setAssignedAt(LocalDateTime.now());
-                candidate.setAssignCount((candidate.getAssignCount() == null ? 0 : candidate.getAssignCount()) + 1);
+                candidate.setAssignCount(candidate.getAssignCount() + 1);
                 return candidate;
             }
         }
@@ -134,7 +131,13 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     @Override
     public void releaseToCooling(String id) {
         ResourceIpPool exist = findById(id);
-        resourceIpPoolMapper.markCooling(exist.getId(), LocalDateTime.now().plusMinutes(DEFAULT_COOLING_MINUTES));
+        // 冷却时长按 IP 类型可配 (家宽 IP 通常需要更久); ip_type.cooling_minutes 是 NOT NULL 列
+        ResourceIpType type = resourceIpTypeMapper.selectById(exist.getIpTypeId());
+        if (ObjectUtil.isNull(type) || ObjectUtil.isNull(type.getCoolingMinutes())) {
+            throw new BusinessException(ResourceErrorCode.IP_TYPE_NOT_FOUND, exist.getIpTypeId());
+        }
+        resourceIpPoolMapper.markCooling(exist.getId(),
+                LocalDateTime.now().plusMinutes(type.getCoolingMinutes()));
     }
 
     @Override

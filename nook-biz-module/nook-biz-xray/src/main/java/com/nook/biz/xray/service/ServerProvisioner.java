@@ -4,6 +4,7 @@ import cn.hutool.core.io.resource.ResourceUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.resource.api.ResourceServerApi;
 import com.nook.biz.resource.api.dto.ServerCredentialDTO;
+import com.nook.biz.xray.constant.XrayConstants;
 import com.nook.biz.xray.constant.XrayErrorCode;
 import com.nook.biz.xray.util.SshExecutor;
 import com.nook.common.web.exception.BusinessException;
@@ -68,7 +69,7 @@ public class ServerProvisioner {
                 Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
                 Map.entry("VMESS_PORT", String.valueOf(params.vmessPort)),
                 Map.entry("XRAY_API_PORT", String.valueOf(params.xrayApiPort)),
-                Map.entry("LOG_DIR", StrUtil.blankToDefault(params.logDir, "/var/log/xray")),
+                Map.entry("LOG_DIR", StrUtil.blankToDefault(params.logDir, XrayConstants.REMOTE_LOG_DIR)),
                 Map.entry("INSTALL_UFW", String.valueOf(params.installUfw)),
                 Map.entry("ENABLE_BBR", String.valueOf(params.enableBbr)),
                 Map.entry("TIMEZONE", StrUtil.blankToDefault(params.timezone, "skip")),
@@ -146,15 +147,16 @@ public class ServerProvisioner {
                 default -> priorityFlag = ""; // all
             }
         }
+        String unit = XrayConstants.SYSTEMD_UNIT;
         String composite = String.join("\n",
                 "echo '====[ACTIVE]===='",
-                "systemctl is-active xray 2>/dev/null || true",
+                "systemctl is-active " + unit + " 2>/dev/null || true",
                 "echo '====[VERSION]===='",
                 "xray version 2>/dev/null | head -1 || true",
                 "echo '====[UPTIME]===='",
-                "systemctl show xray -p ActiveEnterTimestamp --value 2>/dev/null || true",
+                "systemctl show " + unit + " -p ActiveEnterTimestamp --value 2>/dev/null || true",
                 "echo '====[LISTEN]===='",
-                "ss -ltn 2>/dev/null | grep -E '(127.0.0.1:" + (cred.xrayGrpcPort() == null ? 0 : cred.xrayGrpcPort()) + " |:443 |:2087 )' || true",
+                "ss -ltn 2>/dev/null | grep -E '(127.0.0.1:" + cred.xrayGrpcPort() + " |:443 |:2087 )' || true",
                 "echo '====[HOSTNAME]===='",
                 "hostname 2>/dev/null || true",
                 "echo '====[KERNEL]===='",
@@ -173,7 +175,7 @@ public class ServerProvisioner {
                 "echo '====[TIMEZONE]===='",
                 "timedatectl show -p Timezone --value 2>/dev/null || date +%Z || true",
                 "echo '====[LOG]===='",
-                "journalctl -u xray " + priorityFlag + " -n " + lines + " --no-pager 2>/dev/null || true"
+                "journalctl -u " + unit + " " + priorityFlag + " -n " + lines + " --no-pager 2>/dev/null || true"
         );
         String out = sshExecutor.exec(cred, composite, 30);
         return XrayServiceStatus.parse(out);
@@ -182,8 +184,10 @@ public class ServerProvisioner {
     /** 重启 Xray 服务。 */
     public String restartXray(String serverId) {
         ServerCredentialDTO cred = resourceServerApi.loadCredential(serverId);
+        String unit = XrayConstants.SYSTEMD_UNIT;
         return sshExecutor.exec(cred,
-                "systemctl restart xray && sleep 2 && systemctl is-active xray && xray version | head -1",
+                "systemctl restart " + unit + " && sleep 2 && systemctl is-active " + unit
+                        + " && xray version | head -1",
                 30);
     }
 

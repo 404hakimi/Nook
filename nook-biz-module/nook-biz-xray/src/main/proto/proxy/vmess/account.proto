@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+// xtls/xray-core: proxy/vmess/account.proto
+package xray.proxy.vmess;
+
+option java_package = "com.xray.proxy.vmess";
+option java_multiple_files = true;
+option java_outer_classname = "AccountProto";
+
+// vmess 协议的安全方式
+enum SecurityType {
+    UNKNOWN           = 0;
+    LEGACY            = 1;
+    AUTO              = 2;
+    AES128_GCM        = 3;
+    CHACHA20_POLY1305 = 4;
+    NONE              = 5;
+    ZERO              = 6;
+}
+
+message SecurityConfig {
+    SecurityType type = 1;
+}
+
+message Account {
+    // UUID
+    string id = 1;
+    // alterId; 现代 Xray vmess 推荐 0 (AEAD 模式)
+    uint32 alter_id = 2;
+    // 客户端默认安全方式; nook 一般留空, 由客户端自选
+    SecurityConfig security_settings = 3;
+    // 测试目的字段, 一般留空
+    string tests_enabled = 4;
+}

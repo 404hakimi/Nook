@@ -39,6 +39,12 @@ public interface XrayInboundMapper extends BaseMapper<XrayInbound> {
                 .eq(XrayInbound::getExternalInboundRef, externalInboundRef));
     }
 
+    /** 列指定 server 下所有 client(reconciler 全量重写 xray.json 用, 不限 inbound tag)。 */
+    default List<XrayInbound> selectByServerId(String serverId) {
+        return selectList(Wrappers.<XrayInbound>lambdaQuery()
+                .eq(XrayInbound::getServerId, serverId));
+    }
+
     /** 更新 status + last_synced_at。 */
     default int updateStatus(String id, Integer status, LocalDateTime syncedAt) {
         return update(null, Wrappers.<XrayInbound>lambdaUpdate()

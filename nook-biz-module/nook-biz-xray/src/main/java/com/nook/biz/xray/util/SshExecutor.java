@@ -35,26 +35,20 @@ import java.util.function.Consumer;
 @Component
 public class SshExecutor {
 
-    /** TCP 建连超时；SSH 握手不应该慢于这个 */
+    /** TCP 建连超时; SSH 握手不应慢于此值。 */
     private static final int CONNECT_TIMEOUT_SECONDS = 10;
-    /** 当 cred.sshTimeoutSeconds 为空(老数据 / 未走表的 ad-hoc 调用)的兜底值 */
-    public static final int FALLBACK_OP_TIMEOUT_SECONDS = 30;
 
     /**
-     * 在远端执行单条命令；命令非 0 退出码会抛 BusinessException(BACKEND_OPERATION_FAILED)。
-     * 返回的字符串 = stdout + (有 stderr 时 + "\n[stderr] " + stderr)。
-     *
-     * <p>超时取自 {@link ServerCredentialDTO#sshTimeoutSeconds()}(由管理端配置)，缺失走 fallback。
-     * <p>慢命令(安装脚本/拉大日志)请用 {@link #exec(ServerCredentialDTO, String, int)} 显式给更长超时。
+     * 在远端执行单条命令; 退出码非 0 抛 BACKEND_OPERATION_FAILED。
+     * 超时取自 {@link ServerCredentialDTO#sshTimeoutSeconds()} (DB NOT NULL, 入库时由管理端设定)。
+     * 慢命令(安装脚本 / 拉大日志)请用 {@link #exec(ServerCredentialDTO, String, int)} 重载显式提高超时。
      */
     public String exec(ServerCredentialDTO cred, String command) {
-        Integer t = cred.sshTimeoutSeconds();
-        return exec(cred, command, (t == null || t <= 0) ? FALLBACK_OP_TIMEOUT_SECONDS : t);
+        return exec(cred, command, cred.sshTimeoutSeconds());
     }
 
     /**
-     * 显式 op 超时的 exec 重载——一键安装、拉日志这种慢命令用。
-     * @param opTimeoutSeconds 单次命令最大耗时(socket read + cmd.join)；建议 60-1200
+     * 显式 op 超时的 exec 重载——一键安装 / 拉日志这种慢命令用; 建议 60-1200 秒。
      */
     public String exec(ServerCredentialDTO cred, String command, int opTimeoutSeconds) {
         if (StrUtil.isBlank(cred.sshHost()) || StrUtil.isBlank(cred.sshUser())) {
@@ -63,7 +57,7 @@ public class SshExecutor {
         if (StrUtil.isBlank(cred.sshPassword()) && StrUtil.isBlank(cred.sshPrivateKey())) {
             throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
         }
-        int opTimeout = opTimeoutSeconds <= 0 ? FALLBACK_OP_TIMEOUT_SECONDS : opTimeoutSeconds;
+        int opTimeout = opTimeoutSeconds;
         try (SSHClient ssh = new SSHClient()) {
             ssh.addHostKeyVerifier(new PromiscuousVerifier());
             ssh.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(CONNECT_TIMEOUT_SECONDS));
@@ -94,7 +88,7 @@ public class SshExecutor {
         if (StrUtil.isBlank(cred.sshPassword()) && StrUtil.isBlank(cred.sshPrivateKey())) {
             throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
         }
-        int opTimeout = opTimeoutSeconds <= 0 ? FALLBACK_OP_TIMEOUT_SECONDS : opTimeoutSeconds;
+        int opTimeout = opTimeoutSeconds;
         try (SSHClient ssh = new SSHClient()) {
             ssh.addHostKeyVerifier(new PromiscuousVerifier());
             ssh.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(CONNECT_TIMEOUT_SECONDS));
@@ -134,7 +128,7 @@ public class SshExecutor {
         if (StrUtil.isBlank(cred.sshHost()) || StrUtil.isBlank(cred.sshUser())) {
             throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
         }
-        int opTimeout = opTimeoutSeconds <= 0 ? FALLBACK_OP_TIMEOUT_SECONDS : opTimeoutSeconds;
+        int opTimeout = opTimeoutSeconds;
         // 走 cat > path 的方式上传; sshj 也有 SFTP, 但 cat 更轻量(不需要 SFTP 子系统)
         // base64 编码避免 shell 转义问题
         String b64 = java.util.Base64.getEncoder().encodeToString(content.getBytes(StandardCharsets.UTF_8));

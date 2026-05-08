@@ -51,22 +51,26 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         if (resourceServerMapper.existsByHost(reqVO.getHost())) {
             throw new BusinessException(ResourceErrorCode.SERVER_HOST_DUPLICATE, reqVO.getHost());
         }
+        // 必填字段由 SaveReqVO @NotNull(Create) + @Validated 在 Controller 层校验过, 这里直接落库;
+        // sshPort / sshUser / sshTimeout / backendTimeout / totalBandwidth / status 等
+        // 在 DB 层是 NOT NULL DEFAULT, 即便 entity 字段为 null MyBatis-Plus 也会被 DB 默认值兜住,
+        // Java 层不再重复填默认值.
         ResourceServer e = new ResourceServer();
         e.setName(reqVO.getName());
         e.setHost(reqVO.getHost());
-        e.setSshPort(reqVO.getSshPort() == null ? 22 : reqVO.getSshPort());
-        e.setSshUser(StrUtil.blankToDefault(reqVO.getSshUser(), "root"));
-        e.setSshPassword(StrUtil.blankToDefault(reqVO.getSshPassword(), null));
-        e.setSshPrivateKey(StrUtil.blankToDefault(reqVO.getSshPrivateKey(), null));
-        e.setSshTimeoutSeconds(reqVO.getSshTimeoutSeconds() == null ? 30 : reqVO.getSshTimeoutSeconds());
-        e.setBackendTimeoutSeconds(reqVO.getBackendTimeoutSeconds() == null ? 20 : reqVO.getBackendTimeoutSeconds());
-        e.setXrayGrpcHost(StrUtil.blankToDefault(reqVO.getXrayGrpcHost(), null));
+        e.setSshPort(reqVO.getSshPort());
+        e.setSshUser(reqVO.getSshUser());
+        e.setSshPassword(reqVO.getSshPassword());
+        e.setSshPrivateKey(reqVO.getSshPrivateKey());
+        e.setSshTimeoutSeconds(reqVO.getSshTimeoutSeconds());
+        e.setBackendTimeoutSeconds(reqVO.getBackendTimeoutSeconds());
+        e.setXrayGrpcHost(reqVO.getXrayGrpcHost());
         e.setXrayGrpcPort(reqVO.getXrayGrpcPort());
-        e.setTotalBandwidth(reqVO.getTotalBandwidth() == null ? 1000 : reqVO.getTotalBandwidth());
+        e.setTotalBandwidth(reqVO.getTotalBandwidth());
         e.setMonthlyTrafficGb(reqVO.getMonthlyTrafficGb());
         e.setIdcProvider(reqVO.getIdcProvider());
         e.setRegion(reqVO.getRegion());
-        e.setStatus(reqVO.getStatus() == null ? 1 : reqVO.getStatus());
+        e.setStatus(reqVO.getStatus());
         e.setRemark(reqVO.getRemark());
         resourceServerMapper.insert(e);
         return e;

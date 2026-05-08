@@ -66,10 +66,16 @@ const loading = ref(false)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / query.pageSize)))
 
 async function loadIpTypes() {
+  // 加载失败不静默 — 错误已被 request 拦截器 toast, 这里再 console.error 帮助定位;
+  // 拉到空数组也提醒一次, 通常是 99_seed.sql 没跑导致 resource_ip_type 表为空
   try {
     ipTypes.value = await listIpTypes()
-  } catch {
-    /* */
+    if (!ipTypes.value.length) {
+      console.warn('[ip-pool] 未拉到任何 IP 类型. 请确认 sql/99_seed.sql 已执行 (resource_ip_type 表至少 3 条)')
+      toast.warning('IP 类型为空, 请运营在数据库中执行 99_seed.sql 初始化')
+    }
+  } catch (e) {
+    console.error('[ip-pool] 加载 IP 类型失败:', e)
   }
 }
 

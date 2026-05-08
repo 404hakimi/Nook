@@ -35,14 +35,18 @@ public interface ResourceServerConvert {
                 StrUtil.isNotBlank(src.getSshPassword()) || StrUtil.isNotBlank(src.getSshPrivateKey()));
     }
 
-    /** 实体 → 跨模块凭据 DTO；带原文 SSH 密码/私钥，仅在 nook 内部传递。 */
+    /**
+     * 实体 → 跨模块凭据 DTO; 带原文 SSH 密码 / 私钥, 仅 nook 内部传递。
+     * resource_server 表的 sshPort/sshUser/sshTimeout/backendTimeout/xrayGrpcPort 都是 NOT NULL,
+     * 这里直接拆箱传值, 不再 fallback (entity 层若出现 null 视为 DB 数据异常)。
+     */
     default ServerCredentialDTO toCredential(ResourceServer e) {
         if (e == null) return null;
         return ServerCredentialDTO.builder()
                 .serverId(e.getId())
                 .sshHost(e.getHost())
-                .sshPort(e.getSshPort() == null ? 22 : e.getSshPort())
-                .sshUser(StrUtil.blankToDefault(e.getSshUser(), "root"))
+                .sshPort(e.getSshPort())
+                .sshUser(e.getSshUser())
                 .sshPassword(e.getSshPassword())
                 .sshPrivateKey(e.getSshPrivateKey())
                 .sshTimeoutSeconds(e.getSshTimeoutSeconds())

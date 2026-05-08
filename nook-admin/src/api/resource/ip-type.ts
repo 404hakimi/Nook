@@ -8,6 +8,8 @@ export interface ResourceIpType {
   name: string
   description?: string
   sortOrder: number
+  /** IP 退订后冷却分钟数; 不同类型可不同 */
+  coolingMinutes: number
 }
 
 export const IP_TYPE_CODE_LABELS: Record<string, string> = {

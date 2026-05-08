@@ -11,9 +11,10 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 /**
- * IP 池新增/编辑统一入参。
- * Create 必填: region / ipTypeId / ipAddress / socks5Host / socks5Port / socks5Username / socks5Password
- * Update 全部可选(传啥改啥); socks5Password 留空 = 保持原值.
+ * IP 池新增 / 编辑统一入参; 字段值完全由前端传入, 后端不再补默认值。
+ * <p>Create 必填: region / ipTypeId / ipAddress / socks5Host / socks5Port / socks5Username /
+ *                 socks5Password / status / score。
+ * <p>Update: 全部可空, 传啥改啥; socks5Password 留空 = 保留原值。
  */
 @Data
 public class ResourceIpPoolSaveReqVO {
@@ -46,9 +47,13 @@ public class ResourceIpPoolSaveReqVO {
     @Size(max = 255)
     private String socks5Password;
 
-    /** 1=available 2=occupied 3=testing 4=blacklisted 5=cooling 6=degraded; null = 默认 1。 */
+    /** 1=available 2=occupied 3=testing 4=blacklisted 5=cooling 6=degraded */
+    @NotNull(message = "状态不能为空", groups = Create.class)
+    @Min(value = 1) @Max(value = 6)
     private Integer status;
 
+    /** 综合评分 0-100, 越高优先派发。 */
+    @NotNull(message = "评分不能为空", groups = Create.class)
     private BigDecimal score;
 
     private Integer scamalyticsScore;

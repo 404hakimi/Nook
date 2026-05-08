@@ -209,8 +209,12 @@ function onIpAddressBlur() {
             v-model="form.ipTypeId"
             :options="ipTypeOptions"
             :class="{ 'select-error': errors.ipTypeId }"
+            placeholder="请选择"
           />
-          <div v-if="errors.ipTypeId" class="text-error text-xs mt-1">{{ errors.ipTypeId }}</div>
+          <div v-if="!ipTypeOptions.length" class="text-warning text-xs mt-1">
+            未找到 IP 类型 — 请先在数据库执行 sql/99_seed.sql 初始化 resource_ip_type
+          </div>
+          <div v-else-if="errors.ipTypeId" class="text-error text-xs mt-1">{{ errors.ipTypeId }}</div>
         </div>
         <div class="sm:col-span-2">
           <label class="label py-1"><span class="label-text">IP 地址 <span class="text-error">*</span></span></label>

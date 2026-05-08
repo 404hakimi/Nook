@@ -23,10 +23,10 @@ public class XrayInbound extends BaseEntity {
 
     private String memberUserId;
 
-    /** Xray inbound 的 tag, 通常 "vmess-in" */
+    /** Xray 远端 inbound 的 tag, 协议无关 */
     private String externalInboundRef;
 
-    /** vless / vmess / trojan / shadowsocks */
+    /** 协议编码: vmess / vless / trojan / shadowsocks; 与 XrayProtocol 枚举对齐 */
     private String protocol;
 
     private String transport;

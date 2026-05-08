@@ -18,6 +18,7 @@ import com.nook.biz.xray.controller.inbound.vo.XrayInboundProvisionReqVO;
 import com.nook.biz.xray.controller.inbound.vo.XrayInboundUpdateReqVO;
 import com.nook.biz.xray.entity.XrayInbound;
 import com.nook.biz.xray.mapper.XrayInboundMapper;
+import com.nook.biz.xray.service.XrayConfigReconciler;
 import com.nook.biz.xray.service.XrayInboundService;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
@@ -37,6 +38,7 @@ public class XrayInboundServiceImpl implements XrayInboundService {
     private final XrayInboundMapper xrayInboundMapper;
     private final XrayBackendFactory xrayBackendFactory;
     private final ResourceServerApi resourceServerApi;
+    private final XrayConfigReconciler xrayConfigReconciler;
 
     @Override
     public XrayInbound findById(String id) {
@@ -114,6 +116,10 @@ public class XrayInboundServiceImpl implements XrayInboundService {
         e.setStatus(1);
         e.setLastSyncedAt(LocalDateTime.now());
         xrayInboundMapper.insert(e);
+
+        // 运行时 user 已通过 gRPC 添加; 这里把出站/路由刷盘并 reload, 让流量真的走对应 socks5 + 重启后仍生效。
+        // 失败抛出由全局拦截器返回前端 (user 已在 xray 运行时存在但未绑定出站, 由后续巡检修复)。
+        xrayConfigReconciler.reconcile(cred);
         return e;
     }
 
@@ -132,6 +138,14 @@ public class XrayInboundServiceImpl implements XrayInboundService {
             log.warn("远端 client 已不存在，仅做 DB 软删: serverId={} email={}", e.getServerId(), e.getClientEmail());
         }
         xrayInboundMapper.deleteById(e.getId());
+        // 重写 xray.json 清理该 user 对应的 outbound + 路由 rule;
+        // user 已被 gRPC 删, reconcile 仅是清场, 失败仅 warn 不抛 — 留给后续巡检兜底, 不影响 revoke 主语义。
+        try {
+            xrayConfigReconciler.reconcile(cred);
+        } catch (RuntimeException reconErr) {
+            log.warn("[revoke] reconcile 失败 server={} email={}, outbound/rule 残留",
+                    e.getServerId(), e.getClientEmail(), reconErr);
+        }
     }
 
     @Override
