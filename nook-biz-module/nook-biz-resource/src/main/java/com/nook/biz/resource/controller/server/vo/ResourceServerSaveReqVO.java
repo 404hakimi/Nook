@@ -72,6 +72,14 @@ public class ResourceServerSaveReqVO {
     @Max(value = 120, message = "Backend 超时最大 120 秒")
     private Integer backendTimeoutSeconds;
 
+    /**
+     * 月流量额度 GB；可选（部分 VPS 套餐不限流量）。
+     * 上限 1024TB = 1048576 GB，超出认为是误填。
+     */
+    @Min(value = 0, message = "月流量额度不能为负")
+    @Max(value = 1048576, message = "月流量额度上限 1024TB")
+    private Integer monthlyTrafficGb;
+
     @Size(max = 128)
     private String xrayGrpcHost;
 

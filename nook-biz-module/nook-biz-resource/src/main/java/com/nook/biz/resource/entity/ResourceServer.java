@@ -46,7 +46,11 @@ public class ResourceServer extends BaseEntity {
 
     private Integer xrayGrpcPort;
 
+    /** 带宽峰值 Mbps */
     private Integer totalBandwidth;
+
+    /** 月流量额度 GB；null/0 表示不限或未配置 */
+    private Integer monthlyTrafficGb;
 
     private Integer totalIpCount;
 

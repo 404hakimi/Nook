@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
-  MoreVertical,
   Pencil,
   Plus,
   RefreshCcw,
@@ -183,12 +182,6 @@ function openSsh(s: ResourceServer) {
   sshOpen.value = true
 }
 
-// ===== Dropdown 收起 =====
-function runAndCloseDropdown(fn: () => void) {
-  if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-  fn()
-}
-
 onMounted(loadList)
 </script>
 
@@ -252,6 +245,7 @@ onMounted(loadList)
                 <th>Backend</th>
                 <th>区域</th>
                 <th>带宽</th>
+                <th>月流量</th>
                 <th>IP 数</th>
                 <th>状态</th>
                 <th>凭据</th>
@@ -261,12 +255,20 @@ onMounted(loadList)
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="10" class="text-center py-12">
+                <td colspan="11" class="text-center py-12">
                   <span class="loading loading-spinner"></span>
                 </td>
               </tr>
               <tr v-else-if="!list.length">
-                <td colspan="10" class="text-center py-12 text-base-content/40">暂无数据</td>
+                <td colspan="11" class="text-center py-12">
+                  <div class="flex flex-col items-center gap-3 text-base-content/50">
+                    <ServerIcon class="w-10 h-10 opacity-30" />
+                    <div class="text-sm">还没有服务器</div>
+                    <button class="btn btn-primary btn-sm" @click="openCreate">
+                      <Plus class="w-4 h-4" />新增第一台服务器
+                    </button>
+                  </div>
+                </td>
               </tr>
               <tr v-for="s in list" :key="s.id">
                 <td class="whitespace-nowrap">
@@ -280,7 +282,13 @@ onMounted(loadList)
                   <span class="badge badge-outline badge-sm">{{ backendLabel(s.backendType) }}</span>
                 </td>
                 <td class="text-sm">{{ s.region || '-' }}</td>
-                <td class="text-sm">{{ s.totalBandwidth ? s.totalBandwidth + ' Mbps' : '-' }}</td>
+                <td class="text-sm whitespace-nowrap">{{ s.totalBandwidth ? s.totalBandwidth + ' Mbps' : '-' }}</td>
+                <td class="text-sm whitespace-nowrap">
+                  <span v-if="s.monthlyTrafficGb && s.monthlyTrafficGb > 0">
+                    {{ s.monthlyTrafficGb >= 1000 ? (s.monthlyTrafficGb / 1000).toFixed(1) + ' TB' : s.monthlyTrafficGb + ' GB' }}
+                  </span>
+                  <span v-else class="text-base-content/40">不限</span>
+                </td>
                 <td class="text-sm">{{ s.totalIpCount ?? 0 }}</td>
                 <td>
                   <span :class="['badge badge-sm', statusBadge(s.status)]">
@@ -309,41 +317,29 @@ onMounted(loadList)
                 </td>
                 <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(s.createdAt) }}</td>
                 <td>
-                  <div class="flex justify-end items-center gap-1">
+                  <div class="flex justify-end items-center gap-1 flex-wrap">
                     <button
-                      class="btn btn-ghost btn-xs"
+                      class="btn btn-ghost btn-xs gap-1"
                       :disabled="testing[s.id]"
                       title="测试连通性"
                       @click="onTest(s)"
                     >
                       <span v-if="testing[s.id]" class="loading loading-spinner loading-xs"></span>
-                      <Zap v-else class="w-3.5 h-3.5" />
+                      <Zap v-else class="w-3.5 h-3.5 text-warning" />
+                      <span class="text-warning">测速</span>
                     </button>
-                    <div class="dropdown dropdown-end">
-                      <div tabindex="0" role="button" class="btn btn-ghost btn-xs btn-square" aria-label="更多操作">
-                        <MoreVertical class="w-4 h-4" />
-                      </div>
-                      <ul
-                        tabindex="0"
-                        class="dropdown-content menu menu-sm bg-base-100 rounded-box shadow-lg border border-base-200 z-20 w-36 p-1"
-                      >
-                        <li>
-                          <a @click="runAndCloseDropdown(() => openEdit(s))">
-                            <Pencil class="w-4 h-4" />编辑
-                          </a>
-                        </li>
-                        <li>
-                          <a @click="runAndCloseDropdown(() => openSsh(s))">
-                            <TerminalSquare class="w-4 h-4" />SSH 控制台
-                          </a>
-                        </li>
-                        <li>
-                          <a class="text-error" @click="runAndCloseDropdown(() => onDelete(s))">
-                            <Trash2 class="w-4 h-4" />删除
-                          </a>
-                        </li>
-                      </ul>
-                    </div>
+                    <button class="btn btn-ghost btn-xs gap-1" @click="openEdit(s)">
+                      <Pencil class="w-3.5 h-3.5 text-info" />
+                      <span class="text-info">编辑</span>
+                    </button>
+                    <button class="btn btn-ghost btn-xs gap-1" @click="openSsh(s)">
+                      <TerminalSquare class="w-3.5 h-3.5 text-primary" />
+                      <span class="text-primary">SSH</span>
+                    </button>
+                    <button class="btn btn-ghost btn-xs gap-1" @click="onDelete(s)">
+                      <Trash2 class="w-3.5 h-3.5 text-error" />
+                      <span class="text-error">删除</span>
+                    </button>
                   </div>
                 </td>
               </tr>

@@ -68,6 +68,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         e.setXrayGrpcHost(StrUtil.blankToDefault(reqVO.getXrayGrpcHost(), null));
         e.setXrayGrpcPort(reqVO.getXrayGrpcPort());
         e.setTotalBandwidth(reqVO.getTotalBandwidth() == null ? 1000 : reqVO.getTotalBandwidth());
+        e.setMonthlyTrafficGb(reqVO.getMonthlyTrafficGb()); // null = 不限/未配置
         e.setIdcProvider(reqVO.getIdcProvider());
         e.setRegion(reqVO.getRegion());
         e.setStatus(reqVO.getStatus() == null ? 1 : reqVO.getStatus());
@@ -108,6 +109,8 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         if (StrUtil.isNotBlank(reqVO.getXrayGrpcHost())) exist.setXrayGrpcHost(reqVO.getXrayGrpcHost());
         if (ObjectUtil.isNotNull(reqVO.getXrayGrpcPort())) exist.setXrayGrpcPort(reqVO.getXrayGrpcPort());
         if (ObjectUtil.isNotNull(reqVO.getTotalBandwidth())) exist.setTotalBandwidth(reqVO.getTotalBandwidth());
+        // monthlyTrafficGb: null=不改；想清空回"不限"暂只能在 DB 直接改(后续扩接口)
+        if (ObjectUtil.isNotNull(reqVO.getMonthlyTrafficGb())) exist.setMonthlyTrafficGb(reqVO.getMonthlyTrafficGb());
         if (StrUtil.isNotBlank(reqVO.getIdcProvider())) exist.setIdcProvider(reqVO.getIdcProvider());
         if (StrUtil.isNotBlank(reqVO.getRegion())) exist.setRegion(reqVO.getRegion());
         if (ObjectUtil.isNotNull(reqVO.getStatus())) exist.setStatus(reqVO.getStatus());

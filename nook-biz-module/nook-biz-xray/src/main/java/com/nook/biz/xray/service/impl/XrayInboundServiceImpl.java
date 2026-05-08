@@ -15,6 +15,7 @@ import com.nook.biz.xray.backend.dto.XrayInboundInfo;
 import com.nook.biz.xray.constant.XrayErrorCode;
 import com.nook.biz.xray.controller.inbound.vo.XrayInboundPageReqVO;
 import com.nook.biz.xray.controller.inbound.vo.XrayInboundProvisionReqVO;
+import com.nook.biz.xray.controller.inbound.vo.XrayInboundUpdateReqVO;
 import com.nook.biz.xray.entity.XrayInbound;
 import com.nook.biz.xray.mapper.XrayInboundMapper;
 import com.nook.biz.xray.service.XrayInboundService;
@@ -188,6 +189,18 @@ public class XrayInboundServiceImpl implements XrayInboundService {
         XrayBackend backend = xrayBackendFactory.get(cred);
         backend.resetClientTraffic(
                 new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail()));
+    }
+
+    @Override
+    public XrayInbound update(String inboundEntityId, XrayInboundUpdateReqVO reqVO) {
+        XrayInbound e = findById(inboundEntityId);
+        // 只允许改本地元数据；不与 backend 同步——这些字段不影响远端 client 的实际行为
+        if (StrUtil.isNotBlank(reqVO.getListenIp())) e.setListenIp(reqVO.getListenIp());
+        if (ObjectUtil.isNotNull(reqVO.getListenPort())) e.setListenPort(reqVO.getListenPort());
+        if (StrUtil.isNotBlank(reqVO.getTransport())) e.setTransport(reqVO.getTransport());
+        if (ObjectUtil.isNotNull(reqVO.getStatus())) e.setStatus(reqVO.getStatus());
+        xrayInboundMapper.updateById(e);
+        return e;
     }
 
     private XrayBackend backendOf(String serverId) {

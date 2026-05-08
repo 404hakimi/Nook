@@ -4,6 +4,7 @@ import com.nook.biz.xray.backend.dto.XrayClientTraffic;
 import com.nook.biz.xray.backend.dto.XrayInboundInfo;
 import com.nook.biz.xray.controller.inbound.vo.XrayInboundPageReqVO;
 import com.nook.biz.xray.controller.inbound.vo.XrayInboundProvisionReqVO;
+import com.nook.biz.xray.controller.inbound.vo.XrayInboundUpdateReqVO;
 import com.nook.biz.xray.entity.XrayInbound;
 import com.nook.common.web.response.PageResult;
 
@@ -47,4 +48,10 @@ public interface XrayInboundService {
 
     /** 流量计数清零；不动客户端本身。 */
     void resetTraffic(String inboundEntityId);
+
+    /**
+     * 修改 inbound 元数据(本地字段)；不触达远端 backend。
+     * 只覆盖 listenIp / listenPort / transport / status 四个字段；其它字段动不了。
+     */
+    XrayInbound update(String inboundEntityId, XrayInboundUpdateReqVO reqVO);
 }

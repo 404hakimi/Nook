@@ -57,6 +57,7 @@ const form = reactive({
   xrayGrpcHost: '',
   xrayGrpcPort: undefined as number | undefined,
   totalBandwidth: 1000,
+  monthlyTrafficGb: undefined as number | undefined,
   idcProvider: '',
   region: '',
   status: 1,
@@ -82,6 +83,7 @@ function fill(s: ResourceServer) {
   form.xrayGrpcHost = s.xrayGrpcHost ?? ''
   form.xrayGrpcPort = s.xrayGrpcPort
   form.totalBandwidth = s.totalBandwidth ?? 1000
+  form.monthlyTrafficGb = s.monthlyTrafficGb
   form.idcProvider = s.idcProvider ?? ''
   form.region = s.region ?? ''
   form.status = s.status
@@ -105,6 +107,7 @@ function reset() {
   form.xrayGrpcHost = ''
   form.xrayGrpcPort = undefined
   form.totalBandwidth = 1000
+  form.monthlyTrafficGb = undefined
   form.idcProvider = ''
   form.region = ''
   form.status = 1
@@ -192,6 +195,7 @@ async function onSubmit() {
       xrayGrpcHost: form.xrayGrpcHost.trim() || undefined,
       xrayGrpcPort: form.xrayGrpcPort,
       totalBandwidth: form.totalBandwidth,
+      monthlyTrafficGb: form.monthlyTrafficGb,
       idcProvider: form.idcProvider.trim() || undefined,
       region: form.region.trim() || undefined,
       status: form.status,
@@ -266,8 +270,24 @@ function close() {
           <input v-model="form.idcProvider" type="text" placeholder="racknerd / hosthatch / dmit" class="input input-bordered input-sm w-full" />
         </div>
         <div>
-          <label class="label py-1"><span class="label-text">总带宽 (Mbps)</span></label>
+          <label class="label py-1">
+            <span class="label-text">带宽峰值 (Mbps)</span>
+            <span class="label-text-alt text-base-content/50">速率</span>
+          </label>
           <input v-model.number="form.totalBandwidth" type="number" min="0" class="input input-bordered input-sm w-full" />
+        </div>
+        <div>
+          <label class="label py-1">
+            <span class="label-text">月流量额度 (GB)</span>
+            <span class="label-text-alt text-base-content/50">不限留空</span>
+          </label>
+          <input
+            v-model.number="form.monthlyTrafficGb"
+            type="number"
+            min="0"
+            placeholder="例 1000 = 1TB/月"
+            class="input input-bordered input-sm w-full"
+          />
         </div>
         <div>
           <label class="label py-1"><span class="label-text">状态</span></label>

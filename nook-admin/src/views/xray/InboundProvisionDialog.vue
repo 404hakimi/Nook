@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { RefreshCw } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { pageServers, type ResourceServer } from '@/api/resource/server'
 import { listRemoteInbounds, type RemoteInbound } from '@/api/xray/server'
@@ -97,21 +98,27 @@ async function loadServers() {
   }
 }
 
-watch(() => form.serverId, async (id) => {
+watch(() => form.serverId, (id) => {
+  // 改 server 一律清空已选 inbound + 重拉
   remoteInbounds.value = []
   form.externalInboundRef = ''
   form.protocol = ''
   form.listenPort = undefined
   if (!id) return
+  fetchRemoteInbounds()
+})
+
+async function fetchRemoteInbounds() {
+  if (!form.serverId) return
   loadingInbounds.value = true
   try {
-    remoteInbounds.value = await listRemoteInbounds(id)
+    remoteInbounds.value = await listRemoteInbounds(form.serverId)
   } catch {
     /* */
   } finally {
     loadingInbounds.value = false
   }
-})
+}
 
 watch(() => form.externalInboundRef, (ref) => {
   // 选了 inbound 自动回填 protocol + port
@@ -191,13 +198,24 @@ function close() {
             <span class="label-text">远端 Inbound <span class="text-error">*</span></span>
             <span v-if="loadingInbounds" class="label-text-alt"><span class="loading loading-spinner loading-xs"></span> 拉远端</span>
           </label>
-          <Select
-            v-model="form.externalInboundRef"
-            :options="inboundOptions"
-            :disabled="!form.serverId"
-            :error="!!errors.externalInboundRef"
-            placeholder="先选服务器"
-          />
+          <div class="flex gap-2">
+            <Select
+              v-model="form.externalInboundRef"
+              :options="inboundOptions"
+              :disabled="!form.serverId"
+              :error="!!errors.externalInboundRef"
+              placeholder="先选服务器"
+            />
+            <button
+              type="button"
+              class="btn btn-sm btn-ghost btn-square shrink-0"
+              :disabled="!form.serverId || loadingInbounds"
+              title="重新拉取远端 inbound 列表"
+              @click="fetchRemoteInbounds"
+            >
+              <RefreshCw class="w-4 h-4" />
+            </button>
+          </div>
           <div v-if="errors.externalInboundRef" class="text-error text-xs mt-1">{{ errors.externalInboundRef }}</div>
         </div>
 

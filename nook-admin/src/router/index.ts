@@ -41,7 +41,7 @@ const routes: RouteRecordRaw[] = [
         path: 'resource/servers',
         name: 'resource-servers',
         component: () => import('@/views/resource/ServerList.vue'),
-        meta: { title: '服务器与 IP' }
+        meta: { title: '服务器管理' }
       },
       {
         path: 'xray/inbounds',

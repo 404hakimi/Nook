@@ -34,6 +34,7 @@ public class ResourceServerRespVO {
     private Integer xrayGrpcPort;
 
     private Integer totalBandwidth;
+    private Integer monthlyTrafficGb;
     private Integer totalIpCount;
     private String idcProvider;
     private String region;

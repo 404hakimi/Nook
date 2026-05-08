@@ -10,6 +10,7 @@ import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.Result;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,6 +25,7 @@ import java.util.List;
  * 服务器对接相关的运维操作接口；CRUD 在 {@code /admin/resource/servers/**}，
  * 这里仅集中"需要拨远端"的动作：探活、列远端 inbound、SSH 状态/重启等。
  */
+@Slf4j
 @RestController
 @RequestMapping("/admin/xray/servers")
 @RequiredArgsConstructor
@@ -38,20 +40,30 @@ public class XrayServerOpsController {
     @PostMapping("/{id}/test")
     public Result<ConnectivityTestRespVO> testConnectivity(@PathVariable @NotBlank String id) {
         ConnectivityTestRespVO vo = new ConnectivityTestRespVO();
+        long start = System.currentTimeMillis();
+        log.info("[probe] start server={}", id);
         try {
             ServerCredentialDTO cred = resourceServerApi.loadCredential(id);
             vo.setBackendType(cred.backendType());
             long elapsed = xrayInboundService.verifyConnectivity(id);
             vo.setSuccess(true);
             vo.setElapsedMs(elapsed);
+            log.info("[probe] OK server={} backend={} elapsed={}ms", id, cred.backendType(), elapsed);
         } catch (BusinessException be) {
             vo.setSuccess(false);
             vo.setError(be.getMessage());
+            // 业务异常已经是预期失败(凭据不全/远端拒绝/超时)，warn 级别足够；
+            // 故意不打 stacktrace 因为 BusinessException 本就抑制了 fillInStackTrace
+            log.warn("[probe] FAIL server={} code={} msg={} elapsed={}ms",
+                    id, be.getCode(), be.getMessage(), System.currentTimeMillis() - start);
         } catch (Exception e) {
             // 非预期异常(NPE 之类)也要给前端友好响应——本接口语义就是"探活"，
             // 只要没探通都视为"失败"，不让用户看到 500
             vo.setSuccess(false);
             vo.setError("探活异常: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            // 非预期异常打全堆栈，方便定位
+            log.error("[probe] UNEXPECTED server={} elapsed={}ms",
+                    id, System.currentTimeMillis() - start, e);
         }
         return Result.ok(vo);
     }

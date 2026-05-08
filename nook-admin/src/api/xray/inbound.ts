@@ -32,6 +32,14 @@ export interface XrayInboundQuery {
   status?: number
 }
 
+export interface XrayInboundUpdateDTO {
+  listenIp?: string
+  listenPort?: number
+  transport?: string
+  /** 1=运行 2=已停 3=待同步 4=远端缺失 */
+  status?: number
+}
+
 export interface XrayInboundProvisionDTO {
   serverId: string
   ipId: string
@@ -81,6 +89,10 @@ export function getInboundDetail(id: string) {
 
 export function provisionInbound(dto: XrayInboundProvisionDTO) {
   return request.post<unknown, XrayInbound>('/admin/xray/inbounds/provision', dto)
+}
+
+export function updateInbound(id: string, dto: XrayInboundUpdateDTO) {
+  return request.put<unknown, XrayInbound>(`/admin/xray/inbounds/${id}`, dto)
 }
 
 export function revokeInbound(id: string) {

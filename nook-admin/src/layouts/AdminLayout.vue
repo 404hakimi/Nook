@@ -55,7 +55,7 @@ const menus: MenuItem[] = [
     ]
   },
   { path: '/business/plans', title: '套餐与 CDK', icon: Package },
-  { path: '/resource/servers', title: '服务器与 IP', icon: Server },
+  { path: '/resource/servers', title: '服务器管理', icon: Server },
   { path: '/xray/inbounds', title: 'Xray 配置', icon: Cable },
   { path: '/monitor/alerts', title: '监控告警', icon: Bell }
 ]

@@ -4,6 +4,7 @@ import com.nook.biz.xray.controller.inbound.vo.XrayInboundPageReqVO;
 import com.nook.biz.xray.controller.inbound.vo.XrayInboundProvisionReqVO;
 import com.nook.biz.xray.controller.inbound.vo.XrayInboundRespVO;
 import com.nook.biz.xray.controller.inbound.vo.XrayInboundTrafficRespVO;
+import com.nook.biz.xray.controller.inbound.vo.XrayInboundUpdateReqVO;
 import com.nook.biz.xray.convert.XrayInboundConvert;
 import com.nook.biz.xray.entity.XrayInbound;
 import com.nook.biz.xray.service.XrayInboundService;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,6 +54,13 @@ public class XrayInboundController {
     public Result<XrayInboundRespVO> provision(@RequestBody @Valid XrayInboundProvisionReqVO reqVO) {
         XrayInbound e = xrayInboundService.provision(reqVO);
         return Result.ok(XrayInboundConvert.INSTANCE.convert(e));
+    }
+
+    /** 编辑本地元数据(listenIp/listenPort/transport/status)；不触达远端 backend。 */
+    @PutMapping("/{id}")
+    public Result<XrayInboundRespVO> update(@PathVariable @NotBlank String id,
+                                            @RequestBody @Valid XrayInboundUpdateReqVO reqVO) {
+        return Result.ok(XrayInboundConvert.INSTANCE.convert(xrayInboundService.update(id, reqVO)));
     }
 
     /** 吊销；远端先删 client 再软删 DB；远端 CLIENT_NOT_FOUND 视为成功(目标状态本就是没了)。 */

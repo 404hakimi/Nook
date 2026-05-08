@@ -67,6 +67,9 @@ public class ThreexUiPanelClient {
 
     /** 登录 + 缓存 cookie；并发调用幂等。 */
     public void login() {
+        long start = System.currentTimeMillis();
+        log.info("[3xui] login start server={} url={} user={}",
+                cred.serverId(), baseUrl, cred.panelUsername());
         String form = "username=" + URLEncoder.encode(cred.panelUsername(), StandardCharsets.UTF_8)
                 + "&password=" + URLEncoder.encode(cred.panelPassword(), StandardCharsets.UTF_8);
         HttpRequest req = HttpRequest.newBuilder(uri("/login"))
@@ -77,9 +80,13 @@ public class ThreexUiPanelClient {
         HttpResponse<String> resp = send(req);
         JSONObject body = parseJson(resp);
         if (!body.getBooleanValue("success")) {
+            log.warn("[3xui] login REJECT server={} url={} elapsed={}ms msg={}",
+                    cred.serverId(), baseUrl, System.currentTimeMillis() - start, body.getString("msg"));
             throw new BusinessException(XrayErrorCode.BACKEND_AUTH_FAILED, cred.serverId());
         }
         loggedIn.set(true);
+        log.info("[3xui] login OK server={} elapsed={}ms",
+                cred.serverId(), System.currentTimeMillis() - start);
     }
 
     public JSONArray listInbounds() {
@@ -241,9 +248,13 @@ public class ThreexUiPanelClient {
         try {
             return http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (IOException e) {
+            // 把真实 IO 错误打出来——SSL/连接超时/DNS 解析失败/对端 reset 都走这条
+            log.warn("[3xui] HTTP IO 失败 server={} uri={} err={}: {}",
+                    cred.serverId(), req.uri(), e.getClass().getSimpleName(), e.getMessage());
             throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, cred.serverId());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            log.warn("[3xui] HTTP 被中断 server={} uri={}", cred.serverId(), req.uri());
             throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, cred.serverId());
         }
     }

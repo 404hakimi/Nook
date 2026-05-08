@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Activity, MoreVertical, Plus, RefreshCcw, RotateCw, Search, Trash2, Zap } from 'lucide-vue-next'
+import { Activity, Pencil, Plus, RefreshCcw, RotateCw, Search, Trash2, Zap } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import {
@@ -15,6 +15,7 @@ import {
 import { pageServers, type ResourceServer } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import Select from '@/components/Select.vue'
+import InboundEditDialog from './InboundEditDialog.vue'
 import InboundProvisionDialog from './InboundProvisionDialog.vue'
 import InboundTrafficDialog from './InboundTrafficDialog.vue'
 
@@ -132,8 +133,12 @@ async function onProvisioned() {
   await loadList()
 }
 
+// 行级操作 in-flight 标记；防止用户狂点同一行触发多次请求
+const busy = ref<Record<string, boolean>>({})
+
 // ===== 删除 (revoke) =====
 async function onRevoke(e: XrayInbound) {
+  if (busy.value[e.id]) return
   const ok = await confirm({
     title: '吊销客户端',
     message: `确定吊销 ${e.clientEmail}？\n远端 client 会被删除，DB 软删，会员将立即断开。`,
@@ -141,15 +146,19 @@ async function onRevoke(e: XrayInbound) {
     confirmText: '吊销'
   })
   if (!ok) return
+  busy.value[e.id] = true
   try {
     await revokeInbound(e.id)
     toast.success('已吊销')
     loadList()
-  } catch { /* */ }
+  } catch { /* */ } finally {
+    busy.value[e.id] = false
+  }
 }
 
 // ===== 轮换 UUID (rotate) =====
 async function onRotate(e: XrayInbound) {
+  if (busy.value[e.id]) return
   const ok = await confirm({
     title: '轮换密钥',
     message: `重新生成 ${e.clientEmail} 的 UUID/密钥；旧客户端配置立即失效需要更新。`,
@@ -157,15 +166,19 @@ async function onRotate(e: XrayInbound) {
     confirmText: '轮换'
   })
   if (!ok) return
+  busy.value[e.id] = true
   try {
     await rotateInbound(e.id)
     toast.success('已轮换')
     loadList()
-  } catch { /* */ }
+  } catch { /* */ } finally {
+    busy.value[e.id] = false
+  }
 }
 
 // ===== 流量清零 =====
 async function onResetTraffic(e: XrayInbound) {
+  if (busy.value[e.id]) return
   const ok = await confirm({
     title: '清零流量',
     message: `清零 ${e.clientEmail} 的累计上下行计数？`,
@@ -173,10 +186,13 @@ async function onResetTraffic(e: XrayInbound) {
     confirmText: '清零'
   })
   if (!ok) return
+  busy.value[e.id] = true
   try {
     await resetInboundTraffic(e.id)
     toast.success('已清零')
-  } catch { /* */ }
+  } catch { /* */ } finally {
+    busy.value[e.id] = false
+  }
 }
 
 // ===== 看流量 =====
@@ -187,9 +203,15 @@ function openTraffic(e: XrayInbound) {
   trafficOpen.value = true
 }
 
-function runAndCloseDropdown(fn: () => void) {
-  if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-  fn()
+// ===== 编辑（本地元数据：listenIp/Port/transport/status） =====
+const editOpen = ref(false)
+const editTarget = ref<XrayInbound | null>(null)
+function openEdit(e: XrayInbound) {
+  editTarget.value = e
+  editOpen.value = true
+}
+async function onEdited() {
+  await loadList()
 }
 
 onMounted(() => {
@@ -204,6 +226,7 @@ onMounted(() => {
     <!-- 顶部搜索 -->
     <div class="card bg-base-100 shadow-sm">
       <div class="card-body py-4">
+        <!-- 主筛选行：日常 90% 场景够用 -->
         <div class="flex flex-wrap gap-3 items-end">
           <div>
             <label class="label py-0"><span class="label-text">关键词</span></label>
@@ -214,18 +237,6 @@ onMounted(() => {
               class="input input-bordered input-sm w-56"
               @keyup.enter="onSearch"
             />
-          </div>
-          <div>
-            <label class="label py-0"><span class="label-text">服务器 ID</span></label>
-            <input v-model="query.serverId" type="text" class="input input-bordered input-sm w-32 font-mono" @keyup.enter="onSearch" />
-          </div>
-          <div>
-            <label class="label py-0"><span class="label-text">会员 ID</span></label>
-            <input v-model="query.memberUserId" type="text" class="input input-bordered input-sm w-32 font-mono" @keyup.enter="onSearch" />
-          </div>
-          <div>
-            <label class="label py-0"><span class="label-text">IP ID</span></label>
-            <input v-model="query.ipId" type="text" class="input input-bordered input-sm w-32 font-mono" @keyup.enter="onSearch" />
           </div>
           <div>
             <label class="label py-0"><span class="label-text">状态</span></label>
@@ -246,6 +257,32 @@ onMounted(() => {
             <Plus class="w-4 h-4" />手动 Provision
           </button>
         </div>
+
+        <!-- 高级筛选：默认折叠；按 ID 精确定位时才展开 -->
+        <details class="collapse collapse-arrow border border-base-200 mt-3">
+          <summary class="collapse-title text-sm py-2 min-h-0">
+            高级筛选
+            <span v-if="query.serverId || query.memberUserId || query.ipId" class="badge badge-primary badge-sm ml-2">
+              已设
+            </span>
+          </summary>
+          <div class="collapse-content">
+            <div class="flex flex-wrap gap-3 items-end pt-2">
+              <div>
+                <label class="label py-0"><span class="label-text">服务器 ID</span></label>
+                <input v-model="query.serverId" type="text" class="input input-bordered input-sm w-72 font-mono" @keyup.enter="onSearch" />
+              </div>
+              <div>
+                <label class="label py-0"><span class="label-text">会员 ID</span></label>
+                <input v-model="query.memberUserId" type="text" class="input input-bordered input-sm w-72 font-mono" @keyup.enter="onSearch" />
+              </div>
+              <div>
+                <label class="label py-0"><span class="label-text">IP ID</span></label>
+                <input v-model="query.ipId" type="text" class="input input-bordered input-sm w-72 font-mono" @keyup.enter="onSearch" />
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -273,7 +310,15 @@ onMounted(() => {
                 <td colspan="10" class="text-center py-12"><span class="loading loading-spinner"></span></td>
               </tr>
               <tr v-else-if="!list.length">
-                <td colspan="10" class="text-center py-12 text-base-content/40">暂无数据</td>
+                <td colspan="10" class="text-center py-12">
+                  <div class="flex flex-col items-center gap-3 text-base-content/50">
+                    <Activity class="w-10 h-10 opacity-30" />
+                    <div class="text-sm">还没有客户端配置</div>
+                    <button class="btn btn-primary btn-sm" @click="provisionOpen = true">
+                      <Plus class="w-4 h-4" />手动 Provision 第一条
+                    </button>
+                  </div>
+                </td>
               </tr>
               <tr v-for="e in list" :key="e.id">
                 <td class="font-mono text-xs">{{ e.clientEmail }}</td>
@@ -297,32 +342,40 @@ onMounted(() => {
                 <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(e.lastSyncedAt) }}</td>
                 <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(e.createdAt) }}</td>
                 <td>
-                  <div class="flex justify-end items-center gap-1">
-                    <button class="btn btn-ghost btn-xs" title="查看流量" @click="openTraffic(e)">
-                      <Activity class="w-3.5 h-3.5" />
+                  <div class="flex justify-end items-center gap-1 flex-wrap">
+                    <button class="btn btn-ghost btn-xs gap-1" @click="openTraffic(e)">
+                      <Activity class="w-3.5 h-3.5 text-success" />
+                      <span class="text-success">流量</span>
                     </button>
-                    <div class="dropdown dropdown-end">
-                      <div tabindex="0" role="button" class="btn btn-ghost btn-xs btn-square">
-                        <MoreVertical class="w-4 h-4" />
-                      </div>
-                      <ul tabindex="0" class="dropdown-content menu menu-sm bg-base-100 rounded-box shadow-lg border border-base-200 z-20 w-36 p-1">
-                        <li>
-                          <a @click="runAndCloseDropdown(() => onRotate(e))">
-                            <RotateCw class="w-4 h-4" />轮换 UUID
-                          </a>
-                        </li>
-                        <li>
-                          <a @click="runAndCloseDropdown(() => onResetTraffic(e))">
-                            <Zap class="w-4 h-4" />清零流量
-                          </a>
-                        </li>
-                        <li>
-                          <a class="text-error" @click="runAndCloseDropdown(() => onRevoke(e))">
-                            <Trash2 class="w-4 h-4" />吊销
-                          </a>
-                        </li>
-                      </ul>
-                    </div>
+                    <button class="btn btn-ghost btn-xs gap-1" @click="openEdit(e)">
+                      <Pencil class="w-3.5 h-3.5 text-info" />
+                      <span class="text-info">编辑</span>
+                    </button>
+                    <button
+                      class="btn btn-ghost btn-xs gap-1"
+                      :disabled="busy[e.id]"
+                      @click="onRotate(e)"
+                    >
+                      <span v-if="busy[e.id]" class="loading loading-spinner loading-xs"></span>
+                      <RotateCw v-else class="w-3.5 h-3.5 text-warning" />
+                      <span class="text-warning">轮换</span>
+                    </button>
+                    <button
+                      class="btn btn-ghost btn-xs gap-1"
+                      :disabled="busy[e.id]"
+                      @click="onResetTraffic(e)"
+                    >
+                      <Zap class="w-3.5 h-3.5 text-accent" />
+                      <span class="text-accent">清零</span>
+                    </button>
+                    <button
+                      class="btn btn-ghost btn-xs gap-1"
+                      :disabled="busy[e.id]"
+                      @click="onRevoke(e)"
+                    >
+                      <Trash2 class="w-3.5 h-3.5 text-error" />
+                      <span class="text-error">吊销</span>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -354,5 +407,11 @@ onMounted(() => {
 
     <InboundProvisionDialog v-model="provisionOpen" @saved="onProvisioned" />
     <InboundTrafficDialog v-model="trafficOpen" :inbound="trafficTarget" />
+    <InboundEditDialog
+      v-model="editOpen"
+      :inbound="editTarget"
+      :server-map="serverMap"
+      @saved="onEdited"
+    />
   </div>
 </template>

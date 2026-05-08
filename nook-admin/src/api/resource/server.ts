@@ -21,7 +21,10 @@ export interface ResourceServer {
   backendTimeoutSeconds?: number
   xrayGrpcHost?: string
   xrayGrpcPort?: number
+  /** 带宽峰值速率 Mbps */
   totalBandwidth?: number
+  /** 月流量额度 GB；null/0 表示不限或未配置 */
+  monthlyTrafficGb?: number
   totalIpCount?: number
   idcProvider?: string
   region?: string
@@ -60,6 +63,7 @@ export interface ResourceServerSaveDTO {
   xrayGrpcHost?: string
   xrayGrpcPort?: number
   totalBandwidth?: number
+  monthlyTrafficGb?: number
   idcProvider?: string
   region?: string
   status?: number
