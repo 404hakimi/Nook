@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
+  MoreVertical,
   Pencil,
   Plus,
   RefreshCcw,
@@ -8,10 +9,22 @@ import {
   Server as ServerIcon,
   Terminal,
   Trash2,
-  Users,
   Zap
 } from 'lucide-vue-next'
-import { useToast } from '@/composables/useToast'
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NDropdown,
+  NIcon,
+  NInput,
+  NSelect,
+  NSpace,
+  NTag,
+  useMessage,
+  type DataTableColumns,
+  type DropdownOption
+} from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import {
   SERVER_STATUS_LABELS,
@@ -22,12 +35,11 @@ import {
 } from '@/api/resource/server'
 import { testServerConnectivity } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
-import Select from '@/components/Select.vue'
 import ServerFormDialog from './ServerFormDialog.vue'
 import ServerOpsDialog from './ServerOpsDialog.vue'
 import { pageClients } from '@/api/xray/client'
 
-const toast = useToast()
+const message = useMessage()
 const { confirm } = useConfirm()
 
 // ===== 列表 + 查询 =====
@@ -36,11 +48,6 @@ const STATUS_OPTIONS = [
   { label: '运行', value: 1 },
   { label: '维护', value: 2 },
   { label: '下线', value: 3 }
-]
-const PAGE_SIZE_OPTIONS = [
-  { label: '10 条/页', value: 10 },
-  { label: '20 条/页', value: 20 },
-  { label: '50 条/页', value: 50 }
 ]
 
 const query = reactive<Required<Pick<ResourceServerQuery, 'pageNo' | 'pageSize'>> & ResourceServerQuery>({
@@ -53,7 +60,6 @@ const query = reactive<Required<Pick<ResourceServerQuery, 'pageNo' | 'pageSize'>
 const list = ref<ResourceServer[]>([])
 const total = ref(0)
 const loading = ref(false)
-const totalPages = computed(() => Math.max(1, Math.ceil(total.value / query.pageSize)))
 
 async function loadList() {
   loading.value = true
@@ -96,14 +102,8 @@ function onSearch() {
   loadList()
 }
 
-function goPage(p: number) {
-  if (p < 1 || p > totalPages.value) return
-  query.pageNo = p
-  loadList()
-}
-
-function statusBadge(s: number) {
-  return s === 1 ? 'badge-success' : s === 2 ? 'badge-warning' : 'badge-error'
+function statusTagType(s: number): 'success' | 'warning' | 'error' | 'default' {
+  return s === 1 ? 'success' : s === 2 ? 'warning' : 'error'
 }
 
 // ===== 新增 / 编辑 =====
@@ -138,7 +138,7 @@ async function onDelete(s: ResourceServer) {
   if (!ok) return
   try {
     await deleteServer(s.id)
-    toast.success('删除成功')
+    message.success('删除成功')
     loadList()
   } catch {
     /* */
@@ -153,9 +153,9 @@ async function onTest(s: ResourceServer) {
   try {
     const res = await testServerConnectivity(s.id)
     if (res.success) {
-      toast.success(`✔ Xray gRPC 连通 (${res.elapsedMs}ms)`)
+      message.success(`Xray gRPC 连通 (${res.elapsedMs}ms)`)
     } else {
-      toast.error(`✘ ${res.error || '探活失败'}`)
+      message.error(`${res.error || '探活失败'}`)
     }
   } catch {
     /* */
@@ -189,197 +189,251 @@ async function loadActiveUserCounts() {
   await Promise.allSettled(tasks)
 }
 
+// ===== 行操作菜单（NDropdown 选项 + 分发） =====
+const ROW_ACTIONS: DropdownOption[] = [
+  {
+    label: '测速',
+    key: 'test',
+    icon: () => h(NIcon, null, { default: () => h(Zap) })
+  },
+  {
+    label: '编辑',
+    key: 'edit',
+    icon: () => h(NIcon, null, { default: () => h(Pencil) })
+  },
+  {
+    label: '运维',
+    key: 'ops',
+    icon: () => h(NIcon, null, { default: () => h(Terminal) })
+  },
+  { type: 'divider', key: 'd1' },
+  {
+    label: '删除',
+    key: 'delete',
+    props: { style: 'color: var(--n-error-color)' },
+    icon: () => h(NIcon, { color: 'var(--n-error-color)' }, { default: () => h(Trash2) })
+  }
+]
+
+function onRowAction(key: string | number, s: ResourceServer) {
+  if (key === 'test') onTest(s)
+  else if (key === 'edit') openEdit(s)
+  else if (key === 'ops') openOps(s)
+  else if (key === 'delete') onDelete(s)
+}
+
+// ===== 表格列定义 =====
+const columns = computed<DataTableColumns<ResourceServer>>(() => [
+  {
+    title: '别名',
+    key: 'name',
+    render: (row) =>
+      h('div', { class: 'flex items-center gap-2 whitespace-nowrap' }, [
+        h(NIcon, { depth: 3 }, { default: () => h(ServerIcon) }),
+        h('span', { class: 'font-medium' }, row.name)
+      ])
+  },
+  {
+    title: '主机',
+    key: 'host',
+    render: (row) =>
+      h('span', { class: 'font-mono text-xs' }, [
+        row.host,
+        h('span', { class: 'text-zinc-400' }, `:${row.sshPort || 22}`)
+      ])
+  },
+  {
+    title: '区域',
+    key: 'region',
+    render: (row) => row.region || '-'
+  },
+  {
+    title: '带宽',
+    key: 'bandwidth',
+    render: (row) => (row.totalBandwidth ? `${row.totalBandwidth} Mbps` : '-')
+  },
+  {
+    title: '月流量',
+    key: 'monthlyTraffic',
+    render: (row) => {
+      if (row.monthlyTrafficGb && row.monthlyTrafficGb > 0) {
+        return row.monthlyTrafficGb >= 1000
+          ? `${(row.monthlyTrafficGb / 1000).toFixed(1)} TB`
+          : `${row.monthlyTrafficGb} GB`
+      }
+      return h('span', { class: 'text-zinc-400' }, '不限')
+    }
+  },
+  {
+    title: 'IP 数',
+    key: 'totalIpCount',
+    render: (row) => row.totalIpCount ?? 0
+  },
+  {
+    title: '状态',
+    key: 'status',
+    render: (row) =>
+      h(
+        NTag,
+        { size: 'small', type: statusTagType(row.status) },
+        { default: () => SERVER_STATUS_LABELS[row.status] || row.status }
+      )
+  },
+  {
+    title: 'SSH',
+    key: 'ssh',
+    render: (row) => {
+      const sshConfigured = !!(row.sshPassword || row.sshPrivateKey)
+      const grpcConfigured = !!(row.xrayGrpcHost && row.xrayGrpcPort)
+      return h('div', { class: 'flex gap-1' }, [
+        h(
+          NTag,
+          {
+            size: 'small',
+            type: sshConfigured ? 'success' : 'default',
+            bordered: !sshConfigured,
+            title: sshConfigured ? 'SSH 已配置' : 'SSH 未配置'
+          },
+          { default: () => 'SSH' }
+        ),
+        h(
+          NTag,
+          {
+            size: 'small',
+            type: grpcConfigured ? 'success' : 'default',
+            bordered: !grpcConfigured,
+            title: grpcConfigured ? 'gRPC 已配置' : 'gRPC 未配置'
+          },
+          { default: () => 'gRPC' }
+        )
+      ])
+    }
+  },
+  {
+    title: '活跃用户',
+    key: 'activeUsers',
+    render: (row) =>
+      h(
+        'span',
+        { class: 'font-mono text-sm' },
+        activeUserCount.value[row.id] !== undefined ? String(activeUserCount.value[row.id]) : '-'
+      )
+  },
+  {
+    title: '创建时间',
+    key: 'createdAt',
+    width: 170,
+    render: (row) => formatDateTime(row.createdAt)
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    align: 'right',
+    width: 80,
+    render: (row) =>
+      h(
+        NDropdown,
+        {
+          options: ROW_ACTIONS,
+          trigger: 'click',
+          onSelect: (key: string | number) => onRowAction(key, row)
+        },
+        {
+          default: () =>
+            h(
+              NButton,
+              { circle: true, quaternary: true, size: 'small' },
+              { default: () => h(NIcon, null, { default: () => h(MoreVertical) }) }
+            )
+        }
+      )
+  }
+])
+
+const pagination = computed(() => ({
+  page: query.pageNo,
+  pageSize: query.pageSize,
+  itemCount: total.value,
+  pageSizes: [10, 20, 50],
+  showSizePicker: true,
+  prefix: ({ itemCount }: { itemCount: number }) => `共 ${itemCount} 条`,
+  onUpdatePage: (p: number) => {
+    query.pageNo = p
+    loadList()
+  },
+  onUpdatePageSize: (s: number) => {
+    query.pageSize = s
+    query.pageNo = 1
+    loadList()
+  }
+}))
+
 onMounted(loadList)
 </script>
 
 <template>
   <div class="space-y-4">
     <!-- 顶部搜索栏 -->
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body py-4">
-        <div class="flex flex-wrap gap-3 items-end">
-          <div>
-            <label class="label py-0"><span class="label-text">关键词</span></label>
-            <input
-              v-model="query.keyword"
-              type="text"
-              placeholder="别名 / 主机"
-              class="input input-bordered input-sm w-56"
-              @keyup.enter="onSearch"
-            />
-          </div>
-          <div>
-            <label class="label py-0"><span class="label-text">状态</span></label>
-            <Select v-model="query.status" :options="STATUS_OPTIONS" width="w-28" />
-          </div>
-          <div>
-            <label class="label py-0"><span class="label-text">区域</span></label>
-            <input
-              v-model="query.region"
-              type="text"
-              placeholder="us-west / jp / ..."
-              class="input input-bordered input-sm w-32"
-              @keyup.enter="onSearch"
-            />
-          </div>
-          <button class="btn btn-primary btn-sm" @click="onSearch">
-            <Search class="w-4 h-4" />搜索
-          </button>
-          <button class="btn btn-ghost btn-sm" @click="resetQuery">
-            <RefreshCcw class="w-4 h-4" />重置
-          </button>
-          <div class="flex-1"></div>
-          <button class="btn btn-primary btn-sm" @click="openCreate">
-            <Plus class="w-4 h-4" />新增服务器
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 表格 -->
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body p-0">
+    <NCard size="small">
+      <div class="flex flex-wrap gap-3 items-end">
         <div>
-          <table class="table table-zebra">
-            <thead>
-              <tr>
-                <th>别名</th>
-                <th>主机</th>
-                <th>区域</th>
-                <th>带宽</th>
-                <th>月流量</th>
-                <th>IP 数</th>
-                <th>状态</th>
-                <th>SSH</th>
-                <th class="whitespace-nowrap">活跃用户</th>
-                <th>创建时间</th>
-                <th class="text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading">
-                <td colspan="11" class="text-center py-12">
-                  <span class="loading loading-spinner"></span>
-                </td>
-              </tr>
-              <tr v-else-if="!list.length">
-                <td colspan="11" class="text-center py-12">
-                  <div class="flex flex-col items-center gap-3 text-base-content/50">
-                    <ServerIcon class="w-10 h-10 opacity-30" />
-                    <div class="text-sm">还没有服务器</div>
-                    <button class="btn btn-primary btn-sm" @click="openCreate">
-                      <Plus class="w-4 h-4" />新增第一台服务器
-                    </button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-for="s in list" :key="s.id">
-                <td class="whitespace-nowrap">
-                  <div class="flex items-center gap-2">
-                    <ServerIcon class="w-4 h-4 text-base-content/50" />
-                    <span class="font-medium">{{ s.name }}</span>
-                  </div>
-                </td>
-                <td class="font-mono text-xs">{{ s.host }}<span class="text-base-content/40">:{{ s.sshPort || 22 }}</span></td>
-                <td class="text-sm">{{ s.region || '-' }}</td>
-                <td class="text-sm whitespace-nowrap">{{ s.totalBandwidth ? s.totalBandwidth + ' Mbps' : '-' }}</td>
-                <td class="text-sm whitespace-nowrap">
-                  <span v-if="s.monthlyTrafficGb && s.monthlyTrafficGb > 0">
-                    {{ s.monthlyTrafficGb >= 1000 ? (s.monthlyTrafficGb / 1000).toFixed(1) + ' TB' : s.monthlyTrafficGb + ' GB' }}
-                  </span>
-                  <span v-else class="text-base-content/40">不限</span>
-                </td>
-                <td class="text-sm">{{ s.totalIpCount ?? 0 }}</td>
-                <td>
-                  <span :class="['badge badge-sm', statusBadge(s.status)]">
-                    {{ SERVER_STATUS_LABELS[s.status] || s.status }}
-                  </span>
-                </td>
-                <td>
-                  <div class="flex gap-1">
-                    <span
-                      class="badge badge-xs"
-                      :class="(s.sshPassword || s.sshPrivateKey) ? 'badge-success' : 'badge-ghost'"
-                      :title="(s.sshPassword || s.sshPrivateKey) ? 'SSH 已配置' : 'SSH 未配置'"
-                    >SSH</span>
-                    <span
-                      class="badge badge-xs"
-                      :class="s.xrayGrpcHost && s.xrayGrpcPort ? 'badge-success' : 'badge-ghost'"
-                      :title="s.xrayGrpcHost && s.xrayGrpcPort ? 'gRPC 已配置' : 'gRPC 未配置'"
-                    >gRPC</span>
-                  </div>
-                </td>
-                <td class="whitespace-nowrap">
-                  <div class="flex items-center gap-1">
-                    <Users class="w-3.5 h-3.5 text-base-content/40" />
-                    <span class="font-mono text-sm">
-                      {{ activeUserCount[s.id] !== undefined ? activeUserCount[s.id] : '-' }}
-                    </span>
-                  </div>
-                </td>
-                <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(s.createdAt) }}</td>
-                <td>
-                  <div class="flex justify-end items-center gap-1 flex-wrap">
-                    <button
-                      class="btn btn-ghost btn-xs gap-1"
-                      :disabled="testing[s.id]"
-                      title="测试连通性"
-                      @click="onTest(s)"
-                    >
-                      <span v-if="testing[s.id]" class="loading loading-spinner loading-xs"></span>
-                      <Zap v-else class="w-3.5 h-3.5 text-warning" />
-                      <span class="text-warning">测速</span>
-                    </button>
-                    <button class="btn btn-ghost btn-xs gap-1" @click="openEdit(s)">
-                      <Pencil class="w-3.5 h-3.5 text-info" />
-                      <span class="text-info">编辑</span>
-                    </button>
-                    <button class="btn btn-ghost btn-xs gap-1" @click="openOps(s)">
-                      <Terminal class="w-3.5 h-3.5 text-primary" />
-                      <span class="text-primary">运维</span>
-                    </button>
-                    <button class="btn btn-ghost btn-xs gap-1" @click="onDelete(s)">
-                      <Trash2 class="w-3.5 h-3.5 text-error" />
-                      <span class="text-error">删除</span>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="text-xs text-zinc-500 mb-1">关键词</div>
+          <NInput
+            v-model:value="query.keyword"
+            size="small"
+            placeholder="别名 / 主机"
+            class="w-56"
+            @keyup.enter="onSearch"
+          />
         </div>
-
-        <!-- 分页 -->
-        <div class="flex items-center justify-between p-4 border-t border-base-200">
-          <div class="text-sm text-base-content/60">共 {{ total }} 条</div>
-          <div class="flex items-center gap-2">
-            <Select
-              v-model="query.pageSize"
-              :options="PAGE_SIZE_OPTIONS"
-              width="w-28"
-              align="end"
-              direction="top"
-              @change="onSearch"
-            />
-            <div class="join">
-              <button
-                class="join-item btn btn-sm"
-                :disabled="query.pageNo === 1"
-                @click="goPage(query.pageNo - 1)"
-              >«</button>
-              <button class="join-item btn btn-sm pointer-events-none">
-                {{ query.pageNo }} / {{ totalPages }}
-              </button>
-              <button
-                class="join-item btn btn-sm"
-                :disabled="query.pageNo >= totalPages"
-                @click="goPage(query.pageNo + 1)"
-              >»</button>
-            </div>
-          </div>
+        <div>
+          <div class="text-xs text-zinc-500 mb-1">状态</div>
+          <NSelect
+            v-model:value="query.status"
+            :options="STATUS_OPTIONS"
+            size="small"
+            class="w-28"
+          />
         </div>
+        <div>
+          <div class="text-xs text-zinc-500 mb-1">区域</div>
+          <NInput
+            v-model:value="query.region"
+            size="small"
+            placeholder="us-west / jp / ..."
+            class="w-32"
+            @keyup.enter="onSearch"
+          />
+        </div>
+        <NButton type="primary" size="small" @click="onSearch">
+          <template #icon><NIcon><Search /></NIcon></template>
+          搜索
+        </NButton>
+        <NButton quaternary size="small" @click="resetQuery">
+          <template #icon><NIcon><RefreshCcw /></NIcon></template>
+          重置
+        </NButton>
+        <div class="flex-1"></div>
+        <NButton type="primary" size="small" @click="openCreate">
+          <template #icon><NIcon><Plus /></NIcon></template>
+          新增服务器
+        </NButton>
       </div>
-    </div>
+    </NCard>
+
+    <!-- 表格 + 分页 -->
+    <NCard size="small" :content-style="{ padding: 0 }">
+      <NDataTable
+        :columns="columns"
+        :data="list"
+        :loading="loading"
+        :pagination="pagination"
+        :remote="true"
+        :bordered="false"
+        :row-key="(row: ResourceServer) => row.id"
+        size="small"
+      />
+    </NCard>
 
     <!-- 新增/编辑 弹框 -->
     <ServerFormDialog

@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { useToast } from '@/composables/useToast'
+import {
+  NButton,
+  NForm,
+  NFormItem,
+  NInput,
+  NModal,
+  NSelect,
+  NSpace,
+  NSpin,
+  useMessage
+} from 'naive-ui'
 import { useUserStore } from '@/stores/user'
 import {
   createSystemUser,
@@ -9,7 +19,6 @@ import {
   type SystemUser,
   type SystemUserSaveDTO
 } from '@/api/system/user'
-import Select from '@/components/Select.vue'
 
 // 角色 / 状态枚举常量；与 UserList 一致的取值
 const ROLE_OPTIONS: { label: string; value: string }[] = [
@@ -33,7 +42,7 @@ const emit = defineEmits<{
   (e: 'saved'): void
 }>()
 
-const toast = useToast()
+const message = useMessage()
 const userStore = useUserStore()
 const submitting = ref(false)
 /** 编辑模式打开时调详情接口期间的 loading；保证用户看到的是最新数据，不是行缓存。 */
@@ -132,7 +141,7 @@ async function onSubmit() {
         remark: form.remark || undefined
       }
       await createSystemUser(dto)
-      toast.success('创建成功')
+      message.success('创建成功')
     } else {
       // 编辑场景：可空字段一律 trim 后原样上送(包括空串)，让后端识别"清空"语义；
       // 不要 `|| undefined`——那会把"清空"折成"未变更"，字段写不回 DB。
@@ -145,7 +154,7 @@ async function onSubmit() {
         remark: form.remark.trim()
       }
       await updateSystemUser(props.user!.id, dto)
-      toast.success('更新成功')
+      message.success('更新成功')
       // 改的是自己——同步 userStore，让顶栏 / 路由守卫能拿到新角色与新名字
       if (isSelf.value) {
         await userStore.fetchCurrentUser().catch(() => {})
@@ -166,104 +175,115 @@ function close() {
 </script>
 
 <template>
-  <dialog class="modal" :class="{ 'modal-open': modelValue }">
-    <div class="modal-box max-w-2xl relative">
-      <h3 class="text-lg font-semibold mb-4">
-        {{ mode === 'create' ? '新增后台用户' : '编辑后台用户' }}
-      </h3>
-
-      <!-- 编辑详情加载中：盖一层透明遮罩，禁止操作避免改到旧数据 -->
-      <div
-        v-if="loadingDetail"
-        class="absolute inset-0 bg-base-100/70 flex items-center justify-center z-20 rounded-2xl"
+  <NModal
+    :show="modelValue"
+    preset="card"
+    :title="mode === 'create' ? '新增后台用户' : '编辑后台用户'"
+    style="max-width: 42rem"
+    :bordered="false"
+    :mask-closable="false"
+    @update:show="(v: boolean) => emit('update:modelValue', v)"
+  >
+    <NSpin :show="loadingDetail">
+      <NForm
+        :model="form"
+        label-placement="top"
+        require-mark-placement="right-hanging"
+        size="small"
       >
-        <span class="loading loading-spinner loading-md text-primary"></span>
-      </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+          <NFormItem
+            label="用户名"
+            :required="mode === 'create'"
+            :validation-status="errors.username ? 'error' : undefined"
+            :feedback="errors.username"
+          >
+            <NInput
+              v-model:value="form.username"
+              :disabled="mode === 'edit'"
+              placeholder="3-32 位字母/数字/下划线"
+            />
+          </NFormItem>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label class="label py-1"><span class="label-text">用户名 <span class="text-error">*</span></span></label>
-          <input
-            v-model="form.username"
-            type="text"
-            :disabled="mode === 'edit'"
-            class="input input-bordered input-sm w-full"
-            :class="{ 'input-error': errors.username }"
-          />
-          <div v-if="errors.username" class="text-error text-xs mt-1">{{ errors.username }}</div>
-        </div>
+          <NFormItem
+            v-if="mode === 'create'"
+            label="密码"
+            required
+            :validation-status="errors.password ? 'error' : undefined"
+            :feedback="errors.password"
+          >
+            <NInput
+              v-model:value="form.password"
+              type="password"
+              show-password-on="click"
+              placeholder="6-64 位"
+              :input-props="{ autocomplete: 'new-password' }"
+            />
+          </NFormItem>
+          <NFormItem v-else>
+            <template #label>
+              <span>状态</span>
+              <span v-if="isSelf" class="text-xs text-zinc-400 ml-2">不可改自身</span>
+            </template>
+            <NSelect v-model:value="form.status" :options="STATUS_OPTIONS" :disabled="isSelf" />
+          </NFormItem>
 
-        <div v-if="mode === 'create'">
-          <label class="label py-1"><span class="label-text">密码 <span class="text-error">*</span></span></label>
-          <input
-            v-model="form.password"
-            type="password"
-            class="input input-bordered input-sm w-full"
-            :class="{ 'input-error': errors.password }"
-            placeholder="6-64 位"
-          />
-          <div v-if="errors.password" class="text-error text-xs mt-1">{{ errors.password }}</div>
-        </div>
-        <div v-else>
-          <label class="label py-1">
-            <span class="label-text">状态</span>
-            <span v-if="isSelf" class="label-text-alt text-base-content/50">不可改自身</span>
-          </label>
-          <Select v-model="form.status" :options="STATUS_OPTIONS" :disabled="isSelf" />
-        </div>
+          <NFormItem label="真实姓名">
+            <NInput v-model:value="form.realName" placeholder="选填" />
+          </NFormItem>
 
-        <div>
-          <label class="label py-1"><span class="label-text">真实姓名</span></label>
-          <input v-model="form.realName" type="text" class="input input-bordered input-sm w-full" />
-        </div>
+          <NFormItem
+            required
+            :validation-status="errors.role ? 'error' : undefined"
+            :feedback="errors.role"
+          >
+            <template #label>
+              <span>角色</span>
+              <span v-if="isSelf" class="text-xs text-zinc-400 ml-2">不可改自身</span>
+            </template>
+            <NSelect
+              v-model:value="form.role"
+              :options="ROLE_OPTIONS"
+              :disabled="isSelf"
+              :status="errors.role ? 'error' : undefined"
+            />
+          </NFormItem>
 
-        <div>
-          <label class="label py-1">
-            <span class="label-text">角色 <span class="text-error">*</span></span>
-            <span v-if="isSelf" class="label-text-alt text-base-content/50">不可改自身</span>
-          </label>
-          <Select
-            v-model="form.role"
-            :options="ROLE_OPTIONS"
-            :disabled="isSelf"
-            :error="!!errors.role"
-          />
-          <div v-if="errors.role" class="text-error text-xs mt-1">{{ errors.role }}</div>
-        </div>
+          <NFormItem
+            label="邮箱"
+            :validation-status="errors.email ? 'error' : undefined"
+            :feedback="errors.email"
+          >
+            <NInput v-model:value="form.email" placeholder="选填" />
+          </NFormItem>
 
-        <div>
-          <label class="label py-1"><span class="label-text">邮箱</span></label>
-          <input
-            v-model="form.email"
-            type="email"
-            class="input input-bordered input-sm w-full"
-            :class="{ 'input-error': errors.email }"
-          />
-          <div v-if="errors.email" class="text-error text-xs mt-1">{{ errors.email }}</div>
+          <div class="sm:col-span-2">
+            <NFormItem label="备注">
+              <NInput
+                v-model:value="form.remark"
+                type="textarea"
+                :autosize="{ minRows: 2, maxRows: 4 }"
+                placeholder="选填"
+              />
+            </NFormItem>
+          </div>
         </div>
+      </NForm>
+    </NSpin>
 
-        <div class="sm:col-span-2">
-          <label class="label py-1"><span class="label-text">备注</span></label>
-          <textarea
-            v-model="form.remark"
-            rows="2"
-            class="textarea textarea-bordered w-full text-sm"
-          ></textarea>
-        </div>
-      </div>
-
-      <div class="modal-action mt-6">
-        <button class="btn btn-ghost btn-sm" @click="close">取消</button>
-        <button
-          class="btn btn-primary btn-sm"
-          :disabled="submitting || loadingDetail"
+    <template #footer>
+      <NSpace justify="end">
+        <NButton size="small" @click="close">取消</NButton>
+        <NButton
+          type="primary"
+          size="small"
+          :loading="submitting"
+          :disabled="loadingDetail"
           @click="onSubmit"
         >
-          <span v-if="submitting" class="loading loading-spinner loading-xs"></span>
           确定
-        </button>
-      </div>
-    </div>
-    <div class="modal-backdrop bg-black/40" @click="close"></div>
-  </dialog>
+        </NButton>
+      </NSpace>
+    </template>
+  </NModal>
 </template>

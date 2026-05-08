@@ -1,6 +1,18 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { useToast } from '@/composables/useToast'
+import {
+  NButton,
+  NDivider,
+  NForm,
+  NFormItem,
+  NInput,
+  NInputNumber,
+  NModal,
+  NSelect,
+  NSpace,
+  NSpin,
+  useMessage
+} from 'naive-ui'
 import {
   createIpPool,
   getIpPoolDetail,
@@ -9,7 +21,6 @@ import {
   type ResourceIpPoolSaveDTO
 } from '@/api/resource/ip-pool'
 import type { ResourceIpType } from '@/api/resource/ip-type'
-import Select from '@/components/Select.vue'
 
 interface SocksPrefill {
   socks5Host: string
@@ -32,7 +43,7 @@ const emit = defineEmits<{
   (e: 'saved'): void
 }>()
 
-const toast = useToast()
+const message = useMessage()
 const submitting = ref(false)
 const loadingDetail = ref(false)
 const errors = reactive<Record<string, string>>({})
@@ -172,10 +183,10 @@ async function onSubmit() {
     }
     if (props.mode === 'create') {
       await createIpPool(dto)
-      toast.success('创建成功')
+      message.success('创建成功')
     } else {
       await updateIpPool(props.ip!.id, dto)
-      toast.success('更新成功')
+      message.success('更新成功')
     }
     emit('saved')
     emit('update:modelValue', false)
@@ -190,181 +201,203 @@ function close() {
 </script>
 
 <template>
-  <dialog class="modal" :class="{ 'modal-open': modelValue }">
-    <div class="modal-box max-w-3xl relative">
-      <h3 class="text-lg font-semibold mb-4">
-        {{ mode === 'create' ? '新增 IP' : '编辑 IP' }}
-      </h3>
-      <p class="text-xs text-base-content/50 mb-4">
-        本表单仅保存 IP 池条目元数据。<strong>一键部署 SOCKS5</strong> 在配置完成后, 通过列表行的 "部署" 按钮触发。
-      </p>
+  <NModal
+    :show="modelValue"
+    preset="card"
+    :title="mode === 'create' ? '新增 IP' : '编辑 IP'"
+    style="max-width: 48rem"
+    :bordered="false"
+    :mask-closable="false"
+    @update:show="(v: boolean) => emit('update:modelValue', v)"
+  >
+    <p class="text-xs text-zinc-500 mb-4">
+      本表单仅保存 IP 池条目元数据。<strong>一键部署 SOCKS5</strong> 在配置完成后, 通过列表行的 "部署" 按钮触发。
+    </p>
 
-      <div
-        v-if="loadingDetail"
-        class="absolute inset-0 bg-base-100/70 flex items-center justify-center z-20 rounded-2xl"
+    <NSpin :show="loadingDetail">
+      <NForm
+        :model="form"
+        label-placement="top"
+        require-mark-placement="right-hanging"
+        size="small"
       >
-        <span class="loading loading-spinner loading-md text-primary"></span>
-      </div>
+        <NDivider title-placement="left" style="margin-top: 0">基本信息</NDivider>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+          <NFormItem
+            label="区域"
+            required
+            :validation-status="errors.region ? 'error' : undefined"
+            :feedback="errors.region"
+          >
+            <NInput
+              v-model:value="form.region"
+              placeholder="us-west / jp / hk / sg"
+            />
+          </NFormItem>
 
-      <!-- 基本信息 -->
-      <div class="text-sm font-semibold text-base-content/70 mb-2">基本信息</div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label class="label py-1"><span class="label-text">区域 <span class="text-error">*</span></span></label>
-          <input
-            v-model="form.region"
-            type="text"
-            placeholder="us-west / jp / hk / sg"
-            class="input input-bordered input-sm w-full"
-            :class="{ 'input-error': errors.region }"
-          />
-          <div v-if="errors.region" class="text-error text-xs mt-1">{{ errors.region }}</div>
-        </div>
-        <div>
-          <label class="label py-1"><span class="label-text">类型 <span class="text-error">*</span></span></label>
-          <Select
-            v-model="form.ipTypeId"
-            :options="ipTypeOptions"
-            :class="{ 'select-error': errors.ipTypeId }"
-            placeholder="请选择"
-          />
-          <div v-if="!ipTypeOptions.length" class="text-warning text-xs mt-1">
-            未找到 IP 类型 — 请先在数据库执行 sql/99_seed.sql 初始化 resource_ip_type
+          <NFormItem
+            label="类型"
+            required
+            :validation-status="errors.ipTypeId ? 'error' : undefined"
+            :feedback="errors.ipTypeId || (!ipTypeOptions.length ? '未找到 IP 类型 — 请先在数据库执行 sql/99_seed.sql 初始化 resource_ip_type' : undefined)"
+          >
+            <NSelect
+              v-model:value="form.ipTypeId"
+              :options="ipTypeOptions"
+              :status="errors.ipTypeId ? 'error' : undefined"
+              placeholder="请选择"
+            />
+          </NFormItem>
+
+          <div class="sm:col-span-2">
+            <NFormItem
+              label="IP 地址"
+              required
+              :validation-status="errors.ipAddress ? 'error' : undefined"
+              :feedback="errors.ipAddress"
+            >
+              <NInput
+                v-model:value="form.ipAddress"
+                placeholder="例 1.2.3.4"
+                :input-props="{ style: 'font-family: monospace' }"
+              />
+            </NFormItem>
           </div>
-          <div v-else-if="errors.ipTypeId" class="text-error text-xs mt-1">{{ errors.ipTypeId }}</div>
-        </div>
-        <div class="sm:col-span-2">
-          <label class="label py-1"><span class="label-text">IP 地址 <span class="text-error">*</span></span></label>
-          <input
-            v-model="form.ipAddress"
-            type="text"
-            placeholder="例 1.2.3.4"
-            class="input input-bordered input-sm w-full font-mono"
-            :class="{ 'input-error': errors.ipAddress }"
-          />
-          <div v-if="errors.ipAddress" class="text-error text-xs mt-1">{{ errors.ipAddress }}</div>
-        </div>
-        <div>
-          <label class="label py-1"><span class="label-text">状态</span></label>
-          <Select v-model="form.status" :options="STATUS_OPTIONS" />
-        </div>
-        <div>
-          <label class="label py-1">
-            <span class="label-text">综合评分</span>
-            <span class="label-text-alt text-base-content/50">0-100, 越高越优先派发</span>
-          </label>
-          <input
-            v-model.number="form.score"
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            placeholder="例 100"
-            class="input input-bordered input-sm w-full"
-          />
-        </div>
-      </div>
 
-      <!-- SOCKS5 凭据 -->
-      <div class="text-sm font-semibold text-base-content/70 mt-6 mb-2">SOCKS5 凭据</div>
-      <p class="text-xs text-base-content/50 mb-2">
-        SOCKS5 主机自动跟随 IP 地址 (后续支持 HTTP / 其它代理协议时仍按此入口); 端口 / 用户名 / 密码由部署或外部 SOCKS5 服务决定。
-      </p>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div class="sm:col-span-2">
-          <label class="label py-1">
-            <span class="label-text">SOCKS5 主机</span>
-            <span class="label-text-alt text-base-content/50">= IP 地址</span>
-          </label>
-          <input
-            :value="form.ipAddress"
-            type="text"
-            readonly
-            tabindex="-1"
-            class="input input-bordered input-sm w-full font-mono bg-base-200 text-base-content/60 cursor-not-allowed"
-          />
-        </div>
-        <div>
-          <label class="label py-1">
-            <span class="label-text">SOCKS5 端口 <span v-if="!isEdit" class="text-error">*</span></span>
-          </label>
-          <input
-            v-model.number="form.socks5Port"
-            type="number"
-            min="1"
-            max="65535"
-            class="input input-bordered input-sm w-full"
-            :class="{ 'input-error': errors.socks5Port }"
-          />
-          <div v-if="errors.socks5Port" class="text-error text-xs mt-1">{{ errors.socks5Port }}</div>
-        </div>
-        <div>
-          <label class="label py-1">
-            <span class="label-text">用户名 <span v-if="!isEdit" class="text-error">*</span></span>
-          </label>
-          <input
-            v-model="form.socks5Username"
-            type="text"
-            class="input input-bordered input-sm w-full"
-            :class="{ 'input-error': errors.socks5Username }"
-          />
-          <div v-if="errors.socks5Username" class="text-error text-xs mt-1">{{ errors.socks5Username }}</div>
-        </div>
-        <div class="sm:col-span-2">
-          <label class="label py-1">
-            <span class="label-text">密码 <span v-if="!isEdit" class="text-error">*</span></span>
-          </label>
-          <input
-            v-model="form.socks5Password"
-            type="password"
-            autocomplete="new-password"
-            class="input input-bordered input-sm w-full"
-            :class="{ 'input-error': errors.socks5Password }"
-          />
-          <div v-if="errors.socks5Password" class="text-error text-xs mt-1">{{ errors.socks5Password }}</div>
-        </div>
-      </div>
+          <NFormItem label="状态">
+            <NSelect v-model:value="form.status" :options="STATUS_OPTIONS" />
+          </NFormItem>
 
-      <!-- 风险评分 + 备注 -->
-      <div class="text-sm font-semibold text-base-content/70 mt-6 mb-2">风险评分 (可选)</div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label class="label py-1">
-            <span class="label-text">Scamalytics</span>
-            <span class="label-text-alt text-base-content/50">0-100, 越低越好</span>
-          </label>
-          <input v-model.number="form.scamalyticsScore" type="number" min="0" max="100" class="input input-bordered input-sm w-full" />
+          <NFormItem>
+            <template #label>
+              <span>综合评分</span>
+              <span class="text-xs text-zinc-400 ml-2">0-100, 越高越优先派发</span>
+            </template>
+            <NInputNumber
+              v-model:value="form.score"
+              :min="0"
+              :max="100"
+              :step="0.01"
+              placeholder="例 100"
+              style="width: 100%"
+            />
+          </NFormItem>
         </div>
-        <div>
-          <label class="label py-1">
-            <span class="label-text">IPQualityScore</span>
-            <span class="label-text-alt text-base-content/50">0-100, 越低越好</span>
-          </label>
-          <input v-model.number="form.ipqsScore" type="number" min="0" max="100" class="input input-bordered input-sm w-full" />
+
+        <NDivider title-placement="left">SOCKS5 凭据</NDivider>
+        <p class="text-xs text-zinc-500 mb-2 -mt-2">
+          SOCKS5 主机自动跟随 IP 地址 (后续支持 HTTP / 其它代理协议时仍按此入口); 端口 / 用户名 / 密码由部署或外部 SOCKS5 服务决定。
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
+          <div class="sm:col-span-2">
+            <NFormItem>
+              <template #label>
+                <span>SOCKS5 主机</span>
+                <span class="text-xs text-zinc-400 ml-2">= IP 地址</span>
+              </template>
+              <NInput
+                :value="form.ipAddress"
+                readonly
+                disabled
+                :input-props="{ style: 'font-family: monospace' }"
+              />
+            </NFormItem>
+          </div>
+
+          <NFormItem
+            :label="'SOCKS5 端口'"
+            :required="!isEdit"
+            :validation-status="errors.socks5Port ? 'error' : undefined"
+            :feedback="errors.socks5Port"
+          >
+            <NInputNumber
+              v-model:value="form.socks5Port"
+              :min="1"
+              :max="65535"
+              style="width: 100%"
+            />
+          </NFormItem>
+
+          <NFormItem
+            label="用户名"
+            :required="!isEdit"
+            :validation-status="errors.socks5Username ? 'error' : undefined"
+            :feedback="errors.socks5Username"
+          >
+            <NInput v-model:value="form.socks5Username" />
+          </NFormItem>
+
+          <div class="sm:col-span-2">
+            <NFormItem
+              label="密码"
+              :required="!isEdit"
+              :validation-status="errors.socks5Password ? 'error' : undefined"
+              :feedback="errors.socks5Password"
+            >
+              <NInput
+                v-model:value="form.socks5Password"
+                type="password"
+                show-password-on="click"
+                :status="errors.socks5Password ? 'error' : undefined"
+                :input-props="{ autocomplete: 'new-password' }"
+              />
+            </NFormItem>
+          </div>
         </div>
-      </div>
 
-      <div class="mt-4">
-        <label class="label py-1"><span class="label-text">备注</span></label>
-        <textarea
-          v-model="form.remark"
-          rows="2"
-          class="textarea textarea-bordered w-full text-sm"
-        ></textarea>
-      </div>
+        <NDivider title-placement="left">风险评分 (可选)</NDivider>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+          <NFormItem>
+            <template #label>
+              <span>Scamalytics</span>
+              <span class="text-xs text-zinc-400 ml-2">0-100, 越低越好</span>
+            </template>
+            <NInputNumber
+              v-model:value="form.scamalyticsScore"
+              :min="0"
+              :max="100"
+              style="width: 100%"
+            />
+          </NFormItem>
 
-      <div class="modal-action mt-6">
-        <button class="btn btn-ghost btn-sm" @click="close">取消</button>
-        <button
-          class="btn btn-primary btn-sm"
-          :disabled="submitting || loadingDetail"
+          <NFormItem>
+            <template #label>
+              <span>IPQualityScore</span>
+              <span class="text-xs text-zinc-400 ml-2">0-100, 越低越好</span>
+            </template>
+            <NInputNumber
+              v-model:value="form.ipqsScore"
+              :min="0"
+              :max="100"
+              style="width: 100%"
+            />
+          </NFormItem>
+        </div>
+
+        <NFormItem label="备注">
+          <NInput
+            v-model:value="form.remark"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+            placeholder="选填"
+          />
+        </NFormItem>
+      </NForm>
+    </NSpin>
+
+    <template #footer>
+      <NSpace justify="end">
+        <NButton size="small" @click="close">取消</NButton>
+        <NButton
+          type="primary"
+          size="small"
+          :loading="submitting"
+          :disabled="loadingDetail"
           @click="onSubmit"
         >
-          <span v-if="submitting" class="loading loading-spinner loading-xs"></span>
           确定
-        </button>
-      </div>
-    </div>
-    <div class="modal-backdrop bg-black/40" @click="close"></div>
-  </dialog>
+        </NButton>
+      </NSpace>
+    </template>
+  </NModal>
 </template>

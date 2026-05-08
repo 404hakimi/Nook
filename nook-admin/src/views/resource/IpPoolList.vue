@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
   Globe2,
+  MoreVertical,
   Pencil,
   Plus,
   RefreshCcw,
@@ -11,10 +12,21 @@ import {
   Undo2,
   Zap
 } from 'lucide-vue-next'
-import { useToast } from '@/composables/useToast'
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NDropdown,
+  NIcon,
+  NInput,
+  NSelect,
+  NTag,
+  useMessage,
+  type DataTableColumns,
+  type DropdownOption
+} from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import {
-  IP_POOL_STATUS_BADGE_CLASS,
   IP_POOL_STATUS_LABELS,
   deleteIpPool,
   pageIpPool,
@@ -25,11 +37,10 @@ import {
 } from '@/api/resource/ip-pool'
 import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/resource/ip-type'
 import { formatDateTime } from '@/utils/date'
-import Select from '@/components/Select.vue'
 import IpPoolFormDialog from './IpPoolFormDialog.vue'
 import IpPoolDeployDialog from './IpPoolDeployDialog.vue'
 
-const toast = useToast()
+const message = useMessage()
 const { confirm } = useConfirm()
 
 // ===== 列表 + 查询 =====
@@ -41,11 +52,6 @@ const STATUS_OPTIONS = [
   { label: '黑名单', value: 4 },
   { label: '冷却中', value: 5 },
   { label: '降级', value: 6 }
-]
-const PAGE_SIZE_OPTIONS = [
-  { label: '10 条/页', value: 10 },
-  { label: '20 条/页', value: 20 },
-  { label: '50 条/页', value: 50 }
 ]
 
 const ipTypes = ref<ResourceIpType[]>([])
@@ -65,7 +71,6 @@ const query = reactive<Required<Pick<ResourceIpPoolQuery, 'pageNo' | 'pageSize'>
 const list = ref<ResourceIpPool[]>([])
 const total = ref(0)
 const loading = ref(false)
-const totalPages = computed(() => Math.max(1, Math.ceil(total.value / query.pageSize)))
 
 async function loadIpTypes() {
   // 加载失败不静默 — 错误已被 request 拦截器 toast, 这里再 console.error 帮助定位;
@@ -74,7 +79,7 @@ async function loadIpTypes() {
     ipTypes.value = await listIpTypes()
     if (!ipTypes.value.length) {
       console.warn('[ip-pool] 未拉到任何 IP 类型. 请确认 sql/99_seed.sql 已执行 (resource_ip_type 表至少 3 条)')
-      toast.warning('IP 类型为空, 请运营在数据库中执行 99_seed.sql 初始化')
+      message.warning('IP 类型为空, 请运营在数据库中执行 99_seed.sql 初始化')
     }
   } catch (e) {
     console.error('[ip-pool] 加载 IP 类型失败:', e)
@@ -122,17 +127,24 @@ function onSearch() {
   loadList()
 }
 
-function goPage(p: number) {
-  if (p < 1 || p > totalPages.value) return
-  query.pageNo = p
-  loadList()
-}
-
 function ipTypeName(typeId: string) {
   const t = ipTypes.value.find((x) => x.id === typeId)
   if (!t) return typeId
   const label = IP_TYPE_CODE_LABELS[t.code] ?? t.code
   return `${t.name} · ${label}`
+}
+
+// 状态 → NTag 颜色映射 (替代 daisy 的 IP_POOL_STATUS_BADGE_CLASS)
+function statusTagType(status: number): 'success' | 'info' | 'warning' | 'error' | 'default' {
+  switch (status) {
+    case 1: return 'success'
+    case 2: return 'info'
+    case 3: return 'warning'
+    case 4: return 'error'
+    case 5: return 'warning'
+    case 6: return 'default'
+    default: return 'default'
+  }
 }
 
 // ===== 新增 / 编辑 =====
@@ -176,7 +188,7 @@ async function onDelete(ip: ResourceIpPool) {
   if (!ok) return
   try {
     await deleteIpPool(ip.id)
-    toast.success('删除成功')
+    message.success('删除成功')
     loadList()
   } catch {
     /* */
@@ -194,7 +206,7 @@ async function onRelease(ip: ResourceIpPool) {
   if (!ok) return
   try {
     await releaseIpPool(ip.id)
-    toast.success('已置冷却')
+    message.success('已置冷却')
     loadList()
   } catch {
     /* */
@@ -242,14 +254,160 @@ async function onTest(ip: ResourceIpPool) {
       const tip = matched
         ? `✔ 出网 IP=${res.exitIp} (${res.elapsedMs}ms)`
         : `⚠ 出网 IP=${res.exitIp} 与登记 ${ip.ipAddress} 不一致 (${res.elapsedMs}ms)`
-      matched ? toast.success(tip) : toast.warning(tip)
+      matched ? message.success(tip) : message.warning(tip)
     } else {
-      toast.error(`✘ ${res.error || 'SOCKS5 不通'} (${res.elapsedMs}ms)`)
+      message.error(`✘ ${res.error || 'SOCKS5 不通'} (${res.elapsedMs}ms)`)
     }
   } finally {
     testing.value[ip.id] = false
   }
 }
+
+// ===== 行操作菜单 =====
+function buildRowActions(ip: ResourceIpPool): DropdownOption[] {
+  const opts: DropdownOption[] = []
+  if (canTest(ip)) {
+    opts.push({
+      label: '测试',
+      key: 'test',
+      icon: () =>
+        h(NIcon, { color: 'var(--n-warning-color)' }, { default: () => h(Zap) })
+    })
+  }
+  opts.push({
+    label: '编辑',
+    key: 'edit',
+    icon: () => h(NIcon, null, { default: () => h(Pencil) })
+  })
+  if (ip.status === 2) {
+    opts.push({
+      label: '退订',
+      key: 'release',
+      icon: () => h(NIcon, null, { default: () => h(Undo2) })
+    })
+  }
+  opts.push({ type: 'divider', key: 'd1' })
+  opts.push({
+    label: '删除',
+    key: 'delete',
+    props: { style: 'color: var(--n-error-color)' },
+    icon: () => h(NIcon, { color: 'var(--n-error-color)' }, { default: () => h(Trash2) })
+  })
+  return opts
+}
+
+function onRowAction(key: string | number, ip: ResourceIpPool) {
+  if (key === 'test') onTest(ip)
+  else if (key === 'edit') openEdit(ip)
+  else if (key === 'release') onRelease(ip)
+  else if (key === 'delete') onDelete(ip)
+}
+
+// ===== 表格列定义 =====
+const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
+  {
+    title: 'IP 地址',
+    key: 'ipAddress',
+    render: (row) =>
+      h('div', { class: 'flex items-center gap-2' }, [
+        h(NIcon, { size: 16, depth: 3 }, { default: () => h(Globe2) }),
+        h('span', { class: 'font-mono' }, row.ipAddress)
+      ])
+  },
+  { title: '区域', key: 'region', render: (row) => row.region || '-' },
+  { title: '类型', key: 'ipTypeId', render: (row) => ipTypeName(row.ipTypeId) },
+  {
+    title: 'SOCKS5',
+    key: 'socks5',
+    render: (row) => {
+      if (!row.socks5Host) {
+        return h('span', { class: 'text-xs text-zinc-400' }, '未部署')
+      }
+      const children: ReturnType<typeof h>[] = [
+        h('span', { class: 'font-mono text-xs' }, [
+          row.socks5Host,
+          h('span', { class: 'text-zinc-400' }, `:${row.socks5Port}`)
+        ])
+      ]
+      if (row.socks5Username) {
+        children.push(
+          h('span', { class: 'ml-1 font-mono text-xs text-zinc-500' }, `/ ${row.socks5Username}`)
+        )
+      }
+      children.push(
+        row.socks5Password
+          ? h(NTag, { size: 'small', type: 'success', class: 'ml-1' }, { default: () => 'pass' })
+          : h(NTag, { size: 'small', bordered: true, class: 'ml-1' }, { default: () => 'no-pass' })
+      )
+      return h('div', { class: 'flex items-center flex-wrap' }, children)
+    }
+  },
+  {
+    title: '状态',
+    key: 'status',
+    render: (row) =>
+      h(
+        NTag,
+        { size: 'small', type: statusTagType(row.status) },
+        { default: () => IP_POOL_STATUS_LABELS[row.status] || row.status }
+      )
+  },
+  { title: '评分', key: 'score', render: (row) => (row.score ?? '-') as string },
+  { title: '分配次数', key: 'assignCount', render: (row) => row.assignCount ?? 0 },
+  {
+    title: '当前会员',
+    key: 'assignedMemberId',
+    render: (row) =>
+      h('span', { class: 'font-mono text-xs text-zinc-500' }, row.assignedMemberId || '-')
+  },
+  {
+    title: '创建时间',
+    key: 'createdAt',
+    width: 170,
+    render: (row) => formatDateTime(row.createdAt)
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    align: 'right',
+    width: 80,
+    render: (row) =>
+      h(
+        NDropdown,
+        {
+          options: buildRowActions(row),
+          trigger: 'click',
+          onSelect: (key: string | number) => onRowAction(key, row)
+        },
+        {
+          default: () =>
+            h(
+              NButton,
+              { circle: true, quaternary: true, size: 'small' },
+              { default: () => h(NIcon, null, { default: () => h(MoreVertical) }) }
+            )
+        }
+      )
+  }
+])
+
+const pagination = computed(() => ({
+  page: query.pageNo,
+  pageSize: query.pageSize,
+  itemCount: total.value,
+  pageSizes: [10, 20, 50],
+  showSizePicker: true,
+  prefix: ({ itemCount }: { itemCount: number }) => `共 ${itemCount} 条`,
+  onUpdatePage: (p: number) => {
+    query.pageNo = p
+    loadList()
+  },
+  onUpdatePageSize: (s: number) => {
+    query.pageSize = s
+    query.pageNo = 1
+    loadList()
+  }
+}))
 
 onMounted(async () => {
   await loadIpTypes()
@@ -260,190 +418,85 @@ onMounted(async () => {
 <template>
   <div class="space-y-4">
     <!-- 顶部搜索栏 -->
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body py-4">
-        <div class="flex flex-wrap gap-3 items-end">
-          <div>
-            <label class="label py-0"><span class="label-text">关键词</span></label>
-            <input
-              v-model="query.keyword"
-              type="text"
-              placeholder="IP 地址"
-              class="input input-bordered input-sm w-48 font-mono"
-              @keyup.enter="onSearch"
-            />
-          </div>
-          <div>
-            <label class="label py-0"><span class="label-text">状态</span></label>
-            <Select v-model="query.status" :options="STATUS_OPTIONS" width="w-28" />
-          </div>
-          <div>
-            <label class="label py-0"><span class="label-text">区域</span></label>
-            <input
-              v-model="query.region"
-              type="text"
-              placeholder="us-west / jp / ..."
-              class="input input-bordered input-sm w-32"
-              @keyup.enter="onSearch"
-            />
-          </div>
-          <div>
-            <label class="label py-0"><span class="label-text">类型</span></label>
-            <Select v-model="query.ipTypeId" :options="ipTypeOptions" width="w-44" />
-          </div>
-          <button class="btn btn-primary btn-sm" @click="onSearch">
-            <Search class="w-4 h-4" />搜索
-          </button>
-          <button class="btn btn-ghost btn-sm" @click="resetQuery">
-            <RefreshCcw class="w-4 h-4" />重置
-          </button>
-          <div class="flex-1"></div>
-          <button class="btn btn-accent btn-sm" @click="openDeploy" title="远端部署 SOCKS5; 成功后可一键添加到 IP 池">
-            <Rocket class="w-4 h-4" />部署 SOCKS5
-          </button>
-          <button class="btn btn-primary btn-sm" @click="openCreate">
-            <Plus class="w-4 h-4" />新增 IP
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 表格 -->
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body p-0">
+    <NCard size="small">
+      <div class="flex flex-wrap gap-3 items-end">
         <div>
-          <table class="table table-zebra">
-            <thead>
-              <tr>
-                <th>IP 地址</th>
-                <th>区域</th>
-                <th>类型</th>
-                <th>SOCKS5</th>
-                <th>状态</th>
-                <th>评分</th>
-                <th>分配次数</th>
-                <th>当前会员</th>
-                <th>创建时间</th>
-                <th class="text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading">
-                <td colspan="10" class="text-center py-12">
-                  <span class="loading loading-spinner"></span>
-                </td>
-              </tr>
-              <tr v-else-if="!list.length">
-                <td colspan="10" class="text-center py-12">
-                  <div class="flex flex-col items-center gap-3 text-base-content/50">
-                    <Globe2 class="w-10 h-10 opacity-30" />
-                    <div class="text-sm">还没有 IP 池条目</div>
-                    <button class="btn btn-primary btn-sm" @click="openCreate">
-                      <Plus class="w-4 h-4" />新增第一个 IP
-                    </button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-for="ip in list" :key="ip.id">
-                <td class="whitespace-nowrap">
-                  <div class="flex items-center gap-2">
-                    <Globe2 class="w-4 h-4 text-base-content/50" />
-                    <span class="font-mono">{{ ip.ipAddress }}</span>
-                  </div>
-                </td>
-                <td class="text-sm">{{ ip.region }}</td>
-                <td class="text-sm">{{ ipTypeName(ip.ipTypeId) }}</td>
-                <td class="text-xs font-mono">
-                  <div v-if="ip.socks5Host">
-                    <span>{{ ip.socks5Host }}<span class="text-base-content/40">:{{ ip.socks5Port }}</span></span>
-                    <span v-if="ip.socks5Username" class="ml-1 text-base-content/60">/ {{ ip.socks5Username }}</span>
-                    <span
-                      v-if="ip.socks5Password"
-                      class="ml-1 badge badge-xs badge-success"
-                      title="已配置密码"
-                    >pass</span>
-                    <span v-else class="ml-1 badge badge-xs badge-ghost" title="未配置密码">no-pass</span>
-                  </div>
-                  <span v-else class="text-base-content/40">未部署</span>
-                </td>
-                <td>
-                  <span :class="['badge badge-sm', IP_POOL_STATUS_BADGE_CLASS[ip.status] || 'badge-ghost']">
-                    {{ IP_POOL_STATUS_LABELS[ip.status] || ip.status }}
-                  </span>
-                </td>
-                <td class="text-sm">{{ ip.score ?? '-' }}</td>
-                <td class="text-sm">{{ ip.assignCount ?? 0 }}</td>
-                <td class="text-xs font-mono text-base-content/70">{{ ip.assignedMemberId || '-' }}</td>
-                <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(ip.createdAt) }}</td>
-                <td>
-                  <div class="flex justify-end items-center gap-1 flex-wrap">
-                    <!-- 测试: 只要 SOCKS5 凭据齐全就能拨号探测 -->
-                    <button
-                      v-if="canTest(ip)"
-                      class="btn btn-ghost btn-xs gap-1"
-                      :disabled="testing[ip.id]"
-                      @click="onTest(ip)"
-                      title="通过该 SOCKS5 拨号公网 echo-IP, 返回出网真实 IP"
-                    >
-                      <span v-if="testing[ip.id]" class="loading loading-spinner loading-xs"></span>
-                      <Zap v-else class="w-3.5 h-3.5 text-warning" />
-                      <span class="text-warning">测试</span>
-                    </button>
-                    <button class="btn btn-ghost btn-xs gap-1" @click="openEdit(ip)">
-                      <Pencil class="w-3.5 h-3.5 text-info" />
-                      <span class="text-info">编辑</span>
-                    </button>
-                    <button
-                      v-if="ip.status === 2"
-                      class="btn btn-ghost btn-xs gap-1"
-                      @click="onRelease(ip)"
-                      title="退订, 置为冷却"
-                    >
-                      <Undo2 class="w-3.5 h-3.5 text-primary" />
-                      <span class="text-primary">退订</span>
-                    </button>
-                    <button class="btn btn-ghost btn-xs gap-1" @click="onDelete(ip)">
-                      <Trash2 class="w-3.5 h-3.5 text-error" />
-                      <span class="text-error">删除</span>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="text-xs text-zinc-500 mb-1">关键词</div>
+          <NInput
+            v-model:value="query.keyword"
+            size="small"
+            placeholder="IP 地址"
+            class="w-48"
+            :input-props="{ style: 'font-family: monospace' }"
+            @keyup.enter="onSearch"
+          />
         </div>
-
-        <!-- 分页 -->
-        <div class="flex items-center justify-between p-4 border-t border-base-200">
-          <div class="text-sm text-base-content/60">共 {{ total }} 条</div>
-          <div class="flex items-center gap-2">
-            <Select
-              v-model="query.pageSize"
-              :options="PAGE_SIZE_OPTIONS"
-              width="w-28"
-              align="end"
-              direction="top"
-              @change="onSearch"
-            />
-            <div class="join">
-              <button
-                class="join-item btn btn-sm"
-                :disabled="query.pageNo === 1"
-                @click="goPage(query.pageNo - 1)"
-              >«</button>
-              <button class="join-item btn btn-sm pointer-events-none">
-                {{ query.pageNo }} / {{ totalPages }}
-              </button>
-              <button
-                class="join-item btn btn-sm"
-                :disabled="query.pageNo >= totalPages"
-                @click="goPage(query.pageNo + 1)"
-              >»</button>
-            </div>
-          </div>
+        <div>
+          <div class="text-xs text-zinc-500 mb-1">状态</div>
+          <NSelect
+            v-model:value="query.status"
+            :options="STATUS_OPTIONS"
+            size="small"
+            class="w-28"
+          />
         </div>
+        <div>
+          <div class="text-xs text-zinc-500 mb-1">区域</div>
+          <NInput
+            v-model:value="query.region"
+            size="small"
+            placeholder="us-west / jp / ..."
+            class="w-32"
+            @keyup.enter="onSearch"
+          />
+        </div>
+        <div>
+          <div class="text-xs text-zinc-500 mb-1">类型</div>
+          <NSelect
+            v-model:value="query.ipTypeId"
+            :options="ipTypeOptions"
+            size="small"
+            class="w-44"
+          />
+        </div>
+        <NButton type="primary" size="small" @click="onSearch">
+          <template #icon><NIcon><Search /></NIcon></template>
+          搜索
+        </NButton>
+        <NButton quaternary size="small" @click="resetQuery">
+          <template #icon><NIcon><RefreshCcw /></NIcon></template>
+          重置
+        </NButton>
+        <div class="flex-1"></div>
+        <NButton
+          type="info"
+          size="small"
+          @click="openDeploy"
+          title="远端部署 SOCKS5; 成功后可一键添加到 IP 池"
+        >
+          <template #icon><NIcon><Rocket /></NIcon></template>
+          部署 SOCKS5
+        </NButton>
+        <NButton type="primary" size="small" @click="openCreate">
+          <template #icon><NIcon><Plus /></NIcon></template>
+          新增 IP
+        </NButton>
       </div>
-    </div>
+    </NCard>
+
+    <!-- 表格 + 分页 -->
+    <NCard size="small" :content-style="{ padding: 0 }">
+      <NDataTable
+        :columns="columns"
+        :data="list"
+        :loading="loading"
+        :pagination="pagination"
+        :remote="true"
+        :bordered="false"
+        :row-key="(row: ResourceIpPool) => row.id"
+        size="small"
+      />
+    </NCard>
 
     <!-- 新增/编辑 弹框: 仅保存 IP 池条目元数据 (SOCKS5 凭据); 部署走顶部 "部署 SOCKS5" 按钮 -->
     <IpPoolFormDialog

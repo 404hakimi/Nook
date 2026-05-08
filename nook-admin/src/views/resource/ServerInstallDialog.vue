@@ -1,11 +1,23 @@
 <script setup lang="ts">
 import { nextTick, reactive, ref, watch } from 'vue'
 import { Rocket } from 'lucide-vue-next'
-import { useToast } from '@/composables/useToast'
+import {
+  NButton,
+  NCheckbox,
+  NForm,
+  NFormItem,
+  NIcon,
+  NInputNumber,
+  NInput,
+  NModal,
+  NSelect,
+  NSpace,
+  NSpin,
+  useMessage
+} from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { xrayInstallStream, type LineServerInstallDTO } from '@/api/xray/server'
 import type { ResourceServer } from '@/api/resource/server'
-import Select from '@/components/Select.vue'
 
 interface Props {
   modelValue: boolean
@@ -17,7 +29,7 @@ const emit = defineEmits<{
   (e: 'installed'): void
 }>()
 
-const toast = useToast()
+const message = useMessage()
 const { confirm } = useConfirm()
 
 const installing = ref(false)
@@ -89,15 +101,15 @@ async function onSubmit() {
       timezone: form.timezone || undefined
     }
     await xrayInstallStream(props.server.id, dto, appendOutput, abortCtrl.signal)
-    toast.success('安装完成')
+    message.success('安装完成')
     emit('installed')
   } catch (e) {
     if ((e as Error).name === 'AbortError') {
       appendOutput('\n[nook] 用户已取消, 远端脚本可能已经在跑(无法终止)\n')
-      toast.warning('已取消, 但远端可能仍在执行')
+      message.warning('已取消, 但远端可能仍在执行')
     } else {
       appendOutput(`\n[error] ${(e as Error).message || ''}\n`)
-      toast.error('安装失败, 看输出日志定位')
+      message.error('安装失败, 看输出日志定位')
     }
   } finally {
     installing.value = false
@@ -122,129 +134,148 @@ function close() {
   if (installing.value) {
     // 关弹框时主动 abort, 但 SSH 命令在远端继续跑(无法 kill)
     abortCtrl?.abort()
-    toast.warning('已断开输出流, 远端脚本可能仍在后台跑')
+    message.warning('已断开输出流, 远端脚本可能仍在后台跑')
   }
   emit('update:modelValue', false)
 }
 </script>
 
 <template>
-  <dialog class="modal" :class="{ 'modal-open': modelValue }">
-    <div class="modal-box max-w-3xl">
-      <h3 class="text-lg font-semibold flex items-center gap-2 mb-1">
-        <Rocket class="w-5 h-5 text-primary" />
-        一键部署 Xray
-        <span v-if="server" class="text-sm font-normal text-base-content/60">— {{ server.name }} ({{ server.host }})</span>
-      </h3>
-      <p class="text-xs text-base-content/50 mb-4">
-        将远程执行 nook 自带的安装脚本（仅支持 Ubuntu 22.04+），装纯 Xray 内核 + 标配 xray.json（含 grpc-api）。
-        <strong>不会装 3x-ui</strong>。已有配置会先备份。
-      </p>
+  <NModal
+    :show="modelValue"
+    preset="card"
+    style="max-width: 48rem"
+    :bordered="false"
+    :mask-closable="false"
+    @update:show="(v: boolean) => emit('update:modelValue', v)"
+  >
+    <template #header>
+      <div class="flex items-center gap-2">
+        <NIcon :size="20" :depth="2"><Rocket /></NIcon>
+        <span>一键部署 Xray</span>
+      </div>
+    </template>
+    <template #header-extra>
+      <span v-if="server" class="text-xs text-zinc-500">
+        {{ server.name }} ({{ server.host }})
+      </span>
+    </template>
 
-      <!-- 参数区 -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label class="label py-1">
-            <span class="label-text">vmess 入站端口 <span class="text-error">*</span></span>
-            <span class="label-text-alt text-base-content/50">客户连接用</span>
-          </label>
-          <input
-            v-model.number="form.vmessPort"
-            type="number"
-            min="1"
-            max="65535"
+    <p class="text-xs text-zinc-500 mb-4">
+      将远程执行 nook 自带的安装脚本（仅支持 Ubuntu 22.04+），装纯 Xray 内核 + 标配
+      xray.json（含 grpc-api）。
+      <strong>不会装 3x-ui</strong>。已有配置会先备份。
+    </p>
+
+    <NForm
+      :model="form"
+      label-placement="top"
+      require-mark-placement="right-hanging"
+      size="small"
+    >
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+        <NFormItem
+          required
+          :validation-status="errors.vmessPort ? 'error' : undefined"
+          :feedback="errors.vmessPort"
+        >
+          <template #label>
+            <span>vmess 入站端口</span>
+            <span class="text-xs text-zinc-400 ml-2">客户连接用</span>
+          </template>
+          <NInputNumber
+            v-model:value="form.vmessPort"
+            :min="1"
+            :max="65535"
             :disabled="installing"
-            class="input input-bordered input-sm w-full"
-            :class="{ 'input-error': errors.vmessPort }"
+            class="w-full"
           />
-          <div v-if="errors.vmessPort" class="text-error text-xs mt-1">{{ errors.vmessPort }}</div>
-        </div>
-        <div>
-          <label class="label py-1">
-            <span class="label-text">Xray gRPC 端口 <span class="text-error">*</span></span>
-            <span class="label-text-alt text-base-content/50">仅 127.0.0.1 监听</span>
-          </label>
-          <input
-            v-model.number="form.xrayApiPort"
-            type="number"
-            min="1"
-            max="65535"
+        </NFormItem>
+        <NFormItem
+          required
+          :validation-status="errors.xrayApiPort ? 'error' : undefined"
+          :feedback="errors.xrayApiPort"
+        >
+          <template #label>
+            <span>Xray gRPC 端口</span>
+            <span class="text-xs text-zinc-400 ml-2">仅 127.0.0.1 监听</span>
+          </template>
+          <NInputNumber
+            v-model:value="form.xrayApiPort"
+            :min="1"
+            :max="65535"
             :disabled="installing"
-            class="input input-bordered input-sm w-full"
-            :class="{ 'input-error': errors.xrayApiPort }"
+            class="w-full"
           />
-          <div v-if="errors.xrayApiPort" class="text-error text-xs mt-1">{{ errors.xrayApiPort }}</div>
-        </div>
+        </NFormItem>
         <div class="sm:col-span-2">
-          <label class="label py-1"><span class="label-text">日志目录</span></label>
-          <input
-            v-model="form.logDir"
-            type="text"
-            :disabled="installing"
-            class="input input-bordered input-sm w-full font-mono"
-          />
+          <NFormItem label="日志目录">
+            <NInput
+              v-model:value="form.logDir"
+              :disabled="installing"
+              :input-props="{ style: 'font-family: monospace' }"
+            />
+          </NFormItem>
         </div>
         <div>
-          <label class="cursor-pointer label justify-start gap-2 py-1">
-            <input
-              v-model="form.installUfw"
-              type="checkbox"
-              :disabled="installing"
-              class="checkbox checkbox-sm"
-            />
-            <span class="label-text">配置 UFW 防火墙</span>
-          </label>
-          <p class="text-xs text-base-content/50 ml-7">仅放 22 + vmess 端口</p>
+          <NCheckbox v-model:checked="form.installUfw" :disabled="installing">
+            配置 UFW 防火墙
+          </NCheckbox>
+          <p class="text-xs text-zinc-500 ml-6 mt-1">仅放 22 + vmess 端口</p>
         </div>
         <div>
-          <label class="cursor-pointer label justify-start gap-2 py-1">
-            <input
-              v-model="form.enableBbr"
-              type="checkbox"
-              :disabled="installing"
-              class="checkbox checkbox-sm"
-            />
-            <span class="label-text">启用 BBR 拥塞控制</span>
-          </label>
-          <p class="text-xs text-base-content/50 ml-7">提升跨境吞吐</p>
+          <NCheckbox v-model:checked="form.enableBbr" :disabled="installing">
+            启用 BBR 拥塞控制
+          </NCheckbox>
+          <p class="text-xs text-zinc-500 ml-6 mt-1">提升跨境吞吐</p>
         </div>
-        <div class="sm:col-span-2">
-          <label class="label py-1">
-            <span class="label-text">时区</span>
-            <span class="label-text-alt text-base-content/50">系统时区, 影响日志/到期判定</span>
-          </label>
-          <Select v-model="form.timezone" :options="TIMEZONE_OPTIONS" :disabled="installing" />
+        <div class="sm:col-span-2 mt-2">
+          <NFormItem>
+            <template #label>
+              <span>时区</span>
+              <span class="text-xs text-zinc-400 ml-2">系统时区, 影响日志/到期判定</span>
+            </template>
+            <NSelect
+              v-model:value="form.timezone"
+              :options="TIMEZONE_OPTIONS"
+              :disabled="installing"
+            />
+          </NFormItem>
         </div>
       </div>
+    </NForm>
 
-      <!-- 输出区: 流式追加, 自动滚到最底 -->
-      <div class="mt-4">
-        <div class="flex items-center justify-between mb-2">
-          <div class="text-sm font-semibold text-base-content/70">远程输出 (实时)</div>
-          <div v-if="installing" class="flex items-center gap-1 text-xs text-base-content/60">
-            <span class="loading loading-spinner loading-xs"></span>
-            <span>实时回传中...</span>
-          </div>
+    <!-- 输出区: 流式追加, 自动滚到最底 -->
+    <div class="mt-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-sm font-semibold text-zinc-500">远程输出 (实时)</div>
+        <div v-if="installing" class="flex items-center gap-2 text-xs text-zinc-500">
+          <NSpin :size="14" />
+          <span>实时回传中...</span>
         </div>
-        <pre
-          ref="outputRef"
-          class="text-xs max-h-72 overflow-auto bg-neutral text-neutral-content min-h-32 px-4 py-3 rounded whitespace-pre-wrap break-all font-mono leading-relaxed"
-        ><code v-if="output">{{ output }}</code><span v-else class="text-neutral-content/50">{{ installing ? '准备中...' : '点"开始安装"触发, 远端 stdout 会逐行回传到这里' }}</span></pre>
       </div>
+      <pre
+        ref="outputRef"
+        class="text-xs max-h-72 overflow-auto bg-zinc-900 text-zinc-100 min-h-32 px-4 py-3 rounded whitespace-pre-wrap break-all font-mono leading-relaxed"
+      ><code v-if="output">{{ output }}</code><span v-else class="text-zinc-500">{{ installing ? '准备中...' : '点"开始安装"触发, 远端 stdout 会逐行回传到这里' }}</span></pre>
+    </div>
 
-      <div class="modal-action mt-6">
-        <button class="btn btn-ghost btn-sm" :disabled="installing" @click="close">关闭</button>
-        <button
-          class="btn btn-primary btn-sm gap-1"
+    <template #footer>
+      <NSpace justify="end">
+        <NButton size="small" :disabled="installing" @click="close">关闭</NButton>
+        <NButton
+          type="primary"
+          size="small"
+          :loading="installing"
           :disabled="installing"
           @click="onSubmit"
         >
-          <span v-if="installing" class="loading loading-spinner loading-xs"></span>
-          <Rocket v-else class="w-4 h-4" />
+          <template #icon>
+            <NIcon><Rocket /></NIcon>
+          </template>
           {{ installing ? '安装中...' : '开始安装' }}
-        </button>
-      </div>
-    </div>
-    <div class="modal-backdrop bg-black/40" @click="close"></div>
-  </dialog>
+        </NButton>
+      </NSpace>
+    </template>
+  </NModal>
 </template>

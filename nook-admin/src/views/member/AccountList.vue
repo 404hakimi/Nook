@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { Construction } from 'lucide-vue-next'
+import { NCard } from 'naive-ui'
 </script>
 
 <template>
-  <div class="card bg-base-100 shadow-sm">
-    <div class="card-body py-16 text-center">
-      <Construction class="w-12 h-12 mx-auto text-base-content/30" />
+  <NCard size="small">
+    <div class="py-16 text-center">
+      <Construction class="w-12 h-12 mx-auto text-zinc-400" />
       <h2 class="text-lg font-semibold mt-4">会员账户</h2>
-      <p class="text-sm text-base-content/50 mt-1">
-        待对接 <code class="bg-base-200 px-1.5 py-0.5 rounded text-xs">/admin/member/accounts</code>
+      <p class="text-sm text-zinc-500 mt-1">
+        待对接 <code class="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-xs">/admin/member/accounts</code>
       </p>
     </div>
-  </div>
+  </NCard>
 </template>

@@ -1,7 +1,29 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Activity, Cpu, HardDrive, MemoryStick, Power, RefreshCw, Rocket, ScrollText, Server, Timer } from 'lucide-vue-next'
-import { useToast } from '@/composables/useToast'
+import {
+  Activity,
+  Cpu,
+  HardDrive,
+  MemoryStick,
+  Power,
+  RefreshCw,
+  Rocket,
+  Server,
+  Timer
+} from 'lucide-vue-next'
+import {
+  NButton,
+  NCard,
+  NIcon,
+  NModal,
+  NSelect,
+  NSpace,
+  NSpin,
+  NTabPane,
+  NTabs,
+  NTag,
+  useMessage
+} from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import {
   getServerSystemInfo,
@@ -14,7 +36,6 @@ import {
   type XrayServiceStatus
 } from '@/api/xray/server'
 import type { ResourceServer } from '@/api/resource/server'
-import Select from '@/components/Select.vue'
 import ServerInstallDialog from './ServerInstallDialog.vue'
 
 interface Props {
@@ -26,7 +47,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
 }>()
 
-const toast = useToast()
+const message = useMessage()
 const { confirm } = useConfirm()
 
 type Tab = 'status' | 'log'
@@ -86,13 +107,13 @@ async function runStatus() {
     systemInfo.value = sysRes.value
   } else {
     systemInfo.value = null
-    toast.error('拉系统信息失败: ' + ((sysRes.reason as Error)?.message ?? ''))
+    message.error('拉系统信息失败: ' + ((sysRes.reason as Error)?.message ?? ''))
   }
   if (svcRes.status === 'fulfilled') {
     serviceStatus.value = svcRes.value
   } else {
     serviceStatus.value = null
-    toast.error('拉 Xray 服务状态失败: ' + ((svcRes.reason as Error)?.message ?? ''))
+    message.error('拉 Xray 服务状态失败: ' + ((svcRes.reason as Error)?.message ?? ''))
   }
   statusLoading.value = false
 }
@@ -108,16 +129,16 @@ async function runLog() {
     })
   } catch (e) {
     xrayLog.value = null
-    toast.error('拉日志失败: ' + ((e as Error).message ?? ''))
+    message.error('拉日志失败: ' + ((e as Error).message ?? ''))
   } finally {
     logLoading.value = false
   }
 }
 
 /** 切到日志 Tab; 首次进入或参数变更后拉一次。 */
-function showLogTab() {
-  activeTab.value = 'log'
-  if (!xrayLog.value) runLog()
+function onTabChange(tab: Tab) {
+  activeTab.value = tab
+  if (tab === 'log' && !xrayLog.value) runLog()
 }
 
 async function runRestart() {
@@ -132,10 +153,10 @@ async function runRestart() {
   restarting.value = true
   try {
     await xrayRestart(props.server.id)
-    toast.success('✔ 已重启')
+    message.success('已重启')
     await runStatus()
   } catch (e) {
-    toast.error('重启失败: ' + ((e as Error).message ?? ''))
+    message.error('重启失败: ' + ((e as Error).message ?? ''))
   } finally {
     restarting.value = false
   }
@@ -146,7 +167,7 @@ function openInstall() {
 }
 
 async function onInstalled() {
-  toast.success('安装完成,正在刷新状态')
+  message.success('安装完成,正在刷新状态')
   await runStatus()
 }
 
@@ -154,180 +175,198 @@ function close() {
   emit('update:modelValue', false)
 }
 
-const activeBadge = computed(() => {
-  const a = serviceStatus.value?.active?.trim() ?? ''
-  if (a === 'active') return { text: '运行中', cls: 'badge-success' }
-  if (a === 'inactive') return { text: '未运行', cls: 'badge-error' }
-  if (a === 'failed') return { text: '失败', cls: 'badge-error' }
-  if (!a) return { text: '未知', cls: 'badge-ghost' }
-  return { text: a, cls: 'badge-warning' }
-})
+const activeBadge = computed<{ text: string; type: 'success' | 'error' | 'warning' | 'default' }>(
+  () => {
+    const a = serviceStatus.value?.active?.trim() ?? ''
+    if (a === 'active') return { text: '运行中', type: 'success' }
+    if (a === 'inactive') return { text: '未运行', type: 'error' }
+    if (a === 'failed') return { text: '失败', type: 'error' }
+    if (!a) return { text: '未知', type: 'default' }
+    return { text: a, type: 'warning' }
+  }
+)
 
 /** 顶栏统一 disabled 信号: 任意拉取或重启进行中都禁用按钮 */
 const anyBusy = computed(() => statusLoading.value || logLoading.value || restarting.value)
 </script>
 
 <template>
-  <dialog class="modal" :class="{ 'modal-open': modelValue }">
-    <div class="modal-box max-w-4xl">
-      <div class="flex items-center justify-between mb-4 gap-2 flex-wrap">
-        <h3 class="text-lg font-semibold">
-          Xray 运维台
-          <span v-if="server" class="text-base-content/60 text-sm font-normal">
-            — {{ server.name }} ({{ server.host }})
-          </span>
-        </h3>
-        <button class="btn btn-ghost btn-sm" @click="close">关闭</button>
-      </div>
+  <NModal
+    :show="modelValue"
+    preset="card"
+    style="max-width: 56rem"
+    :bordered="false"
+    :mask-closable="true"
+    @update:show="(v: boolean) => emit('update:modelValue', v)"
+  >
+    <template #header>
+      <span>Xray 运维台</span>
+    </template>
+    <template #header-extra>
+      <span v-if="server" class="text-xs text-zinc-500">
+        {{ server.name }} ({{ server.host }})
+      </span>
+    </template>
 
-      <div class="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <div role="tablist" class="tabs tabs-bordered">
-          <a
-            role="tab"
-            class="tab"
-            :class="{ 'tab-active': activeTab === 'status' }"
-            @click="activeTab = 'status'"
-          >
-            <Activity class="w-4 h-4 mr-1" />状态
-          </a>
-          <a
-            role="tab"
-            class="tab"
-            :class="{ 'tab-active': activeTab === 'log' }"
-            @click="showLogTab"
-          >
-            <ScrollText class="w-4 h-4 mr-1" />日志
-          </a>
-        </div>
-        <div class="flex gap-2 flex-wrap items-center">
-          <!-- 日志选项: 仅在 log tab 才有意义; 切换会触发 runLog 单独刷新 -->
-          <template v-if="activeTab === 'log'">
-            <Select
-              v-model="logLines"
-              :options="LOG_LINES_OPTIONS"
-              width="w-24"
-              :disabled="logLoading"
-              @change="runLog"
-            />
-            <Select
-              v-model="logLevel"
-              :options="LOG_LEVEL_OPTIONS"
-              width="w-28"
-              :disabled="logLoading"
-              @change="runLog"
-            />
-            <button
-              class="btn btn-sm btn-ghost gap-1"
-              :disabled="logLoading"
-              @click="runLog"
-            >
-              <RefreshCw class="w-4 h-4" />刷新日志
-            </button>
-          </template>
-          <button
-            v-else
-            class="btn btn-sm btn-ghost gap-1"
-            :disabled="statusLoading"
-            @click="runStatus"
-          >
-            <RefreshCw class="w-4 h-4" />刷新状态
-          </button>
-          <button
-            class="btn btn-sm btn-warning btn-outline gap-1"
-            :disabled="anyBusy"
-            @click="runRestart"
-          >
-            <Power class="w-4 h-4" />重启 Xray
-          </button>
-          <button
-            class="btn btn-sm btn-primary gap-1"
-            :disabled="anyBusy"
-            @click="openInstall"
-          >
-            <Rocket class="w-4 h-4" />部署/重装
-          </button>
-        </div>
+    <div class="flex items-center justify-between mb-3 gap-2 flex-wrap">
+      <NTabs
+        :value="activeTab"
+        type="line"
+        size="small"
+        @update:value="(v: Tab) => onTabChange(v)"
+      >
+        <NTabPane name="status" tab="状态" />
+        <NTabPane name="log" tab="日志" />
+      </NTabs>
+      <div class="flex gap-2 flex-wrap items-center">
+        <!-- 日志选项: 仅在 log tab 才有意义; 切换会触发 runLog 单独刷新 -->
+        <template v-if="activeTab === 'log'">
+          <NSelect
+            v-model:value="logLines"
+            :options="LOG_LINES_OPTIONS"
+            size="small"
+            class="w-24"
+            :disabled="logLoading"
+            @update:value="runLog"
+          />
+          <NSelect
+            v-model:value="logLevel"
+            :options="LOG_LEVEL_OPTIONS"
+            size="small"
+            class="w-28"
+            :disabled="logLoading"
+            @update:value="runLog"
+          />
+          <NButton quaternary size="small" :disabled="logLoading" @click="runLog">
+            <template #icon><NIcon><RefreshCw /></NIcon></template>
+            刷新日志
+          </NButton>
+        </template>
+        <NButton
+          v-else
+          quaternary
+          size="small"
+          :disabled="statusLoading"
+          @click="runStatus"
+        >
+          <template #icon><NIcon><RefreshCw /></NIcon></template>
+          刷新状态
+        </NButton>
+        <NButton type="warning" size="small" :disabled="anyBusy" @click="runRestart">
+          <template #icon><NIcon><Power /></NIcon></template>
+          重启 Xray
+        </NButton>
+        <NButton type="primary" size="small" :disabled="anyBusy" @click="openInstall">
+          <template #icon><NIcon><Rocket /></NIcon></template>
+          部署/重装
+        </NButton>
       </div>
+    </div>
 
-      <div v-if="activeTab === 'status'">
-        <div v-if="statusLoading && !systemInfo && !serviceStatus" class="py-12 text-center">
-          <span class="loading loading-spinner"></span>
-        </div>
-        <div v-else class="space-y-3">
+    <div v-if="activeTab === 'status'">
+      <NSpin :show="statusLoading && !systemInfo && !serviceStatus">
+        <div class="space-y-3 min-h-[8rem]">
           <!-- 系统基本信息 -->
-          <div class="bg-base-200 rounded p-3">
-            <div class="text-xs font-semibold text-base-content/60 mb-2 flex items-center gap-1">
-              <Server class="w-3.5 h-3.5" /> 系统信息
+          <NCard size="small">
+            <div class="text-xs font-semibold text-zinc-500 mb-2 flex items-center gap-1">
+              <NIcon :size="14"><Server /></NIcon>
+              系统信息
             </div>
             <div v-if="systemInfo" class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
               <div>
-                <div class="text-xs text-base-content/50">主机名</div>
-                <div class="font-mono text-xs truncate" :title="systemInfo.hostname">{{ systemInfo.hostname || '-' }}</div>
+                <div class="text-xs text-zinc-500">主机名</div>
+                <div class="font-mono text-xs truncate" :title="systemInfo.hostname">
+                  {{ systemInfo.hostname || '-' }}
+                </div>
               </div>
               <div>
-                <div class="text-xs text-base-content/50">时区</div>
+                <div class="text-xs text-zinc-500">时区</div>
                 <div class="font-mono text-xs">{{ systemInfo.timezone || '-' }}</div>
               </div>
               <div class="col-span-2">
-                <div class="text-xs text-base-content/50">操作系统 / 内核</div>
-                <div class="text-xs">{{ systemInfo.osRelease || '-' }} <span class="text-base-content/40 font-mono">{{ systemInfo.kernel }}</span></div>
+                <div class="text-xs text-zinc-500">操作系统 / 内核</div>
+                <div class="text-xs">
+                  {{ systemInfo.osRelease || '-' }}
+                  <span class="text-zinc-400 font-mono">{{ systemInfo.kernel }}</span>
+                </div>
               </div>
               <div class="col-span-2">
-                <div class="text-xs text-base-content/50 flex items-center gap-1"><Timer class="w-3 h-3" /> 系统已运行</div>
+                <div class="text-xs text-zinc-500 flex items-center gap-1">
+                  <NIcon :size="12"><Timer /></NIcon> 系统已运行
+                </div>
                 <div class="text-xs">{{ systemInfo.systemUptime || '-' }}</div>
               </div>
               <div class="col-span-2">
-                <div class="text-xs text-base-content/50 flex items-center gap-1"><Cpu class="w-3 h-3" /> 负载均值 (1/5/15min)</div>
+                <div class="text-xs text-zinc-500 flex items-center gap-1">
+                  <NIcon :size="12"><Cpu /></NIcon> 负载均值 (1/5/15min)
+                </div>
                 <div class="font-mono text-xs">{{ systemInfo.loadAvg || '-' }}</div>
               </div>
               <div>
-                <div class="text-xs text-base-content/50 flex items-center gap-1"><MemoryStick class="w-3 h-3" /> 内存</div>
+                <div class="text-xs text-zinc-500 flex items-center gap-1">
+                  <NIcon :size="12"><MemoryStick /></NIcon> 内存
+                </div>
                 <div class="font-mono text-xs">{{ systemInfo.memory || '-' }}</div>
               </div>
               <div>
-                <div class="text-xs text-base-content/50 flex items-center gap-1"><HardDrive class="w-3 h-3" /> 磁盘 (/)</div>
+                <div class="text-xs text-zinc-500 flex items-center gap-1">
+                  <NIcon :size="12"><HardDrive /></NIcon> 磁盘 (/)
+                </div>
                 <div class="font-mono text-xs">{{ systemInfo.disk || '-' }}</div>
               </div>
             </div>
-            <div v-else class="text-xs text-base-content/40 py-2">(未获取到)</div>
-          </div>
+            <div v-else class="text-xs text-zinc-400 py-2">(未获取到)</div>
+          </NCard>
 
           <!-- Xray 服务 -->
-          <div class="bg-base-200 rounded p-3">
-            <div class="text-xs font-semibold text-base-content/60 mb-2 flex items-center gap-1">
-              <Activity class="w-3.5 h-3.5" /> Xray 服务
+          <NCard size="small">
+            <div class="text-xs font-semibold text-zinc-500 mb-2 flex items-center gap-1">
+              <NIcon :size="14"><Activity /></NIcon>
+              Xray 服务
             </div>
-            <div v-if="serviceStatus" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div
+              v-if="serviceStatus"
+              class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm"
+            >
               <div>
-                <div class="text-xs text-base-content/50">运行状态</div>
-                <span :class="['badge badge-sm', activeBadge.cls]">{{ activeBadge.text }}</span>
+                <div class="text-xs text-zinc-500">运行状态</div>
+                <NTag size="small" :type="activeBadge.type">{{ activeBadge.text }}</NTag>
               </div>
               <div>
-                <div class="text-xs text-base-content/50">Xray 版本</div>
+                <div class="text-xs text-zinc-500">Xray 版本</div>
                 <div class="font-mono text-xs">{{ serviceStatus.version || '-' }}</div>
               </div>
               <div class="sm:col-span-2">
-                <div class="text-xs text-base-content/50">启动时间</div>
+                <div class="text-xs text-zinc-500">启动时间</div>
                 <div class="text-xs">{{ serviceStatus.uptimeFrom || '-' }}</div>
               </div>
               <div class="sm:col-span-2">
-                <div class="text-xs text-base-content/50">监听端口</div>
-                <pre class="font-mono text-xs whitespace-pre-wrap break-all m-0">{{ serviceStatus.listening || '(未捕获)' }}</pre>
+                <div class="text-xs text-zinc-500">监听端口</div>
+                <pre class="font-mono text-xs whitespace-pre-wrap break-all m-0">{{
+                  serviceStatus.listening || '(未捕获)'
+                }}</pre>
               </div>
             </div>
-            <div v-else class="text-xs text-base-content/40 py-2">(未获取到)</div>
-          </div>
+            <div v-else class="text-xs text-zinc-400 py-2">(未获取到)</div>
+          </NCard>
         </div>
-      </div>
-
-      <div v-else>
-        <pre
-          class="text-xs max-h-[32rem] overflow-auto bg-neutral text-neutral-content px-4 py-3 rounded font-mono whitespace-pre-wrap break-all leading-relaxed min-h-32"
-        ><span v-if="logLoading"><span class="loading loading-spinner loading-xs mr-2"></span>拉取中...</span><code v-else-if="xrayLog?.log">{{ xrayLog.log }}</code><span v-else class="text-neutral-content/50">点"刷新日志"拉取</span></pre>
-      </div>
+      </NSpin>
     </div>
-    <div class="modal-backdrop bg-black/40" @click="close"></div>
+
+    <div v-else>
+      <NSpin :show="logLoading && !xrayLog">
+        <pre
+          class="text-xs max-h-[32rem] overflow-auto bg-zinc-900 text-zinc-100 px-4 py-3 rounded font-mono whitespace-pre-wrap break-all leading-relaxed min-h-32"
+        ><code v-if="xrayLog?.log">{{ xrayLog.log }}</code><span v-else class="text-zinc-500">{{ logLoading ? '拉取中...' : '点"刷新日志"拉取' }}</span></pre>
+      </NSpin>
+    </div>
+
+    <template #footer>
+      <NSpace justify="end">
+        <NButton size="small" @click="close">关闭</NButton>
+      </NSpace>
+    </template>
 
     <ServerInstallDialog v-model="installOpen" :server="server" @installed="onInstalled" />
-  </dialog>
+  </NModal>
 </template>

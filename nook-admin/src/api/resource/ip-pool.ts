@@ -56,10 +56,7 @@ export interface PageResult<T> {
   records: T[]
 }
 
-/**
- * 状态码 → 展示标签 + DaisyUI badge 颜色 class.
- * 记得在前端列表里 @apply 这些 class.
- */
+/** 状态码 → 中文展示标签; UI 端用此映射, 颜色映射由 view 自行决定 (IpPoolList.statusTagType). */
 export const IP_POOL_STATUS_LABELS: Record<number, string> = {
   1: '可分配',
   2: '已占用',
@@ -67,15 +64,6 @@ export const IP_POOL_STATUS_LABELS: Record<number, string> = {
   4: '黑名单',
   5: '冷却中',
   6: '降级'
-}
-
-export const IP_POOL_STATUS_BADGE_CLASS: Record<number, string> = {
-  1: 'badge-success',
-  2: 'badge-info',
-  3: 'badge-warning',
-  4: 'badge-error',
-  5: 'badge-warning',
-  6: 'badge-ghost'
 }
 
 export function pageIpPool(params: ResourceIpPoolQuery) {

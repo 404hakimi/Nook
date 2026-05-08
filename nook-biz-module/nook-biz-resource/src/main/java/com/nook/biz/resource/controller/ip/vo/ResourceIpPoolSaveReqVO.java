@@ -52,8 +52,7 @@ public class ResourceIpPoolSaveReqVO {
     @Min(value = 1) @Max(value = 6)
     private Integer status;
 
-    /** 综合评分 0-100, 越高优先派发。 */
-    @NotNull(message = "评分不能为空", groups = Create.class)
+    /** 综合评分 0-100, 越高优先派发; 留空则由 service 给一个默认值或保持当前。 */
     private BigDecimal score;
 
     private Integer scamalyticsScore;

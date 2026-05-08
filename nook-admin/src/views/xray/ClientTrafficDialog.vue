@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RefreshCw } from 'lucide-vue-next'
+import {
+  NAlert,
+  NButton,
+  NDescriptions,
+  NDescriptionsItem,
+  NIcon,
+  NModal,
+  NProgress,
+  NSpace,
+  NSpin
+} from 'naive-ui'
 import { getClientTraffic, type XrayClient, type XrayClientTraffic } from '@/api/xray/client'
 
 interface Props {
@@ -71,10 +82,11 @@ const usagePct = computed(() => {
   if (!data.value || !data.value.totalBytes) return 0
   return Math.min(100, Math.round((usedBytes.value / data.value.totalBytes) * 100))
 })
-const usageColor = computed(() => {
-  if (usagePct.value >= 90) return 'progress-error'
-  if (usagePct.value >= 70) return 'progress-warning'
-  return 'progress-success'
+// 用量等级 → NProgress status
+const usageStatus = computed<'success' | 'warning' | 'error'>(() => {
+  if (usagePct.value >= 90) return 'error'
+  if (usagePct.value >= 70) return 'warning'
+  return 'success'
 })
 const expiryDays = computed(() => {
   if (!data.value || !data.value.expiryEpochMillis) return null
@@ -84,77 +96,93 @@ const expiryDays = computed(() => {
 </script>
 
 <template>
-  <dialog class="modal" :class="{ 'modal-open': modelValue }">
-    <div class="modal-box max-w-md">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold">流量与配额</h3>
-        <button
-          class="btn btn-ghost btn-xs"
-          :disabled="loading"
-          title="重新拉取"
-          @click="refresh"
-        >
-          <span v-if="loading" class="loading loading-spinner loading-xs"></span>
-          <RefreshCw v-else class="w-4 h-4" />
-        </button>
-      </div>
+  <NModal
+    :show="modelValue"
+    preset="card"
+    style="max-width: 28rem"
+    :bordered="false"
+    :mask-closable="true"
+    @update:show="(v: boolean) => emit('update:modelValue', v)"
+  >
+    <template #header>
+      <span>流量与配额</span>
+    </template>
+    <template #header-extra>
+      <NButton
+        quaternary
+        size="small"
+        :loading="loading"
+        :disabled="loading"
+        title="重新拉取"
+        @click="refresh"
+      >
+        <template #icon><NIcon><RefreshCw /></NIcon></template>
+      </NButton>
+    </template>
 
-      <div v-if="loading && !data" class="py-12 text-center">
-        <span class="loading loading-spinner"></span>
-      </div>
-      <div v-else-if="data" class="space-y-3 text-sm">
-        <!-- 用量进度条 -->
-        <div v-if="data.totalBytes > 0">
-          <div class="flex justify-between text-xs mb-1">
-            <span class="text-base-content/60">已用 {{ fmtBytes(usedBytes) }} / {{ fmtBytes(data.totalBytes) }}</span>
-            <span class="font-mono">{{ usagePct }}%</span>
+    <NSpin :show="loading && !data">
+      <div class="min-h-[8rem]">
+        <div v-if="data" class="space-y-3 text-sm">
+          <!-- 用量进度条 -->
+          <div v-if="data.totalBytes > 0">
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-zinc-500">
+                已用 {{ fmtBytes(usedBytes) }} / {{ fmtBytes(data.totalBytes) }}
+              </span>
+              <span class="font-mono">{{ usagePct }}%</span>
+            </div>
+            <NProgress
+              type="line"
+              :percentage="usagePct"
+              :status="usageStatus"
+              :show-indicator="false"
+            />
           </div>
-          <progress :class="['progress', usageColor, 'w-full']" :value="usagePct" max="100"></progress>
-        </div>
-        <div v-else class="text-xs text-base-content/60 bg-base-200 rounded px-2 py-1">
-          无流量上限：累计已用 {{ fmtBytes(usedBytes) }}
-        </div>
+          <NAlert v-else type="info" :show-icon="false" :bordered="false">
+            <span class="text-xs">无流量上限：累计已用 {{ fmtBytes(usedBytes) }}</span>
+          </NAlert>
 
-        <div class="divider my-1"></div>
+          <NDescriptions :column="1" size="small" label-placement="left" bordered>
+            <NDescriptionsItem label="Email">
+              <span class="font-mono text-xs">{{ data.clientEmail }}</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="上行">
+              <span class="font-mono">{{ fmtBytes(data.upBytes) }}</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="下行">
+              <span class="font-mono">{{ fmtBytes(data.downBytes) }}</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="到期">
+              {{ fmtExpiry(data.expiryEpochMillis) }}
+              <span
+                v-if="expiryDays !== null"
+                class="ml-2 text-xs"
+                :style="expiryDays < 7 ? 'color: var(--n-error-color)' : 'color: var(--n-text-color-3)'"
+              >
+                ({{ expiryDays >= 0 ? `${expiryDays} 天后` : `已过期 ${-expiryDays} 天` }})
+              </span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="启用">
+              <span :style="data.enabled ? 'color: var(--n-success-color)' : 'color: var(--n-error-color)'">
+                {{ data.enabled ? '✓ 启用' : '✗ 禁用' }}
+              </span>
+            </NDescriptionsItem>
+          </NDescriptions>
 
-        <div class="flex justify-between border-b border-base-200 pb-2">
-          <span class="text-base-content/60">Email</span>
-          <span class="font-mono">{{ data.clientEmail }}</span>
+          <div v-if="lastFetched" class="text-xs text-zinc-400 text-right pt-2">
+            最近拉取: {{ fmtFetchedAt(lastFetched) }}
+          </div>
         </div>
-        <div class="flex justify-between border-b border-base-200 pb-2">
-          <span class="text-base-content/60">上行</span>
-          <span class="font-mono">{{ fmtBytes(data.upBytes) }}</span>
-        </div>
-        <div class="flex justify-between border-b border-base-200 pb-2">
-          <span class="text-base-content/60">下行</span>
-          <span class="font-mono">{{ fmtBytes(data.downBytes) }}</span>
-        </div>
-        <div class="flex justify-between border-b border-base-200 pb-2">
-          <span class="text-base-content/60">到期</span>
-          <span>
-            {{ fmtExpiry(data.expiryEpochMillis) }}
-            <span v-if="expiryDays !== null" class="ml-2 text-xs" :class="expiryDays < 7 ? 'text-error' : 'text-base-content/50'">
-              ({{ expiryDays >= 0 ? `${expiryDays} 天后` : `已过期 ${-expiryDays} 天` }})
-            </span>
-          </span>
-        </div>
-        <div class="flex justify-between">
-          <span class="text-base-content/60">启用</span>
-          <span :class="data.enabled ? 'text-success' : 'text-error'">
-            {{ data.enabled ? '✓ 启用' : '✗ 禁用' }}
-          </span>
-        </div>
-
-        <div v-if="lastFetched" class="text-xs text-base-content/40 text-right pt-2">
-          最近拉取: {{ fmtFetchedAt(lastFetched) }}
+        <div v-else-if="!loading" class="py-8 text-center text-zinc-400">
+          无法加载流量数据
         </div>
       </div>
-      <div v-else class="py-8 text-center text-base-content/40">无法加载流量数据</div>
+    </NSpin>
 
-      <div class="modal-action mt-6">
-        <button class="btn btn-ghost btn-sm" @click="close">关闭</button>
-      </div>
-    </div>
-    <div class="modal-backdrop bg-black/40" @click="close"></div>
-  </dialog>
+    <template #footer>
+      <NSpace justify="end">
+        <NButton size="small" @click="close">关闭</NButton>
+      </NSpace>
+    </template>
+  </NModal>
 </template>
