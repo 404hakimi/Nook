@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { nextTick, reactive, ref, watch } from 'vue'
 import { Rocket } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { xrayInstall, type LineServerInstallDTO } from '@/api/xray/server'
+import { xrayInstallStream, type LineServerInstallDTO } from '@/api/xray/server'
 import type { ResourceServer } from '@/api/resource/server'
 
 interface Props {
@@ -22,6 +22,8 @@ const { confirm } = useConfirm()
 const installing = ref(false)
 const output = ref('')
 const errors = reactive<Record<string, string>>({})
+const outputRef = ref<HTMLPreElement | null>(null)
+let abortCtrl: AbortController | null = null
 
 const form = reactive<Required<LineServerInstallDTO>>({
   vmessPort: 443,
@@ -54,13 +56,14 @@ async function onSubmit() {
   if (!validate() || !props.server) return
   const ok = await confirm({
     title: '一键安装/重装 Xray',
-    message: `将在 ${props.server.name} 上安装 Xray + 标配配置（约 1-5 分钟，期间 SSH 连接持续保持）。\n\n如已存在 Xray 配置会先备份再覆盖。`,
+    message: `将在 ${props.server.name} 上安装 Xray + 标配配置（约 1-5 分钟）。\n\n如已存在 Xray 配置会先备份再覆盖。\n\n下方日志会实时显示远端输出。`,
     type: 'warning',
     confirmText: '开始安装'
   })
   if (!ok) return
   installing.value = true
-  output.value = '正在执行安装脚本，请耐心等待...\n'
+  output.value = ''
+  abortCtrl = new AbortController()
   try {
     const dto: LineServerInstallDTO = {
       vmessPort: form.vmessPort,
@@ -69,21 +72,41 @@ async function onSubmit() {
       installUfw: form.installUfw,
       enableBbr: form.enableBbr
     }
-    const res = await xrayInstall(props.server.id, dto)
-    output.value = String(res ?? '')
+    await xrayInstallStream(props.server.id, dto, appendOutput, abortCtrl.signal)
     toast.success('安装完成')
     emit('installed')
   } catch (e) {
-    output.value += `\n[error] ${(e as Error).message || ''}`
-    toast.error('安装失败，看输出日志')
+    if ((e as Error).name === 'AbortError') {
+      appendOutput('\n[nook] 用户已取消, 远端脚本可能已经在跑(无法终止)\n')
+      toast.warning('已取消, 但远端可能仍在执行')
+    } else {
+      appendOutput(`\n[error] ${(e as Error).message || ''}\n`)
+      toast.error('安装失败, 看输出日志定位')
+    }
   } finally {
     installing.value = false
+    abortCtrl = null
   }
+}
+
+// 剥 ANSI 颜色码 (\x1b[0;32m 等) 与 OSC 序列, 远端 apt/Xray 安装等命令可能带颜色
+const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g
+
+function appendOutput(chunk: string) {
+  output.value += chunk.replace(ANSI_RE, '')
+  // 下一帧滚到底,让用户始终看到最新一行
+  nextTick(() => {
+    if (outputRef.value) {
+      outputRef.value.scrollTop = outputRef.value.scrollHeight
+    }
+  })
 }
 
 function close() {
   if (installing.value) {
-    toast.warning('安装进行中，关闭只是隐藏窗口，进程在后台继续跑')
+    // 关弹框时主动 abort, 但 SSH 命令在远端继续跑(无法 kill)
+    abortCtrl?.abort()
+    toast.warning('已断开输出流, 远端脚本可能仍在后台跑')
   }
   emit('update:modelValue', false)
 }
@@ -171,17 +194,19 @@ function close() {
         </div>
       </div>
 
-      <!-- 输出区 -->
+      <!-- 输出区: 流式追加, 自动滚到最底 -->
       <div class="mt-4">
-        <div class="text-sm font-semibold text-base-content/70 mb-2">远程输出</div>
-        <div class="mockup-code text-xs max-h-72 overflow-auto bg-base-300 text-base-content min-h-32">
-          <div v-if="installing && !output" class="px-4 py-2">
-            <span class="loading loading-spinner loading-xs mr-2"></span>
-            正在安装中...约 1-5 分钟
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-sm font-semibold text-base-content/70">远程输出 (实时)</div>
+          <div v-if="installing" class="flex items-center gap-1 text-xs text-base-content/60">
+            <span class="loading loading-spinner loading-xs"></span>
+            <span>实时回传中...</span>
           </div>
-          <pre v-else-if="output" class="px-4 whitespace-pre-wrap break-all"><code>{{ output }}</code></pre>
-          <div v-else class="px-4 py-2 text-base-content/40">点"开始安装"触发</div>
         </div>
+        <pre
+          ref="outputRef"
+          class="text-xs max-h-72 overflow-auto bg-base-300 text-base-content min-h-32 px-4 py-2 rounded whitespace-pre-wrap break-all font-mono"
+        ><code v-if="output">{{ output }}</code><span v-else class="text-base-content/40">{{ installing ? '准备中...' : '点"开始安装"触发, 远端 stdout 会逐行回传到这里' }}</span></pre>
       </div>
 
       <div class="modal-action mt-6">

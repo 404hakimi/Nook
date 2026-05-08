@@ -32,10 +32,15 @@ LOG_DIR="${LOG_DIR:-/var/log/xray}"
 XRAY_CONFIG=/usr/local/etc/xray/config.json
 
 # ===== 颜色 =====
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+# 仅在 TTY 输出; 非 TTY (如 nook 远程调用) 走纯文本, 避免 ANSI 码污染流式日志
+if [ -t 1 ]; then
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    RED='\033[0;31m'
+    NC='\033[0m'
+else
+    GREEN=''; YELLOW=''; RED=''; NC=''
+fi
 
 log()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
@@ -163,9 +168,14 @@ chown -R nobody:nogroup "$LOG_DIR" 2>/dev/null || true
 
 # 用 xray 自己 test 配置 (语法 + 字段校验)
 log "验证 Xray 配置..."
-if ! xray test -c "$XRAY_CONFIG" >/dev/null 2>&1; then
+# Xray CLI 兼容: 新版(2024+) 'xray run -test -c'; 老版(1.x) 'xray test -c'
+test_xray_config() {
+    xray run -test -c "$1" >/dev/null 2>&1 \
+        || xray test -c "$1" >/dev/null 2>&1
+}
+if ! test_xray_config "$XRAY_CONFIG"; then
     err "Xray 配置语法错误! 看输出:"
-    xray test -c "$XRAY_CONFIG"
+    xray run -test -c "$XRAY_CONFIG" 2>&1 || xray test -c "$XRAY_CONFIG" 2>&1 || true
     exit 1
 fi
 log "✔ 配置验证通过"

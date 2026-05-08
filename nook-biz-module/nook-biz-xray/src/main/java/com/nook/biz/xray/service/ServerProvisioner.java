@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * 服务器一键运维：渲染脚本模板 → SCP 到远端 → 执行 → 收集输出。
@@ -41,8 +42,39 @@ public class ServerProvisioner {
      */
     public String installLineServer(String serverId, LineServerInstallParams params) {
         ServerCredentialDTO cred = resourceServerApi.loadCredential(serverId);
-        String script = renderTemplate("scripts/install-line-server.sh.tmpl", Map.of(
-                "SERVER_NAME", StrUtil.blankToDefault(params.serverName, serverId),
+        String script = renderTemplate("scripts/install-line-server.sh.tmpl", buildLineServerVars(params));
+        return uploadAndRun(cred, "nook-install-line", script);
+    }
+
+    /**
+     * 一键安装/重装的流式版本: 远端 stdout 每来一行就回调 lineConsumer.
+     * 上传脚本与 nook 自身的进度提示也会走 lineConsumer, 让前端连贯展示.
+     * 抛 BusinessException 时上层应把异常 message 也送给前端.
+     */
+    public void installLineServerStreaming(String serverId,
+                                           LineServerInstallParams params,
+                                           Consumer<String> lineConsumer) {
+        ServerCredentialDTO cred = resourceServerApi.loadCredential(serverId);
+        String script = renderTemplate("scripts/install-line-server.sh.tmpl", buildLineServerVars(params));
+        long ts = System.currentTimeMillis();
+        String remote = "/tmp/nook-install-line-" + ts + ".sh";
+
+        lineConsumer.accept("[nook] 渲染模板完成, 大小 " + script.length() + " bytes");
+        lineConsumer.accept("[nook] 上传到远端 " + remote + " ...");
+        sshExecutor.uploadString(cred, remote, script, 30);
+        lineConsumer.accept("[nook] 上传完成, 开始执行(超时 " + INSTALL_TIMEOUT_SECONDS + "s)");
+        lineConsumer.accept("[nook] ────────────────────────────────────────");
+
+        String cmd = "bash '" + remote + "' 2>&1; rc=$?; rm -f '" + remote + "'; exit $rc";
+        sshExecutor.execStreaming(cred, cmd, INSTALL_TIMEOUT_SECONDS, lineConsumer);
+
+        lineConsumer.accept("[nook] ────────────────────────────────────────");
+        lineConsumer.accept("[nook] 远端脚本已结束, 临时文件已清理");
+    }
+
+    private Map<String, String> buildLineServerVars(LineServerInstallParams params) {
+        return Map.of(
+                "SERVER_NAME", StrUtil.blankToDefault(params.serverName, "<unset>"),
                 "RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
                 "VMESS_PORT", String.valueOf(params.vmessPort),
                 "XRAY_API_PORT", String.valueOf(params.xrayApiPort),
@@ -51,8 +83,7 @@ public class ServerProvisioner {
                 "ENABLE_BBR", String.valueOf(params.enableBbr),
                 "INSTALL_UFW_BLOCK_LABEL", params.installUfw ? "UFW 防火墙规则" : "(跳过 UFW)",
                 "INSTALL_BBR_BLOCK_LABEL", params.enableBbr ? "BBR 内核优化" : "(跳过 BBR)"
-        ));
-        return uploadAndRun(cred, "nook-install-line", script);
+        );
     }
 
     /** 一键安装 SOCKS5 落地节点。 */

@@ -27,10 +27,15 @@ SOCKS_PASS="${SOCKS_PASS:-$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)}"
 ALLOW_FROM="${ALLOW_FROM:-0.0.0.0/0}"
 
 # ===== 颜色 =====
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+# 仅在 TTY 上加颜色; 非 TTY (如 nook 远程调用) 走纯文本, 避免 ANSI 码污染流式日志
+if [ -t 1 ]; then
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    RED='\033[0;31m'
+    NC='\033[0m'
+else
+    GREEN=''; YELLOW=''; RED=''; NC=''
+fi
 
 log()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }

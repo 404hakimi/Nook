@@ -22,7 +22,12 @@ ENABLE_BBR="{{ENABLE_BBR}}"
 
 XRAY_CONFIG=/usr/local/etc/xray/config.json
 
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
+# 仅在 TTY 上加颜色; nook 后台用 SSH 非交互模式跑这个脚本, 走非 TTY 分支不带 ANSI 码
+if [ -t 1 ]; then
+    GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
+else
+    GREEN=''; YELLOW=''; RED=''; NC=''
+fi
 log()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[x]${NC} $*" >&2; }
@@ -155,9 +160,16 @@ chmod 644 "$XRAY_CONFIG"
 chown -R nobody:nogroup "$LOG_DIR" 2>/dev/null || true
 
 log "验证 Xray 配置..."
-if ! xray test -c "$XRAY_CONFIG" >/dev/null 2>&1; then
+# Xray CLI 兼容: 新版(2024+)用 'xray run -test -c'; 老版(1.x)用 'xray test -c'.
+# 两个都试,任一通过即可
+test_xray_config() {
+    xray run -test -c "$1" >/dev/null 2>&1 \
+        || xray test -c "$1" >/dev/null 2>&1
+}
+if ! test_xray_config "$XRAY_CONFIG"; then
     err "Xray 配置语法错误!"
-    xray test -c "$XRAY_CONFIG"
+    # 把真实错误打出来
+    xray run -test -c "$XRAY_CONFIG" 2>&1 || xray test -c "$XRAY_CONFIG" 2>&1 || true
     exit 1
 fi
 

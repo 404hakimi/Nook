@@ -11,12 +11,15 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 import net.schmizz.sshj.userauth.keyprovider.KeyProvider;
 import org.springframework.stereotype.Component;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * 远程 SSH 命令执行；常用于 x-ui 运维(查状态/重启/拉日志/SQLite 备份)。
@@ -72,6 +75,53 @@ public class SshExecutor {
             throw be;
         } catch (IOException e) {
             log.warn("SSH 失败 server={} cmd={}: {}", cred.serverId(), command, e.getMessage());
+            throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, cred.serverId());
+        }
+    }
+
+    /**
+     * 流式执行远程命令: stdout 每读到一行就回调 lineConsumer.
+     * 命令行需自行 2>&1 把 stderr 合并到 stdout(否则 stderr 不在流里).
+     * 退出码非 0 抛 BACKEND_OPERATION_FAILED.
+     */
+    public void execStreaming(ServerCredentialDTO cred,
+                              String command,
+                              int opTimeoutSeconds,
+                              Consumer<String> lineConsumer) {
+        if (StrUtil.isBlank(cred.sshHost()) || StrUtil.isBlank(cred.sshUser())) {
+            throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
+        }
+        if (StrUtil.isBlank(cred.sshPassword()) && StrUtil.isBlank(cred.sshPrivateKey())) {
+            throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
+        }
+        int opTimeout = opTimeoutSeconds <= 0 ? FALLBACK_OP_TIMEOUT_SECONDS : opTimeoutSeconds;
+        try (SSHClient ssh = new SSHClient()) {
+            ssh.addHostKeyVerifier(new PromiscuousVerifier());
+            ssh.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(CONNECT_TIMEOUT_SECONDS));
+            ssh.setTimeout((int) TimeUnit.SECONDS.toMillis(opTimeout));
+            ssh.connect(cred.sshHost(), cred.sshPort());
+            authenticate(ssh, cred);
+            try (Session session = ssh.startSession()) {
+                Session.Command cmd = session.exec(command);
+                // 行式 read; readLine 会阻塞直到拿到 \n 或 EOF; 远端命令产出一行就解一行
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(cmd.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        lineConsumer.accept(line);
+                    }
+                }
+                cmd.join(opTimeout, TimeUnit.SECONDS);
+                Integer exit = cmd.getExitStatus();
+                if (exit != null && exit != 0) {
+                    throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
+                            cred.serverId(), "exit=" + exit);
+                }
+            }
+        } catch (BusinessException be) {
+            throw be;
+        } catch (IOException e) {
+            log.warn("SSH 流式执行失败 server={} cmd={}: {}", cred.serverId(), command, e.getMessage());
             throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, cred.serverId());
         }
     }
