@@ -48,15 +48,8 @@ export function sshBackupDb(serverId: string) {
   return request.post<unknown, string>(`/admin/xray/servers/${serverId}/ssh/backup-db`)
 }
 
-/** Xray service 状态 + 系统基本信息 + 最近日志(结构化)。 */
-export interface XrayServiceStatus {
-  // ===== Xray 服务 =====
-  active?: string
-  version?: string
-  uptimeFrom?: string
-  listening?: string
-  log?: string
-  // ===== 系统基本信息 =====
+/** 操作系统级别基本信息; 不依赖 Xray 是否在跑。 */
+export interface ServerSystemInfo {
   hostname?: string
   kernel?: string
   osRelease?: string
@@ -67,17 +60,43 @@ export interface XrayServiceStatus {
   timezone?: string
 }
 
-/** 日志级别过滤 (journalctl -p 语义) */
+/** Xray systemd 服务运行状态; 不含日志。 */
+export interface XrayServiceStatus {
+  active?: string
+  version?: string
+  uptimeFrom?: string
+  listening?: string
+}
+
+/** 日志级别过滤 (journalctl -p 语义)。 */
 export type XrayLogLevel = 'all' | 'warning' | 'err'
 
-export function xrayStatus(
+/** Xray journalctl 日志快照。 */
+export interface XrayLog {
+  lines: number
+  level: XrayLogLevel
+  log?: string
+}
+
+/** 拉服务器系统基本信息 (hostname / 内存 / 磁盘 / 时区 等)。 */
+export function getServerSystemInfo(serverId: string) {
+  return request.get<unknown, ServerSystemInfo>(`/admin/xray/servers/${serverId}/system-info`)
+}
+
+/** 拉 Xray systemd 服务运行状态 (active / version / 启动时间 / 监听端口); 不含日志。 */
+export function getXrayServiceStatus(serverId: string) {
+  return request.get<unknown, XrayServiceStatus>(`/admin/xray/servers/${serverId}/service-status`)
+}
+
+/** 拉 Xray journalctl 日志, 按行数 + 级别过滤。 */
+export function getXrayLog(
   serverId: string,
-  opts?: { logLines?: number; logLevel?: XrayLogLevel }
+  opts?: { lines?: number; level?: XrayLogLevel }
 ) {
-  return request.get<unknown, XrayServiceStatus>(`/admin/xray/servers/${serverId}/xray/status`, {
+  return request.get<unknown, XrayLog>(`/admin/xray/servers/${serverId}/log`, {
     params: {
-      logLines: opts?.logLines,
-      logLevel: opts?.logLevel === 'all' ? undefined : opts?.logLevel
+      lines: opts?.lines,
+      level: opts?.level === 'all' ? undefined : opts?.level
     }
   })
 }

@@ -127,60 +127,6 @@ public class ServerProvisioner {
         );
     }
 
-    /**
-     * 取 Xray service 当前状态 + 系统基本信息 + 最近 N 行日志(可按 systemd 优先级过滤).
-     * 一次 SSH 拿全, 避免多次握手.
-     *
-     * @param logLines  日志行数; null/<=0 走默认 30
-     * @param logLevel  日志级别过滤: null/"all" 不过滤; "warning"/"err" 走 journalctl -p
-     */
-    public XrayServiceStatus xrayStatus(String serverId, Integer logLines, String logLevel) {
-        ServerCredentialDTO cred = resourceServerApi.loadCredential(serverId);
-        int lines = (logLines == null || logLines <= 0) ? 30 : Math.min(logLines, 5000);
-        String priorityFlag = "";
-        if (StrUtil.isNotBlank(logLevel)) {
-            String lvl = logLevel.trim().toLowerCase();
-            // journalctl -p 接受名字或数字; 我们只暴露三档
-            switch (lvl) {
-                case "warning", "warn" -> priorityFlag = "-p warning";
-                case "err", "error" -> priorityFlag = "-p err";
-                default -> priorityFlag = ""; // all
-            }
-        }
-        String unit = XrayConstants.SYSTEMD_UNIT;
-        String composite = String.join("\n",
-                "echo '====[ACTIVE]===='",
-                "systemctl is-active " + unit + " 2>/dev/null || true",
-                "echo '====[VERSION]===='",
-                "xray version 2>/dev/null | head -1 || true",
-                "echo '====[UPTIME]===='",
-                "systemctl show " + unit + " -p ActiveEnterTimestamp --value 2>/dev/null || true",
-                "echo '====[LISTEN]===='",
-                "ss -ltn 2>/dev/null | grep -E '(127.0.0.1:" + cred.xrayGrpcPort() + " |:443 |:2087 )' || true",
-                "echo '====[HOSTNAME]===='",
-                "hostname 2>/dev/null || true",
-                "echo '====[KERNEL]===='",
-                "uname -srm 2>/dev/null || true",
-                "echo '====[OS_RELEASE]===='",
-                ". /etc/os-release 2>/dev/null && echo \"$PRETTY_NAME\" || true",
-                "echo '====[SYS_UPTIME]===='",
-                "uptime -p 2>/dev/null || true",
-                "echo '====[LOADAVG]===='",
-                "cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || true",
-                "echo '====[MEMORY]===='",
-                // 输出: '2.1G / 7.7G (28%)'
-                "free -m 2>/dev/null | awk '/^Mem:/ {used=$3; total=$2; printf \"%.1fG / %.1fG (%.0f%%)\\n\", used/1024, total/1024, used*100/total}' || true",
-                "echo '====[DISK]===='",
-                "df -h / 2>/dev/null | awk 'NR==2 {printf \"%s / %s (%s)\\n\", $3, $2, $5}' || true",
-                "echo '====[TIMEZONE]===='",
-                "timedatectl show -p Timezone --value 2>/dev/null || date +%Z || true",
-                "echo '====[LOG]===='",
-                "journalctl -u " + unit + " " + priorityFlag + " -n " + lines + " --no-pager 2>/dev/null || true"
-        );
-        String out = sshExecutor.exec(cred, composite, 30);
-        return XrayServiceStatus.parse(out);
-    }
-
     /** 重启 Xray 服务。 */
     public String restartXray(String serverId) {
         ServerCredentialDTO cred = resourceServerApi.loadCredential(serverId);

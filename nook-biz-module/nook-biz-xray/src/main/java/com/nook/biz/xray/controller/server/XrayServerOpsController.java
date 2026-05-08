@@ -6,7 +6,6 @@ import com.nook.biz.xray.controller.server.vo.ConnectivityTestRespVO;
 import com.nook.biz.xray.controller.server.vo.LineServerInstallReqVO;
 import com.nook.biz.xray.service.ServerProvisioner;
 import com.nook.biz.xray.service.XrayClientService;
-import com.nook.biz.xray.service.XrayServiceStatus;
 import com.nook.biz.xray.util.SshExecutor;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.Result;
@@ -109,18 +108,8 @@ public class XrayServerOpsController {
     }
 
     // ===== Xray 服务运维 =====
-
-    /**
-     * Xray 服务结构化状态 + 系统基本信息 + 最近日志.
-     * @param logLines 日志行数, 默认 30, 上限 5000
-     * @param logLevel 日志级别: all(默认) / warning / err
-     */
-    @GetMapping("/{id}/xray/status")
-    public Result<XrayServiceStatus> xrayStatus(@PathVariable @NotBlank String id,
-                                                @RequestParam(required = false) Integer logLines,
-                                                @RequestParam(required = false) String logLevel) {
-        return Result.ok(serverProvisioner.xrayStatus(id, logLines, logLevel));
-    }
+    // 状态查询走 XrayServerInspectorController (system-info / service-status / log 三个独立 endpoint),
+    // 这里只保留写操作 (重启 / 安装)。
 
     /** 重启 Xray 服务；客户连接会断 1-2 秒。 */
     @PostMapping("/{id}/xray/restart")

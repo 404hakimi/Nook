@@ -4,8 +4,12 @@ import { Activity, Cpu, HardDrive, MemoryStick, Power, RefreshCw, Rocket, Scroll
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import {
+  getServerSystemInfo,
+  getXrayLog,
+  getXrayServiceStatus,
   xrayRestart,
-  xrayStatus,
+  type ServerSystemInfo,
+  type XrayLog,
   type XrayLogLevel,
   type XrayServiceStatus
 } from '@/api/xray/server'
@@ -27,11 +31,15 @@ const { confirm } = useConfirm()
 
 type Tab = 'status' | 'log'
 const activeTab = ref<Tab>('status')
-const running = ref(false)
+/** status tab 的拉取 (并发拉 system + service); 与 log tab 独立, 互不阻塞。 */
+const statusLoading = ref(false)
+const logLoading = ref(false)
+const restarting = ref(false)
 
-const status = ref<XrayServiceStatus | null>(null)
+const systemInfo = ref<ServerSystemInfo | null>(null)
+const serviceStatus = ref<XrayServiceStatus | null>(null)
+const xrayLog = ref<XrayLog | null>(null)
 
-// 日志可调: 行数 + 级别过滤. 控制 status 与 log Tab 共用.
 const LOG_LINES_OPTIONS = [
   { label: '50 行', value: 50 },
   { label: '100 行', value: 100 },
@@ -54,39 +62,66 @@ watch(
   ([open]) => {
     if (open) {
       activeTab.value = 'status'
-      status.value = null
+      systemInfo.value = null
+      serviceStatus.value = null
+      xrayLog.value = null
       runStatus()
     }
   }
 )
 
+/**
+ * 拉系统信息 + Xray 服务状态; 两个独立接口并发, 单边失败不阻塞另一边。
+ * 任一失败仅 toast 提示, 字段保持 null 让模板回落到 "-".
+ */
 async function runStatus() {
-  if (!props.server || running.value) return
-  activeTab.value = 'status'
-  running.value = true
+  if (!props.server || statusLoading.value) return
+  statusLoading.value = true
+  const id = props.server.id
+  const [sysRes, svcRes] = await Promise.allSettled([
+    getServerSystemInfo(id),
+    getXrayServiceStatus(id)
+  ])
+  if (sysRes.status === 'fulfilled') {
+    systemInfo.value = sysRes.value
+  } else {
+    systemInfo.value = null
+    toast.error('拉系统信息失败: ' + ((sysRes.reason as Error)?.message ?? ''))
+  }
+  if (svcRes.status === 'fulfilled') {
+    serviceStatus.value = svcRes.value
+  } else {
+    serviceStatus.value = null
+    toast.error('拉 Xray 服务状态失败: ' + ((svcRes.reason as Error)?.message ?? ''))
+  }
+  statusLoading.value = false
+}
+
+/** 拉日志, 独立请求; 用户在 log tab 切行数/级别会触发。 */
+async function runLog() {
+  if (!props.server || logLoading.value) return
+  logLoading.value = true
   try {
-    status.value = await xrayStatus(props.server.id, {
-      logLines: logLines.value,
-      logLevel: logLevel.value
+    xrayLog.value = await getXrayLog(props.server.id, {
+      lines: logLines.value,
+      level: logLevel.value
     })
   } catch (e) {
-    status.value = null
-    toast.error('拉取状态失败: ' + ((e as Error).message ?? ''))
+    xrayLog.value = null
+    toast.error('拉日志失败: ' + ((e as Error).message ?? ''))
   } finally {
-    running.value = false
+    logLoading.value = false
   }
 }
 
-/** 切到日志 Tab; 共用 status.log 数据(同一接口已返回, 不重复请求) */
+/** 切到日志 Tab; 首次进入或参数变更后拉一次。 */
 function showLogTab() {
   activeTab.value = 'log'
-  if (!status.value) {
-    runStatus()
-  }
+  if (!xrayLog.value) runLog()
 }
 
 async function runRestart() {
-  if (!props.server || running.value) return
+  if (!props.server || restarting.value) return
   const ok = await confirm({
     title: '重启 Xray',
     message: `确认在 "${props.server.name}" 上 systemctl restart xray？所有客户端会断开重连(1-2 秒).`,
@@ -94,7 +129,7 @@ async function runRestart() {
     confirmText: '重启'
   })
   if (!ok) return
-  running.value = true
+  restarting.value = true
   try {
     await xrayRestart(props.server.id)
     toast.success('✔ 已重启')
@@ -102,7 +137,7 @@ async function runRestart() {
   } catch (e) {
     toast.error('重启失败: ' + ((e as Error).message ?? ''))
   } finally {
-    running.value = false
+    restarting.value = false
   }
 }
 
@@ -120,13 +155,16 @@ function close() {
 }
 
 const activeBadge = computed(() => {
-  const a = status.value?.active?.trim() ?? ''
+  const a = serviceStatus.value?.active?.trim() ?? ''
   if (a === 'active') return { text: '运行中', cls: 'badge-success' }
   if (a === 'inactive') return { text: '未运行', cls: 'badge-error' }
   if (a === 'failed') return { text: '失败', cls: 'badge-error' }
   if (!a) return { text: '未知', cls: 'badge-ghost' }
   return { text: a, cls: 'badge-warning' }
 })
+
+/** 顶栏统一 disabled 信号: 任意拉取或重启进行中都禁用按钮 */
+const anyBusy = computed(() => statusLoading.value || logLoading.value || restarting.value)
 </script>
 
 <template>
@@ -162,38 +200,48 @@ const activeBadge = computed(() => {
           </a>
         </div>
         <div class="flex gap-2 flex-wrap items-center">
-          <!-- 日志选项: 行数 + 级别. 任一改动会重拉一次状态(同接口已含 log) -->
-          <Select
-            v-model="logLines"
-            :options="LOG_LINES_OPTIONS"
-            width="w-24"
-            :disabled="running"
-            @change="runStatus"
-          />
-          <Select
-            v-model="logLevel"
-            :options="LOG_LEVEL_OPTIONS"
-            width="w-28"
-            :disabled="running"
-            @change="runStatus"
-          />
+          <!-- 日志选项: 仅在 log tab 才有意义; 切换会触发 runLog 单独刷新 -->
+          <template v-if="activeTab === 'log'">
+            <Select
+              v-model="logLines"
+              :options="LOG_LINES_OPTIONS"
+              width="w-24"
+              :disabled="logLoading"
+              @change="runLog"
+            />
+            <Select
+              v-model="logLevel"
+              :options="LOG_LEVEL_OPTIONS"
+              width="w-28"
+              :disabled="logLoading"
+              @change="runLog"
+            />
+            <button
+              class="btn btn-sm btn-ghost gap-1"
+              :disabled="logLoading"
+              @click="runLog"
+            >
+              <RefreshCw class="w-4 h-4" />刷新日志
+            </button>
+          </template>
           <button
+            v-else
             class="btn btn-sm btn-ghost gap-1"
-            :disabled="running"
+            :disabled="statusLoading"
             @click="runStatus"
           >
-            <RefreshCw class="w-4 h-4" />刷新
+            <RefreshCw class="w-4 h-4" />刷新状态
           </button>
           <button
             class="btn btn-sm btn-warning btn-outline gap-1"
-            :disabled="running"
+            :disabled="anyBusy"
             @click="runRestart"
           >
             <Power class="w-4 h-4" />重启 Xray
           </button>
           <button
             class="btn btn-sm btn-primary gap-1"
-            :disabled="running"
+            :disabled="anyBusy"
             @click="openInstall"
           >
             <Rocket class="w-4 h-4" />部署/重装
@@ -202,45 +250,46 @@ const activeBadge = computed(() => {
       </div>
 
       <div v-if="activeTab === 'status'">
-        <div v-if="running && !status" class="py-12 text-center">
+        <div v-if="statusLoading && !systemInfo && !serviceStatus" class="py-12 text-center">
           <span class="loading loading-spinner"></span>
         </div>
-        <div v-else-if="status" class="space-y-3">
+        <div v-else class="space-y-3">
           <!-- 系统基本信息 -->
           <div class="bg-base-200 rounded p-3">
             <div class="text-xs font-semibold text-base-content/60 mb-2 flex items-center gap-1">
               <Server class="w-3.5 h-3.5" /> 系统信息
             </div>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div v-if="systemInfo" class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
               <div>
                 <div class="text-xs text-base-content/50">主机名</div>
-                <div class="font-mono text-xs truncate" :title="status.hostname">{{ status.hostname || '-' }}</div>
+                <div class="font-mono text-xs truncate" :title="systemInfo.hostname">{{ systemInfo.hostname || '-' }}</div>
               </div>
               <div>
                 <div class="text-xs text-base-content/50">时区</div>
-                <div class="font-mono text-xs">{{ status.timezone || '-' }}</div>
+                <div class="font-mono text-xs">{{ systemInfo.timezone || '-' }}</div>
               </div>
               <div class="col-span-2">
                 <div class="text-xs text-base-content/50">操作系统 / 内核</div>
-                <div class="text-xs">{{ status.osRelease || '-' }} <span class="text-base-content/40 font-mono">{{ status.kernel }}</span></div>
+                <div class="text-xs">{{ systemInfo.osRelease || '-' }} <span class="text-base-content/40 font-mono">{{ systemInfo.kernel }}</span></div>
               </div>
               <div class="col-span-2">
                 <div class="text-xs text-base-content/50 flex items-center gap-1"><Timer class="w-3 h-3" /> 系统已运行</div>
-                <div class="text-xs">{{ status.systemUptime || '-' }}</div>
+                <div class="text-xs">{{ systemInfo.systemUptime || '-' }}</div>
               </div>
               <div class="col-span-2">
                 <div class="text-xs text-base-content/50 flex items-center gap-1"><Cpu class="w-3 h-3" /> 负载均值 (1/5/15min)</div>
-                <div class="font-mono text-xs">{{ status.loadAvg || '-' }}</div>
+                <div class="font-mono text-xs">{{ systemInfo.loadAvg || '-' }}</div>
               </div>
               <div>
                 <div class="text-xs text-base-content/50 flex items-center gap-1"><MemoryStick class="w-3 h-3" /> 内存</div>
-                <div class="font-mono text-xs">{{ status.memory || '-' }}</div>
+                <div class="font-mono text-xs">{{ systemInfo.memory || '-' }}</div>
               </div>
               <div>
                 <div class="text-xs text-base-content/50 flex items-center gap-1"><HardDrive class="w-3 h-3" /> 磁盘 (/)</div>
-                <div class="font-mono text-xs">{{ status.disk || '-' }}</div>
+                <div class="font-mono text-xs">{{ systemInfo.disk || '-' }}</div>
               </div>
             </div>
+            <div v-else class="text-xs text-base-content/40 py-2">(未获取到)</div>
           </div>
 
           <!-- Xray 服务 -->
@@ -248,43 +297,33 @@ const activeBadge = computed(() => {
             <div class="text-xs font-semibold text-base-content/60 mb-2 flex items-center gap-1">
               <Activity class="w-3.5 h-3.5" /> Xray 服务
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div v-if="serviceStatus" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
                 <div class="text-xs text-base-content/50">运行状态</div>
                 <span :class="['badge badge-sm', activeBadge.cls]">{{ activeBadge.text }}</span>
               </div>
               <div>
                 <div class="text-xs text-base-content/50">Xray 版本</div>
-                <div class="font-mono text-xs">{{ status.version || '-' }}</div>
+                <div class="font-mono text-xs">{{ serviceStatus.version || '-' }}</div>
               </div>
               <div class="sm:col-span-2">
                 <div class="text-xs text-base-content/50">启动时间</div>
-                <div class="text-xs">{{ status.uptimeFrom || '-' }}</div>
+                <div class="text-xs">{{ serviceStatus.uptimeFrom || '-' }}</div>
               </div>
               <div class="sm:col-span-2">
                 <div class="text-xs text-base-content/50">监听端口</div>
-                <pre class="font-mono text-xs whitespace-pre-wrap break-all m-0">{{ status.listening || '(未捕获)' }}</pre>
+                <pre class="font-mono text-xs whitespace-pre-wrap break-all m-0">{{ serviceStatus.listening || '(未捕获)' }}</pre>
               </div>
             </div>
+            <div v-else class="text-xs text-base-content/40 py-2">(未获取到)</div>
           </div>
-
-          <!-- 日志预览 (与下方"日志 Tab"同源) -->
-          <div>
-            <div class="text-xs text-base-content/50 mb-1">最近日志</div>
-            <pre
-              class="text-xs max-h-72 overflow-auto bg-neutral text-neutral-content px-4 py-3 rounded font-mono whitespace-pre-wrap break-all leading-relaxed"
-            ><code v-if="status.log">{{ status.log }}</code><span v-else class="text-neutral-content/50">(无日志)</span></pre>
-          </div>
-        </div>
-        <div v-else class="py-8 text-center text-base-content/40">
-          点上方"刷新"按钮触发
         </div>
       </div>
 
       <div v-else>
         <pre
           class="text-xs max-h-[32rem] overflow-auto bg-neutral text-neutral-content px-4 py-3 rounded font-mono whitespace-pre-wrap break-all leading-relaxed min-h-32"
-        ><span v-if="running"><span class="loading loading-spinner loading-xs mr-2"></span>拉取中...</span><code v-else-if="status?.log">{{ status.log }}</code><span v-else class="text-neutral-content/50">点"刷新"拉日志</span></pre>
+        ><span v-if="logLoading"><span class="loading loading-spinner loading-xs mr-2"></span>拉取中...</span><code v-else-if="xrayLog?.log">{{ xrayLog.log }}</code><span v-else class="text-neutral-content/50">点"刷新日志"拉取</span></pre>
       </div>
     </div>
     <div class="modal-backdrop bg-black/40" @click="close"></div>
