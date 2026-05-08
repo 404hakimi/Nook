@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum XrayErrorCode implements ErrorCode {
 
-    BACKEND_TYPE_UNSUPPORTED(6001, "暂不支持 backend 类型: %s"),
     SERVER_CREDENTIAL_INVALID(6002, "服务器 %s 的 backend 凭据不完整"),
     BACKEND_UNREACHABLE(6003, "无法连接到服务器 %s"),
     BACKEND_AUTH_FAILED(6004, "服务器 %s 鉴权失败 (面板账号/密码或 gRPC token 错误)"),

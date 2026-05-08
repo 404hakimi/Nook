@@ -52,6 +52,8 @@ cat sql/0*.sql sql/99_seed.sql | mysql -u root -p nook
 | `2026-05-08_resource_server_dual_backend.sql` | resource_server | 加 SSH 凭据/超时 + 双 backend 字段；删 grpc_auth_token |
 | `2026-05-08_xray_inbound_redesign.sql` | xray_inbound | 表语义从 "Xray 原生 inbound 配置" 改为 "client 映射"；含方案 A(drop+create) 与方案 B(原地 alter) 两条路径 |
 | `2026-05-08_resource_server_monthly_traffic.sql` | resource_server | 新增 `monthly_traffic_gb` 月流量额度字段 |
+| `2026-05-08_ip_pool_socks5_redesign.sql` | resource_ip_pool | 重设计为 SOCKS5 落地节点池(删 server_id/port, 加 region/socks5_*) |
+| `2026-05-08_drop_3xui_fields.sql` | resource_server, xray_inbound | All-in Xray gRPC: 删 panel_*/backend_type 字段 |
 
 执行：
 

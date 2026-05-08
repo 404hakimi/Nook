@@ -5,17 +5,16 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
  * 服务器新增/编辑统一入参。
- * - Create 场景必填: name / host / backendType；其它字段视 backendType 在 service 层校验
- * - Update 场景所有字段可选(传啥改啥)
+ * - Create 必填: name / host / sshTimeoutSeconds / backendTimeoutSeconds / xrayGrpcHost / xrayGrpcPort / SSH 凭据(密码或私钥)
+ * - Update 所有字段可选(传啥改啥)
  *
- * 凭据字段(panelPassword / sshPassword / sshPrivateKey)在 update 时如果传空串视为"清空"，
- * 传 null/不传视为"保持原值不变"——前端 UI 应对 password 字段提供"留空保留旧值"的提示。
+ * 凭据字段(sshPassword / sshPrivateKey) update 时:
+ *   传 null/不传 = 保持原值; 传非空 = 覆盖.
  */
 @Data
 public class ResourceServerSaveReqVO {
@@ -47,25 +46,9 @@ public class ResourceServerSaveReqVO {
     @Max(value = 300, message = "SSH 超时最大 300 秒")
     private Integer sshTimeoutSeconds;
 
-    @NotBlank(message = "backendType 不能为空", groups = Create.class)
-    @Pattern(regexp = "threexui|xray-grpc", message = "backendType 只能是 threexui 或 xray-grpc")
-    private String backendType;
-
-    @Size(max = 255)
-    private String panelBaseUrl;
-
-    @Size(max = 64)
-    private String panelUsername;
-
-    @Size(max = 255)
-    private String panelPassword;
-
-    /** 0=否 1=是 */
-    private Integer panelIgnoreTls;
-
     /**
-     * backend HTTP/gRPC 调用超时(秒)。Create 必填；Update 可空表示不改。
-     * 5-120 范围：跨洲 HTTPS+TLS 握手 + login + listInbounds 一连串，建议 20-60。
+     * backend gRPC 调用超时(秒). Create 必填; Update 可空表示不改.
+     * 5-120 范围: 跨洲网络可能要 20-60s.
      */
     @NotNull(message = "Backend 超时不能为空", groups = Create.class)
     @Min(value = 5, message = "Backend 超时最小 5 秒")

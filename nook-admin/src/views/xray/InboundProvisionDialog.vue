@@ -49,7 +49,7 @@ const PROTOCOL_OPTIONS = [
 
 const serverOptions = computed(() =>
   servers.value.map((s) => ({
-    label: `${s.name} — ${s.host} (${s.backendType})`,
+    label: `${s.name} — ${s.host}`,
     value: s.id
   }))
 )

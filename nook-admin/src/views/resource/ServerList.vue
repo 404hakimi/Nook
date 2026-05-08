@@ -6,14 +6,14 @@ import {
   RefreshCcw,
   Search,
   Server as ServerIcon,
-  TerminalSquare,
+  Terminal,
   Trash2,
+  Users,
   Zap
 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import {
-  BACKEND_TYPE_LABELS,
   SERVER_STATUS_LABELS,
   deleteServer,
   pageServers,
@@ -24,7 +24,8 @@ import { testServerConnectivity } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
 import Select from '@/components/Select.vue'
 import ServerFormDialog from './ServerFormDialog.vue'
-import ServerSshDialog from './ServerSshDialog.vue'
+import ServerOpsDialog from './ServerOpsDialog.vue'
+import { pageInbounds } from '@/api/xray/inbound'
 
 const toast = useToast()
 const { confirm } = useConfirm()
@@ -35,11 +36,6 @@ const STATUS_OPTIONS = [
   { label: '运行', value: 1 },
   { label: '维护', value: 2 },
   { label: '下线', value: 3 }
-]
-const BACKEND_OPTIONS = [
-  { label: '全部', value: '' },
-  { label: '3x-ui 面板', value: 'threexui' },
-  { label: 'Xray gRPC', value: 'xray-grpc' }
 ]
 const PAGE_SIZE_OPTIONS = [
   { label: '10 条/页', value: 10 },
@@ -52,7 +48,6 @@ const query = reactive<Required<Pick<ResourceServerQuery, 'pageNo' | 'pageSize'>
   pageSize: 10,
   keyword: '',
   status: undefined,
-  backendType: '',
   region: ''
 })
 const list = ref<ResourceServer[]>([])
@@ -68,7 +63,6 @@ async function loadList() {
       pageSize: query.pageSize,
       keyword: query.keyword || undefined,
       status: query.status,
-      backendType: query.backendType || undefined,
       region: query.region || undefined
     })
     const maxPage = res.total > 0 ? Math.ceil(res.total / query.pageSize) : 1
@@ -80,6 +74,8 @@ async function loadList() {
     }
     list.value = res.records
     total.value = res.total
+    // 刷完列表后异步拉每台 server 的活跃用户数
+    loadActiveUserCounts()
   } catch {
     /* request 拦截器已 toast */
   } finally {
@@ -91,7 +87,6 @@ function resetQuery() {
   query.pageNo = 1
   query.keyword = ''
   query.status = undefined
-  query.backendType = ''
   query.region = ''
   loadList()
 }
@@ -105,10 +100,6 @@ function goPage(p: number) {
   if (p < 1 || p > totalPages.value) return
   query.pageNo = p
   loadList()
-}
-
-function backendLabel(t: string) {
-  return BACKEND_TYPE_LABELS[t] || t
 }
 
 function statusBadge(s: number) {
@@ -162,7 +153,7 @@ async function onTest(s: ResourceServer) {
   try {
     const res = await testServerConnectivity(s.id)
     if (res.success) {
-      toast.success(`✔ ${backendLabel(res.backendType || s.backendType)} 连通 (${res.elapsedMs}ms)`)
+      toast.success(`✔ Xray gRPC 连通 (${res.elapsedMs}ms)`)
     } else {
       toast.error(`✘ ${res.error || '探活失败'}`)
     }
@@ -173,13 +164,29 @@ async function onTest(s: ResourceServer) {
   }
 }
 
-// ===== SSH 控制台 =====
-const sshOpen = ref(false)
-const sshTarget = ref<ResourceServer | null>(null)
+// ===== Xray 运维台 =====
+const opsOpen = ref(false)
+const opsTarget = ref<ResourceServer | null>(null)
 
-function openSsh(s: ResourceServer) {
-  sshTarget.value = s
-  sshOpen.value = true
+function openOps(s: ResourceServer) {
+  opsTarget.value = s
+  opsOpen.value = true
+}
+
+// ===== 当前活跃用户数(每个 server 一个数字) =====
+// 进列表后并发拉,失败不影响主流程,仅显示 "?" / "-"
+const activeUserCount = ref<Record<string, number>>({})
+async function loadActiveUserCounts() {
+  if (!list.value.length) return
+  const tasks = list.value.map(async (s) => {
+    try {
+      const res = await pageInbounds({ pageNo: 1, pageSize: 1, serverId: s.id, status: 1 })
+      activeUserCount.value[s.id] = res.total
+    } catch {
+      // 忽略个别失败,UI 显示 -
+    }
+  })
+  await Promise.allSettled(tasks)
 }
 
 onMounted(loadList)
@@ -204,10 +211,6 @@ onMounted(loadList)
           <div>
             <label class="label py-0"><span class="label-text">状态</span></label>
             <Select v-model="query.status" :options="STATUS_OPTIONS" width="w-28" />
-          </div>
-          <div>
-            <label class="label py-0"><span class="label-text">Backend</span></label>
-            <Select v-model="query.backendType" :options="BACKEND_OPTIONS" width="w-36" />
           </div>
           <div>
             <label class="label py-0"><span class="label-text">区域</span></label>
@@ -242,13 +245,13 @@ onMounted(loadList)
               <tr>
                 <th>别名</th>
                 <th>主机</th>
-                <th>Backend</th>
                 <th>区域</th>
                 <th>带宽</th>
                 <th>月流量</th>
                 <th>IP 数</th>
                 <th>状态</th>
-                <th>凭据</th>
+                <th>SSH</th>
+                <th class="whitespace-nowrap">活跃用户</th>
                 <th>创建时间</th>
                 <th class="text-right">操作</th>
               </tr>
@@ -278,9 +281,6 @@ onMounted(loadList)
                   </div>
                 </td>
                 <td class="font-mono text-xs">{{ s.host }}<span class="text-base-content/40">:{{ s.sshPort || 22 }}</span></td>
-                <td>
-                  <span class="badge badge-outline badge-sm">{{ backendLabel(s.backendType) }}</span>
-                </td>
                 <td class="text-sm">{{ s.region || '-' }}</td>
                 <td class="text-sm whitespace-nowrap">{{ s.totalBandwidth ? s.totalBandwidth + ' Mbps' : '-' }}</td>
                 <td class="text-sm whitespace-nowrap">
@@ -303,16 +303,18 @@ onMounted(loadList)
                       :title="s.sshAuthConfigured ? 'SSH 已配置' : 'SSH 未配置'"
                     >SSH</span>
                     <span
-                      v-if="s.backendType === 'threexui'"
-                      class="badge badge-xs"
-                      :class="s.panelPasswordConfigured ? 'badge-success' : 'badge-ghost'"
-                      :title="s.panelPasswordConfigured ? '面板凭据已配置' : '面板凭据未配置'"
-                    >面板</span>
-                    <span
-                      v-if="s.backendType === 'xray-grpc'"
                       class="badge badge-xs"
                       :class="s.xrayGrpcHost && s.xrayGrpcPort ? 'badge-success' : 'badge-ghost'"
+                      :title="s.xrayGrpcHost && s.xrayGrpcPort ? 'gRPC 已配置' : 'gRPC 未配置'"
                     >gRPC</span>
+                  </div>
+                </td>
+                <td class="whitespace-nowrap">
+                  <div class="flex items-center gap-1">
+                    <Users class="w-3.5 h-3.5 text-base-content/40" />
+                    <span class="font-mono text-sm">
+                      {{ activeUserCount[s.id] !== undefined ? activeUserCount[s.id] : '-' }}
+                    </span>
                   </div>
                 </td>
                 <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(s.createdAt) }}</td>
@@ -332,9 +334,9 @@ onMounted(loadList)
                       <Pencil class="w-3.5 h-3.5 text-info" />
                       <span class="text-info">编辑</span>
                     </button>
-                    <button class="btn btn-ghost btn-xs gap-1" @click="openSsh(s)">
-                      <TerminalSquare class="w-3.5 h-3.5 text-primary" />
-                      <span class="text-primary">SSH</span>
+                    <button class="btn btn-ghost btn-xs gap-1" @click="openOps(s)">
+                      <Terminal class="w-3.5 h-3.5 text-primary" />
+                      <span class="text-primary">运维</span>
                     </button>
                     <button class="btn btn-ghost btn-xs gap-1" @click="onDelete(s)">
                       <Trash2 class="w-3.5 h-3.5 text-error" />
@@ -387,7 +389,7 @@ onMounted(loadList)
       @saved="onFormSaved"
     />
 
-    <!-- SSH 控制台 -->
-    <ServerSshDialog v-model="sshOpen" :server="sshTarget" />
+    <!-- Xray 运维台 -->
+    <ServerOpsDialog v-model="opsOpen" :server="opsTarget" />
   </div>
 </template>

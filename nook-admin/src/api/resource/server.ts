@@ -1,6 +1,6 @@
 import request from '@/api/request'
 
-/** 服务器列表/详情响应（密码字段不下发，改"是否已配置"布尔标志）。 */
+/** 服务器列表/详情响应；SSH 密码/私钥不下发, 仅 sshAuthConfigured 布尔标志. */
 export interface ResourceServer {
   id: string
   name: string
@@ -8,16 +8,9 @@ export interface ResourceServer {
   sshPort?: number
   sshUser?: string
   sshAuthConfigured?: boolean
-  /** SSH 命令最大耗时（秒）；30 较合理，跨洲网络/拉日志慢可调到 60-120 */
+  /** SSH 命令最大耗时（秒）；30 较合理，跨洲可调到 60-120 */
   sshTimeoutSeconds?: number
-  /** "threexui" / "xray-grpc" */
-  backendType: string
-  panelBaseUrl?: string
-  panelUsername?: string
-  panelPasswordConfigured?: boolean
-  /** 0=否 1=是 */
-  panelIgnoreTls?: number
-  /** backend HTTP/gRPC 调用超时(秒)；20 较合理，跨洲可调到 60 */
+  /** Backend gRPC 调用超时(秒)；20 较合理，跨洲可调到 60 */
   backendTimeoutSeconds?: number
   xrayGrpcHost?: string
   xrayGrpcPort?: number
@@ -40,7 +33,6 @@ export interface ResourceServerQuery {
   pageSize?: number
   keyword?: string
   status?: number
-  backendType?: string
   region?: string
 }
 
@@ -49,16 +41,10 @@ export interface ResourceServerSaveDTO {
   host?: string
   sshPort?: number
   sshUser?: string
-  /** 留空表示保留旧值；想要明确清空当前没有专门接口（TODO） */
+  /** 留空表示保留旧值 */
   sshPassword?: string
   sshPrivateKey?: string
   sshTimeoutSeconds?: number
-  backendType?: string
-  panelBaseUrl?: string
-  panelUsername?: string
-  panelPassword?: string
-  /** 0=否 1=是 */
-  panelIgnoreTls?: number
   backendTimeoutSeconds?: number
   xrayGrpcHost?: string
   xrayGrpcPort?: number
@@ -73,11 +59,6 @@ export interface ResourceServerSaveDTO {
 export interface PageResult<T> {
   total: number
   records: T[]
-}
-
-export const BACKEND_TYPE_LABELS: Record<string, string> = {
-  threexui: '3x-ui 面板',
-  'xray-grpc': 'Xray gRPC'
 }
 
 export const SERVER_STATUS_LABELS: Record<number, string> = {

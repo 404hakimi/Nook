@@ -41,22 +41,28 @@ public class SshExecutor {
      * 在远端执行单条命令；命令非 0 退出码会抛 BusinessException(BACKEND_OPERATION_FAILED)。
      * 返回的字符串 = stdout + (有 stderr 时 + "\n[stderr] " + stderr)。
      *
-     * <p>命令最大耗时取自 {@link ServerCredentialDTO#sshTimeoutSeconds()}(由管理端配置)，
-     * 缺失时走 {@link #FALLBACK_OP_TIMEOUT_SECONDS}。
+     * <p>超时取自 {@link ServerCredentialDTO#sshTimeoutSeconds()}(由管理端配置)，缺失走 fallback。
+     * <p>慢命令(安装脚本/拉大日志)请用 {@link #exec(ServerCredentialDTO, String, int)} 显式给更长超时。
      */
     public String exec(ServerCredentialDTO cred, String command) {
+        Integer t = cred.sshTimeoutSeconds();
+        return exec(cred, command, (t == null || t <= 0) ? FALLBACK_OP_TIMEOUT_SECONDS : t);
+    }
+
+    /**
+     * 显式 op 超时的 exec 重载——一键安装、拉日志这种慢命令用。
+     * @param opTimeoutSeconds 单次命令最大耗时(socket read + cmd.join)；建议 60-1200
+     */
+    public String exec(ServerCredentialDTO cred, String command, int opTimeoutSeconds) {
         if (StrUtil.isBlank(cred.sshHost()) || StrUtil.isBlank(cred.sshUser())) {
             throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
         }
         if (StrUtil.isBlank(cred.sshPassword()) && StrUtil.isBlank(cred.sshPrivateKey())) {
             throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
         }
-        int opTimeout = (cred.sshTimeoutSeconds() == null || cred.sshTimeoutSeconds() <= 0)
-                ? FALLBACK_OP_TIMEOUT_SECONDS
-                : cred.sshTimeoutSeconds();
+        int opTimeout = opTimeoutSeconds <= 0 ? FALLBACK_OP_TIMEOUT_SECONDS : opTimeoutSeconds;
         try (SSHClient ssh = new SSHClient()) {
             ssh.addHostKeyVerifier(new PromiscuousVerifier());
-            // connect 用短超时(只 TCP 握手 + SSH 协商)；read 用 opTimeout 覆盖整条命令的 idle 等待
             ssh.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(CONNECT_TIMEOUT_SECONDS));
             ssh.setTimeout((int) TimeUnit.SECONDS.toMillis(opTimeout));
             ssh.connect(cred.sshHost(), cred.sshPort());
@@ -68,6 +74,24 @@ public class SshExecutor {
             log.warn("SSH 失败 server={} cmd={}: {}", cred.serverId(), command, e.getMessage());
             throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, cred.serverId());
         }
+    }
+
+    /**
+     * 把字符串内容写到远端文件——用于把渲染好的安装脚本上传到 /tmp/xxx.sh 再执行。
+     * 走 SFTP，比 cat-here-doc 安全(不会被 shell 元字符破坏)。
+     */
+    public void uploadString(ServerCredentialDTO cred, String remotePath, String content, int opTimeoutSeconds) {
+        if (StrUtil.isBlank(cred.sshHost()) || StrUtil.isBlank(cred.sshUser())) {
+            throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
+        }
+        int opTimeout = opTimeoutSeconds <= 0 ? FALLBACK_OP_TIMEOUT_SECONDS : opTimeoutSeconds;
+        // 走 cat > path 的方式上传; sshj 也有 SFTP, 但 cat 更轻量(不需要 SFTP 子系统)
+        // base64 编码避免 shell 转义问题
+        String b64 = java.util.Base64.getEncoder().encodeToString(content.getBytes(StandardCharsets.UTF_8));
+        // 注意 'path' 用单引号包, 防特殊字符;
+        String safePath = remotePath.replace("'", "'\\''");
+        String cmd = "echo '" + b64 + "' | base64 -d > '" + safePath + "' && chmod 600 '" + safePath + "'";
+        exec(cred, cmd, opTimeout);
     }
 
     private static void authenticate(SSHClient ssh, ServerCredentialDTO cred) throws IOException {

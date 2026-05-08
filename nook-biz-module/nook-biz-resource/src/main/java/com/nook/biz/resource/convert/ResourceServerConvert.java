@@ -19,9 +19,8 @@ public interface ResourceServerConvert {
 
     ResourceServerConvert INSTANCE = Mappers.getMapper(ResourceServerConvert.class);
 
-    /** 实体 → 列表/详情 RespVO；密码原文不下发，只下"是否已配置"的布尔标志(在 @AfterMapping 里写入)。 */
+    /** 实体 → 列表/详情 RespVO；密码原文不下发，只下 sshAuthConfigured 布尔。 */
     @Mapping(target = "sshAuthConfigured", ignore = true)
-    @Mapping(target = "panelPasswordConfigured", ignore = true)
     ResourceServerRespVO convert(ResourceServer entity);
 
     List<ResourceServerRespVO> convertList(List<ResourceServer> entities);
@@ -32,29 +31,21 @@ public interface ResourceServerConvert {
 
     @AfterMapping
     default void fillCredentialFlags(ResourceServer src, @MappingTarget ResourceServerRespVO target) {
-        target.setSshAuthConfigured(StrUtil.isNotBlank(src.getSshPassword()) || StrUtil.isNotBlank(src.getSshPrivateKey()));
-        target.setPanelPasswordConfigured(StrUtil.isNotBlank(src.getPanelPassword()));
+        target.setSshAuthConfigured(
+                StrUtil.isNotBlank(src.getSshPassword()) || StrUtil.isNotBlank(src.getSshPrivateKey()));
     }
 
-    /**
-     * 实体 → 跨模块凭据 DTO；带原文密码——仅在模块边界内部传递。
-     * 此方法是 default 而非 MapStruct 生成，以避开 record 的 builder 在 MapStruct 1.6 下的兼容问题。
-     */
+    /** 实体 → 跨模块凭据 DTO；带原文 SSH 密码/私钥，仅在 nook 内部传递。 */
     default ServerCredentialDTO toCredential(ResourceServer e) {
         if (e == null) return null;
         return ServerCredentialDTO.builder()
                 .serverId(e.getId())
-                .backendType(e.getBackendType())
                 .sshHost(e.getHost())
                 .sshPort(e.getSshPort() == null ? 22 : e.getSshPort())
                 .sshUser(StrUtil.blankToDefault(e.getSshUser(), "root"))
                 .sshPassword(e.getSshPassword())
                 .sshPrivateKey(e.getSshPrivateKey())
                 .sshTimeoutSeconds(e.getSshTimeoutSeconds())
-                .panelBaseUrl(e.getPanelBaseUrl())
-                .panelUsername(e.getPanelUsername())
-                .panelPassword(e.getPanelPassword())
-                .panelIgnoreTls(e.getPanelIgnoreTls() != null && e.getPanelIgnoreTls() == 1)
                 .xrayGrpcHost(e.getXrayGrpcHost())
                 .xrayGrpcPort(e.getXrayGrpcPort())
                 .backendTimeoutSeconds(e.getBackendTimeoutSeconds())

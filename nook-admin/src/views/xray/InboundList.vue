@@ -29,11 +29,6 @@ const STATUS_OPTIONS = [
   { label: '待同步', value: 3 },
   { label: '远端缺失', value: 4 }
 ]
-const BACKEND_OPTIONS = [
-  { label: '全部', value: '' },
-  { label: '3x-ui 面板', value: 'threexui' },
-  { label: 'Xray gRPC', value: 'xray-grpc' }
-]
 const PAGE_SIZE_OPTIONS = [
   { label: '10 条/页', value: 10 },
   { label: '20 条/页', value: 20 },
@@ -47,7 +42,6 @@ const query = reactive<Required<Pick<XrayInboundQuery, 'pageNo' | 'pageSize'>> &
   serverId: '',
   memberUserId: '',
   ipId: '',
-  backendType: '',
   status: undefined
 })
 const list = ref<XrayInbound[]>([])
@@ -84,7 +78,6 @@ async function loadList() {
       serverId: query.serverId || undefined,
       memberUserId: query.memberUserId || undefined,
       ipId: query.ipId || undefined,
-      backendType: query.backendType || undefined,
       status: query.status
     })
     const maxPage = res.total > 0 ? Math.ceil(res.total / query.pageSize) : 1
@@ -109,7 +102,6 @@ function resetQuery() {
   query.serverId = ''
   query.memberUserId = ''
   query.ipId = ''
-  query.backendType = ''
   query.status = undefined
   loadList()
 }
@@ -241,10 +233,6 @@ onMounted(() => {
           <div>
             <label class="label py-0"><span class="label-text">状态</span></label>
             <Select v-model="query.status" :options="STATUS_OPTIONS" width="w-28" />
-          </div>
-          <div>
-            <label class="label py-0"><span class="label-text">Backend</span></label>
-            <Select v-model="query.backendType" :options="BACKEND_OPTIONS" width="w-36" />
           </div>
           <button class="btn btn-primary btn-sm" @click="onSearch">
             <Search class="w-4 h-4" />搜索

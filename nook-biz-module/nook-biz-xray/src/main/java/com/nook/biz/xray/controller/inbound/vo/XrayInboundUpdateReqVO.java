@@ -11,7 +11,7 @@ import lombok.Data;
  *   listenIp / listenPort / transport：仅本地展示与排查用，不影响远端 client；
  *   status：手工状态覆写(运营标"已停"或修正 reconciler 误标的"待同步")。
  * <p>**不允许在此改的字段**：serverId / ipId / memberUserId / protocol / clientUuid / clientEmail /
- *   externalInboundRef / backendType——这些是开通时确定的契约，要换需 revoke + 重新 provision。
+ *  externalInboundRef——这些是开通时确定的契约，要换需 revoke + 重新 provision。
  */
 @Data
 public class XrayInboundUpdateReqVO {

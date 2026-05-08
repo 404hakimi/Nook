@@ -15,7 +15,6 @@ public class ResourceServerPageReqVO extends PageParam {
     private Integer status;
 
     /** threexui / xray-grpc */
-    private String backendType;
 
     /** 区域: us-west / us-east / jp / hk */
     private String region;

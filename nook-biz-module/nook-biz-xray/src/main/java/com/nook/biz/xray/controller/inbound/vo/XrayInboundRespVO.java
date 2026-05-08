@@ -12,7 +12,6 @@ public class XrayInboundRespVO {
     private String serverId;
     private String ipId;
     private String memberUserId;
-    private String backendType;
     private String externalInboundRef;
     private String protocol;
     private String transport;

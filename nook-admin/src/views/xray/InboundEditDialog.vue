@@ -158,10 +158,6 @@ function close() {
             <div class="text-xs text-base-content/50">协议</div>
             <div>{{ detail.protocol }}</div>
           </div>
-          <div>
-            <div class="text-xs text-base-content/50">Backend</div>
-            <div>{{ detail.backendType }}</div>
-          </div>
           <div class="col-span-2">
             <div class="text-xs text-base-content/50">Client Email</div>
             <div class="font-mono text-xs">{{ detail.clientEmail }}</div>

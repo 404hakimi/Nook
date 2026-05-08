@@ -4,7 +4,6 @@ import request from '@/api/request'
 export interface ConnectivityTestResult {
   success: boolean
   elapsedMs: number
-  backendType?: string
   error?: string
 }
 
@@ -46,4 +45,38 @@ export function sshRestart(serverId: string) {
 /** SSH: 备份 SQLite 数据库到远端 /tmp。 */
 export function sshBackupDb(serverId: string) {
   return request.post<unknown, string>(`/admin/xray/servers/${serverId}/ssh/backup-db`)
+}
+
+/** Xray service 状态(结构化)。 */
+export interface XrayServiceStatus {
+  active?: string
+  version?: string
+  uptimeFrom?: string
+  listening?: string
+  log?: string
+}
+
+export function xrayStatus(serverId: string) {
+  return request.get<unknown, XrayServiceStatus>(`/admin/xray/servers/${serverId}/xray/status`)
+}
+
+export function xrayRestart(serverId: string) {
+  return request.post<unknown, string>(`/admin/xray/servers/${serverId}/xray/restart`)
+}
+
+export interface LineServerInstallDTO {
+  vmessPort: number
+  xrayApiPort: number
+  logDir?: string
+  installUfw?: boolean
+  enableBbr?: boolean
+}
+
+/** 一键安装/重装线路服务器 — 耗时 1-5 分钟,前端调用要给长 timeout. */
+export function xrayInstall(serverId: string, dto: LineServerInstallDTO) {
+  return request.post<unknown, string>(
+    `/admin/xray/servers/${serverId}/xray/install`,
+    dto,
+    { timeout: 10 * 60 * 1000 } // 10 min
+  )
 }

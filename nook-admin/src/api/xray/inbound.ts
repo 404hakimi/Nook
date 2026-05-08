@@ -6,7 +6,6 @@ export interface XrayInbound {
   serverId: string
   ipId: string
   memberUserId: string
-  backendType: string
   externalInboundRef: string
   protocol: string
   transport?: string
@@ -28,7 +27,6 @@ export interface XrayInboundQuery {
   serverId?: string
   memberUserId?: string
   ipId?: string
-  backendType?: string
   status?: number
 }
 

@@ -3,7 +3,6 @@ package com.nook.biz.xray.backend.grpc;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.xray.backend.XrayBackend;
-import com.nook.biz.xray.backend.XrayBackendType;
 import com.nook.biz.resource.api.dto.ServerCredentialDTO;
 import com.nook.biz.xray.backend.dto.XrayClientRef;
 import com.nook.biz.xray.backend.dto.XrayClientSpec;
@@ -67,11 +66,6 @@ public class XrayGrpcBackend implements XrayBackend, AutoCloseable {
         this.channel = ManagedChannelBuilder.forAddress(cred.xrayGrpcHost(), cred.xrayGrpcPort())
                 .usePlaintext()
                 .build();
-    }
-
-    @Override
-    public XrayBackendType type() {
-        return XrayBackendType.XRAY_GRPC;
     }
 
     @Override

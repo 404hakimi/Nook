@@ -26,18 +26,10 @@ const submitting = ref(false)
 const loadingDetail = ref(false)
 const errors = reactive<Record<string, string>>({})
 
-const BACKEND_OPTIONS = [
-  { label: '3x-ui 面板', value: 'threexui' },
-  { label: 'Xray gRPC', value: 'xray-grpc' }
-]
 const STATUS_OPTIONS = [
   { label: '运行', value: 1 },
   { label: '维护', value: 2 },
   { label: '下线', value: 3 }
-]
-const TLS_OPTIONS = [
-  { label: '正常校验', value: 0 },
-  { label: '跳过校验(自签证书)', value: 1 }
 ]
 
 const form = reactive({
@@ -48,14 +40,9 @@ const form = reactive({
   sshPassword: '',
   sshPrivateKey: '',
   sshTimeoutSeconds: 30,
-  backendType: 'threexui',
-  panelBaseUrl: '',
-  panelUsername: 'admin',
-  panelPassword: '',
-  panelIgnoreTls: 0,
   backendTimeoutSeconds: 20,
-  xrayGrpcHost: '',
-  xrayGrpcPort: undefined as number | undefined,
+  xrayGrpcHost: '127.0.0.1',
+  xrayGrpcPort: 62789 as number | undefined,
   totalBandwidth: 1000,
   monthlyTrafficGb: undefined as number | undefined,
   idcProvider: '',
@@ -74,14 +61,9 @@ function fill(s: ResourceServer) {
   form.sshPassword = ''
   form.sshPrivateKey = ''
   form.sshTimeoutSeconds = s.sshTimeoutSeconds ?? 30
-  form.backendType = s.backendType
-  form.panelBaseUrl = s.panelBaseUrl ?? ''
-  form.panelUsername = s.panelUsername ?? 'admin'
-  form.panelPassword = ''
-  form.panelIgnoreTls = s.panelIgnoreTls ?? 0
   form.backendTimeoutSeconds = s.backendTimeoutSeconds ?? 20
-  form.xrayGrpcHost = s.xrayGrpcHost ?? ''
-  form.xrayGrpcPort = s.xrayGrpcPort
+  form.xrayGrpcHost = s.xrayGrpcHost ?? '127.0.0.1'
+  form.xrayGrpcPort = s.xrayGrpcPort ?? 62789
   form.totalBandwidth = s.totalBandwidth ?? 1000
   form.monthlyTrafficGb = s.monthlyTrafficGb
   form.idcProvider = s.idcProvider ?? ''
@@ -98,14 +80,9 @@ function reset() {
   form.sshPassword = ''
   form.sshPrivateKey = ''
   form.sshTimeoutSeconds = 30
-  form.backendType = 'threexui'
-  form.panelBaseUrl = ''
-  form.panelUsername = 'admin'
-  form.panelPassword = ''
-  form.panelIgnoreTls = 0
   form.backendTimeoutSeconds = 20
-  form.xrayGrpcHost = ''
-  form.xrayGrpcPort = undefined
+  form.xrayGrpcHost = '127.0.0.1'
+  form.xrayGrpcPort = 62789
   form.totalBandwidth = 1000
   form.monthlyTrafficGb = undefined
   form.idcProvider = ''
@@ -143,9 +120,7 @@ function validate(): boolean {
   Object.keys(errors).forEach((k) => delete errors[k])
   if (!form.name.trim()) errors.name = '请输入别名'
   if (!form.host.trim()) errors.host = '请输入主机'
-  if (!form.backendType) errors.backendType = '请选择 backend 类型'
 
-  // 超时校验对所有模式都执行（编辑时也不能传非法值）
   if (form.sshTimeoutSeconds == null || isNaN(form.sshTimeoutSeconds)) {
     errors.sshTimeoutSeconds = 'SSH 超时不能为空'
   } else if (form.sshTimeoutSeconds < 5 || form.sshTimeoutSeconds > 300) {
@@ -161,14 +136,8 @@ function validate(): boolean {
     if (!form.sshPassword && !form.sshPrivateKey) {
       errors.sshAuth = '请填 SSH 密码或私钥之一'
     }
-    if (form.backendType === 'threexui') {
-      if (!form.panelBaseUrl.trim()) errors.panelBaseUrl = '面板入口必填'
-      if (!form.panelUsername.trim()) errors.panelUsername = '面板用户名必填'
-      if (!form.panelPassword) errors.panelPassword = '面板密码必填'
-    } else if (form.backendType === 'xray-grpc') {
-      if (!form.xrayGrpcHost.trim()) errors.xrayGrpcHost = 'gRPC 主机必填'
-      if (!form.xrayGrpcPort) errors.xrayGrpcPort = 'gRPC 端口必填'
-    }
+    if (!form.xrayGrpcHost.trim()) errors.xrayGrpcHost = 'gRPC 主机必填'
+    if (!form.xrayGrpcPort) errors.xrayGrpcPort = 'gRPC 端口必填'
   }
   return Object.keys(errors).length === 0
 }
@@ -182,15 +151,9 @@ async function onSubmit() {
       host: form.host.trim(),
       sshPort: form.sshPort,
       sshUser: form.sshUser.trim(),
-      // 密码字段：留空表示保留旧值；非空则覆盖
       sshPassword: form.sshPassword || undefined,
       sshPrivateKey: form.sshPrivateKey || undefined,
       sshTimeoutSeconds: form.sshTimeoutSeconds,
-      backendType: form.backendType,
-      panelBaseUrl: form.panelBaseUrl.trim() || undefined,
-      panelUsername: form.panelUsername.trim() || undefined,
-      panelPassword: form.panelPassword || undefined,
-      panelIgnoreTls: form.panelIgnoreTls,
       backendTimeoutSeconds: form.backendTimeoutSeconds,
       xrayGrpcHost: form.xrayGrpcHost.trim() || undefined,
       xrayGrpcPort: form.xrayGrpcPort,
@@ -348,17 +311,34 @@ function close() {
         <div v-if="errors.sshAuth" class="sm:col-span-3 text-error text-xs">{{ errors.sshAuth }}</div>
       </div>
 
-      <!-- Backend -->
-      <div class="text-sm font-semibold text-base-content/70 mt-6 mb-2">Backend 配置</div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <!-- Xray gRPC -->
+      <div class="text-sm font-semibold text-base-content/70 mt-6 mb-2">Xray gRPC 配置</div>
+      <p class="text-xs text-base-content/50 mb-2">
+        nook 通过 SSH 隧道转发 gRPC, 所以 host 通常填 <code>127.0.0.1</code>(Xray 监听本地).
+        端口由部署脚本决定, 默认 62789.
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-          <label class="label py-1"><span class="label-text">Backend 类型 <span class="text-error">*</span></span></label>
-          <Select
-            v-model="form.backendType"
-            :options="BACKEND_OPTIONS"
-            :disabled="isEdit"
+          <label class="label py-1"><span class="label-text">gRPC 主机 <span class="text-error">*</span></span></label>
+          <input
+            v-model="form.xrayGrpcHost"
+            type="text"
+            class="input input-bordered input-sm w-full font-mono"
+            :class="{ 'input-error': errors.xrayGrpcHost }"
           />
-          <div v-if="isEdit" class="text-xs text-base-content/50 mt-1">backend 类型不可变更（重建一台新服务器）</div>
+          <div v-if="errors.xrayGrpcHost" class="text-error text-xs mt-1">{{ errors.xrayGrpcHost }}</div>
+        </div>
+        <div>
+          <label class="label py-1"><span class="label-text">gRPC 端口 <span class="text-error">*</span></span></label>
+          <input
+            v-model.number="form.xrayGrpcPort"
+            type="number"
+            min="1"
+            max="65535"
+            class="input input-bordered input-sm w-full"
+            :class="{ 'input-error': errors.xrayGrpcPort }"
+          />
+          <div v-if="errors.xrayGrpcPort" class="text-error text-xs mt-1">{{ errors.xrayGrpcPort }}</div>
         </div>
         <div>
           <label class="label py-1">
@@ -375,71 +355,6 @@ function close() {
           />
           <div v-if="errors.backendTimeoutSeconds" class="text-error text-xs mt-1">{{ errors.backendTimeoutSeconds }}</div>
         </div>
-        <!-- 3x-ui 字段 -->
-        <template v-if="form.backendType === 'threexui'">
-          <div class="sm:col-span-2">
-            <label class="label py-1">
-              <span class="label-text">面板入口 URL <span class="text-error">*</span></span>
-            </label>
-            <input
-              v-model="form.panelBaseUrl"
-              type="text"
-              placeholder="https://x.com:2053/abc  (含 webBasePath)"
-              class="input input-bordered input-sm w-full font-mono"
-              :class="{ 'input-error': errors.panelBaseUrl }"
-            />
-            <div v-if="errors.panelBaseUrl" class="text-error text-xs mt-1">{{ errors.panelBaseUrl }}</div>
-          </div>
-          <div>
-            <label class="label py-1"><span class="label-text">面板用户名 <span class="text-error">*</span></span></label>
-            <input
-              v-model="form.panelUsername"
-              type="text"
-              class="input input-bordered input-sm w-full"
-              :class="{ 'input-error': errors.panelUsername }"
-            />
-          </div>
-          <div>
-            <label class="label py-1">
-              <span class="label-text">面板密码 <span class="text-error">*</span></span>
-              <span v-if="isEdit" class="label-text-alt text-base-content/50">留空保留原值</span>
-            </label>
-            <input
-              v-model="form.panelPassword"
-              type="password"
-              autocomplete="new-password"
-              class="input input-bordered input-sm w-full"
-              :class="{ 'input-error': errors.panelPassword }"
-            />
-          </div>
-          <div class="sm:col-span-2">
-            <label class="label py-1"><span class="label-text">HTTPS 证书</span></label>
-            <Select v-model="form.panelIgnoreTls" :options="TLS_OPTIONS" />
-          </div>
-        </template>
-        <!-- gRPC 字段 -->
-        <template v-else-if="form.backendType === 'xray-grpc'">
-          <div>
-            <label class="label py-1"><span class="label-text">gRPC 主机 <span class="text-error">*</span></span></label>
-            <input
-              v-model="form.xrayGrpcHost"
-              type="text"
-              placeholder="127.0.0.1 (通常本机)"
-              class="input input-bordered input-sm w-full font-mono"
-              :class="{ 'input-error': errors.xrayGrpcHost }"
-            />
-          </div>
-          <div>
-            <label class="label py-1"><span class="label-text">gRPC 端口 <span class="text-error">*</span></span></label>
-            <input
-              v-model.number="form.xrayGrpcPort"
-              type="number"
-              placeholder="10085"
-              class="input input-bordered input-sm w-full"
-              :class="{ 'input-error': errors.xrayGrpcPort }"
-            />
-          </div>
-        </template>
       </div>
 
       <div class="mt-4">

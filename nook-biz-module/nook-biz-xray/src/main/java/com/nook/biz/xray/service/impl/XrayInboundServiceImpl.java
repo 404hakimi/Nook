@@ -104,9 +104,6 @@ public class XrayInboundServiceImpl implements XrayInboundService {
         e.setServerId(reqVO.getServerId());
         e.setIpId(reqVO.getIpId());
         e.setMemberUserId(reqVO.getMemberUserId());
-        // 用当下 cred 的 backendType，与该 server 当前选型保持一致；
-        // server 改 backendType 会让 ServerCredentialChangedEvent 触发缓存失效，旧 row 不会被错路由
-        e.setBackendType(cred.backendType());
         e.setExternalInboundRef(reqVO.getExternalInboundRef());
         e.setProtocol(reqVO.getProtocol());
         e.setTransport(reqVO.getTransport());

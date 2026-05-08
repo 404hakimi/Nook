@@ -14,7 +14,6 @@ public class XrayInboundPageReqVO extends PageParam {
     private String serverId;
     private String memberUserId;
     private String ipId;
-    private String backendType;
 
     /** 1=运行 2=已停 3=待同步 4=远端已不存在 */
     private Integer status;

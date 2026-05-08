@@ -35,11 +35,10 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServer> {
                 .ne(ResourceServer::getId, excludeId));
     }
 
-    /** 列表分页：keyword 模糊匹配 name/host；status / backendType / region 精确过滤。 */
+    /** 列表分页：keyword 模糊匹配 name/host；status / region 精确过滤。 */
     default IPage<ResourceServer> selectPageByQuery(IPage<ResourceServer> page, ResourceServerPageReqVO reqVO) {
         return selectPage(page, Wrappers.<ResourceServer>lambdaQuery()
                 .eq(ObjectUtil.isNotNull(reqVO.getStatus()), ResourceServer::getStatus, reqVO.getStatus())
-                .eq(StrUtil.isNotBlank(reqVO.getBackendType()), ResourceServer::getBackendType, reqVO.getBackendType())
                 .eq(StrUtil.isNotBlank(reqVO.getRegion()), ResourceServer::getRegion, reqVO.getRegion())
                 .and(StrUtil.isNotBlank(reqVO.getKeyword()), q -> q
                         .like(ResourceServer::getName, reqVO.getKeyword())

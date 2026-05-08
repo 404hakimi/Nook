@@ -23,10 +23,7 @@ public class XrayInbound extends BaseEntity {
 
     private String memberUserId;
 
-    /** "threexui" / "xray-grpc"; 与所属 server 一致 */
-    private String backendType;
-
-    /** threexui=面板 inboundId; xray-grpc=inbound tag */
+    /** Xray inbound 的 tag, 通常 "vmess-in" */
     private String externalInboundRef;
 
     /** vless / vmess / trojan / shadowsocks */

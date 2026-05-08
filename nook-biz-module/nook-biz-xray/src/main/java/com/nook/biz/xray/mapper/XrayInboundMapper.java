@@ -60,7 +60,6 @@ public interface XrayInboundMapper extends BaseMapper<XrayInbound> {
                 .eq(StrUtil.isNotBlank(reqVO.getServerId()), XrayInbound::getServerId, reqVO.getServerId())
                 .eq(StrUtil.isNotBlank(reqVO.getMemberUserId()), XrayInbound::getMemberUserId, reqVO.getMemberUserId())
                 .eq(StrUtil.isNotBlank(reqVO.getIpId()), XrayInbound::getIpId, reqVO.getIpId())
-                .eq(StrUtil.isNotBlank(reqVO.getBackendType()), XrayInbound::getBackendType, reqVO.getBackendType())
                 .eq(ObjectUtil.isNotNull(reqVO.getStatus()), XrayInbound::getStatus, reqVO.getStatus())
                 .like(StrUtil.isNotBlank(reqVO.getKeyword()), XrayInbound::getClientEmail, reqVO.getKeyword())
                 .orderByDesc(XrayInbound::getCreatedAt));
