@@ -5,6 +5,7 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { xrayInstallStream, type LineServerInstallDTO } from '@/api/xray/server'
 import type { ResourceServer } from '@/api/resource/server'
+import Select from '@/components/Select.vue'
 
 interface Props {
   modelValue: boolean
@@ -25,12 +26,26 @@ const errors = reactive<Record<string, string>>({})
 const outputRef = ref<HTMLPreElement | null>(null)
 let abortCtrl: AbortController | null = null
 
+const TIMEZONE_OPTIONS = [
+  { label: '不修改', value: '' },
+  { label: 'Asia/Shanghai (北京)', value: 'Asia/Shanghai' },
+  { label: 'Asia/Hong_Kong', value: 'Asia/Hong_Kong' },
+  { label: 'Asia/Tokyo', value: 'Asia/Tokyo' },
+  { label: 'Asia/Singapore', value: 'Asia/Singapore' },
+  { label: 'UTC', value: 'UTC' },
+  { label: 'America/Los_Angeles', value: 'America/Los_Angeles' },
+  { label: 'America/New_York', value: 'America/New_York' },
+  { label: 'Europe/London', value: 'Europe/London' },
+  { label: 'Europe/Frankfurt', value: 'Europe/Frankfurt' }
+]
+
 const form = reactive<Required<LineServerInstallDTO>>({
   vmessPort: 443,
   xrayApiPort: 62789,
   logDir: '/var/log/xray',
   installUfw: true,
-  enableBbr: true
+  enableBbr: true,
+  timezone: 'Asia/Shanghai'
 })
 
 watch(
@@ -70,7 +85,8 @@ async function onSubmit() {
       xrayApiPort: form.xrayApiPort,
       logDir: form.logDir,
       installUfw: form.installUfw,
-      enableBbr: form.enableBbr
+      enableBbr: form.enableBbr,
+      timezone: form.timezone || undefined
     }
     await xrayInstallStream(props.server.id, dto, appendOutput, abortCtrl.signal)
     toast.success('安装完成')
@@ -192,6 +208,13 @@ function close() {
           </label>
           <p class="text-xs text-base-content/50 ml-7">提升跨境吞吐</p>
         </div>
+        <div class="sm:col-span-2">
+          <label class="label py-1">
+            <span class="label-text">时区</span>
+            <span class="label-text-alt text-base-content/50">系统时区, 影响日志/到期判定</span>
+          </label>
+          <Select v-model="form.timezone" :options="TIMEZONE_OPTIONS" :disabled="installing" />
+        </div>
       </div>
 
       <!-- 输出区: 流式追加, 自动滚到最底 -->
@@ -205,8 +228,8 @@ function close() {
         </div>
         <pre
           ref="outputRef"
-          class="text-xs max-h-72 overflow-auto bg-base-300 text-base-content min-h-32 px-4 py-2 rounded whitespace-pre-wrap break-all font-mono"
-        ><code v-if="output">{{ output }}</code><span v-else class="text-base-content/40">{{ installing ? '准备中...' : '点"开始安装"触发, 远端 stdout 会逐行回传到这里' }}</span></pre>
+          class="text-xs max-h-72 overflow-auto bg-neutral text-neutral-content min-h-32 px-4 py-3 rounded whitespace-pre-wrap break-all font-mono leading-relaxed"
+        ><code v-if="output">{{ output }}</code><span v-else class="text-neutral-content/50">{{ installing ? '准备中...' : '点"开始安装"触发, 远端 stdout 会逐行回传到这里' }}</span></pre>
       </div>
 
       <div class="modal-action mt-6">

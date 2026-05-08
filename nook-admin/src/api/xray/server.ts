@@ -48,17 +48,38 @@ export function sshBackupDb(serverId: string) {
   return request.post<unknown, string>(`/admin/xray/servers/${serverId}/ssh/backup-db`)
 }
 
-/** Xray service 状态(结构化)。 */
+/** Xray service 状态 + 系统基本信息 + 最近日志(结构化)。 */
 export interface XrayServiceStatus {
+  // ===== Xray 服务 =====
   active?: string
   version?: string
   uptimeFrom?: string
   listening?: string
   log?: string
+  // ===== 系统基本信息 =====
+  hostname?: string
+  kernel?: string
+  osRelease?: string
+  systemUptime?: string
+  loadAvg?: string
+  memory?: string
+  disk?: string
+  timezone?: string
 }
 
-export function xrayStatus(serverId: string) {
-  return request.get<unknown, XrayServiceStatus>(`/admin/xray/servers/${serverId}/xray/status`)
+/** 日志级别过滤 (journalctl -p 语义) */
+export type XrayLogLevel = 'all' | 'warning' | 'err'
+
+export function xrayStatus(
+  serverId: string,
+  opts?: { logLines?: number; logLevel?: XrayLogLevel }
+) {
+  return request.get<unknown, XrayServiceStatus>(`/admin/xray/servers/${serverId}/xray/status`, {
+    params: {
+      logLines: opts?.logLines,
+      logLevel: opts?.logLevel === 'all' ? undefined : opts?.logLevel
+    }
+  })
 }
 
 export function xrayRestart(serverId: string) {
@@ -71,6 +92,8 @@ export interface LineServerInstallDTO {
   logDir?: string
   installUfw?: boolean
   enableBbr?: boolean
+  /** IANA tz, 如 Asia/Shanghai / UTC; 留空则不改 */
+  timezone?: string
 }
 
 /**

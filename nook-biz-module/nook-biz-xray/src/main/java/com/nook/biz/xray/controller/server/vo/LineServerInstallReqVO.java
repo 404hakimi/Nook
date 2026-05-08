@@ -25,4 +25,8 @@ public class LineServerInstallReqVO {
 
     private Boolean installUfw;
     private Boolean enableBbr;
+
+    /** IANA 时区, 如 Asia/Shanghai / UTC; 留空或 "skip" 则不改远端时区 */
+    @Size(max = 64)
+    private String timezone;
 }

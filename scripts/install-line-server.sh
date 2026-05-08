@@ -83,6 +83,18 @@ fi
 
 systemctl stop xray >/dev/null 2>&1 || true
 
+# 专属 xray 用户(消除 systemd "Special user nobody" 警告)
+if ! id xray >/dev/null 2>&1; then
+    log "创建专属 xray 系统用户..."
+    useradd -r -M -s /usr/sbin/nologin -c "Xray service user" xray
+fi
+mkdir -p /etc/systemd/system/xray.service.d
+cat > /etc/systemd/system/xray.service.d/user.conf <<'OVERRIDE'
+[Service]
+User=xray
+Group=xray
+OVERRIDE
+
 # ===== Step 3. 写 nook 标配 xray.json =====
 # 关键段:
 #   api {Handler/Routing/Stats/Logger}  → 让 nook 通过 gRPC 操作 Xray
@@ -162,9 +174,11 @@ cat > "$XRAY_CONFIG" <<EOF
 }
 EOF
 
-# 给 xray 用户权限读日志目录(官方安装会建 'nobody:nogroup' 服务用户)
+# 文件归专属 xray 用户
 chmod 644 "$XRAY_CONFIG"
-chown -R nobody:nogroup "$LOG_DIR" 2>/dev/null || true
+chown -R xray:xray "$LOG_DIR" 2>/dev/null || true
+chown root:xray "$XRAY_CONFIG" 2>/dev/null || true
+chmod 640 "$XRAY_CONFIG" 2>/dev/null || true
 
 # 用 xray 自己 test 配置 (语法 + 字段校验)
 log "验证 Xray 配置..."

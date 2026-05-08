@@ -19,6 +19,7 @@ XRAY_API_PORT="{{XRAY_API_PORT}}"
 LOG_DIR="{{LOG_DIR}}"
 INSTALL_UFW="{{INSTALL_UFW}}"
 ENABLE_BBR="{{ENABLE_BBR}}"
+TIMEZONE="{{TIMEZONE}}"
 
 XRAY_CONFIG=/usr/local/etc/xray/config.json
 
@@ -43,6 +44,16 @@ ARCH=$(dpkg --print-architecture)
 [[ "$ARCH" == "amd64" || "$ARCH" == "arm64" ]] \
     || { err "仅支持 amd64/arm64, 当前: $ARCH"; exit 1; }
 log "系统 OK: Ubuntu $VERSION_ID $ARCH"
+
+# ===== 时区(可选) =====
+if [[ -n "$TIMEZONE" && "$TIMEZONE" != "skip" ]]; then
+    log "设置时区: $TIMEZONE"
+    if timedatectl set-timezone "$TIMEZONE" 2>/dev/null; then
+        log "✔ 时区已设为 $TIMEZONE"
+    else
+        warn "时区设置失败 (无效 TZ?): $TIMEZONE — 跳过"
+    fi
+fi
 
 # ===== 基础工具 =====
 log "更新 apt + 装基础工具..."
@@ -93,6 +104,22 @@ else
     log "Xray: $XRAY_VER"
 fi
 systemctl stop xray >/dev/null 2>&1 || true
+
+# ===== 专属 xray 用户(消除 systemd "Special user nobody" 警告) =====
+# 官方 install-release.sh 默认 User=nobody, 是个共享账号有提权风险.
+# 我们建专属用户 + systemd drop-in 覆盖 User/Group, 不动官方 unit 主文件
+if ! id xray >/dev/null 2>&1; then
+    log "创建专属 xray 系统用户..."
+    useradd -r -M -s /usr/sbin/nologin -c "Xray service user" xray
+fi
+
+mkdir -p /etc/systemd/system/xray.service.d
+cat > /etc/systemd/system/xray.service.d/user.conf <<'OVERRIDE'
+# nook 注入: 用专属 xray 账号跑, 替代官方默认 User=nobody
+[Service]
+User=xray
+Group=xray
+OVERRIDE
 
 # ===== 写 nook 标配 xray.json =====
 mkdir -p "$LOG_DIR" "$(dirname "$XRAY_CONFIG")"
@@ -157,7 +184,11 @@ cat > "$XRAY_CONFIG" <<XRAYCONF
 XRAYCONF
 
 chmod 644 "$XRAY_CONFIG"
-chown -R nobody:nogroup "$LOG_DIR" 2>/dev/null || true
+# 日志目录归 xray 用户(替代官方默认 nobody:nogroup)
+chown -R xray:xray "$LOG_DIR" 2>/dev/null || true
+# 配置文件可读即可(xray 进程要读它)
+chown root:xray "$XRAY_CONFIG" 2>/dev/null || true
+chmod 640 "$XRAY_CONFIG" 2>/dev/null || true
 
 log "验证 Xray 配置..."
 # Xray CLI 兼容: 新版(2024+)用 'xray run -test -c'; 老版(1.x)用 'xray test -c'.
@@ -175,7 +206,7 @@ fi
 
 # ===== 启动 =====
 log "启动 Xray service..."
-systemctl daemon-reload
+systemctl daemon-reload   # drop-in 生效 + 任何 unit 改动都重新加载
 systemctl enable xray >/dev/null 2>&1
 systemctl restart xray
 sleep 2

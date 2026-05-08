@@ -5,6 +5,12 @@ import { useToast } from '@/composables/useToast'
 import { pageServers, type ResourceServer } from '@/api/resource/server'
 import { listRemoteInbounds, type RemoteInbound } from '@/api/xray/server'
 import { provisionInbound, type XrayInboundProvisionDTO } from '@/api/xray/inbound'
+import {
+  IP_POOL_STATUS_LABELS,
+  pageIpPool,
+  type ResourceIpPool
+} from '@/api/resource/ip-pool'
+import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/resource/ip-type'
 import Select from '@/components/Select.vue'
 
 interface Props {
@@ -24,6 +30,10 @@ const servers = ref<ResourceServer[]>([])
 const remoteInbounds = ref<RemoteInbound[]>([])
 const loadingServers = ref(false)
 const loadingInbounds = ref(false)
+
+const ipPool = ref<ResourceIpPool[]>([])
+const ipTypes = ref<ResourceIpType[]>([])
+const loadingIpPool = ref(false)
 
 const form = reactive({
   serverId: '',
@@ -61,6 +71,19 @@ const inboundOptions = computed(() =>
   }))
 )
 
+/** 仅展示 status=1(可分配) 的 IP, 避免误把已占用的 IP 二次派发. */
+const ipPoolOptions = computed(() =>
+  ipPool.value.map((ip) => {
+    const t = ipTypes.value.find((x) => x.id === ip.ipTypeId)
+    const typeLabel = t ? IP_TYPE_CODE_LABELS[t.code] ?? t.code : ip.ipTypeId
+    const statusLabel = IP_POOL_STATUS_LABELS[ip.status] ?? ip.status
+    return {
+      label: `${ip.ipAddress} · ${ip.region} · ${typeLabel} · ${statusLabel}`,
+      value: ip.id
+    }
+  })
+)
+
 watch(
   () => props.modelValue,
   async (open) => {
@@ -81,9 +104,31 @@ watch(
       flow: ''
     })
     remoteInbounds.value = []
-    await loadServers()
+    await Promise.all([loadServers(), loadIpPool(), loadIpTypesOnce()])
   }
 )
+
+async function loadIpPool() {
+  loadingIpPool.value = true
+  try {
+    // 仅拉 status=1 (available) 的 IP, 防止误派已占用的; 取 200 条够下拉用
+    const res = await pageIpPool({ pageNo: 1, pageSize: 200, status: 1 })
+    ipPool.value = res.records
+  } catch {
+    /* */
+  } finally {
+    loadingIpPool.value = false
+  }
+}
+
+async function loadIpTypesOnce() {
+  if (ipTypes.value.length) return
+  try {
+    ipTypes.value = await listIpTypes()
+  } catch {
+    /* */
+  }
+}
 
 async function loadServers() {
   loadingServers.value = true
@@ -231,13 +276,16 @@ function close() {
           <div v-if="errors.memberUserId" class="text-error text-xs mt-1">{{ errors.memberUserId }}</div>
         </div>
         <div>
-          <label class="label py-1"><span class="label-text">IP ID <span class="text-error">*</span></span></label>
-          <input
+          <label class="label py-1">
+            <span class="label-text">IP <span class="text-error">*</span></span>
+            <span v-if="loadingIpPool" class="label-text-alt"><span class="loading loading-spinner loading-xs"></span> 加载中</span>
+            <span v-else class="label-text-alt text-base-content/50">仅显示可分配</span>
+          </label>
+          <Select
             v-model="form.ipId"
-            type="text"
-            placeholder="resource_ip_pool.id"
-            class="input input-bordered input-sm w-full font-mono"
-            :class="{ 'input-error': errors.ipId }"
+            :options="ipPoolOptions"
+            :error="!!errors.ipId"
+            placeholder="选 IP"
           />
           <div v-if="errors.ipId" class="text-error text-xs mt-1">{{ errors.ipId }}</div>
         </div>

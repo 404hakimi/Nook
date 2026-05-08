@@ -110,10 +110,16 @@ public class XrayServerOpsController {
 
     // ===== Xray 服务运维 =====
 
-    /** Xray 服务结构化状态(active/version/uptime/listening/最近 30 行日志)。 */
+    /**
+     * Xray 服务结构化状态 + 系统基本信息 + 最近日志.
+     * @param logLines 日志行数, 默认 30, 上限 5000
+     * @param logLevel 日志级别: all(默认) / warning / err
+     */
     @GetMapping("/{id}/xray/status")
-    public Result<XrayServiceStatus> xrayStatus(@PathVariable @NotBlank String id) {
-        return Result.ok(serverProvisioner.xrayStatus(id));
+    public Result<XrayServiceStatus> xrayStatus(@PathVariable @NotBlank String id,
+                                                @RequestParam(required = false) Integer logLines,
+                                                @RequestParam(required = false) String logLevel) {
+        return Result.ok(serverProvisioner.xrayStatus(id, logLines, logLevel));
     }
 
     /** 重启 Xray 服务；客户连接会断 1-2 秒。 */
@@ -140,7 +146,8 @@ public class XrayServerOpsController {
                 reqVO.getXrayApiPort(),
                 reqVO.getLogDir(),
                 reqVO.getInstallUfw() != null && reqVO.getInstallUfw(),
-                reqVO.getEnableBbr() != null && reqVO.getEnableBbr()
+                reqVO.getEnableBbr() != null && reqVO.getEnableBbr(),
+                reqVO.getTimezone()
         );
 
         log.info("[provision-stream] start server={} params={}", id, params);

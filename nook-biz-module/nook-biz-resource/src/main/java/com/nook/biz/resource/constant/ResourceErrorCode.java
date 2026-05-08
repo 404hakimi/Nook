@@ -14,6 +14,13 @@ public enum ResourceErrorCode implements ErrorCode {
     SERVER_HOST_DUPLICATE(5003, "服务器主机 %s 已存在"),
     SERVER_GRPC_FIELDS_REQUIRED(5006, "xrayGrpcHost / xrayGrpcPort 必填"),
     SERVER_SSH_AUTH_REQUIRED(5007, "需提供 sshPassword 或 sshPrivateKey 之一"),
+
+    IP_TYPE_NOT_FOUND(5101, "IP 类型 %s 不存在"),
+    IP_POOL_NOT_FOUND(5102, "IP 池条目 %s 不存在"),
+    IP_POOL_IP_DUPLICATE(5103, "IP %s 已存在于池中"),
+    IP_POOL_NOT_AVAILABLE(5104, "IP %s 当前不可分配 (状态: %s)"),
+    IP_POOL_EXHAUSTED(5105, "%s 区域 %s 类型暂无可用 IP"),
+    IP_POOL_OCCUPY_CONFLICT(5106, "IP %s 抢占失败, 已被其它会员领走"),
     ;
 
     private final int code;

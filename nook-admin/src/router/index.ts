@@ -44,6 +44,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '服务器管理' }
       },
       {
+        path: 'resource/ip-pool',
+        name: 'resource-ip-pool',
+        component: () => import('@/views/resource/IpPoolList.vue'),
+        meta: { title: 'IP 池' }
+      },
+      {
         path: 'xray/inbounds',
         name: 'xray-inbounds',
         component: () => import('@/views/xray/InboundList.vue'),

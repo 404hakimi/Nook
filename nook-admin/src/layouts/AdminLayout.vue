@@ -9,6 +9,7 @@ import {
   Settings,
   Package,
   Server,
+  Globe2,
   Cable,
   Bell,
   ChevronDown,
@@ -55,7 +56,14 @@ const menus: MenuItem[] = [
     ]
   },
   { path: '/business/plans', title: '套餐与 CDK', icon: Package },
-  { path: '/resource/servers', title: '服务器管理', icon: Server },
+  {
+    title: '资源管理',
+    icon: Server,
+    children: [
+      { path: '/resource/servers', title: '服务器', icon: Server },
+      { path: '/resource/ip-pool', title: 'IP 池', icon: Globe2 }
+    ]
+  },
   { path: '/xray/inbounds', title: 'Xray 配置', icon: Cable },
   { path: '/monitor/alerts', title: '监控告警', icon: Bell }
 ]

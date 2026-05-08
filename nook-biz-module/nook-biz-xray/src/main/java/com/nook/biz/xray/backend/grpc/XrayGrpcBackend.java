@@ -2,13 +2,15 @@ package com.nook.biz.xray.backend.grpc;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.xray.backend.XrayBackend;
 import com.nook.biz.resource.api.dto.ServerCredentialDTO;
+import com.nook.biz.xray.backend.XrayBackend;
 import com.nook.biz.xray.backend.dto.XrayClientRef;
 import com.nook.biz.xray.backend.dto.XrayClientSpec;
 import com.nook.biz.xray.backend.dto.XrayClientTraffic;
 import com.nook.biz.xray.backend.dto.XrayInboundInfo;
 import com.nook.biz.xray.constant.XrayErrorCode;
+import com.nook.biz.xray.util.SshTunnel;
+import com.nook.biz.xray.util.SshTunnelManager;
 import com.nook.common.web.exception.BusinessException;
 import io.grpc.ConnectivityState;
 import io.grpc.ManagedChannel;
@@ -55,17 +57,26 @@ import java.util.concurrent.TimeUnit;
 public class XrayGrpcBackend implements XrayBackend, AutoCloseable {
 
     private final ServerCredentialDTO cred;
+    private final SshTunnelManager tunnelManager;
     private final ManagedChannel channel;
+    private final int forwardedLocalPort;
 
-    public XrayGrpcBackend(ServerCredentialDTO cred) {
+    public XrayGrpcBackend(ServerCredentialDTO cred, SshTunnelManager tunnelManager) {
         if (StrUtil.isBlank(cred.xrayGrpcHost()) || ObjectUtil.isNull(cred.xrayGrpcPort())) {
             throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
         }
         this.cred = cred;
-        // Xray gRPC API 默认裸明文，仅在受信网络/SSH 隧道内调用；TLS 接入后续再加
-        this.channel = ManagedChannelBuilder.forAddress(cred.xrayGrpcHost(), cred.xrayGrpcPort())
+        this.tunnelManager = tunnelManager;
+        // 走 SSH 隧道: 把 nook-localhost:randomPort 转发到远端 cred.xrayGrpcHost:cred.xrayGrpcPort
+        // 通常 cred.xrayGrpcHost = "127.0.0.1", 因为 Xray 只听本地 loopback (公网不暴露)
+        SshTunnel tunnel = tunnelManager.ensureTunnel(cred, cred.xrayGrpcHost(), cred.xrayGrpcPort());
+        this.forwardedLocalPort = tunnel.localPort();
+        // gRPC channel 连本地转发端口, 实际 bytes 走 SSH 到远端
+        this.channel = ManagedChannelBuilder.forAddress("127.0.0.1", forwardedLocalPort)
                 .usePlaintext()
                 .build();
+        log.info("[grpc] backend 创建 server={} channel=127.0.0.1:{} → {}:{} (via ssh)",
+                cred.serverId(), forwardedLocalPort, cred.xrayGrpcHost(), cred.xrayGrpcPort());
     }
 
     @Override
