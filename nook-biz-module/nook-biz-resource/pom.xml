@@ -17,6 +17,10 @@
     <dependencies>
         <dependency>
             <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
             <artifactId>nook-spring-boot-starter-security</artifactId>
         </dependency>
         <dependency>

@@ -3,13 +3,26 @@
 -- ============================================================
 
 -- 服务器(出口VPS)
+-- backend_type 决定 nook 怎么对接这台机器：
+--   threexui  → 通过 3x-ui 面板 HTTP API；只需要面板凭据
+--   xray-grpc → 通过 Xray 内核的 gRPC API；需要 gRPC 端口/凭据；面板字段留空即可
+-- ssh 字段双 backend 都用得上(运维命令、本地端口转发)，独立成 ssh_user/ssh_password
 CREATE TABLE `resource_server` (
     `id`               CHAR(32)        NOT NULL COMMENT '主键ID',
     `name`             VARCHAR(64)     NOT NULL COMMENT '别名: us-west-rn-01',
     `host`             VARCHAR(128)    NOT NULL COMMENT '管理 IP/域名',
     `ssh_port`         INT             NOT NULL DEFAULT 22 COMMENT 'SSH 端口',
-    `xray_grpc_port`   INT             NOT NULL DEFAULT 10085 COMMENT 'Xray gRPC API 端口(内网/本地)',
-    `grpc_auth_token`  VARCHAR(255)    DEFAULT NULL COMMENT 'gRPC 认证凭据',
+    `ssh_user`         VARCHAR(64)     NOT NULL DEFAULT 'root' COMMENT 'SSH 用户',
+    `ssh_password`     VARCHAR(255)    DEFAULT NULL COMMENT 'SSH 密码(明文,TODO 加密)；与 ssh_private_key 二选一',
+    `ssh_private_key`  TEXT            DEFAULT NULL COMMENT 'SSH 私钥 PEM 文本(明文,TODO 加密)',
+    `ssh_timeout_seconds` INT          NOT NULL DEFAULT 30 COMMENT 'SSH 命令最大耗时(秒)；跨洲网络/拉日志慢可调高，建议 30-120',
+    `backend_type`     VARCHAR(16)     NOT NULL DEFAULT 'threexui' COMMENT '后端类型: threexui / xray-grpc',
+    `panel_base_url`   VARCHAR(255)    DEFAULT NULL COMMENT '3x-ui 面板入口含 webBasePath, 例 https://x.com:2053/abc',
+    `panel_username`   VARCHAR(64)     DEFAULT NULL COMMENT '3x-ui 面板登录名',
+    `panel_password`   VARCHAR(255)    DEFAULT NULL COMMENT '3x-ui 面板密码(明文,TODO 加密)',
+    `panel_ignore_tls` TINYINT         NOT NULL DEFAULT 0 COMMENT '是否跳过面板 HTTPS 证书校验: 0=否 1=是(自签证书时)',
+    `xray_grpc_host`   VARCHAR(128)    DEFAULT NULL COMMENT 'Xray gRPC API 主机；通常 127.0.0.1，需借助 SSH 隧道访问',
+    `xray_grpc_port`   INT             DEFAULT NULL COMMENT 'Xray gRPC API 端口(内网/本地)',
     `total_bandwidth`  INT             NOT NULL DEFAULT 1000 COMMENT '总带宽 Mbps',
     `total_ip_count`   INT             NOT NULL DEFAULT 0 COMMENT '该服务器拥有的 IP 总数',
     `idc_provider`     VARCHAR(64)     DEFAULT NULL COMMENT 'IDC 供应商: racknerd/hosthatch/dmit',

@@ -12,9 +12,18 @@
     </parent>
 
     <artifactId>nook-biz-xray</artifactId>
-    <description>Xray gRPC 对接: xray_inbound + gRPC 客户端 + SSH 隧道 + Reconciler</description>
+    <description>
+        Xray 内核对接(双 backend):
+          - 3x-ui 面板: HTTP API + cookie session(基于 Redis 缓存)
+          - Xray 原生 gRPC: HandlerService 加/删 user + StatsService 拉流量
+        通用 service 层屏蔽差异；与 resource_server.backend_type 联动决定走哪条路径。
+    </description>
 
     <dependencies>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-web</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.nook</groupId>
             <artifactId>nook-spring-boot-starter-security</artifactId>
@@ -22,6 +31,11 @@
         <dependency>
             <groupId>com.nook</groupId>
             <artifactId>nook-spring-boot-starter-mybatis</artifactId>
+        </dependency>
+        <!-- 3x-ui session cookie 缓存到 Redis，避免每次操作都重 login -->
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-redis</artifactId>
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>

@@ -36,6 +36,18 @@ const routes: RouteRecordRaw[] = [
         name: 'member-logs',
         component: () => import('@/views/member/OperationLog.vue'),
         meta: { title: '操作日志' }
+      },
+      {
+        path: 'resource/servers',
+        name: 'resource-servers',
+        component: () => import('@/views/resource/ServerList.vue'),
+        meta: { title: '服务器与 IP' }
+      },
+      {
+        path: 'xray/inbounds',
+        name: 'xray-inbounds',
+        component: () => import('@/views/xray/InboundList.vue'),
+        meta: { title: 'Xray 配置' }
       }
     ]
   },

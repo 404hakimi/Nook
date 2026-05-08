@@ -29,5 +29,3 @@ application-local.yaml
 application-local.properties
 .env
 .env.local
-# 3x-ui demo 真实配置（仅 .example 模板入库）
-3xui-demo.properties
