@@ -4,7 +4,7 @@ import { RefreshCw } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { pageServers, type ResourceServer } from '@/api/resource/server'
 import { listRemoteInbounds, type RemoteInbound } from '@/api/xray/server'
-import { provisionInbound, type XrayInboundProvisionDTO } from '@/api/xray/inbound'
+import { provisionClient, type XrayClientProvisionDTO } from '@/api/xray/client'
 import {
   IP_POOL_STATUS_LABELS,
   pageIpPool,
@@ -188,7 +188,7 @@ async function onSubmit() {
   if (!validate()) return
   submitting.value = true
   try {
-    const dto: XrayInboundProvisionDTO = {
+    const dto: XrayClientProvisionDTO = {
       serverId: form.serverId,
       ipId: form.ipId.trim(),
       memberUserId: form.memberUserId.trim(),
@@ -202,7 +202,7 @@ async function onSubmit() {
       limitIp: form.limitIp,
       flow: form.flow.trim() || undefined
     }
-    await provisionInbound(dto)
+    await provisionClient(dto)
     toast.success('开通成功')
     emit('saved')
     emit('update:modelValue', false)

@@ -25,7 +25,7 @@ import { formatDateTime } from '@/utils/date'
 import Select from '@/components/Select.vue'
 import ServerFormDialog from './ServerFormDialog.vue'
 import ServerOpsDialog from './ServerOpsDialog.vue'
-import { pageInbounds } from '@/api/xray/inbound'
+import { pageClients } from '@/api/xray/client'
 
 const toast = useToast()
 const { confirm } = useConfirm()
@@ -180,7 +180,7 @@ async function loadActiveUserCounts() {
   if (!list.value.length) return
   const tasks = list.value.map(async (s) => {
     try {
-      const res = await pageInbounds({ pageNo: 1, pageSize: 1, serverId: s.id, status: 1 })
+      const res = await pageClients({ pageNo: 1, pageSize: 1, serverId: s.id, status: 1 })
       activeUserCount.value[s.id] = res.total
     } catch {
       // 忽略个别失败,UI 显示 -
@@ -299,8 +299,8 @@ onMounted(loadList)
                   <div class="flex gap-1">
                     <span
                       class="badge badge-xs"
-                      :class="s.sshAuthConfigured ? 'badge-success' : 'badge-ghost'"
-                      :title="s.sshAuthConfigured ? 'SSH 已配置' : 'SSH 未配置'"
+                      :class="(s.sshPassword || s.sshPrivateKey) ? 'badge-success' : 'badge-ghost'"
+                      :title="(s.sshPassword || s.sshPrivateKey) ? 'SSH 已配置' : 'SSH 未配置'"
                     >SSH</span>
                     <span
                       class="badge badge-xs"

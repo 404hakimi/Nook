@@ -8,7 +8,8 @@ import {
   Rocket,
   Search,
   Trash2,
-  Undo2
+  Undo2,
+  Zap
 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -18,6 +19,7 @@ import {
   deleteIpPool,
   pageIpPool,
   releaseIpPool,
+  testIpPoolSocks5,
   type ResourceIpPool,
   type ResourceIpPoolQuery
 } from '@/api/resource/ip-pool'
@@ -137,16 +139,25 @@ function ipTypeName(typeId: string) {
 const formOpen = ref(false)
 const formMode = ref<'create' | 'edit'>('create')
 const formIp = ref<ResourceIpPool | null>(null)
+/** 由 DeployDialog 部署成功 → 添加到 IP 池 时预填的 SOCKS5 字段; 仅 create 时生效。 */
+const formSocksPrefill = ref<{
+  socks5Host: string
+  socks5Port: number
+  socks5Username: string
+  socks5Password: string
+} | null>(null)
 
 function openCreate() {
   formMode.value = 'create'
   formIp.value = null
+  formSocksPrefill.value = null
   formOpen.value = true
 }
 
 function openEdit(ip: ResourceIpPool) {
   formMode.value = 'edit'
   formIp.value = ip
+  formSocksPrefill.value = null
   formOpen.value = true
 }
 
@@ -190,18 +201,54 @@ async function onRelease(ip: ResourceIpPool) {
   }
 }
 
-// ===== 一键部署 SOCKS5 =====
+// ===== 独立部署 SOCKS5 (顶部按钮触发, 不绑定 IP 行) =====
 const deployOpen = ref(false)
-const deployTarget = ref<ResourceIpPool | null>(null)
 
-function openDeploy(ip: ResourceIpPool) {
-  deployTarget.value = ip
+function openDeploy() {
   deployOpen.value = true
 }
 
-function onDeployed() {
-  // 部署成功后, 后端已回写 socks5 字段; 重新拉一次列表
-  loadList()
+/** 部署成功后用户点 "添加到 IP 池": 把 SOCKS5 凭据交给 FormDialog 预填走 create 流程。 */
+function onAddToPoolFromDeploy(payload: {
+  socks5Host: string
+  socks5Port: number
+  socks5Username: string
+  socks5Password: string
+}) {
+  formMode.value = 'create'
+  formIp.value = null
+  formSocksPrefill.value = payload
+  formOpen.value = true
+}
+
+/** SOCKS5 凭据是否齐全, 决定是否能触发"测试"按钮 (拨号需要这些参数)。 */
+function canTest(ip: ResourceIpPool): boolean {
+  return !!ip.socks5Host
+      && !!ip.socks5Port
+      && !!ip.socks5Username
+      && !!ip.socks5Password
+}
+
+// ===== SOCKS5 连通性测试 =====
+const testing = ref<Record<string, boolean>>({})
+
+async function onTest(ip: ResourceIpPool) {
+  if (testing.value[ip.id]) return
+  testing.value[ip.id] = true
+  try {
+    const res = await testIpPoolSocks5(ip.id)
+    if (res.success) {
+      const matched = res.exitIp === ip.ipAddress
+      const tip = matched
+        ? `✔ 出网 IP=${res.exitIp} (${res.elapsedMs}ms)`
+        : `⚠ 出网 IP=${res.exitIp} 与登记 ${ip.ipAddress} 不一致 (${res.elapsedMs}ms)`
+      matched ? toast.success(tip) : toast.warning(tip)
+    } else {
+      toast.error(`✘ ${res.error || 'SOCKS5 不通'} (${res.elapsedMs}ms)`)
+    }
+  } finally {
+    testing.value[ip.id] = false
+  }
 }
 
 onMounted(async () => {
@@ -251,6 +298,9 @@ onMounted(async () => {
             <RefreshCcw class="w-4 h-4" />重置
           </button>
           <div class="flex-1"></div>
+          <button class="btn btn-accent btn-sm" @click="openDeploy" title="远端部署 SOCKS5; 成功后可一键添加到 IP 池">
+            <Rocket class="w-4 h-4" />部署 SOCKS5
+          </button>
           <button class="btn btn-primary btn-sm" @click="openCreate">
             <Plus class="w-4 h-4" />新增 IP
           </button>
@@ -308,7 +358,7 @@ onMounted(async () => {
                     <span>{{ ip.socks5Host }}<span class="text-base-content/40">:{{ ip.socks5Port }}</span></span>
                     <span v-if="ip.socks5Username" class="ml-1 text-base-content/60">/ {{ ip.socks5Username }}</span>
                     <span
-                      v-if="ip.socks5PasswordConfigured"
+                      v-if="ip.socks5Password"
                       class="ml-1 badge badge-xs badge-success"
                       title="已配置密码"
                     >pass</span>
@@ -327,9 +377,17 @@ onMounted(async () => {
                 <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(ip.createdAt) }}</td>
                 <td>
                   <div class="flex justify-end items-center gap-1 flex-wrap">
-                    <button class="btn btn-ghost btn-xs gap-1" @click="openDeploy(ip)" title="一键部署 SOCKS5">
-                      <Rocket class="w-3.5 h-3.5 text-warning" />
-                      <span class="text-warning">部署</span>
+                    <!-- 测试: 只要 SOCKS5 凭据齐全就能拨号探测 -->
+                    <button
+                      v-if="canTest(ip)"
+                      class="btn btn-ghost btn-xs gap-1"
+                      :disabled="testing[ip.id]"
+                      @click="onTest(ip)"
+                      title="通过该 SOCKS5 拨号公网 echo-IP, 返回出网真实 IP"
+                    >
+                      <span v-if="testing[ip.id]" class="loading loading-spinner loading-xs"></span>
+                      <Zap v-else class="w-3.5 h-3.5 text-warning" />
+                      <span class="text-warning">测试</span>
                     </button>
                     <button class="btn btn-ghost btn-xs gap-1" @click="openEdit(ip)">
                       <Pencil class="w-3.5 h-3.5 text-info" />
@@ -387,16 +445,17 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 新增/编辑 弹框 -->
+    <!-- 新增/编辑 弹框: 仅保存 IP 池条目元数据 (SOCKS5 凭据); 部署走顶部 "部署 SOCKS5" 按钮 -->
     <IpPoolFormDialog
       v-model="formOpen"
       :mode="formMode"
       :ip="formIp"
       :ip-types="ipTypes"
+      :socks-prefill="formSocksPrefill"
       @saved="onFormSaved"
     />
 
-    <!-- 一键部署 SOCKS5 弹框 -->
-    <IpPoolDeployDialog v-model="deployOpen" :ip="deployTarget" @deployed="onDeployed" />
+    <!-- 独立部署 SOCKS5 弹框: 不绑定 IP 行; 成功后 "添加到 IP 池" 走 onAddToPoolFromDeploy 接力 -->
+    <IpPoolDeployDialog v-model="deployOpen" @add-to-pool="onAddToPoolFromDeploy" />
   </div>
 </template>

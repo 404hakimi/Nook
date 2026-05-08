@@ -1,23 +1,24 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Activity, Pencil, Plus, RefreshCcw, RotateCw, Search, Trash2, Zap } from 'lucide-vue-next'
+import { Activity, Pencil, Plus, RefreshCcw, RotateCw, Search, Share2, Trash2, Zap } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import {
-  INBOUND_STATUS_LABELS,
-  pageInbounds,
-  resetInboundTraffic,
-  revokeInbound,
-  rotateInbound,
-  type XrayInbound,
-  type XrayInboundQuery
-} from '@/api/xray/inbound'
+  CLIENT_STATUS_LABELS,
+  pageClients,
+  resetClientTraffic,
+  revokeClient,
+  rotateClient,
+  type XrayClient,
+  type XrayClientQuery
+} from '@/api/xray/client'
 import { pageServers, type ResourceServer } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import Select from '@/components/Select.vue'
-import InboundEditDialog from './InboundEditDialog.vue'
-import InboundProvisionDialog from './InboundProvisionDialog.vue'
-import InboundTrafficDialog from './InboundTrafficDialog.vue'
+import ClientEditDialog from './ClientEditDialog.vue'
+import ClientProvisionDialog from './ClientProvisionDialog.vue'
+import ClientShareDialog from './ClientShareDialog.vue'
+import ClientTrafficDialog from './ClientTrafficDialog.vue'
 
 const toast = useToast()
 const { confirm } = useConfirm()
@@ -35,7 +36,7 @@ const PAGE_SIZE_OPTIONS = [
   { label: '50 条/页', value: 50 }
 ]
 
-const query = reactive<Required<Pick<XrayInboundQuery, 'pageNo' | 'pageSize'>> & XrayInboundQuery>({
+const query = reactive<Required<Pick<XrayClientQuery, 'pageNo' | 'pageSize'>> & XrayClientQuery>({
   pageNo: 1,
   pageSize: 10,
   keyword: '',
@@ -44,7 +45,7 @@ const query = reactive<Required<Pick<XrayInboundQuery, 'pageNo' | 'pageSize'>> &
   ipId: '',
   status: undefined
 })
-const list = ref<XrayInbound[]>([])
+const list = ref<XrayClient[]>([])
 const total = ref(0)
 const loading = ref(false)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / query.pageSize)))
@@ -71,7 +72,7 @@ function serverHost(id: string): string {
 async function loadList() {
   loading.value = true
   try {
-    const res = await pageInbounds({
+    const res = await pageClients({
       pageNo: query.pageNo,
       pageSize: query.pageSize,
       keyword: query.keyword || undefined,
@@ -129,7 +130,7 @@ async function onProvisioned() {
 const busy = ref<Record<string, boolean>>({})
 
 // ===== 删除 (revoke) =====
-async function onRevoke(e: XrayInbound) {
+async function onRevoke(e: XrayClient) {
   if (busy.value[e.id]) return
   const ok = await confirm({
     title: '吊销客户端',
@@ -140,7 +141,7 @@ async function onRevoke(e: XrayInbound) {
   if (!ok) return
   busy.value[e.id] = true
   try {
-    await revokeInbound(e.id)
+    await revokeClient(e.id)
     toast.success('已吊销')
     loadList()
   } catch { /* */ } finally {
@@ -149,7 +150,7 @@ async function onRevoke(e: XrayInbound) {
 }
 
 // ===== 轮换 UUID (rotate) =====
-async function onRotate(e: XrayInbound) {
+async function onRotate(e: XrayClient) {
   if (busy.value[e.id]) return
   const ok = await confirm({
     title: '轮换密钥',
@@ -160,7 +161,7 @@ async function onRotate(e: XrayInbound) {
   if (!ok) return
   busy.value[e.id] = true
   try {
-    await rotateInbound(e.id)
+    await rotateClient(e.id)
     toast.success('已轮换')
     loadList()
   } catch { /* */ } finally {
@@ -169,7 +170,7 @@ async function onRotate(e: XrayInbound) {
 }
 
 // ===== 流量清零 =====
-async function onResetTraffic(e: XrayInbound) {
+async function onResetTraffic(e: XrayClient) {
   if (busy.value[e.id]) return
   const ok = await confirm({
     title: '清零流量',
@@ -180,7 +181,7 @@ async function onResetTraffic(e: XrayInbound) {
   if (!ok) return
   busy.value[e.id] = true
   try {
-    await resetInboundTraffic(e.id)
+    await resetClientTraffic(e.id)
     toast.success('已清零')
   } catch { /* */ } finally {
     busy.value[e.id] = false
@@ -189,16 +190,24 @@ async function onResetTraffic(e: XrayInbound) {
 
 // ===== 看流量 =====
 const trafficOpen = ref(false)
-const trafficTarget = ref<XrayInbound | null>(null)
-function openTraffic(e: XrayInbound) {
+const trafficTarget = ref<XrayClient | null>(null)
+function openTraffic(e: XrayClient) {
   trafficTarget.value = e
   trafficOpen.value = true
 }
 
+// ===== 分享 (生成订阅链接给会员客户端导入) =====
+const shareOpen = ref(false)
+const shareTarget = ref<XrayClient | null>(null)
+function openShare(e: XrayClient) {
+  shareTarget.value = e
+  shareOpen.value = true
+}
+
 // ===== 编辑（本地元数据：listenIp/Port/transport/status） =====
 const editOpen = ref(false)
-const editTarget = ref<XrayInbound | null>(null)
-function openEdit(e: XrayInbound) {
+const editTarget = ref<XrayClient | null>(null)
+function openEdit(e: XrayClient) {
   editTarget.value = e
   editOpen.value = true
 }
@@ -324,13 +333,17 @@ onMounted(() => {
                 <td class="font-mono text-xs">{{ e.ipId }}</td>
                 <td>
                   <span :class="['badge badge-sm', statusBadge(e.status)]">
-                    {{ INBOUND_STATUS_LABELS[e.status] || e.status }}
+                    {{ CLIENT_STATUS_LABELS[e.status] || e.status }}
                   </span>
                 </td>
                 <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(e.lastSyncedAt) }}</td>
                 <td class="text-sm text-base-content/70 whitespace-nowrap">{{ formatDateTime(e.createdAt) }}</td>
                 <td>
                   <div class="flex justify-end items-center gap-1 flex-wrap">
+                    <button class="btn btn-ghost btn-xs gap-1" @click="openShare(e)" title="生成订阅链接给会员">
+                      <Share2 class="w-3.5 h-3.5 text-primary" />
+                      <span class="text-primary">分享</span>
+                    </button>
                     <button class="btn btn-ghost btn-xs gap-1" @click="openTraffic(e)">
                       <Activity class="w-3.5 h-3.5 text-success" />
                       <span class="text-success">流量</span>
@@ -393,13 +406,15 @@ onMounted(() => {
       </div>
     </div>
 
-    <InboundProvisionDialog v-model="provisionOpen" @saved="onProvisioned" />
-    <InboundTrafficDialog v-model="trafficOpen" :inbound="trafficTarget" />
-    <InboundEditDialog
+    <ClientProvisionDialog v-model="provisionOpen" @saved="onProvisioned" />
+    <ClientTrafficDialog v-model="trafficOpen" :inbound="trafficTarget" />
+    <ClientEditDialog
       v-model="editOpen"
       :inbound="editTarget"
       :server-map="serverMap"
       @saved="onEdited"
     />
+    <!-- ShareDialog 自己拉 reveal 接口拿明文凭据, 不依赖父组件传 serverMap -->
+    <ClientShareDialog v-model="shareOpen" :client="shareTarget" />
   </div>
 </template>

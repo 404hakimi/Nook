@@ -1,14 +1,10 @@
 package com.nook.biz.resource.convert;
 
-import cn.hutool.core.util.StrUtil;
 import com.nook.biz.resource.api.dto.ServerCredentialDTO;
 import com.nook.biz.resource.controller.server.vo.ResourceServerRespVO;
 import com.nook.biz.resource.entity.ResourceServer;
 import com.nook.common.web.response.PageResult;
-import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingTarget;
 import org.mapstruct.factory.Mappers;
 
 import java.util.List;
@@ -19,20 +15,13 @@ public interface ResourceServerConvert {
 
     ResourceServerConvert INSTANCE = Mappers.getMapper(ResourceServerConvert.class);
 
-    /** 实体 → 列表/详情 RespVO；密码原文不下发，只下 sshAuthConfigured 布尔。 */
-    @Mapping(target = "sshAuthConfigured", ignore = true)
+    /** 实体 → 列表/详情 RespVO; 含 sshPassword / sshPrivateKey 明文 (DB 明文存, 与运营受信场景对齐)。 */
     ResourceServerRespVO convert(ResourceServer entity);
 
     List<ResourceServerRespVO> convertList(List<ResourceServer> entities);
 
     default PageResult<ResourceServerRespVO> convertPage(PageResult<ResourceServer> page) {
         return PageResult.of(page.getTotal(), convertList(page.getRecords()));
-    }
-
-    @AfterMapping
-    default void fillCredentialFlags(ResourceServer src, @MappingTarget ResourceServerRespVO target) {
-        target.setSshAuthConfigured(
-                StrUtil.isNotBlank(src.getSshPassword()) || StrUtil.isNotBlank(src.getSshPrivateKey()));
     }
 
     /**

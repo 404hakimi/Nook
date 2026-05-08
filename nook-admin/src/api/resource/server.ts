@@ -1,13 +1,14 @@
 import request from '@/api/request'
 
-/** 服务器列表/详情响应；SSH 密码/私钥不下发, 仅 sshAuthConfigured 布尔标志. */
+/** 服务器列表/详情响应; SSH 密码/私钥以明文下发 (DB 明文存, 后台受信场景), 编辑时 fill 进 type=password 输入框。 */
 export interface ResourceServer {
   id: string
   name: string
   host: string
   sshPort?: number
   sshUser?: string
-  sshAuthConfigured?: boolean
+  sshPassword?: string
+  sshPrivateKey?: string
   /** SSH 命令最大耗时（秒）；30 较合理，跨洲可调到 60-120 */
   sshTimeoutSeconds?: number
   /** Backend gRPC 调用超时(秒)；20 较合理，跨洲可调到 60 */
@@ -41,7 +42,6 @@ export interface ResourceServerSaveDTO {
   host?: string
   sshPort?: number
   sshUser?: string
-  /** 留空表示保留旧值 */
   sshPassword?: string
   sshPrivateKey?: string
   sshTimeoutSeconds?: number

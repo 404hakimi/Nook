@@ -10,8 +10,8 @@ export interface ResourceIpPool {
   socks5Host?: string
   socks5Port?: number
   socks5Username?: string
-  /** 后端不会下发原文密码, 仅以布尔值标记是否已配置 */
-  socks5PasswordConfigured?: boolean
+  /** 明文 SOCKS5 密码 — DB 明文存储, 后台受信场景直接下发, 编辑时 fill 进 type=password 输入框 */
+  socks5Password?: string
   /** 1=available 2=occupied 3=testing 4=blacklisted 5=cooling 6=degraded */
   status: number
   assignedMemberId?: string
@@ -43,7 +43,6 @@ export interface ResourceIpPoolSaveDTO {
   socks5Host?: string
   socks5Port?: number
   socks5Username?: string
-  /** 编辑时留空 = 保留原值 */
   socks5Password?: string
   status?: number
   score?: number
@@ -104,9 +103,23 @@ export function releaseIpPool(id: string) {
   return request.post<unknown, void>(`/admin/resource/ip-pool/${id}/release`)
 }
 
-// ===== SOCKS5 一键部署 (走 xray 模块的运维接口, 用流式 HTTP) =====
+/** SOCKS5 连通性测试结果 (后端拨号 echo-IP 端点拿到的出网真实 IP)。 */
+export interface Socks5TestResult {
+  success: boolean
+  elapsedMs: number
+  /** success=true 时的出网公网 IP; 用来与 ipAddress 比对 */
+  exitIp?: string
+  error?: string
+}
 
-export interface IpSocks5InstallDTO {
+/** 通过该 IP 的 SOCKS5 凭据拨号公网 echo-IP 端点, 验证 SOCKS5 是否真的工作 + 出网 IP 是否符合预期。 */
+export function testIpPoolSocks5(id: string) {
+  return request.post<unknown, Socks5TestResult>(`/admin/resource/ip-pool/${id}/test`)
+}
+
+// ===== SOCKS5 独立部署 (走 xray 模块 provisioner 接口, 流式 HTTP, 不绑定 IP 池条目) =====
+
+export interface Socks5InstallDTO {
   // 远端主机 SSH 凭据 (一次性, 不存)
   sshHost: string
   sshPort: number
@@ -114,32 +127,28 @@ export interface IpSocks5InstallDTO {
   /** sshPassword 与 sshPrivateKey 二选一 */
   sshPassword?: string
   sshPrivateKey?: string
-  sshTimeoutSeconds?: number
+  sshTimeoutSeconds: number
 
-  // SOCKS5 服务参数
+  // SOCKS5 服务参数 — 部署成功后由前端按需调 createIpPool 落库
   socksPort: number
   socksUser: string
   socksPass: string
   /** UFW allow from 来源 CIDR; 推荐填中转线路服务器公网 IP */
   allowFrom?: string
-  installUfw?: boolean
+  installUfw: boolean
 }
 
 /**
- * 部署 SOCKS5 — 流式接口.
- * 后端用 chunked transfer 边跑边吐 stdout; 前端 fetch + ReadableStream 边读边回调 onChunk.
- *
- * 部署成功后, 后端会把 socksPort/socksUser/socksPass 回写到 IP 池条目.
- * 前端展示完日志后建议刷新一下列表拉最新值.
+ * 流式部署 SOCKS5 — 后端 chunked transfer 边跑边吐 stdout, 前端 fetch + ReadableStream 边读边回调。
+ * 部署不再绑定 IP 池条目; 部署成功后由前端按需调 createIpPool 把 SOCKS5 凭据落库。
  */
 export async function installSocks5Stream(
-  ipId: string,
-  dto: IpSocks5InstallDTO,
+  dto: Socks5InstallDTO,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
   const userStore = useUserStore()
-  const res = await fetch(`/api/admin/xray/ip-pool/${ipId}/install-socks5`, {
+  const res = await fetch('/api/admin/xray/provisioner/socks5/install', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

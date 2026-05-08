@@ -7,8 +7,8 @@ import java.time.LocalDateTime;
 
 /**
  * 服务器详情/列表响应。
- * SSH 密码/私钥不会下发给前端, 仅以 sshAuthConfigured(boolean) 表示"是否已配置".
- * 编辑时密码字段留空 = 保留旧值.
+ * SSH 密码 / 私钥以明文下发 — DB 本就明文存, 后台运营在受信网络下使用,
+ * 编辑时直接 fill 进密码框 (type=password, UI 自然遮盖)。
  */
 @Data
 public class ResourceServerRespVO {
@@ -18,7 +18,8 @@ public class ResourceServerRespVO {
     private String host;
     private Integer sshPort;
     private String sshUser;
-    private Boolean sshAuthConfigured;
+    private String sshPassword;
+    private String sshPrivateKey;
     private Integer sshTimeoutSeconds;
 
     private Integer backendTimeoutSeconds;

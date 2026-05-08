@@ -58,8 +58,9 @@ function fill(s: ResourceServer) {
   form.host = s.host
   form.sshPort = s.sshPort ?? 22
   form.sshUser = s.sshUser ?? 'root'
-  form.sshPassword = ''
-  form.sshPrivateKey = ''
+  // 接口下发明文凭据, 直接 fill 进密码框 (UI 遮盖); 不改就保留, 改了就覆盖
+  form.sshPassword = s.sshPassword ?? ''
+  form.sshPrivateKey = s.sshPrivateKey ?? ''
   form.sshTimeoutSeconds = s.sshTimeoutSeconds ?? 30
   form.backendTimeoutSeconds = s.backendTimeoutSeconds ?? 20
   form.xrayGrpcHost = s.xrayGrpcHost ?? '127.0.0.1'
@@ -285,10 +286,7 @@ function close() {
           <div v-if="errors.sshTimeoutSeconds" class="text-error text-xs mt-1">{{ errors.sshTimeoutSeconds }}</div>
         </div>
         <div class="sm:col-span-3">
-          <label class="label py-1">
-            <span class="label-text">SSH 密码</span>
-            <span v-if="isEdit" class="label-text-alt text-base-content/50">留空保留原值</span>
-          </label>
+          <label class="label py-1"><span class="label-text">SSH 密码</span></label>
           <input
             v-model="form.sshPassword"
             type="password"
@@ -297,16 +295,14 @@ function close() {
           />
         </div>
         <div class="sm:col-span-3">
-          <label class="label py-1">
-            <span class="label-text">SSH 私钥 (PEM)</span>
-            <span v-if="isEdit" class="label-text-alt text-base-content/50">留空保留原值</span>
-          </label>
-          <textarea
+          <label class="label py-1"><span class="label-text">SSH 私钥 (PEM)</span></label>
+          <input
             v-model="form.sshPrivateKey"
-            rows="3"
+            type="password"
+            autocomplete="new-password"
             placeholder="-----BEGIN OPENSSH PRIVATE KEY-----..."
-            class="textarea textarea-bordered w-full text-xs font-mono"
-          ></textarea>
+            class="input input-bordered input-sm w-full font-mono"
+          />
         </div>
         <div v-if="errors.sshAuth" class="sm:col-span-3 text-error text-xs">{{ errors.sshAuth }}</div>
       </div>

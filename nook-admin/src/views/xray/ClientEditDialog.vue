@@ -2,19 +2,19 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useToast } from '@/composables/useToast'
 import {
-  INBOUND_STATUS_LABELS,
-  getInboundDetail,
-  updateInbound,
-  type XrayInbound,
-  type XrayInboundUpdateDTO
-} from '@/api/xray/inbound'
+  CLIENT_STATUS_LABELS,
+  getClientDetail,
+  updateClient,
+  type XrayClient,
+  type XrayClientUpdateDTO
+} from '@/api/xray/client'
 import type { ResourceServer } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import Select from '@/components/Select.vue'
 
 interface Props {
   modelValue: boolean
-  inbound?: XrayInbound | null
+  inbound?: XrayClient | null
   /** 父级传入的 serverId → 服务器映射，用于显示服务器名 */
   serverMap?: Record<string, ResourceServer>
 }
@@ -27,7 +27,7 @@ const emit = defineEmits<{
 const toast = useToast()
 const submitting = ref(false)
 const loadingDetail = ref(false)
-const detail = ref<XrayInbound | null>(null)
+const detail = ref<XrayClient | null>(null)
 const errors = reactive<Record<string, string>>({})
 
 const STATUS_OPTIONS = [
@@ -59,7 +59,7 @@ watch(
     const id = props.inbound.id
     loadingDetail.value = true
     try {
-      const fresh = await getInboundDetail(id)
+      const fresh = await getClientDetail(id)
       if (props.modelValue && props.inbound?.id === id) {
         detail.value = fresh
         fillFromInbound(fresh)
@@ -72,7 +72,7 @@ watch(
   }
 )
 
-function fillFromInbound(e: XrayInbound) {
+function fillFromInbound(e: XrayClient) {
   form.listenIp = e.listenIp ?? ''
   form.listenPort = e.listenPort
   form.transport = e.transport ?? ''
@@ -96,13 +96,13 @@ async function onSubmit() {
   if (!validate() || !detail.value) return
   submitting.value = true
   try {
-    const dto: XrayInboundUpdateDTO = {
+    const dto: XrayClientUpdateDTO = {
       listenIp: form.listenIp.trim() || undefined,
       listenPort: form.listenPort,
       transport: form.transport.trim() || undefined,
       status: form.status
     }
-    await updateInbound(detail.value.id, dto)
+    await updateClient(detail.value.id, dto)
     toast.success('保存成功')
     emit('saved')
     emit('update:modelValue', false)
@@ -212,7 +212,7 @@ function close() {
           <div>
             <label class="label py-1">
               <span class="label-text">状态</span>
-              <span class="label-text-alt text-base-content/50">手动覆写当前 {{ INBOUND_STATUS_LABELS[detail.status] }}</span>
+              <span class="label-text-alt text-base-content/50">手动覆写当前 {{ CLIENT_STATUS_LABELS[detail.status] }}</span>
             </label>
             <Select v-model="form.status" :options="STATUS_OPTIONS" />
           </div>

@@ -8,7 +8,8 @@ import java.time.LocalDateTime;
 
 /**
  * IP 池详情/列表响应。
- * SOCKS5 密码不下发原文, 仅用 socks5PasswordConfigured 布尔标识是否已配置。
+ * SOCKS5 密码以明文下发 — 数据库本就明文存储, 后台运营在受信网络下使用,
+ * 编辑时直接 fill 进密码框 (type=password, UI 自然遮盖)。
  */
 @Data
 public class ResourceIpPoolRespVO {
@@ -21,7 +22,7 @@ public class ResourceIpPoolRespVO {
     private String socks5Host;
     private Integer socks5Port;
     private String socks5Username;
-    private Boolean socks5PasswordConfigured;
+    private String socks5Password;
 
     /** 1=available 2=occupied 3=testing 4=blacklisted 5=cooling 6=degraded */
     private Integer status;

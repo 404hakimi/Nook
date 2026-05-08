@@ -50,10 +50,10 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'IP 池' }
       },
       {
-        path: 'xray/inbounds',
-        name: 'xray-inbounds',
-        component: () => import('@/views/xray/InboundList.vue'),
-        meta: { title: 'Xray 配置' }
+        path: 'xray/clients',
+        name: 'xray-clients',
+        component: () => import('@/views/xray/ClientList.vue'),
+        meta: { title: '客户端管理' }
       }
     ]
   },

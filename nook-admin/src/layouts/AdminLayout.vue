@@ -64,7 +64,7 @@ const menus: MenuItem[] = [
       { path: '/resource/ip-pool', title: 'IP 池', icon: Globe2 }
     ]
   },
-  { path: '/xray/inbounds', title: 'Xray 配置', icon: Cable },
+  { path: '/xray/clients', title: '客户端管理', icon: Cable },
   { path: '/monitor/alerts', title: '监控告警', icon: Bell }
 ]
 

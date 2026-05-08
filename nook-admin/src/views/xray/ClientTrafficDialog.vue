@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RefreshCw } from 'lucide-vue-next'
-import { getInboundTraffic, type XrayInbound, type XrayInboundTraffic } from '@/api/xray/inbound'
+import { getClientTraffic, type XrayClient, type XrayClientTraffic } from '@/api/xray/client'
 
 interface Props {
   modelValue: boolean
-  inbound?: XrayInbound | null
+  inbound?: XrayClient | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -13,7 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const loading = ref(false)
-const data = ref<XrayInboundTraffic | null>(null)
+const data = ref<XrayClientTraffic | null>(null)
 const lastFetched = ref<Date | null>(null)
 
 watch(
@@ -31,7 +31,7 @@ async function refresh() {
   if (!props.inbound) return
   loading.value = true
   try {
-    data.value = await getInboundTraffic(props.inbound.id)
+    data.value = await getClientTraffic(props.inbound.id)
     lastFetched.value = new Date()
   } catch {
     data.value = null

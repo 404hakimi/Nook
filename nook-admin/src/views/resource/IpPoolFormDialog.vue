@@ -11,11 +11,20 @@ import {
 import type { ResourceIpType } from '@/api/resource/ip-type'
 import Select from '@/components/Select.vue'
 
+interface SocksPrefill {
+  socks5Host: string
+  socks5Port: number
+  socks5Username: string
+  socks5Password: string
+}
+
 interface Props {
   modelValue: boolean
   mode: 'create' | 'edit'
   ip?: ResourceIpPool | null
   ipTypes: ResourceIpType[]
+  /** 由 DeployDialog 部署成功后接力传入, 自动填 SOCKS5 字段, 用户只需补 region/类型/IP/score 即可落库。 */
+  socksPrefill?: SocksPrefill | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -41,12 +50,16 @@ const ipTypeOptions = computed(() =>
   props.ipTypes.map((t) => ({ label: t.name, value: t.id }))
 )
 
+/**
+ * 表单字段; 不包含 socks5Host —— 主机始终 = ipAddress, 提交时由 buildSaveDto 自动同步。
+ * 表上 socks5_host 列保留是为后续兼容更多代理协议 (HTTP / HTTPS / TROJAN-SOCKS 等),
+ * 也方便运营在表里直接看到入口地址; 但对当前 SOCKS5 场景与 IP 地址等价, 不让用户重复填。
+ */
 const form = reactive({
   region: '',
   ipTypeId: '',
   ipAddress: '',
-  socks5Host: '',
-  socks5Port: 1080 as number | undefined,
+  socks5Port: undefined as number | undefined,
   socks5Username: '',
   socks5Password: '',
   status: 1,
@@ -62,10 +75,11 @@ function fill(ip: ResourceIpPool) {
   form.region = ip.region
   form.ipTypeId = ip.ipTypeId
   form.ipAddress = ip.ipAddress
-  form.socks5Host = ip.socks5Host ?? ''
+  // socks5Host 不在 form 里, 由模板只读展示 form.ipAddress
   form.socks5Port = ip.socks5Port
   form.socks5Username = ip.socks5Username ?? ''
-  form.socks5Password = '' // 编辑时强制空, 留空 = 保留原值
+  // 接口下发明文密码, 直接 fill 进密码框 (UI 自然遮盖); 用户改一字会立即覆盖, 不改就保持
+  form.socks5Password = ip.socks5Password ?? ''
   form.status = ip.status
   form.score = typeof ip.score === 'string' ? Number(ip.score) : ip.score
   form.scamalyticsScore = ip.scamalyticsScore
@@ -77,8 +91,7 @@ function reset() {
   form.region = ''
   form.ipTypeId = props.ipTypes[0]?.id ?? ''
   form.ipAddress = ''
-  form.socks5Host = ''
-  form.socks5Port = 1080
+  form.socks5Port = undefined
   form.socks5Username = ''
   form.socks5Password = ''
   form.status = 1
@@ -100,13 +113,20 @@ watch(
       try {
         const fresh = await getIpPoolDetail(id)
         if (props.modelValue && props.mode === 'edit' && props.ip?.id === id) fill(fresh)
-      } catch {
-        /* */
       } finally {
         loadingDetail.value = false
       }
     } else {
       reset()
+      // 模式 = create 且父组件传了 socksPrefill (部署成功接力场景), 预填 SOCKS5 + IP 地址。
+      // socksPrefill.socks5Host 来自部署 dialog 里用户填的 sshHost, 这里同时作为 ipAddress 的初值;
+      // socks5Host 不在 form 里, 由模板自动跟随 form.ipAddress
+      if (props.socksPrefill) {
+        form.ipAddress = props.socksPrefill.socks5Host
+        form.socks5Port = props.socksPrefill.socks5Port
+        form.socks5Username = props.socksPrefill.socks5Username
+        form.socks5Password = props.socksPrefill.socks5Password
+      }
     }
   }
 )
@@ -117,8 +137,9 @@ function validate(): boolean {
   if (!form.ipTypeId) errors.ipTypeId = '请选择类型'
   if (!form.ipAddress.trim()) errors.ipAddress = '请输入 IP 地址'
 
+  // 创建时 SOCKS5 端口/账号/密码必填; 编辑时未填的密码不会被覆盖, 端口与用户名按表单值更新。
+  // socks5Host 不再校验 — 由 form.ipAddress 自动同步, 已在前面校验 ipAddress 必填。
   if (props.mode === 'create') {
-    if (!form.socks5Host.trim()) errors.socks5Host = 'SOCKS5 主机必填'
     if (!form.socks5Port) errors.socks5Port = 'SOCKS5 端口必填'
     if (!form.socks5Username.trim()) errors.socks5Username = 'SOCKS5 用户名必填'
     if (!form.socks5Password) errors.socks5Password = 'SOCKS5 密码必填'
@@ -133,11 +154,13 @@ async function onSubmit() {
   if (!validate()) return
   submitting.value = true
   try {
+    const ip = form.ipAddress.trim()
     const dto: ResourceIpPoolSaveDTO = {
       region: form.region.trim(),
       ipTypeId: form.ipTypeId,
-      ipAddress: form.ipAddress.trim(),
-      socks5Host: form.socks5Host.trim() || undefined,
+      ipAddress: ip,
+      // socks5Host 始终 = ipAddress; 表单不让用户独立改, 避免不一致
+      socks5Host: ip,
       socks5Port: form.socks5Port,
       socks5Username: form.socks5Username.trim() || undefined,
       socks5Password: form.socks5Password || undefined,
@@ -156,8 +179,6 @@ async function onSubmit() {
     }
     emit('saved')
     emit('update:modelValue', false)
-  } catch {
-    /* */
   } finally {
     submitting.value = false
   }
@@ -165,13 +186,6 @@ async function onSubmit() {
 
 function close() {
   emit('update:modelValue', false)
-}
-
-// IP 录入: 自动同步 socks5Host = ipAddress (用户可后续修改)
-function onIpAddressBlur() {
-  if (props.mode === 'create' && !form.socks5Host) {
-    form.socks5Host = form.ipAddress
-  }
 }
 </script>
 
@@ -181,6 +195,9 @@ function onIpAddressBlur() {
       <h3 class="text-lg font-semibold mb-4">
         {{ mode === 'create' ? '新增 IP' : '编辑 IP' }}
       </h3>
+      <p class="text-xs text-base-content/50 mb-4">
+        本表单仅保存 IP 池条目元数据。<strong>一键部署 SOCKS5</strong> 在配置完成后, 通过列表行的 "部署" 按钮触发。
+      </p>
 
       <div
         v-if="loadingDetail"
@@ -224,7 +241,6 @@ function onIpAddressBlur() {
             placeholder="例 1.2.3.4"
             class="input input-bordered input-sm w-full font-mono"
             :class="{ 'input-error': errors.ipAddress }"
-            @blur="onIpAddressBlur"
           />
           <div v-if="errors.ipAddress" class="text-error text-xs mt-1">{{ errors.ipAddress }}</div>
         </div>
@@ -243,7 +259,7 @@ function onIpAddressBlur() {
             step="0.01"
             min="0"
             max="100"
-            placeholder="默认 100"
+            placeholder="例 100"
             class="input input-bordered input-sm w-full"
           />
         </div>
@@ -252,24 +268,26 @@ function onIpAddressBlur() {
       <!-- SOCKS5 凭据 -->
       <div class="text-sm font-semibold text-base-content/70 mt-6 mb-2">SOCKS5 凭据</div>
       <p class="text-xs text-base-content/50 mb-2">
-        nook 在中转线路上配 outbound 时会用这套凭据连这台落地 SOCKS5; 通常 host 等于 IP 地址.
+        SOCKS5 主机自动跟随 IP 地址 (后续支持 HTTP / 其它代理协议时仍按此入口); 端口 / 用户名 / 密码由部署或外部 SOCKS5 服务决定。
       </p>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="sm:col-span-2">
           <label class="label py-1">
-            <span class="label-text">SOCKS5 主机 <span class="text-error">*</span></span>
+            <span class="label-text">SOCKS5 主机</span>
+            <span class="label-text-alt text-base-content/50">= IP 地址</span>
           </label>
           <input
-            v-model="form.socks5Host"
+            :value="form.ipAddress"
             type="text"
-            placeholder="通常 = IP 地址"
-            class="input input-bordered input-sm w-full font-mono"
-            :class="{ 'input-error': errors.socks5Host }"
+            readonly
+            tabindex="-1"
+            class="input input-bordered input-sm w-full font-mono bg-base-200 text-base-content/60 cursor-not-allowed"
           />
-          <div v-if="errors.socks5Host" class="text-error text-xs mt-1">{{ errors.socks5Host }}</div>
         </div>
         <div>
-          <label class="label py-1"><span class="label-text">SOCKS5 端口 <span class="text-error">*</span></span></label>
+          <label class="label py-1">
+            <span class="label-text">SOCKS5 端口 <span v-if="!isEdit" class="text-error">*</span></span>
+          </label>
           <input
             v-model.number="form.socks5Port"
             type="number"
@@ -282,7 +300,7 @@ function onIpAddressBlur() {
         </div>
         <div>
           <label class="label py-1">
-            <span class="label-text">SOCKS5 用户名 <span v-if="!isEdit" class="text-error">*</span></span>
+            <span class="label-text">用户名 <span v-if="!isEdit" class="text-error">*</span></span>
           </label>
           <input
             v-model="form.socks5Username"
@@ -294,8 +312,7 @@ function onIpAddressBlur() {
         </div>
         <div class="sm:col-span-2">
           <label class="label py-1">
-            <span class="label-text">SOCKS5 密码 <span v-if="!isEdit" class="text-error">*</span></span>
-            <span v-if="isEdit" class="label-text-alt text-base-content/50">留空保留原值</span>
+            <span class="label-text">密码 <span v-if="!isEdit" class="text-error">*</span></span>
           </label>
           <input
             v-model="form.socks5Password"
