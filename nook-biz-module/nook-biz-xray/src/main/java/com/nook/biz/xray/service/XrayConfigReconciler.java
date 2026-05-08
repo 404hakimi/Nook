@@ -14,8 +14,8 @@ import com.nook.biz.xray.backend.XrayProtocol;
 import com.nook.biz.xray.backend.dto.XrayClientSpec;
 import com.nook.biz.xray.constant.XrayConstants;
 import com.nook.biz.xray.constant.XrayErrorCode;
-import com.nook.biz.xray.entity.XrayInbound;
-import com.nook.biz.xray.mapper.XrayInboundMapper;
+import com.nook.biz.xray.entity.XrayClient;
+import com.nook.biz.xray.mapper.XrayClientMapper;
 import com.nook.biz.xray.util.SshExecutor;
 import com.nook.common.web.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class XrayConfigReconciler {
 
-    private final XrayInboundMapper xrayInboundMapper;
+    private final XrayClientMapper xrayClientMapper;
     private final ResourceIpPoolApi resourceIpPoolApi;
     private final SshExecutor sshExecutor;
 
@@ -57,10 +57,10 @@ public class XrayConfigReconciler {
             throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, "<null>");
         }
         JSONObject remote = readRemoteConfig(cred);
-        List<XrayInbound> rows = xrayInboundMapper.selectByServerId(cred.serverId());
-        Map<String, List<XrayInbound>> byInboundTag = rows.stream()
+        List<XrayClient> rows = xrayClientMapper.selectByServerId(cred.serverId());
+        Map<String, List<XrayClient>> byInboundTag = rows.stream()
                 .filter(r -> StrUtil.isNotBlank(r.getExternalInboundRef()))
-                .collect(Collectors.groupingBy(XrayInbound::getExternalInboundRef));
+                .collect(Collectors.groupingBy(XrayClient::getExternalInboundRef));
 
         repopulateInboundClients(remote, byInboundTag);
         remote.put("outbounds", buildOutbounds(rows));
@@ -102,7 +102,7 @@ public class XrayConfigReconciler {
      * 用 DB 行替换每个 inbound 的 settings.clients[]; 不动 inbound 本身的 listen/port/streamSettings/protocol —
      * 这些属于服务器侧管理职责, 改它们要走部署脚本或运维台。
      */
-    private void repopulateInboundClients(JSONObject root, Map<String, List<XrayInbound>> byInboundTag) {
+    private void repopulateInboundClients(JSONObject root, Map<String, List<XrayClient>> byInboundTag) {
         JSONArray inbounds = root.getJSONArray("inbounds");
         if (CollUtil.isEmpty(inbounds)) return;
         for (int i = 0; i < inbounds.size(); i++) {
@@ -130,17 +130,17 @@ public class XrayConfigReconciler {
         }
     }
 
-    private JSONArray buildClientArray(List<XrayInbound> rows, XrayProtocol protocol) {
+    private JSONArray buildClientArray(List<XrayClient> rows, XrayProtocol protocol) {
         JSONArray arr = new JSONArray();
         if (CollUtil.isEmpty(rows)) return arr;
-        for (XrayInbound row : rows) {
+        for (XrayClient row : rows) {
             if (!StrUtil.equalsIgnoreCase(row.getProtocol(), protocol.getCode())) continue;
             arr.add(protocol.buildClientJson(toSpec(row)));
         }
         return arr;
     }
 
-    private XrayClientSpec toSpec(XrayInbound row) {
+    private XrayClientSpec toSpec(XrayClient row) {
         return XrayClientSpec.builder()
                 .externalInboundRef(row.getExternalInboundRef())
                 .email(row.getClientEmail())
@@ -152,18 +152,18 @@ public class XrayConfigReconciler {
     // ===== outbounds + routing =====
 
     /** 每个 client 一条 socks5 outbound (拿不到 IP 凭据则跳过); 加 freedom api/direct 兜底。 */
-    private JSONArray buildOutbounds(List<XrayInbound> rows) {
+    private JSONArray buildOutbounds(List<XrayClient> rows) {
         JSONArray outbounds = new JSONArray();
         outbounds.add(freedomOutbound(XrayConstants.API_TAG));
         outbounds.add(freedomOutbound(XrayConstants.DIRECT_OUTBOUND_TAG));
-        for (XrayInbound row : rows) {
+        for (XrayClient row : rows) {
             JSONObject socks = buildSocks5OutboundFor(row);
             if (ObjectUtil.isNotNull(socks)) outbounds.add(socks);
         }
         return outbounds;
     }
 
-    private JSONObject buildSocks5OutboundFor(XrayInbound row) {
+    private JSONObject buildSocks5OutboundFor(XrayClient row) {
         IpPoolEntryDTO ip;
         try {
             ip = resourceIpPoolApi.loadEntry(row.getIpId());
@@ -208,12 +208,12 @@ public class XrayConfigReconciler {
     }
 
     /** api 通道直走 api outbound; 其余按 email 分流到该用户的 socks5 outbound, 不匹配的走 direct 兜底。 */
-    private JSONObject buildRouting(List<XrayInbound> rows) {
+    private JSONObject buildRouting(List<XrayClient> rows) {
         JSONObject routing = new JSONObject();
         routing.put("domainStrategy", "AsIs");
         JSONArray rules = new JSONArray();
         rules.add(apiRoutingRule());
-        for (XrayInbound row : rows) {
+        for (XrayClient row : rows) {
             if (StrUtil.isBlank(row.getClientEmail())) continue;
             rules.add(emailRoutingRule(row));
         }
@@ -231,7 +231,7 @@ public class XrayConfigReconciler {
         return rule;
     }
 
-    private JSONObject emailRoutingRule(XrayInbound row) {
+    private JSONObject emailRoutingRule(XrayClient row) {
         JSONObject rule = new JSONObject();
         rule.put("type", "field");
         JSONArray inTags = new JSONArray();

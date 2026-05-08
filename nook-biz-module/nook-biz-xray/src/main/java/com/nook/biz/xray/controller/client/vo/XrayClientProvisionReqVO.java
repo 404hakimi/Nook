@@ -1,4 +1,4 @@
-package com.nook.biz.xray.controller.inbound.vo;
+package com.nook.biz.xray.controller.client.vo;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -7,10 +7,10 @@ import lombok.Data;
 
 /**
  * 手动给某 (server, ip, member) 三元组开通一条 client。
- * 业务流程触发(订阅成功后)走 XrayInboundApi.provision；这里是后台管理员手动 provision 的入口。
+ * 业务流程触发(订阅成功后)走 XrayClientApi.provision；这里是后台管理员手动 provision 的入口。
  */
 @Data
-public class XrayInboundProvisionReqVO {
+public class XrayClientProvisionReqVO {
 
     @NotBlank(message = "serverId 不能为空")
     private String serverId;

@@ -23,10 +23,4 @@ public interface ResourceIpPoolApi {
 
     /** 按 id 拿凭据(SOCKS5 用户密码)；不存在抛 IP_POOL_NOT_FOUND。 */
     IpPoolEntryDTO loadEntry(String ipId);
-
-    /**
-     * 部署完 SOCKS5 后回写 host/port/user/password 到 IP 池条目;
-     * 任意字段传 null 表示保持原值。仅供 nook 内部跨模块运维场景调用。
-     */
-    void updateSocks5(String ipId, String socks5Host, Integer socks5Port, String socks5Username, String socks5Password);
 }

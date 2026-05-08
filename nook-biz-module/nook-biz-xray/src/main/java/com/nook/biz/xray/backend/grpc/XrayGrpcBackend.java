@@ -184,6 +184,10 @@ public class XrayGrpcBackend implements XrayBackend, AutoCloseable {
             if (code == Status.Code.NOT_FOUND || code == Status.Code.UNKNOWN) {
                 return 0L;
             }
+            if (isTransient(code)) {
+                log.warn("[grpc] getStats UNAVAILABLE server={} stat={}", cred.serverId(), name, sre);
+                throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, sre, cred.serverId());
+            }
             log.warn("[grpc] getStats 失败 server={} stat={}", cred.serverId(), name, sre);
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, sre,
                     cred.serverId(), "getStats: " + sre.getStatus());
@@ -192,13 +196,20 @@ public class XrayGrpcBackend implements XrayBackend, AutoCloseable {
 
     /**
      * AlterInbound 的 Add/Remove 共享错误形态: gRPC code 多为 UNKNOWN, description 是字符串描述。
-     * 命中给定关键词则映射为业务错误码, 否则统一 BACKEND_OPERATION_FAILED 包装抛出 (保留 cause)。
+     * 优先级:
+     *   1) UNAVAILABLE / DEADLINE_EXCEEDED → BACKEND_UNREACHABLE (调用方据此触发 markDead + 重试)
+     *   2) description 命中业务关键词 → 对应业务错误码
+     *   3) 兜底 → BACKEND_OPERATION_FAILED (保留 cause)
      */
     private BusinessException mapAlterInboundError(StatusRuntimeException sre,
                                                    String op,
                                                    String email,
                                                    String matchDescriptionKeyword,
                                                    XrayErrorCode mappedCode) {
+        if (isTransient(sre.getStatus().getCode())) {
+            log.warn("[grpc] {} UNAVAILABLE server={} email={}", op, cred.serverId(), email, sre);
+            return new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, sre, cred.serverId());
+        }
         String desc = StrUtil.blankToDefault(sre.getStatus().getDescription(), "");
         if (StrUtil.containsIgnoreCase(desc, matchDescriptionKeyword)) {
             return new BusinessException(mappedCode, email);
@@ -207,6 +218,11 @@ public class XrayGrpcBackend implements XrayBackend, AutoCloseable {
                 op, cred.serverId(), email, sre.getStatus());
         return new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, sre,
                 cred.serverId(), op + ": " + sre.getStatus());
+    }
+
+    /** UNAVAILABLE / DEADLINE_EXCEEDED 视为可通过 markDead+重试自愈的瞬时错误。 */
+    private static boolean isTransient(Status.Code code) {
+        return code == Status.Code.UNAVAILABLE || code == Status.Code.DEADLINE_EXCEEDED;
     }
 
     private TypedMessage wrapOp(String typeFullName, com.google.protobuf.ByteString value) {

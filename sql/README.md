@@ -8,7 +8,7 @@
 | `02_resource.sql` | resource | resource_server, resource_ip_type, resource_ip_pool, resource_ip_compat |
 | `03_member.sql` | member | member_user, member_device, member_log, member_subscription |
 | `04_business.sql` | business | business_plan, business_cdk, business_recharge, business_order_log |
-| `05_xray.sql` | xray | xray_inbound |
+| `05_xray.sql` | xray | xray_client |
 | `06_monitor.sql` | monitor (含统计) | monitor_traffic_snapshot, monitor_traffic_daily, monitor_server_bw, monitor_ip_health, monitor_alert |
 | `99_seed.sql` | 初始数据 | resource_ip_type 三条种子 + 默认管理员 admin/admin123 |
 
@@ -54,6 +54,8 @@ cat sql/0*.sql sql/99_seed.sql | mysql -u root -p nook
 | `2026-05-08_resource_server_monthly_traffic.sql` | resource_server | 新增 `monthly_traffic_gb` 月流量额度字段 |
 | `2026-05-08_ip_pool_socks5_redesign.sql` | resource_ip_pool | 重设计为 SOCKS5 落地节点池(删 server_id/port, 加 region/socks5_*) |
 | `2026-05-08_drop_3xui_fields.sql` | resource_server, xray_inbound | All-in Xray gRPC: 删 panel_*/backend_type 字段 |
+| `2026-05-08_ip_type_cooling_minutes.sql` | resource_ip_type | 增 cooling_minutes 字段, 把 IP 退订冷却时长从代码硬编码移到表 |
+| `2026-05-08_xray_inbound_to_client_rename.sql` | xray_inbound | 表名重命名为 xray_client, 修正命名错位 (实质是 client 表非 inbound) |
 
 执行：
 

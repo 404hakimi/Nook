@@ -13,13 +13,14 @@ import com.nook.biz.xray.backend.dto.XrayClientSpec;
 import com.nook.biz.xray.backend.dto.XrayClientTraffic;
 import com.nook.biz.xray.backend.dto.XrayInboundInfo;
 import com.nook.biz.xray.constant.XrayErrorCode;
-import com.nook.biz.xray.controller.inbound.vo.XrayInboundPageReqVO;
-import com.nook.biz.xray.controller.inbound.vo.XrayInboundProvisionReqVO;
-import com.nook.biz.xray.controller.inbound.vo.XrayInboundUpdateReqVO;
-import com.nook.biz.xray.entity.XrayInbound;
-import com.nook.biz.xray.mapper.XrayInboundMapper;
+import com.nook.biz.xray.controller.client.vo.XrayClientCredentialRespVO;
+import com.nook.biz.xray.controller.client.vo.XrayClientPageReqVO;
+import com.nook.biz.xray.controller.client.vo.XrayClientProvisionReqVO;
+import com.nook.biz.xray.controller.client.vo.XrayClientUpdateReqVO;
+import com.nook.biz.xray.entity.XrayClient;
+import com.nook.biz.xray.mapper.XrayClientMapper;
 import com.nook.biz.xray.service.XrayConfigReconciler;
-import com.nook.biz.xray.service.XrayInboundService;
+import com.nook.biz.xray.service.XrayClientService;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
@@ -33,54 +34,55 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class XrayInboundServiceImpl implements XrayInboundService {
+public class XrayClientServiceImpl implements XrayClientService {
 
-    private final XrayInboundMapper xrayInboundMapper;
+    private final XrayClientMapper xrayClientMapper;
     private final XrayBackendFactory xrayBackendFactory;
     private final ResourceServerApi resourceServerApi;
     private final XrayConfigReconciler xrayConfigReconciler;
 
     @Override
-    public XrayInbound findById(String id) {
-        XrayInbound e = xrayInboundMapper.selectById(id);
+    public XrayClient findById(String id) {
+        XrayClient e = xrayClientMapper.selectById(id);
         if (ObjectUtil.isNull(e)) {
-            // 注意：这里抛的是 INBOUND_ENTITY_NOT_FOUND(DB 行)，与 CLIENT_NOT_FOUND(远端 client)语义不同
-            throw new BusinessException(XrayErrorCode.INBOUND_ENTITY_NOT_FOUND, id);
+            // CLIENT_ENTITY_NOT_FOUND = DB 行不存在; 与 CLIENT_NOT_FOUND (远端 client 不存在) 语义区分
+            throw new BusinessException(XrayErrorCode.CLIENT_ENTITY_NOT_FOUND, id);
         }
         return e;
     }
 
     @Override
-    public PageResult<XrayInbound> page(XrayInboundPageReqVO reqVO) {
-        IPage<XrayInbound> result = xrayInboundMapper.selectPageByQuery(
+    public PageResult<XrayClient> page(XrayClientPageReqVO reqVO) {
+        IPage<XrayClient> result = xrayClientMapper.selectPageByQuery(
                 Page.of(reqVO.getPageNo(), reqVO.getPageSize()), reqVO);
         return PageResult.of(result.getTotal(), result.getRecords());
     }
 
     @Override
     public List<XrayInboundInfo> listRemoteInbounds(String serverId) {
-        return backendOf(serverId).listInbounds();
+        ServerCredentialDTO cred = resourceServerApi.loadCredential(serverId);
+        return xrayBackendFactory.invoke(cred, XrayBackend::listInbounds);
     }
 
     @Override
     public long verifyConnectivity(String serverId) {
+        ServerCredentialDTO cred = resourceServerApi.loadCredential(serverId);
         long t0 = System.currentTimeMillis();
-        backendOf(serverId).verifyConnectivity();
+        xrayBackendFactory.invokeVoid(cred, XrayBackend::verifyConnectivity);
         return System.currentTimeMillis() - t0;
     }
 
     @Override
-    public XrayInbound provision(XrayInboundProvisionReqVO reqVO) {
+    public XrayClient provision(XrayClientProvisionReqVO reqVO) {
         // 同 (memberUserId, ipId) 唯一；@TableLogic 让 selectByMemberAndIp 自动跳过软删行，
         // 所以"先 revoke 再 provision"的复用流程不会撞这个 duplicate 检查
-        XrayInbound dup = xrayInboundMapper.selectByMemberAndIp(reqVO.getMemberUserId(), reqVO.getIpId());
+        XrayClient dup = xrayClientMapper.selectByMemberAndIp(reqVO.getMemberUserId(), reqVO.getIpId());
         if (ObjectUtil.isNotNull(dup)) {
             throw new BusinessException(XrayErrorCode.CLIENT_DUPLICATE,
                     "memberUserId=" + reqVO.getMemberUserId() + " ipId=" + reqVO.getIpId());
         }
 
         ServerCredentialDTO cred = resourceServerApi.loadCredential(reqVO.getServerId());
-        XrayBackend backend = xrayBackendFactory.get(cred);
 
         String clientUuid = UUID.randomUUID().toString();
         // email 格式 member_{memberId}_{ipId}: 同 server 全局唯一，便于人肉对账与日志检索
@@ -97,12 +99,12 @@ public class XrayInboundServiceImpl implements XrayInboundService {
                 .limitIp(reqVO.getLimitIp() == null ? 0 : reqVO.getLimitIp())
                 .build();
 
-        // 先调远端：addClient 抛错则没有副作用(DB 也没写)；DB insert 抛错则留下"幽灵 client"——
-        // 远端有 client 但本地无映射。下次 provision 同 (member, ip) 不会撞，但会再造一个；
-        // 真正清理依赖反向 reconciler(列远端 - 减去 DB = 孤儿)，本期未实现。
-        backend.addClient(spec);
+        // 先调远端: addClient 失败则没有副作用 (DB 也没写); DB insert 失败则留下"幽灵 client" —
+        // 远端有 client 但本地无映射, 由后续反向 reconciler 清理 (本期未实现)。
+        // invokeVoid: 收到 BACKEND_UNREACHABLE 时自动 markDead 重建 backend 重试一次。
+        xrayBackendFactory.invokeVoid(cred, b -> b.addClient(spec));
 
-        XrayInbound e = new XrayInbound();
+        XrayClient e = new XrayClient();
         e.setServerId(reqVO.getServerId());
         e.setIpId(reqVO.getIpId());
         e.setMemberUserId(reqVO.getMemberUserId());
@@ -115,7 +117,7 @@ public class XrayInboundServiceImpl implements XrayInboundService {
         e.setClientEmail(clientEmail);
         e.setStatus(1);
         e.setLastSyncedAt(LocalDateTime.now());
-        xrayInboundMapper.insert(e);
+        xrayClientMapper.insert(e);
 
         // 运行时 user 已通过 gRPC 添加; 这里把出站/路由刷盘并 reload, 让流量真的走对应 socks5 + 重启后仍生效。
         // 失败抛出由全局拦截器返回前端 (user 已在 xray 运行时存在但未绑定出站, 由后续巡检修复)。
@@ -125,19 +127,20 @@ public class XrayInboundServiceImpl implements XrayInboundService {
 
     @Override
     public void revoke(String inboundEntityId) {
-        XrayInbound e = findById(inboundEntityId);
+        XrayClient e = findById(inboundEntityId);
         ServerCredentialDTO cred = resourceServerApi.loadCredential(e.getServerId());
-        XrayBackend backend = xrayBackendFactory.get(cred);
         try {
-            backend.delClient(new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail()));
+            XrayClientRef ref = new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail());
+            xrayBackendFactory.invokeVoid(cred, b -> b.delClient(ref));
         } catch (BusinessException be) {
-            // 远端已不存在也认为吊销成功——目标状态本来就是"没了"
+            // 远端已不存在也认为吊销成功 — 目标状态本就是"没了"
             if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) {
                 throw be;
             }
-            log.warn("远端 client 已不存在，仅做 DB 软删: serverId={} email={}", e.getServerId(), e.getClientEmail());
+            log.warn("[revoke] 远端 client 已不存在, 仅做 DB 软删 server={} email={}",
+                    e.getServerId(), e.getClientEmail());
         }
-        xrayInboundMapper.deleteById(e.getId());
+        xrayClientMapper.deleteById(e.getId());
         // 重写 xray.json 清理该 user 对应的 outbound + 路由 rule;
         // user 已被 gRPC 删, reconcile 仅是清场, 失败仅 warn 不抛 — 留给后续巡检兜底, 不影响 revoke 主语义。
         try {
@@ -149,21 +152,20 @@ public class XrayInboundServiceImpl implements XrayInboundService {
     }
 
     @Override
-    public XrayInbound rotate(String inboundEntityId) {
-        XrayInbound e = findById(inboundEntityId);
+    public XrayClient rotate(String inboundEntityId) {
+        XrayClient e = findById(inboundEntityId);
         ServerCredentialDTO cred = resourceServerApi.loadCredential(e.getServerId());
-        XrayBackend backend = xrayBackendFactory.get(cred);
 
         String newUuid = UUID.randomUUID().toString();
-        // 先 del 旧；远端报 CLIENT_NOT_FOUND 视为已删成功(目标状态本就是没了)
+        XrayClientRef oldRef = new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail());
+        // 先 del 旧; 远端报 CLIENT_NOT_FOUND 视为已删成功 (目标状态本就是没了)
         try {
-            backend.delClient(new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail()));
+            xrayBackendFactory.invokeVoid(cred, b -> b.delClient(oldRef));
         } catch (BusinessException be) {
             if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) throw be;
         }
-        // 再 add 新；如果 add 失败，远端此时既没有旧 client 也没有新 client，
-        // 而 DB 里 client_uuid 还指向已被删的旧 UUID——必须把行标 status=3(待同步)
-        // 让 reconciler 介入，否则后续 revoke/getTraffic 都会无脑去拉那个不存在的 UUID
+        // 再 add 新; add 失败时远端没有任一 client, 但 DB client_uuid 还指向已被删的旧 UUID —
+        // 必须把行标 status=3(待同步) 让 reconciler 介入, 否则后续 revoke/getTraffic 会拉一个不存在的 UUID。
         XrayClientSpec spec = XrayClientSpec.builder()
                 .externalInboundRef(e.getExternalInboundRef())
                 .email(e.getClientEmail())
@@ -171,51 +173,59 @@ public class XrayInboundServiceImpl implements XrayInboundService {
                 .protocol(e.getProtocol())
                 .build();
         try {
-            backend.addClient(spec);
+            xrayBackendFactory.invokeVoid(cred, b -> b.addClient(spec));
         } catch (RuntimeException addErr) {
-            log.error("rotate 在 del→add 中间失败 server={} email={}, 标 status=3 待 reconciler 修复",
+            log.error("[rotate] del 后 add 失败 server={} email={}, 标 status=3 待 reconciler 修复",
                     e.getServerId(), e.getClientEmail(), addErr);
-            xrayInboundMapper.updateStatus(e.getId(), 3, java.time.LocalDateTime.now());
+            xrayClientMapper.updateStatus(e.getId(), 3, LocalDateTime.now());
             throw addErr;
         }
 
-        xrayInboundMapper.updateClientUuid(e.getId(), newUuid);
+        xrayClientMapper.updateClientUuid(e.getId(), newUuid);
         e.setClientUuid(newUuid);
         return e;
     }
 
     @Override
     public XrayClientTraffic getTraffic(String inboundEntityId) {
-        XrayInbound e = findById(inboundEntityId);
+        XrayClient e = findById(inboundEntityId);
         ServerCredentialDTO cred = resourceServerApi.loadCredential(e.getServerId());
-        XrayBackend backend = xrayBackendFactory.get(cred);
-        return backend.getClientTraffic(
-                new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail()));
+        XrayClientRef ref = new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail());
+        return xrayBackendFactory.invoke(cred, b -> b.getClientTraffic(ref));
     }
 
     @Override
     public void resetTraffic(String inboundEntityId) {
-        XrayInbound e = findById(inboundEntityId);
+        XrayClient e = findById(inboundEntityId);
         ServerCredentialDTO cred = resourceServerApi.loadCredential(e.getServerId());
-        XrayBackend backend = xrayBackendFactory.get(cred);
-        backend.resetClientTraffic(
-                new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail()));
+        XrayClientRef ref = new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail());
+        xrayBackendFactory.invokeVoid(cred, b -> b.resetClientTraffic(ref));
     }
 
     @Override
-    public XrayInbound update(String inboundEntityId, XrayInboundUpdateReqVO reqVO) {
-        XrayInbound e = findById(inboundEntityId);
+    public XrayClient update(String inboundEntityId, XrayClientUpdateReqVO reqVO) {
+        XrayClient e = findById(inboundEntityId);
         // 只允许改本地元数据；不与 backend 同步——这些字段不影响远端 client 的实际行为
         if (StrUtil.isNotBlank(reqVO.getListenIp())) e.setListenIp(reqVO.getListenIp());
         if (ObjectUtil.isNotNull(reqVO.getListenPort())) e.setListenPort(reqVO.getListenPort());
         if (StrUtil.isNotBlank(reqVO.getTransport())) e.setTransport(reqVO.getTransport());
         if (ObjectUtil.isNotNull(reqVO.getStatus())) e.setStatus(reqVO.getStatus());
-        xrayInboundMapper.updateById(e);
+        xrayClientMapper.updateById(e);
         return e;
     }
 
-    private XrayBackend backendOf(String serverId) {
-        ServerCredentialDTO cred = resourceServerApi.loadCredential(serverId);
-        return xrayBackendFactory.get(cred);
+    @Override
+    public XrayClientCredentialRespVO loadCredential(String inboundEntityId) {
+        XrayClient e = findById(inboundEntityId);
+        ServerCredentialDTO cred = resourceServerApi.loadCredential(e.getServerId());
+        XrayClientCredentialRespVO vo = new XrayClientCredentialRespVO();
+        vo.setId(e.getId());
+        vo.setClientUuid(e.getClientUuid());
+        vo.setClientEmail(e.getClientEmail());
+        vo.setProtocol(e.getProtocol());
+        vo.setServerHost(cred.sshHost());
+        vo.setListenPort(e.getListenPort());
+        vo.setTransport(e.getTransport());
+        return vo;
     }
 }

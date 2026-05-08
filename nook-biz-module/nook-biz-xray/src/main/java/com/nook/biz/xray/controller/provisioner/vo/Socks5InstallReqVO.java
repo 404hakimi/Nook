@@ -1,4 +1,4 @@
-package com.nook.biz.xray.controller.ip.vo;
+package com.nook.biz.xray.controller.provisioner.vo;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -8,14 +8,13 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * IP 池一键部署 SOCKS5 入参。
- * SSH 凭据: 临时使用, 不持久化(IP 池条目本身不存 SSH 凭据);
- * 部署成功后 SOCKS5 端口/用户/密码 会回写到 resource_ip_pool 表。
+ * 独立部署 SOCKS5 落地节点入参; 不绑定 IP 池条目。
+ * <p>SSH 凭据用完即弃 (不入库); 部署成功后, 由前端按需把 SOCKS5 凭据落库到 IP 池。
  */
 @Data
-public class IpSocks5InstallReqVO {
+public class Socks5InstallReqVO {
 
-    // ===== 远端 SOCKS5 主机 SSH 凭据(只用一次, 不存) =====
+    // ===== 远端主机 SSH 凭据 (一次性) =====
 
     @NotBlank(message = "SSH 主机不能为空")
     @Size(max = 128)
@@ -35,7 +34,7 @@ public class IpSocks5InstallReqVO {
 
     private String sshPrivateKey;
 
-    /** SSH 命令最大耗时秒; 留空走 SshExecutor 内部默认 */
+    @NotNull(message = "SSH 超时必填")
     @Min(value = 5) @Max(value = 600)
     private Integer sshTimeoutSeconds;
 
@@ -53,10 +52,11 @@ public class IpSocks5InstallReqVO {
     @Size(max = 255)
     private String socksPass;
 
-    /** UFW allow from 来源 CIDR, 留空 = 0.0.0.0/0; 推荐填中转线路服务器的公网 IP */
+    /** UFW allow from 来源 CIDR; 留空 = 0.0.0.0/0; 推荐填中转线路服务器的公网 IP */
     @Size(max = 255)
     private String allowFrom;
 
     /** 是否安装/启用 UFW */
+    @NotNull(message = "installUfw 必填")
     private Boolean installUfw;
 }

@@ -1,4 +1,4 @@
-package com.nook.biz.xray.controller.inbound.vo;
+package com.nook.biz.xray.controller.client.vo;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
@@ -6,7 +6,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-public class XrayInboundRespVO {
+public class XrayClientRespVO {
 
     private String id;
     private String serverId;

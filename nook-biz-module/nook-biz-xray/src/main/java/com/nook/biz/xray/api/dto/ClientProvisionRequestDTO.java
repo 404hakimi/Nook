@@ -4,7 +4,7 @@ import lombok.Builder;
 
 /** 跨模块开通请求；字段语义参考 controller VO 同名字段。 */
 @Builder
-public record InboundProvisionRequestDTO(
+public record ClientProvisionRequestDTO(
         String serverId,
         String ipId,
         String memberUserId,

@@ -5,7 +5,7 @@ import com.nook.biz.xray.backend.dto.XrayInboundInfo;
 import com.nook.biz.xray.controller.server.vo.ConnectivityTestRespVO;
 import com.nook.biz.xray.controller.server.vo.LineServerInstallReqVO;
 import com.nook.biz.xray.service.ServerProvisioner;
-import com.nook.biz.xray.service.XrayInboundService;
+import com.nook.biz.xray.service.XrayClientService;
 import com.nook.biz.xray.service.XrayServiceStatus;
 import com.nook.biz.xray.util.SshExecutor;
 import com.nook.common.web.exception.BusinessException;
@@ -39,7 +39,7 @@ import java.util.List;
 @Validated
 public class XrayServerOpsController {
 
-    private final XrayInboundService xrayInboundService;
+    private final XrayClientService xrayClientService;
     private final ResourceServerApi resourceServerApi;
     private final SshExecutor sshExecutor;
     private final ServerProvisioner serverProvisioner;
@@ -54,7 +54,7 @@ public class XrayServerOpsController {
         log.info("[probe] start server={}", id);
         try {
             // 仅探测连通性, 不暴露内部 backend 细节
-            long elapsed = xrayInboundService.verifyConnectivity(id);
+            long elapsed = xrayClientService.verifyConnectivity(id);
             vo.setSuccess(true);
             vo.setElapsedMs(elapsed);
             log.info("[probe] OK server={} elapsed={}ms", id, elapsed);
@@ -80,7 +80,7 @@ public class XrayServerOpsController {
     /** 列远端 inbound——给运营在 IP 关联界面里下拉用。 */
     @GetMapping("/{id}/inbounds")
     public Result<List<XrayInboundInfo>> remoteInbounds(@PathVariable @NotBlank String id) {
-        return Result.ok(xrayInboundService.listRemoteInbounds(id));
+        return Result.ok(xrayClientService.listRemoteInbounds(id));
     }
 
     /** SSH: x-ui status。 */

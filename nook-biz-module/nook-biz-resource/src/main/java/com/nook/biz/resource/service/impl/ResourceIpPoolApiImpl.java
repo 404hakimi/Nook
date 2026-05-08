@@ -28,11 +28,6 @@ public class ResourceIpPoolApiImpl implements ResourceIpPoolApi {
         return toDto(resourceIpPoolService.findById(ipId));
     }
 
-    @Override
-    public void updateSocks5(String ipId, String socks5Host, Integer socks5Port, String socks5Username, String socks5Password) {
-        resourceIpPoolService.updateSocks5(ipId, socks5Host, socks5Port, socks5Username, socks5Password);
-    }
-
     private IpPoolEntryDTO toDto(ResourceIpPool e) {
         if (e == null) return null;
         return IpPoolEntryDTO.builder()

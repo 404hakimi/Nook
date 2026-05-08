@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 /**
  * IP 池详情/列表响应。
- * SOCKS5 密码不下发, 仅以 socks5PasswordConfigured(boolean) 表示是否已配置。
+ * SOCKS5 密码不下发原文, 仅用 socks5PasswordConfigured 布尔标识是否已配置。
  */
 @Data
 public class ResourceIpPoolRespVO {

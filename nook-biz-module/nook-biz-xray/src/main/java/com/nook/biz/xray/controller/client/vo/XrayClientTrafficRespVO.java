@@ -1,9 +1,9 @@
-package com.nook.biz.xray.controller.inbound.vo;
+package com.nook.biz.xray.controller.client.vo;
 
 import lombok.Data;
 
 @Data
-public class XrayInboundTrafficRespVO {
+public class XrayClientTrafficRespVO {
 
     private String inboundEntityId;
     private String clientEmail;

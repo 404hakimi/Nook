@@ -2,6 +2,7 @@ package com.nook.biz.resource.service;
 
 import com.nook.biz.resource.controller.ip.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.resource.controller.ip.vo.ResourceIpPoolSaveReqVO;
+import com.nook.biz.resource.controller.ip.vo.Socks5TestRespVO;
 import com.nook.biz.resource.entity.ResourceIpPool;
 import com.nook.common.web.response.PageResult;
 
@@ -39,8 +40,8 @@ public interface ResourceIpPoolService {
     int sweepExpiredCooling();
 
     /**
-     * 部署完 SOCKS5 后回写 socks5_host/port/user/password; 字段为 null 表示保持原值。
-     * 用于一键部署脚本完成后同步实际生效的端口与凭据。
+     * 通过该 IP 池条目的 SOCKS5 凭据拨号一个公网 echo-IP 服务, 验证 SOCKS5 服务可达 + 出网 IP。
+     * 任何异常都被包装成 success=false 返回 (探活语义); 不抛 BusinessException。
      */
-    void updateSocks5(String ipId, String socks5Host, Integer socks5Port, String socks5Username, String socks5Password);
+    Socks5TestRespVO testSocks5(String ipId);
 }

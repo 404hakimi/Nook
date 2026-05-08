@@ -1,4 +1,4 @@
-package com.nook.biz.xray.controller.inbound.vo;
+package com.nook.biz.xray.controller.client.vo;
 
 import com.nook.common.web.request.PageParam;
 import lombok.Data;
@@ -6,7 +6,7 @@ import lombok.EqualsAndHashCode;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class XrayInboundPageReqVO extends PageParam {
+public class XrayClientPageReqVO extends PageParam {
 
     /** 关键词，模糊匹配 client_email */
     private String keyword;

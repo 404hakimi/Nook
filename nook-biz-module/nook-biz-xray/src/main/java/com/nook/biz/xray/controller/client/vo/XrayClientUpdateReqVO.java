@@ -1,4 +1,4 @@
-package com.nook.biz.xray.controller.inbound.vo;
+package com.nook.biz.xray.controller.client.vo;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -14,7 +14,7 @@ import lombok.Data;
  *  externalInboundRef——这些是开通时确定的契约，要换需 revoke + 重新 provision。
  */
 @Data
-public class XrayInboundUpdateReqVO {
+public class XrayClientUpdateReqVO {
 
     @Size(max = 45, message = "listenIp 长度不能超过 45")
     private String listenIp;

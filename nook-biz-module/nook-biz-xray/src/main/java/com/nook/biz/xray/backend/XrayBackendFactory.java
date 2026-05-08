@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * 按 serverId 缓存 backend; 每次 get() 探活, 死了重建。
@@ -60,6 +62,29 @@ public class XrayBackendFactory {
     public void markDead(String serverId) {
         log.info("[backend] markDead server={}", serverId);
         invalidate(serverId);
+    }
+
+    /**
+     * 包一层"瞬时不可达自愈"重试: backend 抛 BACKEND_UNREACHABLE 时 markDead + 重建 + 重试一次。
+     * 适用所有走 backend 的写操作 (addClient/delClient/getStats/...); 重试只 1 次, 避免雪崩。
+     */
+    public <T> T invoke(ServerCredentialDTO cred, Function<XrayBackend, T> op) {
+        try {
+            return op.apply(get(cred));
+        } catch (BusinessException be) {
+            if (be.getCode() != XrayErrorCode.BACKEND_UNREACHABLE.getCode()) throw be;
+            log.warn("[backend] BACKEND_UNREACHABLE, markDead 后重试 server={}", cred.serverId());
+            markDead(cred.serverId());
+            return op.apply(get(cred));
+        }
+    }
+
+    /** void 版本; addClient / delClient / resetTraffic 等无返回值的操作用。 */
+    public void invokeVoid(ServerCredentialDTO cred, Consumer<XrayBackend> op) {
+        invoke(cred, b -> {
+            op.accept(b);
+            return null;
+        });
     }
 
     /** 让指定 server 的缓存失效; 下次 get 会重建。 */

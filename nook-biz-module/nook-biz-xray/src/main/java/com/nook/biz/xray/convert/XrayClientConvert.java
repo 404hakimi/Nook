@@ -3,9 +3,9 @@ package com.nook.biz.xray.convert;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.xray.backend.dto.XrayClientRef;
 import com.nook.biz.xray.backend.dto.XrayClientTraffic;
-import com.nook.biz.xray.controller.inbound.vo.XrayInboundRespVO;
-import com.nook.biz.xray.controller.inbound.vo.XrayInboundTrafficRespVO;
-import com.nook.biz.xray.entity.XrayInbound;
+import com.nook.biz.xray.controller.client.vo.XrayClientRespVO;
+import com.nook.biz.xray.controller.client.vo.XrayClientTrafficRespVO;
+import com.nook.biz.xray.entity.XrayClient;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
@@ -14,29 +14,29 @@ import org.mapstruct.factory.Mappers;
 
 import java.util.List;
 
-/** XrayInbound 实体 ↔ VO/Ref 转换；clientUuid 在出参里 mask, 不暴露明文。 */
+/** XrayClient 实体 ↔ VO/Ref 转换；clientUuid 在出参里 mask, 不暴露明文。 */
 @Mapper
-public interface XrayInboundConvert {
+public interface XrayClientConvert {
 
-    XrayInboundConvert INSTANCE = Mappers.getMapper(XrayInboundConvert.class);
+    XrayClientConvert INSTANCE = Mappers.getMapper(XrayClientConvert.class);
 
-    XrayInboundRespVO convert(XrayInbound entity);
+    XrayClientRespVO convert(XrayClient entity);
 
-    List<XrayInboundRespVO> convertList(List<XrayInbound> entities);
+    List<XrayClientRespVO> convertList(List<XrayClient> entities);
 
-    default PageResult<XrayInboundRespVO> convertPage(PageResult<XrayInbound> page) {
+    default PageResult<XrayClientRespVO> convertPage(PageResult<XrayClient> page) {
         return PageResult.of(page.getTotal(), convertList(page.getRecords()));
     }
 
     /** 实体 → backend 调用用的 client 引用三件套(模块内部用，含明文 UUID)。 */
-    default XrayClientRef toRef(XrayInbound e) {
+    default XrayClientRef toRef(XrayClient e) {
         if (e == null) return null;
         return new XrayClientRef(e.getExternalInboundRef(), e.getClientUuid(), e.getClientEmail());
     }
 
     /** backend traffic + 实体 → 出参 VO。 */
-    default XrayInboundTrafficRespVO toTrafficVO(XrayInbound e, XrayClientTraffic t) {
-        XrayInboundTrafficRespVO vo = new XrayInboundTrafficRespVO();
+    default XrayClientTrafficRespVO toTrafficVO(XrayClient e, XrayClientTraffic t) {
+        XrayClientTrafficRespVO vo = new XrayClientTrafficRespVO();
         vo.setInboundEntityId(e.getId());
         vo.setClientEmail(t.email());
         vo.setUpBytes(t.upBytes());
@@ -52,7 +52,7 @@ public interface XrayInboundConvert {
      * 留前 8 位与后 4 位让管理员粗略对得上，中间替成 ***。
      */
     @AfterMapping
-    default void maskSensitive(XrayInbound src, @MappingTarget XrayInboundRespVO target) {
+    default void maskSensitive(XrayClient src, @MappingTarget XrayClientRespVO target) {
         target.setClientUuid(maskUuid(src.getClientUuid()));
     }
 
