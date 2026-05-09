@@ -19,7 +19,7 @@
         <module>nook-biz-system</module>
         <module>nook-biz-member</module>
         <module>nook-biz-resource</module>
-        <module>nook-biz-xray</module>
+        <module>nook-biz-node</module>
         <module>nook-biz-business</module>
         <module>nook-biz-monitor</module>
     </modules>

@@ -7,13 +7,11 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.resource.constant.ResourceErrorCode;
 import com.nook.biz.resource.controller.ip.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.resource.controller.ip.vo.ResourceIpPoolSaveReqVO;
-import com.nook.biz.resource.controller.ip.vo.Socks5TestRespVO;
 import com.nook.biz.resource.entity.ResourceIpPool;
 import com.nook.biz.resource.entity.ResourceIpType;
 import com.nook.biz.resource.mapper.ResourceIpPoolMapper;
 import com.nook.biz.resource.mapper.ResourceIpTypeMapper;
 import com.nook.biz.resource.service.ResourceIpPoolService;
-import com.nook.biz.resource.util.Socks5Prober;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +30,6 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     private final ResourceIpPoolMapper resourceIpPoolMapper;
     private final ResourceIpTypeMapper resourceIpTypeMapper;
-    private final Socks5Prober socks5Prober;
 
     @Override
     public ResourceIpPool findById(String id) {
@@ -152,34 +149,6 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
             n += resourceIpPoolMapper.markAvailable(ip.getId());
         }
         return n;
-    }
-
-    @Override
-    public Socks5TestRespVO testSocks5(String ipId) {
-        ResourceIpPool ip = findById(ipId);
-        Socks5TestRespVO vo = new Socks5TestRespVO();
-        if (StrUtil.isBlank(ip.getSocks5Host()) || ObjectUtil.isNull(ip.getSocks5Port())) {
-            vo.setSuccess(false);
-            vo.setError("SOCKS5 主机或端口未配置");
-            return vo;
-        }
-        long t0 = System.currentTimeMillis();
-        try {
-            String exitIp = socks5Prober.probeExitIp(
-                    ip.getSocks5Host(), ip.getSocks5Port(), ip.getSocks5Username(), ip.getSocks5Password());
-            vo.setSuccess(true);
-            vo.setExitIp(exitIp);
-            vo.setElapsedMs(System.currentTimeMillis() - t0);
-            log.info("[socks5-test] OK ip={} exitIp={} elapsed={}ms",
-                    ip.getIpAddress(), exitIp, vo.getElapsedMs());
-        } catch (Exception e) {
-            vo.setSuccess(false);
-            vo.setElapsedMs(System.currentTimeMillis() - t0);
-            vo.setError(e.getClass().getSimpleName() + ": " + StrUtil.blankToDefault(e.getMessage(), ""));
-            log.warn("[socks5-test] FAIL ip={} elapsed={}ms",
-                    ip.getIpAddress(), vo.getElapsedMs(), e);
-        }
-        return vo;
     }
 
     /** 引用 ip_type.id 必须存在; 录入/编辑时校验。 */

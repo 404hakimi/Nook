@@ -23,7 +23,7 @@ sa-token:
   is-print: false
 
 nook:
-  xray:
+  node:
     grpc-local-port-base: 10085
   monitor:
     snapshot-interval-seconds: 300

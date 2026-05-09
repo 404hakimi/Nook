@@ -1,0 +1,27 @@
+package com.nook.biz.node.framework.ssh.config;
+
+import com.nook.biz.node.framework.server.session.config.ServerSessionProperties;
+import org.apache.sshd.client.SshClient;
+import org.apache.sshd.client.keyverifier.AcceptAllServerKeyVerifier;
+import org.apache.sshd.core.CoreModuleProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@EnableConfigurationProperties(ServerSessionProperties.class)
+public class SshClientConfig {
+
+    /** MINA SSHD 全局单例; 所有 ManagedSession 共享同一个 NIO event loop. */
+    @Bean(destroyMethod = "stop")
+    public SshClient sshClient(ServerSessionProperties props) {
+        SshClient client = SshClient.setUpDefaultClient();
+        CoreModuleProperties.HEARTBEAT_INTERVAL.set(client, props.getHeartbeatInterval());
+        CoreModuleProperties.HEARTBEAT_REPLY_WAIT.set(client, props.getHeartbeatReplyWait());
+        // 接受任何 host key, 与原 sshj PromiscuousVerifier 行为对齐;
+        // 生产化前迁到 KnownHostsServerKeyVerifier (ticket [security] SSH host key 校验).
+        client.setServerKeyVerifier(AcceptAllServerKeyVerifier.INSTANCE);
+        client.start();
+        return client;
+    }
+}

@@ -40,7 +40,7 @@ public class ResourceServerSaveReqVO {
 
     private String sshPrivateKey;
 
-    /** 5-300s; 太小 x-ui 状态 / journalctl 经常超时, 太大前端会长时间挂起。 */
+    /** 5-300s; 太小 journalctl 等慢命令易超时, 太大前端会长时间挂起. */
     @NotNull(message = "SSH 超时不能为空", groups = Create.class)
     @Min(value = 5, message = "SSH 超时最小 5 秒")
     @Max(value = 300, message = "SSH 超时最大 300 秒")

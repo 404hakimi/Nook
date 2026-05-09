@@ -163,8 +163,7 @@ function close() {
 
     <p class="text-xs text-zinc-500 mb-4">
       将远程执行 nook 自带的安装脚本（仅支持 Ubuntu 22.04+），装纯 Xray 内核 + 标配
-      xray.json（含 grpc-api）。
-      <strong>不会装 3x-ui</strong>。已有配置会先备份。
+      xray.json（含 grpc-api）；已有配置会先备份。
     </p>
 
     <NForm

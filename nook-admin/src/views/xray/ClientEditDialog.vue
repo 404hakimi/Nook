@@ -141,7 +141,7 @@ function close() {
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <p class="text-xs text-zinc-500 mb-4">
-      本对话框只改本地 DB 字段(listen IP/端口、transport、状态)，不触达远端 3x-ui 或 Xray。
+      本对话框只改本地 DB 字段(listen IP/端口、transport、状态)，不触达远端 Xray。
       UUID/email/server/IP/protocol 是开通时定的契约，要换请走"轮换 / 吊销重开"。
     </p>
 

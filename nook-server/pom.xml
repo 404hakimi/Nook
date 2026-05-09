@@ -29,7 +29,7 @@
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-biz-xray</artifactId>
+            <artifactId>nook-biz-node</artifactId>
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>

@@ -14,8 +14,6 @@ public class ResourceServerPageReqVO extends PageParam {
     /** 1=运行 2=维护 3=下线 */
     private Integer status;
 
-    /** threexui / xray-grpc */
-
     /** 区域: us-west / us-east / jp / hk */
     private String region;
 }

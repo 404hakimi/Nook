@@ -3,7 +3,6 @@ package com.nook.biz.resource.controller.ip;
 import com.nook.biz.resource.controller.ip.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.resource.controller.ip.vo.ResourceIpPoolRespVO;
 import com.nook.biz.resource.controller.ip.vo.ResourceIpPoolSaveReqVO;
-import com.nook.biz.resource.controller.ip.vo.Socks5TestRespVO;
 import com.nook.biz.resource.convert.ResourceIpPoolConvert;
 import com.nook.biz.resource.service.ResourceIpPoolService;
 import com.nook.common.web.response.PageResult;
@@ -63,11 +62,5 @@ public class ResourceIpPoolController {
     public Result<Void> release(@PathVariable @NotBlank String id) {
         resourceIpPoolService.releaseToCooling(id);
         return Result.ok();
-    }
-
-    /** SOCKS5 连通性测试: nook 后端通过 IP 的 SOCKS5 凭据拨号 echo-IP 端点; 失败也返回 success=false 不抛错。 */
-    @PostMapping("/{id}/test")
-    public Result<Socks5TestRespVO> testSocks5(@PathVariable @NotBlank String id) {
-        return Result.ok(resourceIpPoolService.testSocks5(id));
     }
 }

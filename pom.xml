@@ -55,6 +55,7 @@
         <grpc.version>1.65.1</grpc.version>
         <protobuf.version>3.25.3</protobuf.version>
         <sshj.version>0.38.0</sshj.version>
+        <mina-sshd.version>2.14.0</mina-sshd.version>
         <knife4j.version>4.5.0</knife4j.version>
         <sa-token.version>1.39.0</sa-token.version>
         <fastjson2.version>2.0.53</fastjson2.version>
@@ -110,7 +111,7 @@
             </dependency>
             <dependency>
                 <groupId>com.nook</groupId>
-                <artifactId>nook-biz-xray</artifactId>
+                <artifactId>nook-biz-node</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -156,6 +157,11 @@
                 <groupId>com.hierynomus</groupId>
                 <artifactId>sshj</artifactId>
                 <version>${sshj.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.sshd</groupId>
+                <artifactId>sshd-core</artifactId>
+                <version>${mina-sshd.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.github.xiaoymin</groupId>
