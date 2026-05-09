@@ -15,10 +15,10 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 通过 SOCKS5 拨号公网 echo-IP 服务, 拿到出网真实 IP; 零第三方依赖, 走 JDK 原生 HttpURLConnection.
+ * 通过 SOCKS5 拨号公网 echo-IP 服务取出网真实 IP, 走 JDK 原生 HttpURLConnection 零第三方依赖;
+ * 全局 Authenticator + ThreadLocal 凭据, 多线程并发安全.
  *
- * <p>线程安全: SOCKS5 鉴权用全局 {@link Authenticator}; 多并发请求时各线程的 username/password 通过
- * 一个 ThreadLocal 暂存, 避免互相覆盖.
+ * @author nook
  */
 @Slf4j
 @Component
@@ -48,7 +48,15 @@ public class Socks5Prober {
         });
     }
 
-    /** 拨号 + 读 echo-ip; 任何异常都包装成 success=false 结构化结果, 上层不需 try/catch. */
+    /**
+     * 拨号 + 读 echo-ip, 任何异常都包成 success=false 结构化结果, 上层不需 try/catch.
+     *
+     * @param socksHost SOCKS5 host
+     * @param socksPort SOCKS5 port
+     * @param socksUser 用户名 (无鉴权传 null/空)
+     * @param socksPass 密码 (无鉴权传 null/空)
+     * @return Socks5ProbeSnapshot
+     */
     public Socks5ProbeSnapshot probe(String socksHost, int socksPort, String socksUser, String socksPass) {
         long start = System.currentTimeMillis();
         try {
@@ -66,6 +74,7 @@ public class Socks5Prober {
         }
     }
 
+    /** 真实拨号 + HTTP GET echo-IP; CURRENT_AUTH 在 finally 里清理, 防 ThreadLocal 泄漏到下次请求. */
     private String probeExitIp(String socksHost, int socksPort, String socksUser, String socksPass) throws Exception {
         Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(socksHost, socksPort));
         boolean needAuth = StrUtil.isNotBlank(socksUser) && StrUtil.isNotBlank(socksPass);

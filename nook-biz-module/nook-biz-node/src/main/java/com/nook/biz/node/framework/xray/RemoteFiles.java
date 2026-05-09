@@ -1,6 +1,10 @@
 package com.nook.biz.node.framework.xray;
 
-/** Xray 远端文件路径与 systemd 单元名 (与 install-line-server.sh.tmpl 对齐). */
+/**
+ * Xray 远端文件路径与 systemd 单元名, 与 install-line-server.sh.tmpl 对齐.
+ *
+ * @author nook
+ */
 public final class RemoteFiles {
 
     private RemoteFiles() {

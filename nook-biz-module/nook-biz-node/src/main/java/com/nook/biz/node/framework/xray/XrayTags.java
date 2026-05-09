@@ -1,6 +1,10 @@
 package com.nook.biz.node.framework.xray;
 
-/** Xray 跨域约定 tag; install 脚本里的 inbound/outbound/routing 都依赖, 改这里需同步改脚本. */
+/**
+ * Xray 跨域约定 tag; install 脚本的 inbound / outbound / routing 都依赖, 改这里需同步改脚本.
+ *
+ * @author nook
+ */
 public final class XrayTags {
 
     private XrayTags() {

@@ -35,7 +35,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-/** SshSession 的 MINA 实现; 仅持有一条 ClientSession + ssh facet, 不知道任何 gRPC / xray. */
+/**
+ * SshSession 的 MINA 实现, 仅持有一条 ClientSession + ssh facet, 不知道任何 gRPC / xray.
+ *
+ * @author nook
+ */
 @Slf4j
 class MinaSshSession implements SshSession {
 
@@ -56,10 +60,13 @@ class MinaSshSession implements SshSession {
     }
 
     /**
-     * 同步建会话; 任一步失败回滚已建资源并抛 BACKEND_UNREACHABLE.
+     * 同步建会话, 任一步失败回滚已建资源并抛 BACKEND_UNREACHABLE.
      *
-     * @param onClose MINA 检测到底层 SSH session 关闭时回调 (网络断 / sshd 踢人 / 我们自己 shutdown 都触发);
-     *                manager 用这个回调把 cache 里的死条目自动摘出.
+     * @param sshClient MINA 全局 SshClient
+     * @param cred      SSH 凭据
+     * @param props     SSH 会话基础参数
+     * @param onClose   MINA 检测到底层 SSH session 关闭时回调; manager 用它把 cache 里的死条目自动摘出
+     * @return MinaSshSession
      */
     static MinaSshSession build(SshClient sshClient,
                                 ServerCredentialDTO cred,
@@ -84,6 +91,7 @@ class MinaSshSession implements SshSession {
         }
     }
 
+    /** 把 onClose 注册到 MINA ClientSession 的 close future, 任何关闭路径都会触发. */
     private void registerCloseListener(Consumer<MinaSshSession> onClose) {
         clientSession.addCloseFutureListener(future -> {
             try {
@@ -115,6 +123,7 @@ class MinaSshSession implements SshSession {
         return forwardCache.computeIfAbsent(new HostPort(remoteHost, remotePort), k -> buildForward(k.host(), k.port()));
     }
 
+    /** 现建 MINA 本地端口转发, 本地绑 0 让 OS 分配端口. */
     private MinaPortForward buildForward(String remoteHost, int remotePort) {
         try {
             // 本地端口绑 0 让 OS 分配; 返回的 tracker 里能拿到实际分配的端口
@@ -145,6 +154,7 @@ class MinaSshSession implements SshSession {
 
     // ===== 构造期辅助 =====
 
+    /** 校验 SSH 必填字段; xrayGrpcHost 不在这层校验, 那是 Xray 域的事. */
     private static void validateCred(ServerCredentialDTO cred) {
         if (StrUtil.isBlank(cred.sshHost()) || StrUtil.isBlank(cred.sshUser())) {
             throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
@@ -155,6 +165,7 @@ class MinaSshSession implements SshSession {
         // 注意: xrayGrpcHost 不在 SSH 层校验; 那是 Xray 域 (XrayGrpcChannelManager) 的事
     }
 
+    /** TCP 连接 + 鉴权; 鉴权失败关掉 session 再向上抛, 防资源泄漏. */
     private static ClientSession openAndAuth(SshClient client, ServerCredentialDTO cred, Duration connectTimeout) throws IOException {
         ConnectFuture cf = client.connect(cred.sshUser(), cred.sshHost(), cred.sshPort());
         cf.verify(connectTimeout.toMillis());
@@ -169,6 +180,7 @@ class MinaSshSession implements SshSession {
         }
     }
 
+    /** 按凭据类型挂上鉴权身份: 私钥优先, 否则用密码. */
     private static void attachIdentity(ClientSession session, ServerCredentialDTO cred) throws IOException {
         if (StrUtil.isNotBlank(cred.sshPrivateKey())) {
             session.addPublicKeyIdentity(loadKeyPair(cred.sshPrivateKey(), cred.sshPrivateKeyPassphrase()));
@@ -177,7 +189,7 @@ class MinaSshSession implements SshSession {
         }
     }
 
-    /** PEM 字符串或文件路径都支持; MINA SSHD 比 sshj 优势在不需要写临时文件. */
+    /** PEM 字符串或文件路径都支持; MINA SSHD 不需要落临时文件即可加载, 比 sshj 干净. */
     private static KeyPair loadKeyPair(String keyMaterial, String passphrase) throws IOException {
         KeyPairResourceLoader loader = SecurityUtils.getKeyPairResourceParser();
         FilePasswordProvider pwd = StrUtil.isNotBlank(passphrase)
@@ -203,6 +215,7 @@ class MinaSshSession implements SshSession {
         return kps.iterator().next();
     }
 
+    /** 静默关 ClientSession; 构造期回滚用, 不希望它把上层真正的失败原因覆盖掉. */
     private static void closeQuietly(ClientSession session) {
         if (session != null) {
             try { session.close(); } catch (IOException ignored) { }

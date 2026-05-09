@@ -10,11 +10,20 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/** xray.json routing 段构造: api 通道直走 api 出站, 业务流量按 client.email 分流到对应 socks5 出站. */
+/**
+ * xray.json routing 段构造: api 通道直走 api 出站, 业务流量按 client.email 分流到对应 socks5 出站.
+ *
+ * @author nook
+ */
 @Component
 public class RoutingConfigReconciler {
 
-    /** api 通道直走 api outbound; 其余按 email 分流到该用户的 socks5 outbound. */
+    /**
+     * 构造 routing JSON: api 通道直走 api outbound, 其余按 email 分流到该用户的 socks5 outbound.
+     *
+     * @param rows 当前 server 全部 client
+     * @return JSONObject (含 domainStrategy + rules)
+     */
     public JSONObject buildRouting(List<XrayClientDO> rows) {
         JSONObject routing = new JSONObject();
         routing.put("domainStrategy", "AsIs");
@@ -28,6 +37,7 @@ public class RoutingConfigReconciler {
         return routing;
     }
 
+    /** api 通道单独 rule: api inbound → api outbound, 永远绕过出站代理. */
     private JSONObject apiRoutingRule() {
         JSONObject rule = new JSONObject();
         rule.put("type", "field");
@@ -38,6 +48,7 @@ public class RoutingConfigReconciler {
         return rule;
     }
 
+    /** 单 client rule: 命中其 inbound + email 时走对应 socks5 出站. */
     private JSONObject emailRoutingRule(XrayClientDO row) {
         JSONObject rule = new JSONObject();
         rule.put("type", "field");

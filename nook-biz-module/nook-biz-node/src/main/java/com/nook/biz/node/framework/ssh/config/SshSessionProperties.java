@@ -4,7 +4,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
 
-/** SSH 会话基础参数; yaml 前缀 nook.node.ssh. lazy + 被动失效模型, 没有 healthCheck/idleCleanup 周期任务. */
+/**
+ * SSH 会话基础参数 (yaml 前缀 nook.node.ssh); lazy + 被动失效模型, 无 healthCheck / idleCleanup 周期任务.
+ *
+ * @author nook
+ */
 @ConfigurationProperties(prefix = "nook.node.ssh")
 public class SshSessionProperties {
 

@@ -15,13 +15,23 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 解析远端 xray.json 取 inbound 列表; 跳过 api 通道. */
+/**
+ * 解析远端 xray.json 取 inbound 列表, 跳过 nook 自管的 api 通道.
+ *
+ * @author nook
+ */
 @Slf4j
 public final class InboundConfigParser {
 
     private InboundConfigParser() {
     }
 
+    /**
+     * 把远端 xray.json 文本解析成 inbound 列表; 跳过 api 通道, 解析失败抛 BACKEND_RESPONSE_INVALID.
+     *
+     * @param json 远端 xray.json 全文
+     * @return List of InboundSnapshot
+     */
     public static List<InboundSnapshot> parseInbounds(String json) {
         List<InboundSnapshot> list = new ArrayList<>();
         if (StrUtil.isBlank(json)) return list;
@@ -53,7 +63,7 @@ public final class InboundConfigParser {
         return list;
     }
 
-    /** 数 settings.clients 的长度; 非 client-based inbound (dokodemo / freedom) 返回 0。 */
+    /** 数 settings.clients 的长度; 非 client-based inbound (dokodemo / freedom) 返回 0. */
     private static int countClients(JSONObject inbound) {
         JSONObject settings = inbound.getJSONObject("settings");
         if (ObjectUtil.isNull(settings)) return 0;

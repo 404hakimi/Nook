@@ -11,7 +11,11 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/** 远端脚本执行: classpath 模板渲染 → 上传 /tmp → 执行 → 收集输出. */
+/**
+ * 远端脚本执行: classpath 模板渲染 → 上传 /tmp → 执行 → 收集输出.
+ *
+ * @author nook
+ */
 @Slf4j
 @Component
 public class RemoteScriptRunner {
@@ -22,7 +26,16 @@ public class RemoteScriptRunner {
     /** 兜底清理超时, 短即可 (单条 rm -f). */
     private static final Duration CLEANUP_TIMEOUT = Duration.ofSeconds(5);
 
-    /** 流式版本: 远端 stdout 每来一行回调; nook 自身的进度提示也走 lineConsumer. */
+    /**
+     * 流式跑脚本, 远端 stdout 每来一行回调; nook 自身的进度提示也走 lineConsumer.
+     *
+     * @param session      已就绪 SSH 会话
+     * @param classpath    classpath 上的脚本模板
+     * @param vars         模板变量表 ({{KEY}} → value)
+     * @param tmpPrefix    远端 /tmp 文件名前缀
+     * @param runTimeout   脚本运行超时
+     * @param lineConsumer 每行 stdout 的消费回调
+     */
     public void runFromTemplateStreaming(SshSession session,
                                          String classpath,
                                          Map<String, String> vars,
@@ -63,6 +76,7 @@ public class RemoteScriptRunner {
         }
     }
 
+    /** classpath 读模板 + {{KEY}} 占位替换; 模板找不到抛 BACKEND_OPERATION_FAILED. */
     private String renderTemplate(String classpath, Map<String, String> vars) {
         String tmpl;
         try {

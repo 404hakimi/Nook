@@ -12,7 +12,11 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.Arrays;
 
-/** Xray 协议映射 (vmess/vless/trojan); 屏蔽各协议在 gRPC AddUser 与 xray.json 字段上的差异. shadowsocks 暂不支持. */
+/**
+ * Xray 协议映射 (vmess / vless / trojan), 屏蔽各协议在 gRPC AddUser 与 xray.json 字段上的差异; shadowsocks 暂不支持.
+ *
+ * @author nook
+ */
 @Getter
 @RequiredArgsConstructor
 public enum InboundProtocolMapping {
@@ -80,16 +84,31 @@ public enum InboundProtocolMapping {
         }
     };
 
-    /** xray_inbound.protocol / spec.protocol 的字符串值, 全小写。 */
+    /** xray_inbound.protocol / spec.protocol 的字符串值, 全小写. */
     private final String code;
 
-    /** 序列化协议特定 Account 到 gRPC AddUserOperation 用的 TypedMessage。 */
+    /**
+     * 序列化协议特定 Account 到 gRPC AddUserOperation 用的 TypedMessage.
+     *
+     * @param spec user 协议规格
+     * @return TypedMessage
+     */
     public abstract TypedMessage buildAccountTypedMessage(InboundUserSpec spec);
 
-    /** 渲染 xray.json {@code inbounds[].settings.clients[]} 单条节点。 */
+    /**
+     * 渲染 xray.json inbounds[].settings.clients[] 单条节点.
+     *
+     * @param spec user 协议规格
+     * @return JSONObject
+     */
     public abstract JSONObject buildClientJson(InboundUserSpec spec);
 
-    /** 按 code 解析; 未识别抛 BACKEND_OPERATION_FAILED, 上层把 serverId 与协议名带出去。 */
+    /**
+     * 按 code 解析协议, 未识别抛 BACKEND_OPERATION_FAILED.
+     *
+     * @param code 协议名 (大小写不敏感)
+     * @return InboundProtocolMapping
+     */
     public static InboundProtocolMapping of(String code) {
         return Arrays.stream(values())
                 .filter(p -> StrUtil.equalsIgnoreCase(p.code, code))

@@ -22,7 +22,11 @@ import java.util.Base64;
 import java.util.EnumSet;
 import java.util.function.Consumer;
 
-/** SshChannel 的 MINA SSHD 实现; 复用宿主 session 的 ClientSession 跑 exec channel. */
+/**
+ * SshChannel 的 MINA SSHD 实现, 复用宿主 session 的 ClientSession 跑 exec channel.
+ *
+ * @author nook
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class MinaSshChannel implements SshChannel {

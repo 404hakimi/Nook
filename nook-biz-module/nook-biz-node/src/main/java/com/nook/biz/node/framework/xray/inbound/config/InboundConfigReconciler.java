@@ -15,12 +15,21 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 
-/** xray.json inbound 段投影: 用 DB clients 替换每个 inbound 的 settings.clients[]. */
+/**
+ * xray.json inbound 段投影: 用 DB clients 替换每个 inbound 的 settings.clients[].
+ *
+ * @author nook
+ */
 @Slf4j
 @Component
 public class InboundConfigReconciler {
 
-    /** 用 DB 行替换每个 inbound 的 settings.clients[]; 不动 inbound 本身的 listen/port/streamSettings/protocol. */
+    /**
+     * 用 DB 行替换每个 inbound 的 settings.clients[], 不动 inbound 本身的 listen / port / streamSettings / protocol.
+     *
+     * @param root          远端 xray.json 解析后的 root
+     * @param byInboundTag  inbound tag → 该 inbound 下的 client 列表
+     */
     public void repopulateClients(JSONObject root, Map<String, List<XrayClientDO>> byInboundTag) {
         JSONArray inbounds = root.getJSONArray("inbounds");
         if (CollUtil.isEmpty(inbounds)) return;
@@ -49,6 +58,7 @@ public class InboundConfigReconciler {
         }
     }
 
+    /** 把 DB rows 渲染成对应 inbound 的 clients[]; 协议不匹配的行跳过, 不混入异协议 client. */
     private JSONArray buildClientArray(List<XrayClientDO> rows, InboundProtocolMapping protocol) {
         JSONArray arr = new JSONArray();
         if (CollUtil.isEmpty(rows)) return arr;
@@ -59,6 +69,7 @@ public class InboundConfigReconciler {
         return arr;
     }
 
+    /** DB 行 → InboundUserSpec; 仅取协议渲染必需的字段, 流量/到期由别处管. */
     private InboundUserSpec toSpec(XrayClientDO row) {
         return InboundUserSpec.builder()
                 .externalInboundRef(row.getExternalInboundRef())
