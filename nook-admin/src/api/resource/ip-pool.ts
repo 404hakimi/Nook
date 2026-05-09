@@ -100,12 +100,12 @@ export interface Socks5TestResult {
   error?: string
 }
 
-/** 通过该 IP 的 SOCKS5 凭据拨号公网 echo-IP 端点, 验证 SOCKS5 是否真的工作 + 出网 IP 是否符合预期。 */
+/** 通过该 IP 的 SOCKS5 凭据拨号公网 echo-IP 端点, 验证 SOCKS5 是否真的工作 + 出网 IP 是否符合预期. */
 export function testIpPoolSocks5(id: string) {
-  return request.post<unknown, Socks5TestResult>(`/admin/resource/ip-pool/${id}/test`)
+  return request.post<unknown, Socks5TestResult>(`/admin/node/socks5/${id}/test`)
 }
 
-// ===== SOCKS5 独立部署 (走 xray 模块 provisioner 接口, 流式 HTTP, 不绑定 IP 池条目) =====
+// ===== SOCKS5 独立部署 (走 nook-biz-node Socks5Controller, 流式 HTTP, 不绑定 IP 池条目) =====
 
 export interface Socks5InstallDTO {
   // 远端主机 SSH 凭据 (一次性, 不存)
@@ -136,7 +136,7 @@ export async function installSocks5Stream(
   signal?: AbortSignal
 ): Promise<void> {
   const userStore = useUserStore()
-  const res = await fetch('/api/admin/xray/provisioner/socks5/install', {
+  const res = await fetch('/api/admin/node/socks5/install', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

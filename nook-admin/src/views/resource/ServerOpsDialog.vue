@@ -6,6 +6,7 @@ import {
   HardDrive,
   MemoryStick,
   Power,
+  PowerOff,
   RefreshCw,
   Rocket,
   Server,
@@ -29,6 +30,7 @@ import {
   getServerSystemInfo,
   getXrayLog,
   getXrayServiceStatus,
+  xrayAutostart,
   xrayRestart,
   type ServerSystemInfo,
   type XrayLog,
@@ -56,6 +58,7 @@ const activeTab = ref<Tab>('status')
 const statusLoading = ref(false)
 const logLoading = ref(false)
 const restarting = ref(false)
+const togglingAutostart = ref(false)
 
 const systemInfo = ref<ServerSystemInfo | null>(null)
 const serviceStatus = ref<XrayServiceStatus | null>(null)
@@ -162,6 +165,35 @@ async function runRestart() {
   }
 }
 
+/**
+ * 切换 Xray 开机自启 (systemctl enable/disable); 切完会重新拉一次状态以拿最新 is-enabled 结果.
+ * 当前 enabled 字符串是 unknown/空时, 默认按"开启"语义执行.
+ */
+async function runToggleAutostart() {
+  if (!props.server || togglingAutostart.value) return
+  const currentlyEnabled = serviceStatus.value?.enabled?.trim() === 'enabled'
+  const target = !currentlyEnabled
+  const ok = await confirm({
+    title: target ? '开启开机自启' : '关闭开机自启',
+    message: target
+      ? `确认在 "${props.server.name}" 上 systemctl enable xray？`
+      : `确认在 "${props.server.name}" 上 systemctl disable xray？关闭后服务器重启不会自动起 Xray.`,
+    type: target ? 'info' : 'warning',
+    confirmText: target ? '开启' : '关闭'
+  })
+  if (!ok) return
+  togglingAutostart.value = true
+  try {
+    await xrayAutostart(props.server.id, target)
+    message.success(target ? '已开启开机自启' : '已关闭开机自启')
+    await runStatus()
+  } catch (e) {
+    message.error('切换失败: ' + ((e as Error).message ?? ''))
+  } finally {
+    togglingAutostart.value = false
+  }
+}
+
 function openInstall() {
   installOpen.value = true
 }
@@ -186,8 +218,26 @@ const activeBadge = computed<{ text: string; type: 'success' | 'error' | 'warnin
   }
 )
 
-/** 顶栏统一 disabled 信号: 任意拉取或重启进行中都禁用按钮 */
-const anyBusy = computed(() => statusLoading.value || logLoading.value || restarting.value)
+/** is-enabled 字符串 → 中文徽章; static / masked / 空都归到默认色, 与 enable/disable 主路径区分. */
+const autostartBadge = computed<{ text: string; type: 'success' | 'error' | 'warning' | 'default' }>(
+  () => {
+    const e = serviceStatus.value?.enabled?.trim() ?? ''
+    if (e === 'enabled') return { text: '已启用', type: 'success' }
+    if (e === 'disabled') return { text: '未启用', type: 'warning' }
+    if (e === 'static') return { text: 'static', type: 'default' }
+    if (e === 'masked') return { text: 'masked', type: 'error' }
+    if (!e) return { text: '未知', type: 'default' }
+    return { text: e, type: 'default' }
+  }
+)
+const autostartCurrentlyEnabled = computed(
+  () => serviceStatus.value?.enabled?.trim() === 'enabled'
+)
+
+/** 顶栏统一 disabled 信号: 任意拉取或重启 / 切自启进行中都禁用按钮 */
+const anyBusy = computed(
+  () => statusLoading.value || logLoading.value || restarting.value || togglingAutostart.value
+)
 </script>
 
 <template>
@@ -251,6 +301,21 @@ const anyBusy = computed(() => statusLoading.value || logLoading.value || restar
         >
           <template #icon><NIcon><RefreshCw /></NIcon></template>
           刷新状态
+        </NButton>
+        <NButton
+          size="small"
+          :type="autostartCurrentlyEnabled ? 'default' : 'success'"
+          :disabled="anyBusy"
+          :loading="togglingAutostart"
+          :title="autostartCurrentlyEnabled
+            ? 'systemctl disable xray (重启不再自动起)'
+            : 'systemctl enable xray (重启自动起)'"
+          @click="runToggleAutostart"
+        >
+          <template #icon>
+            <NIcon><PowerOff v-if="autostartCurrentlyEnabled" /><Power v-else /></NIcon>
+          </template>
+          {{ autostartCurrentlyEnabled ? '关闭自启' : '开启自启' }}
         </NButton>
         <NButton type="warning" size="small" :disabled="anyBusy" @click="runRestart">
           <template #icon><NIcon><Power /></NIcon></template>
@@ -331,6 +396,10 @@ const anyBusy = computed(() => statusLoading.value || logLoading.value || restar
               <div>
                 <div class="text-xs text-zinc-500">运行状态</div>
                 <NTag size="small" :type="activeBadge.type">{{ activeBadge.text }}</NTag>
+              </div>
+              <div>
+                <div class="text-xs text-zinc-500">开机自启</div>
+                <NTag size="small" :type="autostartBadge.type">{{ autostartBadge.text }}</NTag>
               </div>
               <div>
                 <div class="text-xs text-zinc-500">Xray 版本</div>

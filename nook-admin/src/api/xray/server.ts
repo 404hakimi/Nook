@@ -1,14 +1,14 @@
 import request from '@/api/request'
 import { useUserStore } from '@/stores/user'
 
-/** 探活结果。 */
+/** 探活结果 (后端 ConnectivityTestRespVO). */
 export interface ConnectivityTestResult {
   success: boolean
   elapsedMs: number
   error?: string
 }
 
-/** 远端 inbound 列表项。 */
+/** 远端 inbound 列表项 (后端 InboundSnapshotRespVO). */
 export interface RemoteInbound {
   externalInboundRef: string
   remark?: string
@@ -18,17 +18,7 @@ export interface RemoteInbound {
   clientCount?: number
 }
 
-/** 探活：调 backend.verifyConnectivity；返回耗时 + 是否成功。 */
-export function testServerConnectivity(serverId: string) {
-  return request.post<unknown, ConnectivityTestResult>(`/admin/xray/servers/${serverId}/test`)
-}
-
-/** 列远端 inbound（给运营在 inbound 关联界面下拉用）。 */
-export function listRemoteInbounds(serverId: string) {
-  return request.get<unknown, RemoteInbound[]>(`/admin/xray/servers/${serverId}/inbounds`)
-}
-
-/** 操作系统级别基本信息; 不依赖 Xray 是否在跑。 */
+/** 操作系统级别基本信息 (后端 ServerSystemInfoRespVO); 不依赖 Xray 是否在跑. */
 export interface ServerSystemInfo {
   hostname?: string
   kernel?: string
@@ -40,49 +30,107 @@ export interface ServerSystemInfo {
   timezone?: string
 }
 
-/** Xray systemd 服务运行状态; 不含日志。 */
+/** Xray systemd 服务运行状态 (后端 ServiceStatusRespVO); 不含日志. */
 export interface XrayServiceStatus {
+  /** systemd unit 名, xray-managed 接口固定为 "xray" */
+  unit?: string
   active?: string
   version?: string
   uptimeFrom?: string
+  /** 监听端口列表 (ss -ltn 抓取相关行); 多行字符串, 前端按 \n 拆分展示 */
   listening?: string
+  /** systemctl is-enabled 输出: enabled / disabled / static / masked / ... */
+  enabled?: string
 }
 
-/** 日志级别过滤 (journalctl -p 语义)。 */
+/** 通用 systemd 状态 (后端 SystemdStatusRespVO); 不含 service 专属字段. */
+export interface SystemdStatus {
+  unit?: string
+  active?: string
+  uptimeFrom?: string
+  enabled?: string
+}
+
+/** 日志级别过滤 (journalctl -p 语义). */
 export type XrayLogLevel = 'all' | 'warning' | 'err'
 
-/** Xray journalctl 日志快照。 */
+/** systemd unit 日志快照 (后端 ServiceLogRespVO). */
 export interface XrayLog {
+  unit?: string
   lines: number
   level: XrayLogLevel
   log?: string
 }
 
-/** 拉服务器系统基本信息 (hostname / 内存 / 磁盘 / 时区 等)。 */
+// ===== 后端 ServerInspectorController @ /admin/node/server (通用, 不绑 xray) =====
+
+/** 探活: SSH 跑 'true' 验证可达性; 失败已包成 success=false 不抛错. */
+export function testServerConnectivity(serverId: string) {
+  return request.post<unknown, ConnectivityTestResult>(`/admin/node/server/${serverId}/test`)
+}
+
+/** 拉服务器系统基本信息 (hostname / 内存 / 磁盘 / 时区 等). */
 export function getServerSystemInfo(serverId: string) {
-  return request.get<unknown, ServerSystemInfo>(`/admin/xray/servers/${serverId}/system-info`)
+  return request.get<unknown, ServerSystemInfo>(`/admin/node/server/${serverId}/system-info`)
 }
 
-/** 拉 Xray systemd 服务运行状态 (active / version / 启动时间 / 监听端口); 不含日志。 */
-export function getXrayServiceStatus(serverId: string) {
-  return request.get<unknown, XrayServiceStatus>(`/admin/xray/servers/${serverId}/service-status`)
+/** 拉指定 systemd unit 的通用运行状态 (不含 service 专属字段如 version/listening). */
+export function getSystemdStatus(serverId: string, unit: string) {
+  return request.get<unknown, SystemdStatus>(
+    `/admin/node/server/${serverId}/systemd-status`,
+    { params: { unit } }
+  )
 }
 
-/** 拉 Xray journalctl 日志, 按行数 + 级别过滤。 */
-export function getXrayLog(
+/** 拉指定 systemd unit 的 journalctl 日志, 按行数 + 级别过滤. */
+export function getServiceLog(
   serverId: string,
+  unit: string,
   opts?: { lines?: number; level?: XrayLogLevel }
 ) {
-  return request.get<unknown, XrayLog>(`/admin/xray/servers/${serverId}/log`, {
+  return request.get<unknown, XrayLog>(`/admin/node/server/${serverId}/log`, {
     params: {
+      unit,
       lines: opts?.lines,
       level: opts?.level === 'all' ? undefined : opts?.level
     }
   })
 }
 
+/** 拉 Xray 的 journalctl 日志; 是 getServiceLog 的 unit=xray 便捷封装. */
+export function getXrayLog(
+  serverId: string,
+  opts?: { lines?: number; level?: XrayLogLevel }
+) {
+  return getServiceLog(serverId, 'xray', opts)
+}
+
+// ===== 后端 XrayInboundController @ /admin/node/xray/inbound =====
+
+/** 列远端 inbound (跳过 nook 自管的 api 通道); 给运营在 inbound 关联界面下拉用. */
+export function listRemoteInbounds(serverId: string) {
+  return request.get<unknown, RemoteInbound[]>(`/admin/node/xray/inbound/${serverId}/list`)
+}
+
+// ===== 后端 XrayServerManageController @ /admin/node/xray/server =====
+
+/** 拉 Xray 服务运行状态 (active / version / 启动时间 / 监听端口 / 开机自启). */
+export function getXrayServiceStatus(serverId: string) {
+  return request.get<unknown, XrayServiceStatus>(`/admin/node/xray/server/${serverId}/status`)
+}
+
+/** 重启 Xray 服务; 客户连接会断 1-2 秒. */
 export function xrayRestart(serverId: string) {
-  return request.post<unknown, string>(`/admin/xray/servers/${serverId}/xray/restart`)
+  return request.post<unknown, string>(`/admin/node/xray/server/${serverId}/restart`)
+}
+
+/** 开/关 Xray 开机自启 (systemctl enable/disable); 末尾返回 is-enabled 结果给前端确认. */
+export function xrayAutostart(serverId: string, enabled: boolean) {
+  return request.post<unknown, string>(
+    `/admin/node/xray/server/${serverId}/autostart`,
+    null,
+    { params: { enabled } }
+  )
 }
 
 export interface LineServerInstallDTO {
@@ -96,7 +144,7 @@ export interface LineServerInstallDTO {
 }
 
 /**
- * 一键安装/重装 — 流式接口.
+ * 一键安装/重装 Xray — 流式接口.
  * 后端用 chunked transfer 边跑边吐 stdout, 前端 fetch + ReadableStream 边读边回调 onChunk.
  *
  * - axios 不支持 response 流式, 这里直接用 fetch + 手写认证头.
@@ -110,7 +158,7 @@ export async function xrayInstallStream(
   signal?: AbortSignal
 ): Promise<void> {
   const userStore = useUserStore()
-  const res = await fetch(`/api/admin/xray/servers/${serverId}/xray/install`, {
+  const res = await fetch(`/api/admin/node/xray/server/${serverId}/install`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

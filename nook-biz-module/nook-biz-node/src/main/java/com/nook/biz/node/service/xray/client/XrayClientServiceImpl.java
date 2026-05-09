@@ -3,7 +3,7 @@ package com.nook.biz.node.service.xray.client;
 import jakarta.annotation.Resource;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.dal.mysql.client.XrayClientMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;

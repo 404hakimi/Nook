@@ -8,7 +8,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.alibaba.fastjson2.JSONWriter;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.dal.mysql.client.XrayClientMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.framework.ssh.SshSession;
 import com.nook.biz.node.framework.ssh.SshSessionManager;
 import com.nook.biz.node.framework.xray.RemoteFiles;

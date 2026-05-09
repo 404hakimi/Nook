@@ -1,6 +1,6 @@
 import request from '@/api/request'
 
-/** Xray client 实体 (一个会员在某线路+落地 IP 上的 client 凭据); 与后端 XrayClientRespVO 对齐。 */
+/** Xray client 实体 (一个会员在某线路+落地 IP 上的 client 凭据); 与后端 ClientRespVO 对齐. */
 export interface XrayClient {
   id: string
   serverId: string
@@ -12,6 +12,7 @@ export interface XrayClient {
   transport?: string
   listenIp?: string
   listenPort?: number
+  /** list/detail 接口下发的是 mask 形式 (前 8 + *** + 后 8); 明文走 /credential 接口 */
   clientUuid: string
   clientEmail: string
   /** 1=运行 2=已停 3=待同步 4=远端已不存在 */
@@ -54,8 +55,9 @@ export interface XrayClientProvisionDTO {
   flow?: string
 }
 
+/** 实时流量出参 (后端 ClientTrafficRespVO); 字段名以"挂在 inbound 上的 client 实体 id"语义对齐. */
 export interface XrayClientTraffic {
-  clientEntityId: string
+  inboundEntityId: string
   clientEmail: string
   upBytes: number
   downBytes: number
@@ -67,7 +69,7 @@ export interface XrayClientTraffic {
 }
 
 /**
- * 协议级凭据明文 (UUID / password 等); 仅在分享场景按需拉取, 不在列表 / 详情接口里下发。
+ * 协议级凭据明文 (UUID / password 等); 仅在分享场景按需拉取, 不在列表 / 详情接口里下发.
  */
 export interface XrayClientCredential {
   id: string
@@ -93,42 +95,44 @@ export const CLIENT_STATUS_LABELS: Record<number, string> = {
   4: '远端缺失'
 }
 
+// ===== 后端 XrayClientController @ /admin/node/xray/client =====
+
 export function pageClients(params: XrayClientQuery) {
-  return request.get<unknown, PageResult<XrayClient>>('/admin/xray/clients', { params })
+  return request.get<unknown, PageResult<XrayClient>>('/admin/node/xray/client', { params })
 }
 
 export function getClientDetail(id: string) {
-  return request.get<unknown, XrayClient>(`/admin/xray/clients/${id}`)
+  return request.get<unknown, XrayClient>(`/admin/node/xray/client/${id}`)
 }
 
 export function provisionClient(dto: XrayClientProvisionDTO) {
-  return request.post<unknown, XrayClient>('/admin/xray/clients/provision', dto)
+  return request.post<unknown, XrayClient>('/admin/node/xray/client/provision', dto)
 }
 
 export function updateClient(id: string, dto: XrayClientUpdateDTO) {
-  return request.put<unknown, XrayClient>(`/admin/xray/clients/${id}`, dto)
+  return request.put<unknown, XrayClient>(`/admin/node/xray/client/${id}`, dto)
 }
 
 export function revokeClient(id: string) {
-  return request.delete<unknown, void>(`/admin/xray/clients/${id}`)
+  return request.delete<unknown, void>(`/admin/node/xray/client/${id}`)
 }
 
 export function rotateClient(id: string) {
-  return request.post<unknown, XrayClient>(`/admin/xray/clients/${id}/rotate`)
+  return request.post<unknown, XrayClient>(`/admin/node/xray/client/${id}/rotate`)
 }
 
 export function getClientTraffic(id: string) {
-  return request.get<unknown, XrayClientTraffic>(`/admin/xray/clients/${id}/traffic`)
+  return request.get<unknown, XrayClientTraffic>(`/admin/node/xray/client/${id}/traffic`)
 }
 
 export function resetClientTraffic(id: string) {
-  return request.post<unknown, void>(`/admin/xray/clients/${id}/reset-traffic`)
+  return request.post<unknown, void>(`/admin/node/xray/client/${id}/reset-traffic`)
 }
 
 /**
  * 拉协议级凭据明文; 分享给会员前必须用这个接口取真 UUID,
- * 列表 / 详情接口下发的 clientUuid 是 mask 形式 (xxx***xxxx)。
+ * 列表 / 详情接口下发的 clientUuid 是 mask 形式 (xxx***xxxx).
  */
 export function getClientCredential(id: string) {
-  return request.get<unknown, XrayClientCredential>(`/admin/xray/clients/${id}/credential`)
+  return request.get<unknown, XrayClientCredential>(`/admin/node/xray/client/${id}/credential`)
 }
