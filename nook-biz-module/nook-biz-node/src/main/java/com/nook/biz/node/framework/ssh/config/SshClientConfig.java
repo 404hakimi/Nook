@@ -1,6 +1,5 @@
 package com.nook.biz.node.framework.ssh.config;
 
-import com.nook.biz.node.framework.server.session.config.ServerSessionProperties;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.keyverifier.AcceptAllServerKeyVerifier;
 import org.apache.sshd.core.CoreModuleProperties;
@@ -9,12 +8,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties(ServerSessionProperties.class)
+@EnableConfigurationProperties(SshSessionProperties.class)
 public class SshClientConfig {
 
     /** MINA SSHD 全局单例; 所有 ManagedSession 共享同一个 NIO event loop. */
     @Bean(destroyMethod = "stop")
-    public SshClient sshClient(ServerSessionProperties props) {
+    public SshClient sshClient(SshSessionProperties props) {
         SshClient client = SshClient.setUpDefaultClient();
         CoreModuleProperties.HEARTBEAT_INTERVAL.set(client, props.getHeartbeatInterval());
         CoreModuleProperties.HEARTBEAT_REPLY_WAIT.set(client, props.getHeartbeatReplyWait());

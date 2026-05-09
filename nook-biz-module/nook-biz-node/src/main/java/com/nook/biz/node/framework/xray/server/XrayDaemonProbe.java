@@ -1,9 +1,9 @@
 package com.nook.biz.node.framework.xray.server;
 
+import jakarta.annotation.Resource;
 import com.nook.biz.resource.api.ResourceServerApi;
-import com.nook.biz.node.framework.server.session.ServerSessionManager;
+import com.nook.biz.node.framework.ssh.SshSessionManager;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -11,19 +11,29 @@ import java.time.Duration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Xray 进程级 SSH probe: 取二进制版本 + 监听端口列表 (依赖远端 grpc 端口凭据过滤 ss -ltn). */
+/**
+ * Xray 进程级 SSH probe: 取二进制版本 + 监听端口列表, 依赖远端 grpc 端口凭据过滤 ss -ltn.
+ *
+ * @author nook
+ */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class XrayDaemonProbe {
 
     /** 单条快速命令超时. */
     private static final Duration QUICK_TIMEOUT = Duration.ofSeconds(30);
 
-    private final ServerSessionManager sessionManager;
-    private final ResourceServerApi resourceServerApi;
+    @Resource
+    private SshSessionManager sessionManager;
+    @Resource
+    private ResourceServerApi resourceServerApi;
 
-    /** 拨一次 SSH 复合命令拿 version + 监听端口段. */
+    /**
+     * 一次 SSH 复合命令拿 xray version + 监听端口段.
+     *
+     * @param serverId resource_server.id
+     * @return XrayDaemonExtraSnapshot
+     */
     public XrayDaemonExtraSnapshot readExtras(String serverId) {
         int grpcPort = resourceServerApi.loadCredential(serverId).xrayGrpcPort();
         String composite = String.join("\n",

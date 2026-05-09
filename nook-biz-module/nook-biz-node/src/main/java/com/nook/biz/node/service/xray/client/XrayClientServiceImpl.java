@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.xray.client;
 
+import jakarta.annotation.Resource;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.mysql.client.XrayClientMapper;
@@ -15,13 +16,12 @@ import com.nook.biz.node.controller.xray.client.vo.ClientUpdateReqVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.convert.xray.client.XrayClientConvert;
 import com.nook.biz.node.service.xray.config.XrayConfigSyncService;
-import com.nook.biz.node.framework.server.session.ServerSession;
-import com.nook.biz.node.framework.server.session.ServerSessionManager;
+import com.nook.biz.node.framework.xray.grpc.XrayInboundClient;
 import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
-import com.nook.biz.node.framework.xray.stats.UserTraffic;
+import com.nook.biz.node.framework.xray.grpc.UserTraffic;
+import com.nook.biz.node.framework.xray.grpc.XrayStatsClient;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -30,7 +30,6 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class XrayClientServiceImpl implements XrayClientService {
 
     /** 用户上行流量字节数; 参数: email. */
@@ -39,10 +38,16 @@ public class XrayClientServiceImpl implements XrayClientService {
     /** 用户下行流量字节数; 参数: email. */
     public static final String USER_DOWNLINK_FORMAT = "user>>>%s>>>traffic>>>downlink";
 
-    private final XrayClientMapper xrayClientMapper;
-    private final ServerSessionManager sessionManager;
-    private final ResourceServerApi resourceServerApi;
-    private final XrayConfigSyncService xrayConfigSyncService;
+    @Resource
+    private XrayClientMapper xrayClientMapper;
+    @Resource
+    private XrayInboundClient xrayInboundClient;
+    @Resource
+    private XrayStatsClient xrayStatsClient;
+    @Resource
+    private ResourceServerApi resourceServerApi;
+    @Resource
+    private XrayConfigSyncService xrayConfigSyncService;
 
     @Override
     public XrayClientDO findById(String id) {
@@ -85,9 +90,8 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .limitIp(reqVO.getLimitIp() == null ? 0 : reqVO.getLimitIp())
                 .build();
 
-        ServerSession session = sessionManager.acquire(reqVO.getServerId());
         // 先调远端: addUser 失败则没有副作用 (DB 也没写); DB insert 失败留下"幽灵 client" 由 reconciler 清理 (本期未实现)
-        session.inbound().addUser(spec.externalInboundRef(), spec);
+        xrayInboundClient.addUser(reqVO.getServerId(), spec.externalInboundRef(), spec);
 
         XrayClientDO e = new XrayClientDO();
         e.setServerId(reqVO.getServerId());
@@ -113,9 +117,8 @@ public class XrayClientServiceImpl implements XrayClientService {
     @Override
     public void revoke(String inboundEntityId) {
         XrayClientDO e = findById(inboundEntityId);
-        ServerSession session = sessionManager.acquire(e.getServerId());
         try {
-            session.inbound().removeUser(e.getExternalInboundRef(), e.getClientEmail());
+            xrayInboundClient.removeUser(e.getServerId(), e.getExternalInboundRef(), e.getClientEmail());
         } catch (BusinessException be) {
             // 远端已不存在也认为吊销成功 — 目标状态本就是"没了"
             if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) {
@@ -138,12 +141,11 @@ public class XrayClientServiceImpl implements XrayClientService {
     @Override
     public XrayClientDO rotate(String inboundEntityId) {
         XrayClientDO e = findById(inboundEntityId);
-        ServerSession session = sessionManager.acquire(e.getServerId());
 
         String newUuid = UUID.randomUUID().toString();
         // 先 del 旧; 远端报 CLIENT_NOT_FOUND 视为已删成功 (目标状态本就是没了)
         try {
-            session.inbound().removeUser(e.getExternalInboundRef(), e.getClientEmail());
+            xrayInboundClient.removeUser(e.getServerId(), e.getExternalInboundRef(), e.getClientEmail());
         } catch (BusinessException be) {
             if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) throw be;
         }
@@ -156,7 +158,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .protocol(e.getProtocol())
                 .build();
         try {
-            session.inbound().addUser(spec.externalInboundRef(), spec);
+            xrayInboundClient.addUser(e.getServerId(), spec.externalInboundRef(), spec);
         } catch (RuntimeException addErr) {
             log.error("[rotate] del 后 add 失败 server={} email={}, 标 status=3 待 reconciler 修复",
                     e.getServerId(), e.getClientEmail(), addErr);
@@ -172,10 +174,9 @@ public class XrayClientServiceImpl implements XrayClientService {
     @Override
     public ClientTrafficRespVO getTraffic(String inboundEntityId) {
         XrayClientDO e = findById(inboundEntityId);
-        ServerSession session = sessionManager.acquire(e.getServerId());
-        long up = session.stats().readStat(
+        long up = xrayStatsClient.readStat(e.getServerId(),
                 String.format(USER_UPLINK_FORMAT, e.getClientEmail()), false);
-        long down = session.stats().readStat(
+        long down = xrayStatsClient.readStat(e.getServerId(),
                 String.format(USER_DOWNLINK_FORMAT, e.getClientEmail()), false);
         // 流量上限 / 到期 / enabled 在 gRPC 模式下由 nook subscription 控制, 远端不维护
         UserTraffic t = new UserTraffic(e.getClientEmail(), up, down, 0L, 0L, true);
@@ -185,11 +186,10 @@ public class XrayClientServiceImpl implements XrayClientService {
     @Override
     public void resetTraffic(String inboundEntityId) {
         XrayClientDO e = findById(inboundEntityId);
-        ServerSession session = sessionManager.acquire(e.getServerId());
         // reset=true 原子返回旧值并清零, 上下行各调一次; 返回值丢弃
-        session.stats().readStat(
+        xrayStatsClient.readStat(e.getServerId(),
                 String.format(USER_UPLINK_FORMAT, e.getClientEmail()), true);
-        session.stats().readStat(
+        xrayStatsClient.readStat(e.getServerId(),
                 String.format(USER_DOWNLINK_FORMAT, e.getClientEmail()), true);
     }
 

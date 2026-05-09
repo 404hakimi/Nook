@@ -1,6 +1,7 @@
-package com.nook.biz.node.controller.support;
+package com.nook.framework.web;
 
 import com.nook.common.web.exception.BusinessException;
+import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.task.AsyncTaskExecutor;
@@ -14,10 +15,10 @@ import java.util.function.Consumer;
 /** 流式 chunked transfer-encoding 接口的胶水: 异步执行 + 行级 send + 异常 → completeWithError. */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class StreamingEndpointSupport {
 
-    private final AsyncTaskExecutor asyncExecutor;
+    @Resource
+    private AsyncTaskExecutor asyncExecutor;
 
     /**
      * 把 action 包成一个 ResponseBodyEmitter; action 接收 lineSink, 通过它逐行回写客户端.

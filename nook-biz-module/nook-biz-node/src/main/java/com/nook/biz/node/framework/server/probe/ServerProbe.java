@@ -1,14 +1,14 @@
 package com.nook.biz.node.framework.server.probe;
 
+import jakarta.annotation.Resource;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.framework.server.snapshot.ConnectivitySnapshot;
 import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
-import com.nook.biz.node.framework.server.session.ServerSessionManager;
+import com.nook.biz.node.framework.ssh.SshSessionManager;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -16,10 +16,13 @@ import java.time.Duration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** 服务器只读探测: 主机信息 / systemd 状态 / journal 日志 / 探活, 仅返回 snapshot record. */
+/**
+ * 服务器只读探测: 主机信息 / systemd 状态 / journal 日志 / 探活, 仅返回 snapshot record.
+ *
+ * @author nook
+ */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ServerProbe {
 
     /** 单次 SSH 命令超时上限; 这些只读命令通常 1-3s, 给 30s 兜底 journalctl 慢盘场景. */
@@ -32,9 +35,15 @@ public class ServerProbe {
     /** systemd unit 合法字符 (字母/数字/._-@); 直接拼到 shell 前必须校验防注入. */
     private static final Pattern UNIT_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9._@-]{1,128}$");
 
-    private final ServerSessionManager sessionManager;
+    @Resource
+    private SshSessionManager sessionManager;
 
-    /** 主机可达性探活: 走 SSH 跑 'true', 既验证网络/凭据/SSH 通道都通, 又不依赖 Xray 是否在跑. 任何异常都包成 success=false. */
+    /**
+     * 主机可达性探活, 走 SSH 跑 'true' 验证网络 / 凭据 / SSH 通道都通; 任何异常都包成 success=false.
+     *
+     * @param serverId resource_server.id
+     * @return ConnectivitySnapshot
+     */
     public ConnectivitySnapshot probeConnectivity(String serverId) {
         long start = System.currentTimeMillis();
         try {
@@ -56,7 +65,12 @@ public class ServerProbe {
         }
     }
 
-    /** 主机层信息 (hostname / kernel / 内存 / 磁盘 / 时区). */
+    /**
+     * 主机层信息 (hostname / kernel / 内存 / 磁盘 / 时区), 一条复合 shell 拿全, 单段失败回空段不中断后续段.
+     *
+     * @param serverId resource_server.id
+     * @return HostInfoSnapshot
+     */
     public HostInfoSnapshot readHostInfo(String serverId) {
         // 一条复合 shell 拿全; 单段失败 echo 空段, 不中断后续段
         String composite = String.join("\n",
@@ -89,7 +103,13 @@ public class ServerProbe {
                 section(out, "TIMEZONE").trim());
     }
 
-    /** 指定 systemd unit 的运行状态 (active / 启动时间 / 开机自启); unit 校验通过 UNIT_NAME_PATTERN 防 shell 注入. */
+    /**
+     * 指定 systemd unit 的运行状态 (active / 启动时间 / 开机自启); unit 走 UNIT_NAME_PATTERN 防 shell 注入.
+     *
+     * @param serverId resource_server.id
+     * @param unit     systemd unit 名
+     * @return SystemdStatusSnapshot
+     */
     public SystemdStatusSnapshot readSystemdStatus(String serverId, String unit) {
         if (StrUtil.isBlank(unit) || !UNIT_NAME_PATTERN.matcher(unit).matches()) {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
@@ -112,7 +132,15 @@ public class ServerProbe {
                 section(out, "ENABLED").trim());
     }
 
-    /** 指定 systemd unit 的 journalctl 日志, 按行数 + 级别过滤; unit 校验通过 UNIT_NAME_PATTERN 防 shell 注入. */
+    /**
+     * 指定 systemd unit 的 journalctl 日志, 按行数 + 级别过滤; unit 走 UNIT_NAME_PATTERN 防 shell 注入.
+     *
+     * @param serverId resource_server.id
+     * @param unit     systemd unit 名
+     * @param logLines 行数 (默认 100, 上限 5000)
+     * @param logLevel 级别过滤 (all / warning / err)
+     * @return JournalLogSnapshot
+     */
     public JournalLogSnapshot readJournalLog(String serverId, String unit, Integer logLines, String logLevel) {
         if (StrUtil.isBlank(unit) || !UNIT_NAME_PATTERN.matcher(unit).matches()) {
             // 直接拼到 journalctl -u <unit>, 必须严格校验; 非法 unit 抛业务异常而非裸 shell 注入
@@ -133,6 +161,7 @@ public class ServerProbe {
         return new JournalLogSnapshot(unit, lines, level, out);
     }
 
+    /** 归一化前端传入的 level, 容错 warn/error 等同义词, 未识别一律 all. */
     private static String normalizeLevel(String raw) {
         if (StrUtil.isBlank(raw)) return "all";
         String lvl = raw.trim().toLowerCase();

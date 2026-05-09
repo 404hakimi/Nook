@@ -5,18 +5,44 @@ import com.nook.biz.node.controller.xray.server.vo.ServiceStatusRespVO;
 
 import java.util.function.Consumer;
 
-/** Xray 线路服务器一站式管理: 部署 / 重启 / 状态查询 / 开机自启开关. */
+/**
+ * Xray 线路服务器一站式管理: 部署 / 重启 / 状态查询 / 开机自启开关.
+ *
+ * @author nook
+ */
 public interface XrayServerManageService {
 
-    /** 流式安装/重装 Xray; 部署脚本一般 1-5 分钟, 整体超时 10 分钟. */
+    /**
+     * 流式安装/重装 Xray, 部署脚本一般 1-5 分钟.
+     *
+     * @param serverId resource_server.id
+     * @param reqVO    安装参数
+     * @param lineSink 每行 stdout 的消费回调
+     */
     void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink);
 
-    /** 重启 Xray 服务; 客户连接会断 1-2 秒. 返回 stdout (含 is-active + version). */
+    /**
+     * 重启 Xray 服务, 客户连接会断 1-2 秒.
+     *
+     * @param serverId resource_server.id
+     * @return 远端 stdout (含 is-active + xray version)
+     */
     String restart(String serverId);
 
-    /** 查询 Xray 服务状态: active / version / 启动时间 / 监听端口 / 开机自启状态. */
+    /**
+     * Xray 服务状态: active / version / 启动时间 / 监听端口 / 开机自启.
+     *
+     * @param serverId resource_server.id
+     * @return ServiceStatusRespVO
+     */
     ServiceStatusRespVO status(String serverId);
 
-    /** 开关开机自启 (systemctl enable / disable); 返回 stdout. */
+    /**
+     * 开/关 Xray 开机自启 (systemctl enable/disable), 末尾返回 is-enabled 结果给前端确认.
+     *
+     * @param serverId resource_server.id
+     * @param enabled  true=enable, false=disable
+     * @return 远端 stdout
+     */
     String setAutostart(String serverId, boolean enabled);
 }

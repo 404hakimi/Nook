@@ -2,7 +2,7 @@ package com.nook.biz.node.framework.server.script;
 
 import cn.hutool.core.io.resource.ResourceUtil;
 import com.nook.biz.node.enums.XrayErrorCode;
-import com.nook.biz.node.framework.server.session.ServerSession;
+import com.nook.biz.node.framework.ssh.SshSession;
 import com.nook.common.web.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -19,35 +19,11 @@ public class RemoteScriptRunner {
     /** 上传短脚本默认超时. */
     private static final Duration UPLOAD_TIMEOUT = Duration.ofSeconds(30);
 
-    /** 渲染模板上传执行; 整段 stdout 一次性返回. */
-    public String runFromTemplate(ServerSession session,
-                                  String classpath,
-                                  Map<String, String> vars,
-                                  String tmpPrefix,
-                                  Duration runTimeout) {
-        String script = renderTemplate(classpath, vars);
-        long ts = System.currentTimeMillis();
-        String remote = "/tmp/" + tmpPrefix + "-" + ts + ".sh";
-        log.info("[script-runner] upload {} bytes -> {} server={}",
-                script.length(), remote, session.serverId());
-        session.ssh().uploadString(remote, script, UPLOAD_TIMEOUT);
-        log.info("[script-runner] running {} server={}", remote, session.serverId());
-        try {
-            String out = session.ssh().exec(
-                    "bash '" + remote + "' 2>&1; rc=$?; rm -f '" + remote + "'; exit $rc",
-                    runTimeout
-            ).stdout();
-            log.info("[script-runner] OK server={} outputBytes={}", session.serverId(), out.length());
-            return out;
-        } catch (BusinessException be) {
-            log.warn("[script-runner] FAIL server={} code={} msg={}",
-                    session.serverId(), be.getCode(), be.getMessage());
-            throw be;
-        }
-    }
+    /** 兜底清理超时, 短即可 (单条 rm -f). */
+    private static final Duration CLEANUP_TIMEOUT = Duration.ofSeconds(5);
 
     /** 流式版本: 远端 stdout 每来一行回调; nook 自身的进度提示也走 lineConsumer. */
-    public void runFromTemplateStreaming(ServerSession session,
+    public void runFromTemplateStreaming(SshSession session,
                                          String classpath,
                                          Map<String, String> vars,
                                          String tmpPrefix,
@@ -59,15 +35,32 @@ public class RemoteScriptRunner {
 
         lineConsumer.accept("[nook] 渲染模板完成, 大小 " + script.length() + " bytes");
         lineConsumer.accept("[nook] 上传到远端 " + remote + " ...");
-        session.ssh().uploadString(remote, script, UPLOAD_TIMEOUT);
-        lineConsumer.accept("[nook] 上传完成, 开始执行(超时 " + runTimeout.toSeconds() + "s)");
-        lineConsumer.accept("[nook] ────────────────────────────────────────");
+        // try/finally 兜底: upload 写一半失败 / execStream 超时抛 / bash 在 rm 前被 kill 这些路径都会让远端 /tmp 残留;
+        // finally 静默 rm 防止长期堆积 (主路径里 cmd 自带 rm, 这里是 fallback).
+        try {
+            session.ssh().uploadString(remote, script, UPLOAD_TIMEOUT);
+            lineConsumer.accept("[nook] 上传完成, 开始执行(超时 " + runTimeout.toSeconds() + "s)");
+            lineConsumer.accept("[nook] ────────────────────────────────────────");
 
-        String cmd = "bash '" + remote + "' 2>&1; rc=$?; rm -f '" + remote + "'; exit $rc";
-        session.ssh().execStream(cmd, runTimeout, lineConsumer);
+            String cmd = "bash '" + remote + "' 2>&1; rc=$?; rm -f '" + remote + "'; exit $rc";
+            session.ssh().execStream(cmd, runTimeout, lineConsumer);
 
-        lineConsumer.accept("[nook] ────────────────────────────────────────");
-        lineConsumer.accept("[nook] 远端脚本已结束, 临时文件已清理");
+            lineConsumer.accept("[nook] ────────────────────────────────────────");
+            lineConsumer.accept("[nook] 远端脚本已结束, 临时文件已清理");
+        } finally {
+            cleanupQuietly(session, remote);
+        }
+    }
+
+    /** 远端临时脚本兜底清理; 静默吞错避免覆盖原始失败原因. */
+    private static void cleanupQuietly(SshSession session, String remotePath) {
+        try {
+            String safe = remotePath.replace("'", "'\\''");
+            session.ssh().exec("rm -f '" + safe + "'", CLEANUP_TIMEOUT);
+        } catch (RuntimeException cleanupErr) {
+            log.warn("[script-runner] 清理临时脚本失败 server={} path={}",
+                    session.serverId(), remotePath, cleanupErr);
+        }
     }
 
     private String renderTemplate(String classpath, Map<String, String> vars) {

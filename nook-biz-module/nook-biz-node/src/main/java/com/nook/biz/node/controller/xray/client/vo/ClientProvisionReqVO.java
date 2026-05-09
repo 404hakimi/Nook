@@ -24,7 +24,7 @@ public class ClientProvisionReqVO {
     private String externalInboundRef;
 
     @NotBlank(message = "protocol 不能为空")
-    @Pattern(regexp = "vless|vmess|trojan|shadowsocks", message = "protocol 必须是 vless/vmess/trojan/shadowsocks")
+    @Pattern(regexp = "vless|vmess|trojan", message = "protocol 必须是 vless/vmess/trojan")
     private String protocol;
 
     /** 传输方式；可选 */

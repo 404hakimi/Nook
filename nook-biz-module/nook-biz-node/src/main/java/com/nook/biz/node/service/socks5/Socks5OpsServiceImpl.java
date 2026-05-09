@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.socks5;
 
+import jakarta.annotation.Resource;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.resource.api.ResourceIpPoolApi;
@@ -12,9 +13,8 @@ import com.nook.biz.node.convert.socks5.Socks5OpsConvert;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.framework.socks5.probe.Socks5Prober;
-import com.nook.biz.node.framework.server.session.ServerSessionManager;
+import com.nook.biz.node.framework.ssh.SshSessionManager;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -26,7 +26,6 @@ import java.util.function.Consumer;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class Socks5OpsServiceImpl implements Socks5OpsService {
 
     /** 安装超时; apt 拉包慢可能要几分钟, 给 10 分钟兜底. */
@@ -35,10 +34,14 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
     private static final String TMPL_INSTALL_SOCKS5 = "scripts/install-socks5-landing.sh.tmpl";
     private static final String TMP_PREFIX = "nook-install-socks5";
 
-    private final ServerSessionManager sessionManager;
-    private final RemoteScriptRunner scriptRunner;
-    private final Socks5Prober socks5Prober;
-    private final ResourceIpPoolApi resourceIpPoolApi;
+    @Resource
+    private SshSessionManager sessionManager;
+    @Resource
+    private RemoteScriptRunner scriptRunner;
+    @Resource
+    private Socks5Prober socks5Prober;
+    @Resource
+    private ResourceIpPoolApi resourceIpPoolApi;
 
     @Override
     public void installAdHocStreaming(Socks5InstallReqVO reqVO, Consumer<String> lineSink) {
@@ -69,6 +72,7 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
         return Socks5OpsConvert.INSTANCE.convert(snap);
     }
 
+    /** 把请求里的 ad-hoc SSH 字段封成 ServerCredentialDTO; 不入库, 只为统一调用 SshSessionManager. */
     private ServerCredentialDTO buildAdHocCred(Socks5InstallReqVO r) {
         return ServerCredentialDTO.builder()
                 .serverId("ad-hoc:" + r.getSshHost())  // 仅供日志识别, 不参与 DB 查询
@@ -81,6 +85,7 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
                 .build();
     }
 
+    /** 模板渲染变量表 (RENDER_AT/SOCKS_PORT/...); ALLOW_FROM 默认 0.0.0.0/0, INSTALL_UFW 默认 false. */
     private Map<String, String> buildVars(Socks5InstallReqVO r) {
         return Map.of(
                 "RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),

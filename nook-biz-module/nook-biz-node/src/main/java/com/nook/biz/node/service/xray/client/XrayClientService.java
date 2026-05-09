@@ -8,31 +8,81 @@ import com.nook.biz.node.controller.xray.client.vo.ClientUpdateReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.common.web.response.PageResult;
 
-/** Client 全生命周期 (开通/吊销/轮换/查流量); 远端通过 ServerSessionManager 统一调度. */
+/**
+ * Xray client 全生命周期 (开通 / 吊销 / 轮换 / 查流量), 远端走 gRPC.
+ *
+ * @author nook
+ */
 public interface XrayClientService {
 
+    /**
+     * 单条 client 详情.
+     *
+     * @param id xray_client.id
+     * @return XrayClientDO
+     */
     XrayClientDO findById(String id);
 
+    /**
+     * 分页查询 client.
+     *
+     * @param reqVO 分页 + 过滤条件
+     * @return PageResult of XrayClientDO
+     */
     PageResult<XrayClientDO> page(ClientPageReqVO reqVO);
 
-    /** 同 (memberUserId, ipId) 已存在抛 CLIENT_DUPLICATE; 远端 addUser 失败不写 DB. */
+    /**
+     * 开通 client, 远端 addUser 成功后才落 DB; 同 (memberUserId, ipId) 已存在抛 CLIENT_DUPLICATE.
+     *
+     * @param reqVO 开通入参
+     * @return XrayClientDO
+     */
     XrayClientDO provision(ClientProvisionReqVO reqVO);
 
-    /** 远端 CLIENT_NOT_FOUND 也算成功; DB 软删 + reconcile 清场 (失败仅 warn). */
+    /**
+     * 吊销 client, 远端先删再软删 DB; 远端 CLIENT_NOT_FOUND 也算成功 (目标态本就是没了).
+     *
+     * @param inboundEntityId xray_client.id
+     */
     void revoke(String inboundEntityId);
 
-    /** del 旧 + add 新 + update DB; add 失败标 status=3 待 reconciler 修复. */
+    /**
+     * 轮换协议密钥 (del 旧 → add 新 → update DB), 中途失败标 status=3 待 reconciler 修复.
+     *
+     * @param inboundEntityId xray_client.id
+     * @return XrayClientDO
+     */
     XrayClientDO rotate(String inboundEntityId);
 
-    /** 实时流量 + 配额; 直接返回 VO (内部读 framework stats + convert). */
+    /**
+     * 实时流量与配额, 内部读 framework stats 后 convert 成 VO.
+     *
+     * @param inboundEntityId xray_client.id
+     * @return ClientTrafficRespVO
+     */
     ClientTrafficRespVO getTraffic(String inboundEntityId);
 
-    /** 流量计数清零; 不动客户端本身. */
+    /**
+     * 累计上下行计数清零, 不影响 client 本身.
+     *
+     * @param inboundEntityId xray_client.id
+     */
     void resetTraffic(String inboundEntityId);
 
-    /** 仅覆盖 listenIp/listenPort/transport/status 本地元数据; 不触达远端. */
+    /**
+     * 编辑本地元数据 (listenIp / listenPort / transport / status), 不触达远端.
+     *
+     * @param inboundEntityId xray_client.id
+     * @param reqVO           更新入参
+     * @return XrayClientDO
+     */
     XrayClientDO update(String inboundEntityId, ClientUpdateReqVO reqVO);
 
-    /** 协议级凭据明文 (UUID + 服务器 host); 仅"分享给会员"场景按需取, 列表接口下发的是 mask 形式. */
+    /**
+     * 协议级凭据明文 (UUID + 服务器 host), 拼订阅链接用; 与 list/detail 的 mask 行为区分.
+     *
+     * @param inboundEntityId xray_client.id
+     * @return ClientCredentialRespVO
+     */
     ClientCredentialRespVO loadCredential(String inboundEntityId);
 }

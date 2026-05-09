@@ -1,16 +1,16 @@
 package com.nook.biz.node.service.xray.server;
 
+import jakarta.annotation.Resource;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.controller.xray.server.vo.LineServerInstallReqVO;
 import com.nook.biz.node.controller.xray.server.vo.ServiceStatusRespVO;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
-import com.nook.biz.node.framework.server.session.ServerSessionManager;
+import com.nook.biz.node.framework.ssh.SshSessionManager;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.biz.node.framework.xray.RemoteFiles;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +22,6 @@ import java.util.function.Consumer;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     /** 安装超时; apt 拉包慢可能要几分钟, 给 10 分钟兜底. */
@@ -34,10 +33,14 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private static final String TMPL_INSTALL = "scripts/install-line-server.sh.tmpl";
     private static final String TMP_PREFIX = "nook-install-xray";
 
-    private final ServerSessionManager sessionManager;
-    private final RemoteScriptRunner scriptRunner;
-    private final ServerProbe serverProbe;
-    private final XrayDaemonProbe xrayDaemonProbe;
+    @Resource
+    private SshSessionManager sessionManager;
+    @Resource
+    private RemoteScriptRunner scriptRunner;
+    @Resource
+    private ServerProbe serverProbe;
+    @Resource
+    private XrayDaemonProbe xrayDaemonProbe;
 
     @Override
     public void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink) {
@@ -88,6 +91,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         ).stdout();
     }
 
+    /** 部署模板渲染变量表; INSTALL_UFW / ENABLE_BBR 默认 false, TIMEZONE 默认 "skip" 即不调时区. */
     private Map<String, String> buildInstallVars(String serverId, LineServerInstallReqVO r) {
         boolean installUfw = r.getInstallUfw() != null && r.getInstallUfw();
         boolean enableBbr = r.getEnableBbr() != null && r.getEnableBbr();

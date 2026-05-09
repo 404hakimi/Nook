@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.Arrays;
 
-/** Xray 协议映射 (vmess/vless/trojan/shadowsocks); 屏蔽各协议在 gRPC AddUser 与 xray.json 字段上的差异. */
+/** Xray 协议映射 (vmess/vless/trojan); 屏蔽各协议在 gRPC AddUser 与 xray.json 字段上的差异. shadowsocks 暂不支持. */
 @Getter
 @RequiredArgsConstructor
 public enum InboundProtocolMapping {
