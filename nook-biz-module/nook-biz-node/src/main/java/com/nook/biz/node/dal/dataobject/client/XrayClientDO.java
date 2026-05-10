@@ -1,6 +1,5 @@
 package com.nook.biz.node.dal.dataobject.client;
 
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.Data;
@@ -45,7 +44,4 @@ public class XrayClientDO extends BaseEntity {
     private Integer status;
 
     private LocalDateTime lastSyncedAt;
-
-    @TableLogic
-    private Integer deleted;
 }

@@ -1,22 +1,19 @@
 package com.nook.biz.node.service.xray.server;
 
-import jakarta.annotation.Resource;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.controller.xray.server.vo.LineServerInstallReqVO;
 import com.nook.biz.node.controller.xray.server.vo.ServiceStatusRespVO;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
+import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.biz.node.framework.ssh.SshSession;
 import com.nook.biz.node.framework.ssh.SshSessionManager;
-import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
-import com.nook.biz.node.validator.XrayServerInstallValidator;
-import com.nook.common.web.error.CommonErrorCode;
-import com.nook.common.web.exception.BusinessException;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -41,13 +38,9 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private XrayDaemonProbe xrayDaemonProbe;
     @Resource
     private XrayNodeService xrayNodeService;
-    @Resource
-    private XrayServerInstallValidator installValidator;
 
     @Override
     public void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink) {
-        requireServerId(serverId);
-        installValidator.validateForInstall(reqVO);
         SshSession session = sessionManager.acquire(serverId);
         Map<String, String> vars = buildInstallVars(serverId, reqVO);
         String script = assembleInstallScript(reqVO, vars);
@@ -81,7 +74,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     @Override
     public String restart(String serverId) {
-        requireServerId(serverId);
         SshSession session = sessionManager.acquire(serverId);
         String unit = XrayConstants.SYSTEMD_UNIT;
         // restart → sleep 2 → is-active → xray version: 一条复合命令拿"是否活+版本"做前端展示
@@ -93,7 +85,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     @Override
     public ServiceStatusRespVO status(String serverId) {
-        requireServerId(serverId);
         // ServerProbe 只回通用 systemd 状态 (active/uptime/enabled); xray 专属 (version + 监听端口) 走 XrayDaemonProbe
         SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(serverId, XrayConstants.SYSTEMD_UNIT);
         int apiPort = xrayNodeService.loadOrThrow(serverId).getXrayApiPort();
@@ -111,7 +102,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     @Override
     public String setAutostart(String serverId, boolean enabled) {
-        requireServerId(serverId);
         SshSession session = sessionManager.acquire(serverId);
         String unit = XrayConstants.SYSTEMD_UNIT;
         // enable/disable 退出码非 0 也算正常 (already-enabled 等), 用 || true 兜底; 末尾 is-enabled 给前端确认结果
@@ -149,13 +139,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         sb.append(scriptRunner.renderTemplate(RemoteScriptPaths.INSTALL_MODULES_DIR + moduleFile, vars)).append("\n");
     }
 
-    private static void requireServerId(String serverId) {
-        if (StrUtil.isBlank(serverId)) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "serverId 不能为空");
-        }
-    }
-
-    /** 部署模板渲染变量表; reqVO 字段已被 XrayServerInstallValidator 校验, 这里直接拆箱. */
+    /** 部署模板渲染变量表; reqVO 字段已被 jakarta @Valid + @AssertTrue 校验, 这里直接拆箱. */
     private Map<String, String> buildInstallVars(String serverId, LineServerInstallReqVO r) {
         int slotPortEnd = r.getSlotPortBase() + r.getSlotPoolSize();
 

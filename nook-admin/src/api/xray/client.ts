@@ -5,6 +5,10 @@ export interface XrayClient {
   id: string
   serverId: string
   ipId: string
+  /**
+   * 落地 IP 地址 (后端按 ipId 在 resource_ip_pool 里 enrich); 已删/缺失时后端会留空, 由前端 fallback 到 ipId 显示.
+   */
+  ipAddress?: string
   memberUserId: string
   /** 挂到的远端 Xray inbound tag */
   externalInboundRef: string

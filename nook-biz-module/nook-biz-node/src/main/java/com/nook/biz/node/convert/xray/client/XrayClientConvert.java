@@ -8,6 +8,7 @@ import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.factory.Mappers;
 
@@ -19,6 +20,11 @@ public interface XrayClientConvert {
 
     XrayClientConvert INSTANCE = Mappers.getMapper(XrayClientConvert.class);
 
+    /**
+     * ipAddress 不在 DO 上, 由 controller 调 service.enrichIpAddress 批量补,
+     * 这里显式 ignore 以静默 mapstruct "Unmapped target property" 警告.
+     */
+    @Mapping(target = "ipAddress", ignore = true)
     ClientRespVO convert(XrayClientDO entity);
 
     List<ClientRespVO> convertList(List<XrayClientDO> entities);

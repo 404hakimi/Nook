@@ -37,18 +37,25 @@ public class XrayClientController {
 
     @GetMapping
     public Result<PageResult<ClientRespVO>> page(@ModelAttribute ClientPageReqVO reqVO) {
-        return Result.ok(XrayClientConvert.INSTANCE.convertPage(xrayClientService.page(reqVO)));
+        PageResult<ClientRespVO> page = XrayClientConvert.INSTANCE.convertPage(xrayClientService.page(reqVO));
+        // page 出参一行一行展示给运维, 把 ipId hash 翻成可读 ipAddress; 这里走 service 的批量 enrich, 一次 SQL
+        xrayClientService.enrichIpAddress(page.getRecords());
+        return Result.ok(page);
     }
 
     @GetMapping("/{id}")
     public Result<ClientRespVO> detail(@PathVariable String id) {
-        return Result.ok(XrayClientConvert.INSTANCE.convert(xrayClientService.findById(id)));
+        ClientRespVO vo = XrayClientConvert.INSTANCE.convert(xrayClientService.findById(id));
+        xrayClientService.enrichIpAddress(java.util.Collections.singletonList(vo));
+        return Result.ok(vo);
     }
 
     @PostMapping("/provision")
     public Result<ClientRespVO> provision(@RequestBody @Valid ClientProvisionReqVO reqVO) {
         XrayClientDO e = xrayClientService.provision(reqVO);
-        return Result.ok(XrayClientConvert.INSTANCE.convert(e));
+        ClientRespVO vo = XrayClientConvert.INSTANCE.convert(e);
+        xrayClientService.enrichIpAddress(java.util.Collections.singletonList(vo));
+        return Result.ok(vo);
     }
 
     @PutMapping("/{id}")
@@ -66,7 +73,9 @@ public class XrayClientController {
 
     @PostMapping("/{id}/rotate")
     public Result<ClientRespVO> rotate(@PathVariable String id) {
-        return Result.ok(XrayClientConvert.INSTANCE.convert(xrayClientService.rotate(id)));
+        ClientRespVO vo = XrayClientConvert.INSTANCE.convert(xrayClientService.rotate(id));
+        xrayClientService.enrichIpAddress(java.util.Collections.singletonList(vo));
+        return Result.ok(vo);
     }
 
     @GetMapping("/{id}/traffic")

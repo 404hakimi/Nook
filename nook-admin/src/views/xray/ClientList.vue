@@ -41,6 +41,7 @@ import ClientEditDialog from './ClientEditDialog.vue'
 import ClientProvisionDialog from './ClientProvisionDialog.vue'
 import ClientShareDialog from './ClientShareDialog.vue'
 import ClientTrafficDialog from './ClientTrafficDialog.vue'
+import IpPoolDetailDialog from '@/views/resource/IpPoolDetailDialog.vue'
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -232,6 +233,16 @@ async function onEdited() {
   await loadList()
 }
 
+// ===== IP 详情弹框 (点 IP 列触发, 仅展示, 不在这里改 IP) =====
+const ipDetailOpen = ref(false)
+const ipDetailId = ref<string>('')
+function openIpDetail(ipId: string) {
+  // 兼容老数据 / IP 已删的行: 没有 ipId 不弹, 列已经显示空, 点了也无意义
+  if (!ipId) return
+  ipDetailId.value = ipId
+  ipDetailOpen.value = true
+}
+
 // ===== 行操作菜单 =====
 const ROW_ACTIONS: DropdownOption[] = [
   {
@@ -313,9 +324,24 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
     render: (row) => h('span', { class: 'font-mono text-xs' }, row.memberUserId)
   },
   {
-    title: 'IP ID',
-    key: 'ipId',
-    render: (row) => h('span', { class: 'font-mono text-xs' }, row.ipId)
+    title: '落地 IP',
+    key: 'ipAddress',
+    render: (row) => {
+      // 后端 enrich 失败 (IP 已删 / 异常) 时回落显示 ipId 截断, 鼠标悬停看完整 id, 仍可点开看详情
+      const display = row.ipAddress || (row.ipId ? row.ipId.slice(0, 8) + '…' : '-')
+      return h(
+        NButton,
+        {
+          text: true,
+          type: 'primary',
+          size: 'small',
+          disabled: !row.ipId,
+          title: row.ipAddress ? row.ipId : '点击查看 IP 详情',
+          onClick: () => openIpDetail(row.ipId)
+        },
+        { default: () => h('span', { class: 'font-mono text-xs' }, display) }
+      )
+    }
   },
   {
     title: '状态',
@@ -518,5 +544,7 @@ onMounted(() => {
     />
     <!-- ShareDialog 自己拉 reveal 接口拿明文凭据, 不依赖父组件传 serverMap -->
     <ClientShareDialog v-model="shareOpen" :client="shareTarget" />
+    <!-- 点击列表 IP 列触发: 只读详情, 不带改 IP 入口 (改 IP 走 IP 池管理页) -->
+    <IpPoolDetailDialog v-model="ipDetailOpen" :ip-id="ipDetailId" />
   </div>
 </template>

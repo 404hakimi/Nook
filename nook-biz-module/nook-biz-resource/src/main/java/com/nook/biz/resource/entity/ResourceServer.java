@@ -1,6 +1,5 @@
 package com.nook.biz.resource.entity;
 
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.Data;
@@ -57,7 +56,4 @@ public class ResourceServer extends BaseEntity {
     private Integer status;
 
     private String remark;
-
-    @TableLogic
-    private Integer deleted;
 }

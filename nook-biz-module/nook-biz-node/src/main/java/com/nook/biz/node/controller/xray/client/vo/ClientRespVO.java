@@ -11,6 +11,11 @@ public class ClientRespVO {
     private String id;
     private String serverId;
     private String ipId;
+    /**
+     * 落地 IP 地址 (resource_ip_pool.ip_address); ipId 在 DB 是 32 位 hash 主键, 列表页直接展示对运维不友好.
+     * 走 controller 的 enrichIpAddress 在 page/detail/provision/rotate 出参里批量补; 已删 IP 该字段为空, 由前端 fallback 到 ipId.
+     */
+    private String ipAddress;
     private String memberUserId;
     private String externalInboundRef;
     private String protocol;

@@ -1,14 +1,15 @@
 package com.nook.biz.node.service.xray.client;
 
-import jakarta.annotation.Resource;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import jakarta.annotation.Resource;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.controller.xray.client.vo.ClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientPageReqVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientProvisionReqVO;
+import com.nook.biz.node.controller.xray.client.vo.ClientRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientUpdateReqVO;
 import com.nook.biz.node.convert.xray.client.XrayClientConvert;
@@ -34,6 +35,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -61,9 +68,6 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     @Override
     public XrayClientDO findById(String id) {
-        if (StrUtil.isBlank(id)) {
-            throw new BusinessException(XrayErrorCode.CLIENT_ENTITY_NOT_FOUND, "<blank>");
-        }
         return clientValidator.validateExists(id);
     }
 
@@ -77,8 +81,8 @@ public class XrayClientServiceImpl implements XrayClientService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public XrayClientDO provision(ClientProvisionReqVO reqVO) {
-        // ① 业务校验: 字段范围 + 协议白名单 + (memberId, ipId) 防重 (软删行已被 @TableLogic 自动跳过)
-        clientValidator.validateForProvision(reqVO);
+        // ① 业务校验: (memberUserId, ipId) 防重 (吊销走硬删, 旧行不存在 = 可重新 provision)
+        clientValidator.validateNotDuplicate(reqVO.getMemberUserId(), reqVO.getIpId());
 
         // ② 加载 server 端 xray 节点配置 (slot_pool_size / slot_port_base / xray_api_port)
         XrayNodeDO node = xrayNodeService.loadOrThrow(reqVO.getServerId());
@@ -204,7 +208,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                     e.getServerId(), outboundTag, re);
         }
 
-        // DB 软删 + slot 释放
+        // DB 硬删 + slot 释放
         xrayClientMapper.deleteById(e.getId());
         slotPoolService.release(e.getServerId(), e.getSlotIndex());
         log.info("[revoke] OK server={} slot={} email={}",
@@ -270,11 +274,31 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     @Override
     public void update(String inboundEntityId, ClientUpdateReqVO reqVO) {
-        clientValidator.validateForUpdate(reqVO);
+        // 校验 client 存在
         clientValidator.validateExists(inboundEntityId);
+        // 更新本地元数据; null 字段由 MP NOT_NULL 策略跳过, 即"保留原值"
         XrayClientDO entity = BeanUtils.toBean(reqVO, XrayClientDO.class);
         xrayClientMapper.update(entity, Wrappers.<XrayClientDO>lambdaUpdate()
                 .eq(XrayClientDO::getId, inboundEntityId));
+    }
+
+    @Override
+    public void enrichIpAddress(Collection<ClientRespVO> vos) {
+        if (vos == null || vos.isEmpty()) return;
+        // 收集 ipId 去重一次后批量查; 与上面 IP 池条目一对多关系无关, 这里只取地址展示用
+        Set<String> ipIds = new HashSet<>();
+        List<ClientRespVO> targets = new ArrayList<>(vos.size());
+        for (ClientRespVO v : vos) {
+            if (v == null) continue;
+            targets.add(v);
+            if (StrUtil.isNotBlank(v.getIpId())) ipIds.add(v.getIpId());
+        }
+        if (ipIds.isEmpty()) return;
+        Map<String, String> idToAddr = resourceIpPoolApi.loadIpAddressMap(ipIds);
+        for (ClientRespVO v : targets) {
+            String addr = idToAddr.get(v.getIpId());
+            if (addr != null) v.setIpAddress(addr);
+        }
     }
 
     @Override

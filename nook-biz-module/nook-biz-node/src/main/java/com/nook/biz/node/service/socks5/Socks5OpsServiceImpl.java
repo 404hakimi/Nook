@@ -10,12 +10,9 @@ import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.framework.socks5.probe.Socks5Prober;
 import com.nook.biz.node.framework.ssh.SshSessionManager;
-import com.nook.biz.node.validator.Socks5InstallValidator;
 import com.nook.biz.resource.api.ResourceIpPoolApi;
 import com.nook.biz.resource.api.dto.IpPoolEntryDTO;
 import com.nook.biz.resource.api.dto.ServerCredentialDTO;
-import com.nook.common.web.error.CommonErrorCode;
-import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,12 +35,9 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
     private Socks5Prober socks5Prober;
     @Resource
     private ResourceIpPoolApi resourceIpPoolApi;
-    @Resource
-    private Socks5InstallValidator installValidator;
 
     @Override
     public void installAdHocStreaming(Socks5InstallReqVO reqVO, Consumer<String> lineSink) {
-        installValidator.validateForInstall(reqVO);
         ServerCredentialDTO cred = buildAdHocCred(reqVO);
         Map<String, String> vars = buildVars(reqVO);
         Duration installTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
@@ -55,9 +49,6 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
 
     @Override
     public Socks5TestRespVO testConnectivity(String ipId) {
-        if (StrUtil.isBlank(ipId)) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "ipId 不能为空");
-        }
         IpPoolEntryDTO ip = resourceIpPoolApi.loadEntry(ipId);
         if (StrUtil.isBlank(ip.getSocks5Host()) || ObjectUtil.isNull(ip.getSocks5Port())) {
             // 凭据未配置时不调 prober, 直接返回结构化失败 (与"拨号失败"区分)

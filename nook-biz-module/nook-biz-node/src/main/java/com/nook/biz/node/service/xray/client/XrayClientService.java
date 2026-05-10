@@ -3,10 +3,13 @@ package com.nook.biz.node.service.xray.client;
 import com.nook.biz.node.controller.xray.client.vo.ClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientPageReqVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientProvisionReqVO;
+import com.nook.biz.node.controller.xray.client.vo.ClientRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientUpdateReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.common.web.response.PageResult;
+
+import java.util.Collection;
 
 /**
  * Xray client 全生命周期 (开通 / 吊销 / 轮换 / 查流量); 远端走 SSH + xray CLI.
@@ -40,7 +43,7 @@ public interface XrayClientService {
     XrayClientDO provision(ClientProvisionReqVO reqVO);
 
     /**
-     * 吊销 client, 远端先删再软删 DB; 远端 CLIENT_NOT_FOUND 也算成功 (目标态本就是没了).
+     * 吊销 client, 远端先删再硬删 DB; 远端 CLIENT_NOT_FOUND 也算成功 (目标态本就是没了).
      *
      * @param inboundEntityId xray_client.id
      */
@@ -84,4 +87,12 @@ public interface XrayClientService {
      * @return ClientCredentialRespVO
      */
     ClientCredentialRespVO loadCredential(String inboundEntityId);
+
+    /**
+     * 给一批出参 VO 批量补 ipAddress (按 ipId 一次性查 resource_ip_pool); list / detail / provision / rotate 出参共用.
+     * 已删 / 不存在的 IP 不写, ipAddress 留 null 由前端 fallback 显示 ipId.
+     *
+     * @param vos 待补字段的 VO 列表; null / 空集合不报错
+     */
+    void enrichIpAddress(Collection<ClientRespVO> vos);
 }

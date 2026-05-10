@@ -52,7 +52,7 @@ const TIMEZONE_OPTIONS = [
 ]
 
 /** 项目认可的 Xray 稳定版; 升级时改这里. (后端不再有 fallback, 必须前端传值) */
-const XRAY_DEFAULT_VERSION = 'v1.8.23'
+const XRAY_DEFAULT_VERSION = 'v26.3.27'
 
 const XRAY_VERSION_OPTIONS = [
   { label: `${XRAY_DEFAULT_VERSION} (稳定版, 推荐)`, value: XRAY_DEFAULT_VERSION },
