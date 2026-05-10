@@ -42,19 +42,19 @@ public class XraySlotPoolServiceImpl implements XraySlotPoolService {
     @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public int allocate(String serverId, String clientId) {
         // SELECT FOR UPDATE 锁住一个空闲 slot; 与同 server 的并发 allocate 会串行化
-        XraySlotPoolDO free = slotPoolMapper.pickFreeSlotForUpdate(serverId);
-        if (free == null) {
+        XraySlotPoolDO slotPool = slotPoolMapper.pickFreeSlotForUpdate(serverId);
+        if (slotPool == null) {
             throw new BusinessException(XrayErrorCode.SLOT_POOL_EXHAUSTED, serverId);
         }
-        int affected = slotPoolMapper.occupy(serverId, free.getSlotIndex(), clientId);
+        int affected = slotPoolMapper.occupy(serverId, slotPool.getSlotIndex(), clientId);
         if (affected != 1) {
             // 理论上 SELECT FOR UPDATE 锁住后 occupy 必成功, 走到这里说明锁实现异常
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
-                    serverId, "slot occupy 失败 slot=" + free.getSlotIndex() + " affected=" + affected);
+                    serverId, "slot occupy 失败 slot=" + slotPool.getSlotIndex() + " affected=" + affected);
         }
         log.info("[slot-pool] allocate server={} slot={} client={}",
-                serverId, free.getSlotIndex(), clientId);
-        return free.getSlotIndex();
+                serverId, slotPool.getSlotIndex(), clientId);
+        return slotPool.getSlotIndex();
     }
 
     @Override
