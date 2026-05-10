@@ -6,7 +6,6 @@ import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -24,6 +23,9 @@ public class ResourceIpPool extends BaseEntity {
     /** 关联 resource_ip_type.id */
     private String ipTypeId;
 
+    /** 部署模式: 1=self_deploy (SSH+SOCKS5, 入库后可一键部署) 2=external (仅 SOCKS5, 第三方现成) */
+    private Integer provisionMode;
+
     /** 出网真实 IP, 用户对外暴露的就是这个 */
     private String ipAddress;
 
@@ -40,14 +42,6 @@ public class ResourceIpPool extends BaseEntity {
 
     private LocalDateTime coolingUntil;
 
-    /** 综合评分 0-100. */
-    private BigDecimal score;
-
-    /** Scamalytics 第三方评分. */
-    private Integer scamalyticsScore;
-
-    /** IPQS 第三方评分. */
-    private Integer ipqsScore;
     private Integer assignCount;
     private LocalDateTime lastHealthAt;
 

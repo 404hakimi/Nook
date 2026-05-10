@@ -34,7 +34,7 @@ interface Props {
   mode: 'create' | 'edit'
   ip?: ResourceIpPool | null
   ipTypes: ResourceIpType[]
-  /** 由 DeployDialog 部署成功后接力传入, 自动填 SOCKS5 字段, 用户只需补 region/类型/IP/score 即可落库。 */
+  /** 由 DeployDialog 部署成功后接力传入, 自动填 SOCKS5 字段, 用户只需补 region/类型/IP 即可落库。 */
   socksPrefill?: SocksPrefill | null
 }
 const props = defineProps<Props>()
@@ -74,9 +74,6 @@ const form = reactive({
   socks5Username: '',
   socks5Password: '',
   status: 1,
-  score: undefined as number | undefined,
-  scamalyticsScore: undefined as number | undefined,
-  ipqsScore: undefined as number | undefined,
   remark: ''
 })
 
@@ -92,9 +89,6 @@ function fill(ip: ResourceIpPool) {
   // 接口下发明文密码, 直接 fill 进密码框 (UI 自然遮盖); 用户改一字会立即覆盖, 不改就保持
   form.socks5Password = ip.socks5Password ?? ''
   form.status = ip.status
-  form.score = typeof ip.score === 'string' ? Number(ip.score) : ip.score
-  form.scamalyticsScore = ip.scamalyticsScore
-  form.ipqsScore = ip.ipqsScore
   form.remark = ip.remark ?? ''
 }
 
@@ -106,9 +100,6 @@ function reset() {
   form.socks5Username = ''
   form.socks5Password = ''
   form.status = 1
-  form.score = undefined
-  form.scamalyticsScore = undefined
-  form.ipqsScore = undefined
   form.remark = ''
 }
 
@@ -176,9 +167,6 @@ async function onSubmit() {
       socks5Username: form.socks5Username.trim() || undefined,
       socks5Password: form.socks5Password || undefined,
       status: form.status,
-      score: form.score,
-      scamalyticsScore: form.scamalyticsScore,
-      ipqsScore: form.ipqsScore,
       remark: form.remark.trim() || undefined
     }
     if (props.mode === 'create') {
@@ -267,21 +255,6 @@ function close() {
           <NFormItem label="状态">
             <NSelect v-model:value="form.status" :options="STATUS_OPTIONS" />
           </NFormItem>
-
-          <NFormItem>
-            <template #label>
-              <span>综合评分</span>
-              <span class="text-xs text-zinc-400 ml-2">0-100, 越高越优先派发</span>
-            </template>
-            <NInputNumber
-              v-model:value="form.score"
-              :min="0"
-              :max="100"
-              :step="0.01"
-              placeholder="例 100"
-              style="width: 100%"
-            />
-          </NFormItem>
         </div>
 
         <NDivider title-placement="left">SOCKS5 凭据</NDivider>
@@ -343,35 +316,6 @@ function close() {
               />
             </NFormItem>
           </div>
-        </div>
-
-        <NDivider title-placement="left">风险评分 (可选)</NDivider>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-          <NFormItem>
-            <template #label>
-              <span>Scamalytics</span>
-              <span class="text-xs text-zinc-400 ml-2">0-100, 越低越好</span>
-            </template>
-            <NInputNumber
-              v-model:value="form.scamalyticsScore"
-              :min="0"
-              :max="100"
-              style="width: 100%"
-            />
-          </NFormItem>
-
-          <NFormItem>
-            <template #label>
-              <span>IPQualityScore</span>
-              <span class="text-xs text-zinc-400 ml-2">0-100, 越低越好</span>
-            </template>
-            <NInputNumber
-              v-model:value="form.ipqsScore"
-              :min="0"
-              :max="100"
-              style="width: 100%"
-            />
-          </NFormItem>
         </div>
 
         <NFormItem label="备注">

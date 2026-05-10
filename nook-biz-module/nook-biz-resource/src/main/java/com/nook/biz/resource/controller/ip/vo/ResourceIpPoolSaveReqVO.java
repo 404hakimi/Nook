@@ -1,15 +1,11 @@
 package com.nook.biz.resource.controller.ip.vo;
 
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
-
-import java.math.BigDecimal;
 
 /**
  * IP 池新增 / 编辑统一入参; 业务校验 (类型存在 / IP 唯一) 由 ResourceIpPoolValidator 完成.
@@ -27,8 +23,13 @@ public class ResourceIpPoolSaveReqVO {
     @Size(max = 36)
     private String ipTypeId;
 
+    /** 部署模式: 1=self_deploy 2=external. */
+    @NotNull(message = "部署模式不能为空")
+    @Min(value = 1) @Max(value = 2)
+    private Integer provisionMode;
+
     @NotBlank(message = "IP 地址不能为空")
-    @Size(max = 64)
+    @Size(max = 45)
     private String ipAddress;
 
     @NotBlank(message = "SOCKS5 主机不能为空")
@@ -51,15 +52,6 @@ public class ResourceIpPoolSaveReqVO {
     @Min(value = 1) @Max(value = 6)
     private Integer status;
 
-    @DecimalMin("0") @DecimalMax("100")
-    private BigDecimal score;
-
-    @Min(value = 0) @Max(value = 100)
-    private Integer scamalyticsScore;
-
-    @Min(value = 0) @Max(value = 100)
-    private Integer ipqsScore;
-
-    @Size(max = 512)
+    @Size(max = 255)
     private String remark;
 }

@@ -3,7 +3,6 @@ package com.nook.biz.resource.controller.ip.vo;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -17,6 +16,10 @@ public class ResourceIpPoolRespVO {
     private String id;
     private String region;
     private String ipTypeId;
+
+    /** 1=self_deploy 2=external */
+    private Integer provisionMode;
+
     private String ipAddress;
 
     private String socks5Host;
@@ -35,9 +38,6 @@ public class ResourceIpPoolRespVO {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime coolingUntil;
 
-    private BigDecimal score;
-    private Integer scamalyticsScore;
-    private Integer ipqsScore;
     private Integer assignCount;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

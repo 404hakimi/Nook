@@ -17,9 +17,6 @@ export interface ResourceIpPool {
   assignedMemberId?: string
   assignedAt?: string
   coolingUntil?: string
-  score?: number | string
-  scamalyticsScore?: number
-  ipqsScore?: number
   assignCount?: number
   lastHealthAt?: string
   remark?: string
@@ -45,9 +42,6 @@ export interface ResourceIpPoolSaveDTO {
   socks5Username?: string
   socks5Password?: string
   status?: number
-  score?: number
-  scamalyticsScore?: number
-  ipqsScore?: number
   remark?: string
 }
 

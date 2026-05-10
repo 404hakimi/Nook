@@ -25,10 +25,9 @@ export interface SystemUserQuery {
 }
 
 /**
- * 新增/编辑后台用户的统一入参，与后端 SystemUserSaveReqVO 对齐。
- * 字段是否必填由调用语境决定：
- *   - createSystemUser: username / password / role 必填(走 @Validated(Create.class))
- *   - updateSystemUser: 仅传需要修改的字段；username / password 在编辑路径会被后端忽略
+ * 新增/编辑后台用户的入参容器（前端复用一份, 后端拆分为 SystemUserCreateReqVO / SystemUserUpdateReqVO）：
+ *   - createSystemUser: username / password / role 必填
+ *   - updateSystemUser: 仅传需要修改的字段; username / password 不在此接口修改 (密码走 resetSystemUserPassword)
  */
 export interface SystemUserSaveDTO {
   username?: string

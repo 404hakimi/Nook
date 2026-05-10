@@ -352,7 +352,6 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
         { default: () => IP_POOL_STATUS_LABELS[row.status] || row.status }
       )
   },
-  { title: '评分', key: 'score', render: (row) => (row.score ?? '-') as string },
   { title: '分配次数', key: 'assignCount', render: (row) => row.assignCount ?? 0 },
   {
     title: '当前会员',

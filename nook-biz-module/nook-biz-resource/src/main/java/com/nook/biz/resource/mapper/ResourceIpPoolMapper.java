@@ -24,7 +24,7 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPool> {
 
     /**
      * 按 region + ip_type_id 找一个可分配的 IP.
-     * 优先 score 高 + assign_count 低(尽量轮换避免某 IP 一直被同人用).
+     * 优先 assign_count 低(尽量轮换避免某 IP 一直被同人用).
      * @return null 表示池子里没货
      */
     default ResourceIpPool selectAvailable(String region, String ipTypeId) {
@@ -32,7 +32,6 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPool> {
                 .eq(ResourceIpPool::getStatus, 1) // available
                 .eq(StrUtil.isNotBlank(region), ResourceIpPool::getRegion, region)
                 .eq(StrUtil.isNotBlank(ipTypeId), ResourceIpPool::getIpTypeId, ipTypeId)
-                .orderByDesc(ResourceIpPool::getScore)
                 .orderByAsc(ResourceIpPool::getAssignCount)
                 .last("LIMIT 1"));
     }

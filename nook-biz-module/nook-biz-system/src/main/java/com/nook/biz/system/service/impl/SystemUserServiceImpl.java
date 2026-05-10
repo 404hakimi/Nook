@@ -1,16 +1,16 @@
 package com.nook.biz.system.service.impl;
 
-import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.nook.biz.system.constant.SystemErrorCode;
+import com.nook.biz.system.controller.user.vo.SystemUserCreateReqVO;
 import com.nook.biz.system.controller.user.vo.SystemUserPageReqVO;
-import com.nook.biz.system.controller.user.vo.SystemUserSaveReqVO;
+import com.nook.biz.system.controller.user.vo.SystemUserUpdateReqVO;
 import com.nook.biz.system.entity.SystemUser;
 import com.nook.biz.system.mapper.SystemUserMapper;
 import com.nook.biz.system.service.SystemUserService;
-import com.nook.common.web.exception.BusinessException;
+import com.nook.biz.system.validator.SystemUserValidator;
+import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -24,6 +24,7 @@ public class SystemUserServiceImpl implements SystemUserService {
 
     private final SystemUserMapper systemUserMapper;
     private final BCryptPasswordEncoder bCryptPasswordEncoder;
+    private final SystemUserValidator systemUserValidator;
 
     @Override
     public SystemUser findByUsername(String username) {
@@ -32,7 +33,7 @@ public class SystemUserServiceImpl implements SystemUserService {
 
     @Override
     public SystemUser findById(String id) {
-        return systemUserMapper.selectById(id);
+        return systemUserValidator.validateExists(id);
     }
 
     @Override
@@ -48,66 +49,49 @@ public class SystemUserServiceImpl implements SystemUserService {
     }
 
     @Override
-    public SystemUser create(SystemUserSaveReqVO reqVO) {
-        if (systemUserMapper.existsByUsername(reqVO.getUsername())) {
-            throw new BusinessException(SystemErrorCode.USERNAME_EXISTS, reqVO.getUsername());
+    public SystemUser create(SystemUserCreateReqVO reqVO) {
+        // 校验用户名唯一
+        systemUserValidator.validateUsernameUnique(reqVO.getUsername());
+        // 校验邮箱唯一
+        systemUserValidator.validateEmailUnique(null, reqVO.getEmail());
+
+        // 插入用户; 密码 BCrypt 加密, status 默认 1=正常
+        SystemUser entity = BeanUtils.toBean(reqVO, SystemUser.class);
+        entity.setPasswordHash(bCryptPasswordEncoder.encode(reqVO.getPassword()));
+        if (entity.getStatus() == null) {
+            entity.setStatus(1);
         }
-        if (StrUtil.isNotBlank(reqVO.getEmail()) && systemUserMapper.existsByEmail(reqVO.getEmail())) {
-            throw new BusinessException(SystemErrorCode.EMAIL_EXISTS, reqVO.getEmail());
-        }
-        SystemUser e = new SystemUser();
-        e.setUsername(reqVO.getUsername());
-        e.setPasswordHash(bCryptPasswordEncoder.encode(reqVO.getPassword()));
-        e.setRealName(reqVO.getRealName());
-        e.setEmail(reqVO.getEmail());
-        e.setRole(reqVO.getRole());
-        e.setStatus(1);
-        e.setRemark(reqVO.getRemark());
-        systemUserMapper.insert(e);
-        return e;
+        systemUserMapper.insert(entity);
+        return entity;
     }
 
     @Override
-    public SystemUser update(String id, SystemUserSaveReqVO reqVO) {
-        SystemUser exist = systemUserMapper.selectById(id);
-        if (ObjectUtil.isNull(exist)) {
-            throw new BusinessException(SystemErrorCode.USER_NOT_FOUND);
-        }
-        // 空白字符串归一为 null，统一"清空"语义
-        String realName = StrUtil.blankToDefault(reqVO.getRealName(), null);
-        String email = StrUtil.blankToDefault(reqVO.getEmail(), null);
-        String remark = StrUtil.blankToDefault(reqVO.getRemark(), null);
-        // 邮箱发生改动时才查重，避免误命中自己
-        if (StrUtil.isNotBlank(email)
-                && !StrUtil.equals(email, exist.getEmail())
-                && systemUserMapper.existsByEmailExcludingId(email, id)) {
-            throw new BusinessException(SystemErrorCode.EMAIL_EXISTS, email);
-        }
-        // 编辑场景：username / password 字段在此处不生效（前端不展示 + 校验组解耦）；
-        // 走 mapper.updateProfile 显式 set 每个字段，realName/email/remark 可写 null 以支持清空。
-        systemUserMapper.updateProfile(id, realName, email,
-                reqVO.getRole(), reqVO.getStatus(), remark);
-        return systemUserMapper.selectById(id);
+    public void update(String id, SystemUserUpdateReqVO reqVO) {
+        // 校验用户存在
+        systemUserValidator.validateExists(id);
+        // 校验邮箱唯一 (排除自身)
+        systemUserValidator.validateEmailUnique(id, reqVO.getEmail());
+
+        // 更新用户基础信息; null 字段由 MP NOT_NULL 策略跳过, 即"保留原值"
+        SystemUser entity = BeanUtils.toBean(reqVO, SystemUser.class);
+        systemUserMapper.update(entity, Wrappers.<SystemUser>lambdaUpdate().eq(SystemUser::getId, id));
     }
 
     @Override
     public void delete(String id, String currentLoginId) {
-        if (StrUtil.equals(id, currentLoginId)) {
-            throw new BusinessException(SystemErrorCode.CANNOT_DELETE_SELF);
-        }
-        SystemUser exist = systemUserMapper.selectById(id);
-        if (ObjectUtil.isNull(exist)) {
-            throw new BusinessException(SystemErrorCode.USER_NOT_FOUND);
-        }
+        // 校验非自身
+        systemUserValidator.validateNotSelf(id, currentLoginId);
+        // 校验用户存在
+        systemUserValidator.validateExists(id);
+        // 逻辑删除用户
         systemUserMapper.deleteById(id);
     }
 
     @Override
     public void resetPassword(String id, String newPlainPassword) {
-        SystemUser exist = systemUserMapper.selectById(id);
-        if (ObjectUtil.isNull(exist)) {
-            throw new BusinessException(SystemErrorCode.USER_NOT_FOUND);
-        }
+        // 校验用户存在
+        systemUserValidator.validateExists(id);
+        // 更新密码哈希
         systemUserMapper.updatePasswordHash(id, bCryptPasswordEncoder.encode(newPlainPassword));
     }
 }
