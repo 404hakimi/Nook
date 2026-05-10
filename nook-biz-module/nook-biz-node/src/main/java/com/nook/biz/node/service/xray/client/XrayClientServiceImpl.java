@@ -87,8 +87,10 @@ public class XrayClientServiceImpl implements XrayClientService {
         // ② 加载 server 端 xray 节点配置 (slot_pool_size / slot_port_base / xray_api_port)
         XrayNodeDO node = xrayNodeService.loadOrThrow(reqVO.getServerId());
 
-        // ③ 加载落地 IP 凭据 (socks5 host/port/user/pass)
-        IpPoolEntryDTO ipEntry = resourceIpPoolApi.loadEntry(reqVO.getIpId());
+        // ③ 原子占用落地 IP (available → occupied) 并同时拿 socks5 凭据;
+        // markOccupied 走 WHERE status=1, IP 已被占用时抛 IP_POOL_NOT_AVAILABLE.
+        // 与下面 CLI 操作处于同一事务内, CLI 失败抛错时事务回滚 → IP 自动回到 available.
+        IpPoolEntryDTO ipEntry = resourceIpPoolApi.occupyById(reqVO.getIpId(), reqVO.getMemberUserId());
         if (StrUtil.isBlank(ipEntry.getSocks5Host()) || ObjectUtil.isNull(ipEntry.getSocks5Port())) {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
                     reqVO.getIpId(), "落地 IP 的 SOCKS5 凭据未配置");
@@ -218,6 +220,16 @@ public class XrayClientServiceImpl implements XrayClientService {
         // DB 硬删 + slot 释放
         xrayClientMapper.deleteById(e.getId());
         slotPoolService.release(e.getServerId(), e.getSlotIndex());
+
+        // 退订落地 IP: occupied → cooling, 等冷却到期由 sweep 任务回到 available;
+        // 走 try 是因为 IP 行可能已被运维手动删 / 状态错位, 不阻断 revoke 主流程
+        try {
+            resourceIpPoolApi.releaseToCooling(e.getIpId());
+        } catch (RuntimeException re) {
+            log.warn("[revoke] IP 退订失败 server={} ipId={}, 需运维手动处理 IP 状态: {}",
+                    e.getServerId(), e.getIpId(), re.getMessage());
+        }
+
         log.info("[revoke] OK server={} slot={} email={}",
                 e.getServerId(), e.getSlotIndex(), e.getClientEmail());
     }

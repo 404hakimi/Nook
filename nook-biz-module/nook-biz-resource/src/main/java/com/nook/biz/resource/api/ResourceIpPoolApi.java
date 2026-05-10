@@ -21,6 +21,16 @@ public interface ResourceIpPoolApi {
      */
     IpPoolEntryDTO pickAvailable(String region, String ipTypeId, String memberUserId);
 
+    /**
+     * 按指定 ipId 原子占用 (provision 走前端选定 IP 的路径用); IP 当前必须是 available, 否则抛 IP_POOL_NOT_AVAILABLE.
+     * 与 pickAvailable 区别: 后者按 region/type 自动挑, 这里指定 id; 都走 markOccupied(WHERE status=1) 防双卖.
+     *
+     * @param ipId         IP 池主键
+     * @param memberUserId 占用方会员
+     * @return IpPoolEntryDTO 含 socks5 凭据 (替代 loadEntry 路径, 一次调用兼任查询和占用)
+     */
+    IpPoolEntryDTO occupyById(String ipId, String memberUserId);
+
     /** 退订: 标记 cooling, 默认 30 分钟后由调度回到 available。 */
     void releaseToCooling(String ipId);
 

@@ -33,6 +33,11 @@ public class ResourceIpPoolApiImpl implements ResourceIpPoolApi {
     }
 
     @Override
+    public IpPoolEntryDTO occupyById(String ipId, String memberUserId) {
+        return toDto(resourceIpPoolService.occupyById(ipId, memberUserId));
+    }
+
+    @Override
     public void releaseToCooling(String ipId) {
         resourceIpPoolService.releaseToCooling(ipId);
     }

@@ -106,6 +106,25 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     }
 
     @Override
+    public ResourceIpPool occupyById(String id, String memberUserId) {
+        // exist 校验 + 拿到原行 (含 ipAddress / 当前 status, 错误信息要用)
+        ResourceIpPool exist = ipPoolValidator.validateExists(id);
+        LocalDateTime now = LocalDateTime.now();
+        // markOccupied 自带 WHERE status=1 防双卖; 0 行 = 当前已不是 available
+        int affected = resourceIpPoolMapper.markOccupied(id, memberUserId, now);
+        if (affected == 0) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_NOT_AVAILABLE,
+                    exist.getIpAddress(), exist.getStatus());
+        }
+        // 内存对象同步反映 DB 更新, 方便上游 toDto 不再多查一次
+        exist.setStatus(2);
+        exist.setAssignedMemberId(memberUserId);
+        exist.setAssignedAt(now);
+        exist.setAssignCount((exist.getAssignCount() == null ? 0 : exist.getAssignCount()) + 1);
+        return exist;
+    }
+
+    @Override
     public void releaseToCooling(String id) {
         ResourceIpPool exist = ipPoolValidator.validateExists(id);
         // ip_type.cooling_minutes 是 NOT NULL 列; 家宽 IP 通常需要更久

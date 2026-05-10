@@ -32,6 +32,11 @@ public interface ResourceIpPoolService {
      */
     ResourceIpPool occupyOne(String region, String ipTypeId, String memberUserId);
 
+    /**
+     * 按指定 ipId 原子占用; markOccupied 0 行受影响时 (IP 当前不是 available) 抛 IP_POOL_NOT_AVAILABLE.
+     */
+    ResourceIpPool occupyById(String id, String memberUserId);
+
     /** 退订: 标记为 cooling, 设冷却到期时间(默认 30 分钟后)。 */
     void releaseToCooling(String id);
 
