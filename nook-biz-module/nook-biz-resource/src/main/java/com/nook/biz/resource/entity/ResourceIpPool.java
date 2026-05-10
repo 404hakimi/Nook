@@ -25,10 +25,9 @@ public class ResourceIpPool extends BaseEntity {
     /** 部署模式: 1=self_deploy (SSH+SOCKS5, 入库后可一键部署) 2=external (仅 SOCKS5, 第三方现成) */
     private Integer provisionMode;
 
-    /** 出网真实 IP, 用户对外暴露的就是这个 */
+    /** 出网真实 IP,*/
     private String ipAddress;
 
-    private String socks5Host;
     private Integer socks5Port;
     private String socks5Username;
     private String socks5Password;
