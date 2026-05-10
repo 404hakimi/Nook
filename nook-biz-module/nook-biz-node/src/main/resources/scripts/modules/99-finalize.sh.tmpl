@@ -1,0 +1,21 @@
+# ===== Module 99: 部署收尾 (必装) =====
+# 触发: 永远
+
+log "=== Module 99: 部署完成总结 ==="
+
+PUBLIC_IP=$(curl -s4 --max-time 5 ifconfig.me 2>/dev/null || echo "<your-ip>")
+
+echo ""
+echo "${GREEN}━━━━━━━━━━━━━━━━ 部署完成 ━━━━━━━━━━━━━━━━${NC}"
+echo "  Server:        {{SERVER_NAME}}"
+echo "  公网 IP:       $PUBLIC_IP"
+echo "  Xray 版本:     $(xray version 2>/dev/null | head -1)"
+echo "  Xray 状态:     $(systemctl is-active xray 2>/dev/null)"
+echo "  gRPC API:      127.0.0.1:{{XRAY_API_PORT}} (走 SSH 隧道访问)"
+echo "  Slot 池:       {{SLOT_POOL_SIZE}} (端口段 {{SLOT_PORT_BASE}}-{{SLOT_PORT_END}})"
+echo "  时区:          $(timedatectl show -p Timezone --value 2>/dev/null || echo unknown)"
+echo "  BBR:           $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)"
+echo "  swap:          $(swapon --show=NAME,SIZE --noheadings 2>/dev/null | head -1 || echo 无)"
+echo "  UFW:           $(ufw status 2>/dev/null | head -1)"
+echo ""
+echo "${GREEN}下一步: 回 nook 后台点 '测速' 验证 gRPC 通信, 然后通过 provision 接口开通客户.${NC}"

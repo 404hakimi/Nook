@@ -1,0 +1,18 @@
+# ===== Module 30: BBR 拥塞控制 (可选) =====
+# 触发: enableBbr=true
+# 适用: Linux 内核 4.9+ (Ubuntu 22 默认 5.x, 一般直接支持)
+
+log "=== Module 30: 启用 BBR ==="
+
+cat > /etc/sysctl.d/90-nook-bbr.conf <<'BBR_EOF'
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+BBR_EOF
+
+sysctl -p /etc/sysctl.d/90-nook-bbr.conf >/dev/null 2>&1 || true
+
+if sysctl net.ipv4.tcp_congestion_control 2>/dev/null | grep -q bbr; then
+    log "✔ BBR 启用成功"
+else
+    warn "BBR 启用失败 (内核可能太老或编译时未启用 BBR), 跳过, 不阻塞"
+fi

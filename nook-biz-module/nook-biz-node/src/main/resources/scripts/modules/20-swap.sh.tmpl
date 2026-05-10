@@ -1,0 +1,40 @@
+# ===== Module 20: swap 启用 (可选) =====
+# 触发: installSwap=true; 大小: {{SWAP_SIZE_MB}} MB
+# 适用场景: 小内存 VPS (1G/2G), 防 xray 在并发用户暴涨时 OOM
+
+log "=== Module 20: 启用 swap ({{SWAP_SIZE_MB}} MB) ==="
+
+# 已存在 swap 跳过 (避免重复部署累加)
+if swapon --show | grep -q '^/'; then
+    EXISTING=$(swapon --show=NAME,SIZE --noheadings | head -1)
+    warn "已存在 swap: $EXISTING — 跳过创建"
+else
+    SWAPFILE=/swapfile
+    SWAP_SIZE_MB={{SWAP_SIZE_MB}}
+
+    log "创建 ${SWAPFILE} (${SWAP_SIZE_MB} MB)..."
+    # fallocate 比 dd 快, 但 ext4/xfs 一般支持; btrfs 需要 dd
+    if fallocate -l "${SWAP_SIZE_MB}M" "$SWAPFILE" 2>/dev/null; then
+        :  # OK
+    else
+        warn "fallocate 失败 (可能 btrfs?), 用 dd 兜底..."
+        dd if=/dev/zero of="$SWAPFILE" bs=1M count="$SWAP_SIZE_MB" status=progress
+    fi
+    chmod 600 "$SWAPFILE"
+    mkswap "$SWAPFILE" >/dev/null
+    swapon "$SWAPFILE"
+
+    # 持久化到 fstab (重启后自动挂回)
+    if ! grep -q "^${SWAPFILE} " /etc/fstab; then
+        echo "${SWAPFILE} none swap sw 0 0" >> /etc/fstab
+        log "✔ 写入 /etc/fstab"
+    fi
+
+    # swappiness 调低: 仅在物理内存吃紧时才用 swap, 减少 IO 抖动
+    sysctl -w vm.swappiness=10 >/dev/null
+    if [[ ! -f /etc/sysctl.d/91-nook-swap.conf ]]; then
+        echo "vm.swappiness=10" > /etc/sysctl.d/91-nook-swap.conf
+    fi
+
+    log "✔ swap 已启用: $(swapon --show=NAME,SIZE --noheadings | head -1)"
+fi

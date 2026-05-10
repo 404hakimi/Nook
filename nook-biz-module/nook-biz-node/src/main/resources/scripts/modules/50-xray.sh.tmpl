@@ -1,0 +1,157 @@
+# ===== Module 50: Xray 安装 + 预置 1:1 config (必装) =====
+# 触发: 永远
+# 关键改动 (相比阶段 1 之前):
+#   - 支持指定版本: {{XRAY_VERSION}} (latest 或 v1.8.23 这种)
+#   - 不生成共享 vmess inbound (1:1 模型: 客户 inbound 由 nook gRPC 动态加)
+#   - 生成 {{SLOT_POOL_SIZE}} 个 placeholder freedom outbound + 静态 routing 规则
+
+log "=== Module 50: Xray 安装 (版本: {{XRAY_VERSION}}, slot 池: {{SLOT_POOL_SIZE}}) ==="
+
+XRAY_CONFIG=/usr/local/etc/xray/config.json
+LOG_DIR={{LOG_DIR}}
+XRAY_VERSION="{{XRAY_VERSION}}"
+XRAY_API_PORT={{XRAY_API_PORT}}
+SLOT_POOL_SIZE={{SLOT_POOL_SIZE}}
+SLOT_PORT_BASE={{SLOT_PORT_BASE}}
+
+# ---------- 1. 装 Xray ----------
+if command -v xray >/dev/null 2>&1 && [[ -f /etc/systemd/system/xray.service ]]; then
+    EXISTING=$(xray version 2>/dev/null | head -1 || echo "?")
+    warn "Xray 已装: $EXISTING (跳过下载)"
+else
+    log "下载安装 Xray ($XRAY_VERSION)..."
+    if [[ "$XRAY_VERSION" == "latest" || -z "$XRAY_VERSION" ]]; then
+        bash -c "$(curl -fsSL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh)" @ install
+    else
+        bash -c "$(curl -fsSL https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh)" @ install --version "$XRAY_VERSION"
+    fi
+fi
+INSTALLED_VER=$(xray version | head -1)
+log "✔ Xray: $INSTALLED_VER"
+
+systemctl stop xray >/dev/null 2>&1 || true
+
+# ---------- 2. 专属 xray 系统用户 ----------
+if ! id xray >/dev/null 2>&1; then
+    log "创建专属 xray 系统用户..."
+    useradd -r -M -s /usr/sbin/nologin -c "Xray service user" xray
+fi
+
+mkdir -p /etc/systemd/system/xray.service.d
+cat > /etc/systemd/system/xray.service.d/user.conf <<'OVERRIDE_EOF'
+# nook 注入: 用专属 xray 账号跑, 替代官方默认 User=nobody
+[Service]
+User=xray
+Group=xray
+OVERRIDE_EOF
+
+# ---------- 3. 生成预置 config (1:1 模型) ----------
+mkdir -p "$LOG_DIR" "$(dirname "$XRAY_CONFIG")"
+
+if [[ -f "$XRAY_CONFIG" ]]; then
+    BACKUP="${XRAY_CONFIG}.bak.$(date +%s)"
+    cp "$XRAY_CONFIG" "$BACKUP"
+    log "原 config 备份到 $BACKUP"
+fi
+
+# 生成 N 个 placeholder outbound + N+1 条 routing rule
+gen_outbounds() {
+    echo '    { "tag": "api",    "protocol": "freedom" },'
+    echo '    { "tag": "direct", "protocol": "freedom" }'
+    for i in $(seq 1 "$SLOT_POOL_SIZE"); do
+        slot=$(printf "%02d" "$i")
+        echo "    ,{ \"tag\": \"out_slot_$slot\", \"protocol\": \"freedom\" }"
+    done
+}
+gen_routing_rules() {
+    echo '      { "type": "field", "inboundTag": ["api"], "outboundTag": "api" }'
+    for i in $(seq 1 "$SLOT_POOL_SIZE"); do
+        slot=$(printf "%02d" "$i")
+        echo "      ,{ \"type\": \"field\", \"inboundTag\": [\"in_slot_$slot\"], \"outboundTag\": \"out_slot_$slot\" }"
+    done
+}
+
+cat > "$XRAY_CONFIG" <<XRAYCONF
+{
+  "log": {
+    "access": "$LOG_DIR/access.log",
+    "error":  "$LOG_DIR/error.log",
+    "loglevel": "warning"
+  },
+  "api": {
+    "tag": "api",
+    "services": ["HandlerService", "LoggerService", "StatsService"]
+  },
+  "stats": {},
+  "policy": {
+    "system": {
+      "statsInboundUplink": true,
+      "statsInboundDownlink": true,
+      "statsOutboundUplink": true,
+      "statsOutboundDownlink": true
+    },
+    "levels": {
+      "0": { "statsUserUplink": true, "statsUserDownlink": true }
+    }
+  },
+  "inbounds": [
+    {
+      "tag": "api",
+      "listen": "127.0.0.1",
+      "port": $XRAY_API_PORT,
+      "protocol": "dokodemo-door",
+      "settings": { "address": "127.0.0.1" }
+    }
+  ],
+  "outbounds": [
+$(gen_outbounds)
+  ],
+  "routing": {
+    "domainStrategy": "AsIs",
+    "rules": [
+$(gen_routing_rules)
+    ]
+  }
+}
+XRAYCONF
+
+# 权限: xray 可读, 不可写
+chown root:xray "$XRAY_CONFIG" 2>/dev/null || chmod 644 "$XRAY_CONFIG"
+chmod 640 "$XRAY_CONFIG" 2>/dev/null || true
+chown -R xray:xray "$LOG_DIR" 2>/dev/null || true
+
+# ---------- 4. 校验 + 启动 ----------
+log "校验 Xray config..."
+test_xray_config() {
+    xray run -test -c "$1" >/dev/null 2>&1 || xray test -c "$1" >/dev/null 2>&1
+}
+if ! test_xray_config "$XRAY_CONFIG"; then
+    err "Xray config 校验失败!"
+    xray run -test -c "$XRAY_CONFIG" 2>&1 || xray test -c "$XRAY_CONFIG" 2>&1 || true
+    exit 1
+fi
+
+systemctl daemon-reload
+systemctl enable xray >/dev/null 2>&1
+systemctl restart xray
+sleep 2
+
+if ! systemctl is-active --quiet xray; then
+    err "Xray 启动失败!"
+    journalctl -u xray -n 30 --no-pager
+    exit 1
+fi
+
+# 验证 gRPC API 监听
+sleep 1
+if ss -ltn 2>/dev/null | grep -q "127.0.0.1:$XRAY_API_PORT "; then
+    log "✔ Xray gRPC API: 127.0.0.1:$XRAY_API_PORT"
+else
+    err "Xray gRPC API 未监听!"
+    journalctl -u xray -n 30 --no-pager
+    exit 1
+fi
+
+OUTBOUND_COUNT=$(jq '.outbounds | length' "$XRAY_CONFIG")
+RULE_COUNT=$(jq '.routing.rules | length' "$XRAY_CONFIG")
+log "✔ Module 50 完成: $OUTBOUND_COUNT outbound, $RULE_COUNT routing rule"

@@ -1,0 +1,10 @@
+# ===== Module 10: 时区设置 (可选) =====
+# 触发: timezone != "skip"
+
+log "=== Module 10: 时区设置 → {{TIMEZONE}} ==="
+
+if timedatectl set-timezone "{{TIMEZONE}}" 2>/dev/null; then
+    log "✔ 时区已设为 {{TIMEZONE}}"
+else
+    warn "时区设置失败 (无效 IANA 名?): {{TIMEZONE}} — 跳过, 不阻塞"
+fi
