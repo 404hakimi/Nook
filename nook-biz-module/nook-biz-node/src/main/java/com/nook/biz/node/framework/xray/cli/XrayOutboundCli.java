@@ -131,24 +131,16 @@ public class XrayOutboundCli {
      */
     private String buildSocksOutboundJson(String tag, String host, int port,
                                           String username, String password) {
-        JSONObject server = new JSONObject();
-        server.put("address", host);
-        server.put("port", port);
-        if (StrUtil.isNotBlank(username) && StrUtil.isNotBlank(password)) {
-            JSONObject user = new JSONObject();
-            user.put("user", username);
-            user.put("pass", password);
-            user.put("level", 0);
-            JSONArray users = new JSONArray();
-            users.add(user);
-            server.put("users", users);
-        }
-
-        JSONArray servers = new JSONArray();
-        servers.add(server);
-
+        // v25.10.15 起 outbound 强制 "1 endpoint + 至多 1 user", 旧的 servers[]/users[] 数组写法被禁,
+        // 新版要求扁平: settings 直接平铺 address / port / user / pass.
         JSONObject settings = new JSONObject();
-        settings.put("servers", servers);
+        settings.put("address", host);
+        settings.put("port", port);
+        if (StrUtil.isNotBlank(username) && StrUtil.isNotBlank(password)) {
+            settings.put("user", username);
+            settings.put("pass", password);
+            settings.put("level", 0);
+        }
 
         JSONObject outbound = new JSONObject();
         outbound.put("tag", tag);

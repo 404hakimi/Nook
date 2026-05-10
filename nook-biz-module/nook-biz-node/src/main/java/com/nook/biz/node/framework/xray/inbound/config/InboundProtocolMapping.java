@@ -27,7 +27,6 @@ public enum InboundProtocolMapping {
             JSONObject c = new JSONObject();
             c.put("id", spec.getUuid());
             c.put("email", spec.getEmail());
-            c.put("alterId", 0);
             c.put("level", 0);
             return c;
         }

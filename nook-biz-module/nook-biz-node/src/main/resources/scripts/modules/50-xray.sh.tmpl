@@ -64,10 +64,11 @@ gen_outbounds() {
     done
 }
 gen_routing_rules() {
-    echo '      { "type": "field", "inboundTag": ["api"], "outboundTag": "api" }'
+    # 新版 xray (v25+) routing rule 已无 "type" 字段; 解析器对其忽略, 这里直接不写减少噪声.
+    echo '      { "inboundTag": ["api"], "outboundTag": "api" }'
     for i in $(seq 1 "$SLOT_POOL_SIZE"); do
         slot=$(printf "%02d" "$i")
-        echo "      ,{ \"type\": \"field\", \"inboundTag\": [\"in_slot_$slot\"], \"outboundTag\": \"out_slot_$slot\" }"
+        echo "      ,{ \"inboundTag\": [\"in_slot_$slot\"], \"outboundTag\": \"out_slot_$slot\" }"
     done
 }
 
