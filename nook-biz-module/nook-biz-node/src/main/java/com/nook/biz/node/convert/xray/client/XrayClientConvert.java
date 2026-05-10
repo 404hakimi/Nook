@@ -34,19 +34,32 @@ public interface XrayClientConvert {
     }
 
     /**
-     * 把远端 traffic 快照 + 实体合并成出参 VO.
+     * 把远端 traffic 快照 + 实体合并成出参 VO; 字节字段同时下发原值 + 人读字符串, 前端零计算.
+     * usagePct: totalBytes=0 时返 null (无限制场景), 让前端 v-if 直接判断.
      *
      * @param e 客户端实体
      * @param t 远端流量快照
      * @return ClientTrafficRespVO
      */
     default ClientTrafficRespVO toTrafficVO(XrayClientDO e, XrayUserTrafficSnapshot t) {
+        long up = t.getUpBytes();
+        long down = t.getDownBytes();
+        long total = t.getTotalBytes();
+        long used = up + down;
+
         ClientTrafficRespVO vo = new ClientTrafficRespVO();
         vo.setInboundEntityId(e.getId());
         vo.setClientEmail(t.getEmail());
-        vo.setUpBytes(t.getUpBytes());
-        vo.setDownBytes(t.getDownBytes());
-        vo.setTotalBytes(t.getTotalBytes());
+        vo.setUpBytes(up);
+        vo.setUpBytesText(BytesFormatter.human(up));
+        vo.setDownBytes(down);
+        vo.setDownBytesText(BytesFormatter.human(down));
+        vo.setUsedBytes(used);
+        vo.setUsedBytesText(BytesFormatter.human(used));
+        vo.setTotalBytes(total);
+        vo.setTotalBytesText(total > 0 ? BytesFormatter.human(total) : "无限制");
+        // 上限 0 = 不限, 百分比无意义返 null; 上限 > 0 时 cap 到 100 防止超额时显示 120%
+        vo.setUsagePct(total > 0 ? (int) Math.min(100L, Math.round(used * 100.0 / total)) : null);
         vo.setExpiryEpochMillis(t.getExpiryEpochMillis());
         vo.setEnabled(t.isEnabled());
         return vo;

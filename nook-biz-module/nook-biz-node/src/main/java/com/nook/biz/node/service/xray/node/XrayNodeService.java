@@ -13,10 +13,12 @@ public interface XrayNodeService {
 
     /**
      * 部署成功后初始化 / 更新 xray 节点配置 + slot 池, 幂等; 同事务保证 "xray_node 行存在 ↔ slot 池已初始化".
+     * 重装会覆写 installedAt = NOW + 清空 lastXrayUptime (旧 uptime 已无效, 等 reconciler 重新探测填).
      *
      * @param serverId       关联 resource_server.id
-     * @param xrayVersion    安装的 xray 版本
+     * @param xrayVersion    实际安装的 xray 版本 (latest 应已被入口侧解析成具体版本号)
      * @param xrayApiPort    xray 内置 api server 端口 (loopback)
+     * @param xrayInstallDir xray 安装根目录 (binary / etc / share 都在此目录下)
      * @param xrayLogDir     日志目录
      * @param slotPoolSize   slot 池大小
      * @param slotPortBase   slot 端口段起点
@@ -24,6 +26,7 @@ public interface XrayNodeService {
     void upsert(String serverId,
                 String xrayVersion,
                 int xrayApiPort,
+                String xrayInstallDir,
                 String xrayLogDir,
                 int slotPoolSize,
                 int slotPortBase);

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -37,10 +38,40 @@ public class LineServerInstallReqVO {
     @Size(max = 32)
     private String xrayVersion;
 
-    /** 远端 xray 日志目录. */
-    @NotBlank(message = "logDir 必填")
+    /**
+     * Xray 安装目录 (binary / config / share); 全部资源装在此目录下:
+     *   <installDir>/bin/xray, <installDir>/etc/xray/config.json, <installDir>/share/xray/{geosite,geoip}.dat
+     * 必须绝对路径; 不允许常用系统目录避免误操作 (校验见 isInstallDirSafe).
+     */
+    @NotBlank(message = "installDir 必填")
+    @Pattern(regexp = "^/.+", message = "installDir 必须是绝对路径")
+    @Size(max = 255)
+    private String installDir;
+
+    /** 远端 xray 日志目录; 留空时后端派生为 <installDir>/logs. */
+    @Pattern(regexp = "^$|^/.+", message = "logDir 必须是绝对路径或留空")
     @Size(max = 255)
     private String logDir;
+
+    /** Xray 日志级别 (config.log.loglevel); debug/info/warning/error/none. */
+    @NotBlank(message = "logLevel 必填")
+    @Pattern(regexp = "^(debug|info|warning|error|none)$",
+            message = "logLevel 必须是 debug/info/warning/error/none 之一")
+    private String logLevel;
+
+    /** systemd Restart= 策略; always/on-failure/no. */
+    @NotBlank(message = "restartPolicy 必填")
+    @Pattern(regexp = "^(always|on-failure|no)$",
+            message = "restartPolicy 必须是 always/on-failure/no 之一")
+    private String restartPolicy;
+
+    /** 是否 systemctl enable xray (机器重启后自动起 xray). */
+    @NotNull(message = "enableOnBoot 必填")
+    private Boolean enableOnBoot;
+
+    /** 强制重装; 即使已装版本与目标一致也走下载流程, 用于自编译版本 / build 后缀差异等场景. */
+    @NotNull(message = "forceReinstall 必填")
+    private Boolean forceReinstall;
 
     /** 是否安装 / 启用 UFW 防火墙 (跟 slot 端口段联动, 留在 install 内). */
     @NotNull(message = "installUfw 必填")
@@ -64,4 +95,5 @@ public class LineServerInstallReqVO {
         int slotEnd = slotPortBase + slotPoolSize;
         return xrayApiPort < slotPortBase || xrayApiPort > slotEnd;
     }
+
 }

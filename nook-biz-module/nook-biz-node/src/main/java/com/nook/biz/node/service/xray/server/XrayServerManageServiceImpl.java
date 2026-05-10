@@ -42,7 +42,11 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     @Override
     public void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink) {
         SshSession session = sessionManager.acquire(serverId);
-        Map<String, String> vars = buildInstallVars(serverId, reqVO);
+        // logDir 留空时按 <installDir>/logs 派生; vars 与落库都用同一份, 保持一致
+        String effectiveLogDir = StrUtil.isBlank(reqVO.getLogDir())
+                ? reqVO.getInstallDir() + "/logs"
+                : reqVO.getLogDir();
+        Map<String, String> vars = buildInstallVars(serverId, reqVO, effectiveLogDir);
         String script = assembleInstallScript(reqVO, vars);
         Duration installTimeout = Duration.ofSeconds(session.cred().getInstallTimeoutSeconds());
         scriptRunner.runScriptStreaming(
@@ -52,14 +56,23 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                 installTimeout,
                 lineSink);
 
+        // 装完后跑 xray version 把字面 "latest" 解析成具体 tag (如 "v26.3.27"), 让 xray_node 反映远端真实版本;
+        // 解析失败 (SSH 抖动 / xray 没起) 不阻断主流程, fallback 留前端入参原值.
+        String resolvedVersion = resolveActualVersion(session, reqVO.getXrayVersion());
+        if (!resolvedVersion.equals(reqVO.getXrayVersion())) {
+            lineSink.accept("[nook] xray 实际版本: " + resolvedVersion + " (前端选 "
+                    + reqVO.getXrayVersion() + ")\n");
+        }
+
         // 部署完成 → 初始化 nook 内部状态. xrayNodeService.upsert 内部同事务初始化 slot 池, 杜绝半初始化态.
         // 失败时事务回滚 + 抛错让 emitter 红色完成, 远端 xray 进程已就绪 (可独立重跑 install 修复 nook 状态).
         try {
             xrayNodeService.upsert(
                     serverId,
-                    reqVO.getXrayVersion(),
+                    resolvedVersion,
                     reqVO.getXrayApiPort(),
-                    reqVO.getLogDir(),
+                    reqVO.getInstallDir(),
+                    effectiveLogDir,
                     reqVO.getSlotPoolSize(),
                     reqVO.getSlotPortBase());
             lineSink.accept("[nook] ✔ xray_node + slot 池已初始化 (size=" + reqVO.getSlotPoolSize()
@@ -70,6 +83,31 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                     + e.getMessage() + " (重新点部署即可幂等修复)\n");
             throw e;
         }
+    }
+
+    /**
+     * 把前端选的 "latest" 解析成远端实际安装的具体版本 tag (如 "v26.3.27");
+     * 非 latest 直接原样返回 (用户已显式指版本).
+     *
+     * @param session    SSH 会话, 复用主流程已 acquire 的连接
+     * @param requested  前端入参 xrayVersion ("latest" 或 "vX.Y.Z")
+     * @return 实际安装的版本 tag; 抓取失败 fallback 原值
+     */
+    private String resolveActualVersion(SshSession session, String requested) {
+        if (!"latest".equalsIgnoreCase(requested)) return requested;
+        // xray version 输出首行: "Xray 26.3.27 (Xray, Penetrates Everything.) ..."
+        // awk 取第二段拿到纯版本号; 失败 fallback 空串走兜底
+        String raw;
+        try {
+            raw = session.ssh().exec("xray version 2>/dev/null | head -1 | awk '{print $2}' || true")
+                    .getStdout().trim();
+        } catch (RuntimeException e) {
+            log.warn("[install] 解析 xray 真实版本失败, 回落到字面 latest: {}", e.getMessage());
+            return requested;
+        }
+        if (StrUtil.isBlank(raw)) return requested;
+        // 防御性: 远端可能加 v 前缀, 也可能不加; 统一规范成 "vX.Y.Z" 落库
+        return raw.startsWith("v") ? raw : "v" + raw;
     }
 
     @Override
@@ -140,7 +178,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     }
 
     /** 部署模板渲染变量表; reqVO 字段已被 jakarta @Valid + @AssertTrue 校验, 这里直接拆箱. */
-    private Map<String, String> buildInstallVars(String serverId, LineServerInstallReqVO r) {
+    private Map<String, String> buildInstallVars(String serverId, LineServerInstallReqVO r, String effectiveLogDir) {
         int slotPortEnd = r.getSlotPortBase() + r.getSlotPoolSize();
 
         // 用 LinkedHashMap 保留插入顺序便于 debug
@@ -151,7 +189,12 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         vars.put("INSTALL_UFW", String.valueOf(Boolean.TRUE.equals(r.getInstallUfw())));
         vars.put("XRAY_VERSION", r.getXrayVersion());
         vars.put("XRAY_API_PORT", String.valueOf(r.getXrayApiPort()));
-        vars.put("LOG_DIR", r.getLogDir());
+        vars.put("INSTALL_DIR", r.getInstallDir());
+        vars.put("LOG_DIR", effectiveLogDir);
+        vars.put("LOG_LEVEL", r.getLogLevel());
+        vars.put("RESTART_POLICY", r.getRestartPolicy());
+        vars.put("ENABLE_ON_BOOT", String.valueOf(Boolean.TRUE.equals(r.getEnableOnBoot())));
+        vars.put("FORCE_REINSTALL", String.valueOf(Boolean.TRUE.equals(r.getForceReinstall())));
         vars.put("SLOT_PORT_BASE", String.valueOf(r.getSlotPortBase()));
         vars.put("SLOT_PORT_END", String.valueOf(slotPortEnd));
         vars.put("SLOT_POOL_SIZE", String.valueOf(r.getSlotPoolSize()));

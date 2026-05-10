@@ -123,7 +123,9 @@ public class XrayInboundCli {
     }
 
     /**
-     * 把 inbound JSON 通过 base64 写到远端临时文件并喂给 xray api adi, 整个动作在一行 shell 完成.
+     * 把 inbound JSON 通过 base64 喂给 xray api adi 的 stdin (新版 xray 不传文件参数即从 stdin 读);
+     * b64 → base64 -d → adi 全程管道, 没有临时文件 / race / 残留风险.
+     * pipe 的 exit code 取最后一段 (xray) 的, 默认行为, 不需 set -o pipefail.
      *
      * @param apiPort xray 内置 api server 端口
      * @param json    inbound 完整 JSON
@@ -131,10 +133,7 @@ public class XrayInboundCli {
      */
     private String buildAdiCmd(int apiPort, String json) {
         String b64 = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
-        return "F=$(mktemp /tmp/nook-xray-adi.XXXXXX); "
-                + "echo '" + b64 + "' | base64 -d > \"$F\"; "
-                + "xray api adi --server=127.0.0.1:" + apiPort + " \"$F\"; "
-                + "rc=$?; rm -f \"$F\"; exit $rc";
+        return "echo '" + b64 + "' | base64 -d | xray api adi --server=127.0.0.1:" + apiPort;
     }
 
     /**

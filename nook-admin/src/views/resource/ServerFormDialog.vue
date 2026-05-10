@@ -49,7 +49,6 @@ const form = reactive({
   sshUser: 'root',
   sshPassword: '',
   sshTimeoutSeconds: 30 as number | null,
-  // 跨地区差异化超时: 跨洲拉高, 同区域可保持默认
   sshOpTimeoutSeconds: 30 as number | null,
   sshUploadTimeoutSeconds: 30 as number | null,
   installTimeoutSeconds: 600 as number | null,
@@ -303,12 +302,8 @@ function close() {
           </div>
         </div>
 
-        <!-- 超时配置 (按地区差异化, 跨洲拉高) -->
         <div class="text-sm font-semibold text-zinc-500 mt-4 mb-2">
           超时配置
-          <span class="text-xs font-normal text-zinc-400 ml-2">
-            按地区差异化; 跨洲 (如美西 ↔ 国内) 建议拉高 ssh_op / upload
-          </span>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
           <NFormItem

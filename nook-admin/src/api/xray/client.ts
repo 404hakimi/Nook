@@ -60,15 +60,35 @@ export interface XrayClientProvisionDTO {
   listenPort?: number
 }
 
-/** 实时流量出参 (后端 ClientTrafficRespVO); 字段名以"挂在 inbound 上的 client 实体 id"语义对齐. */
+/**
+ * 实时流量出参 (后端 ClientTrafficRespVO); 字段名以"挂在 inbound 上的 client 实体 id"语义对齐.
+ *
+ * <p>字节字段双形态: *Bytes (number, 精确数值, 比较/排序) + *BytesText (string, "190.50 KB" 这种人读串, 直接展示).
+ * usagePct 在 totalBytes=0 时为 null, 前端按 null 判断"无上限"分支即可, 不需再看 totalBytes 数值.
+ */
 export interface XrayClientTraffic {
   inboundEntityId: string
   clientEmail: string
+
   upBytes: number
+  upBytesText: string
+
   downBytes: number
-  /** 流量上限(字节); 0=不限 */
+  downBytesText: string
+
+  /** 已用 = upBytes + downBytes; 后端预算好, 前端不再加. */
+  usedBytes: number
+  usedBytesText: string
+
+  /** 流量上限(字节); 0=不限. */
   totalBytes: number
-  /** 到期时间戳(毫秒); 0=永久 */
+  /** 流量上限人读字符串; 0 时为 "无限制" 占位串, 与 totalBytes=0 等价. */
+  totalBytesText: string
+
+  /** 用量百分比 (0-100); totalBytes=0 时为 null 表示"无上限不适用". */
+  usagePct: number | null
+
+  /** 到期时间戳(毫秒); 0=永久. */
   expiryEpochMillis: number
   enabled: boolean
 }

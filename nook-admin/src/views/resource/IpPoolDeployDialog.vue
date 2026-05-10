@@ -49,7 +49,6 @@ const form = reactive({
   sshPort: 22,
   sshUser: 'root',
   sshPassword: '',
-  // 跨地区差异化超时, 跨洲拉高
   sshTimeoutSeconds: 60,
   sshOpTimeoutSeconds: 60,
   sshUploadTimeoutSeconds: 60,
@@ -277,7 +276,6 @@ function close() {
 
       <div class="text-sm font-semibold mt-4 mb-2">
         超时配置
-        <span class="text-xs font-normal text-zinc-400 ml-2">跨洲拉高 op / upload</span>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         <NFormItem

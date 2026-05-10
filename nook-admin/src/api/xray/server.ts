@@ -125,16 +125,29 @@ export function xrayAutostart(serverId: string, enabled: boolean) {
  * <p>所有字段都必须由前端传入, 后端不再 fallback (LineServerInstallReqVOValidator 严校验).
  */
 export interface LineServerInstallDTO {
-  /** Xray 版本; "v1.8.23" 这种或 "latest". */
+  /** Xray 版本; "v26.3.27" 这种或 "latest". */
   xrayVersion: string
+  /**
+   * Xray 安装目录; binary / config / share 全装在 <installDir>/{bin,etc,share} 下.
+   * 必须绝对路径; 后端校验黑名单 (/, /etc, /usr, /var, /bin, /sbin, /lib, /boot, /dev, /proc, /sys, /run, /root).
+   */
+  installDir: string
   /** 客户端口段起点; 1:1 模型每客户独享 inbound 监听 base+slotIndex. */
   slotPortBase: number
   /** Slot 池大小, server 最多承载客户数. */
   slotPoolSize: number
   /** Xray 内置 api server 端口 (loopback); xray api adi/rmi 用. */
   xrayApiPort: number
-  /** xray 日志目录. */
+  /** xray 日志目录; 留空时后端派生为 <installDir>/logs. */
   logDir: string
+  /** Xray 日志级别: debug / info / warning / error / none. */
+  logLevel: 'debug' | 'info' | 'warning' | 'error' | 'none'
+  /** systemd Restart= 策略: always / on-failure / no. */
+  restartPolicy: 'always' | 'on-failure' | 'no'
+  /** 是否 systemctl enable xray (机器重启后自动起 xray). */
+  enableOnBoot: boolean
+  /** 强制重装; 即使版本号一致也走下载流程, 用于自编译 / build 后缀差异. */
+  forceReinstall: boolean
   installUfw: boolean
   /** IANA tz, 如 Asia/Shanghai / UTC; "skip" 表示不改远端时区. */
   timezone: string

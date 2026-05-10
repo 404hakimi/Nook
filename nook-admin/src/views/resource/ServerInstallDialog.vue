@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { nextTick, reactive, ref, watch } from 'vue'
-import { Rocket } from 'lucide-vue-next'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { ChevronDown, ChevronRight, FolderOpen, Rocket } from 'lucide-vue-next'
 import {
   NButton,
   NCheckbox,
@@ -59,15 +59,58 @@ const XRAY_VERSION_OPTIONS = [
   { label: 'latest (最新, 风险自负)', value: 'latest' }
 ]
 
+const LOG_LEVEL_OPTIONS = [
+  { label: 'warning (默认, 仅异常记录)', value: 'warning' as const },
+  { label: 'info (含 access log 行级别)', value: 'info' as const },
+  { label: 'debug (排障用, 噪声大)', value: 'debug' as const },
+  { label: 'error (仅错误)', value: 'error' as const },
+  { label: 'none (关日志)', value: 'none' as const }
+]
+
+const RESTART_POLICY_OPTIONS = [
+  { label: 'on-failure (默认, 仅非 0 退出码重启)', value: 'on-failure' as const },
+  { label: 'always (任何停止都重启, 含 OOM/手动 stop)', value: 'always' as const },
+  { label: 'no (不自动重启, 调试用)', value: 'no' as const }
+]
+
+const DEFAULT_INSTALL_DIR = '/home/xray'
+
 const form = reactive<LineServerInstallDTO>({
   xrayVersion: XRAY_DEFAULT_VERSION,
+  installDir: DEFAULT_INSTALL_DIR,
   slotPortBase: 30000,
   slotPoolSize: 50,
   xrayApiPort: 8080,
-  logDir: '/var/log/xray',
+  logDir: '',
+  logLevel: 'warning',
+  restartPolicy: 'on-failure',
+  enableOnBoot: true,
+  forceReinstall: false,
   installUfw: true,
   timezone: 'Asia/Shanghai'
 })
+
+/** logDir 派生值 (installDir 末尾去掉多余 / 后拼 /logs); placeholder + 提交派生都用 */
+const derivedLogDir = computed(() => {
+  const d = form.installDir.replace(/\/+$/, '')
+  return d ? `${d}/logs` : ''
+})
+
+/** 安装路径展示块: 只读, 跟随 installDir 实时联动 */
+const installPaths = computed(() => {
+  const d = form.installDir.replace(/\/+$/, '') || DEFAULT_INSTALL_DIR
+  const log = form.logDir.trim() || derivedLogDir.value
+  return [
+    { label: 'binary', path: `${d}/bin/xray` },
+    { label: 'config', path: `${d}/etc/xray/config.json` },
+    { label: 'share', path: `${d}/share/xray/  (geo 数据)` },
+    { label: 'log', path: log ? `${log}/{access,error}.log` : '-' },
+    { label: 'systemd', path: '/etc/systemd/system/xray.service  (固定)' },
+    { label: 'PATH 软链', path: '/usr/local/bin/xray → ' + `${d}/bin/xray` }
+  ]
+})
+
+const advancedOpen = ref(false)
 
 watch(
   () => [props.modelValue, props.server?.id],
@@ -75,12 +118,17 @@ watch(
     if (!open) return
     Object.keys(errors).forEach((k) => delete errors[k])
     output.value = ''
+    advancedOpen.value = false
     // xray 配置默认值不再从 resource_server 取 (那里没了); 如需读已部署节点的端口, 后续可调 xray_node 接口
   }
 )
 
 function validate() {
   Object.keys(errors).forEach((k) => delete errors[k])
+  // installDir 必须绝对路径; 黑名单后端兜底校验, 前端只防低级错误
+  if (!form.installDir.trim() || !form.installDir.startsWith('/')) {
+    errors.installDir = '必须以 / 开头的绝对路径'
+  }
   if (form.xrayApiPort < 1 || form.xrayApiPort > 65535) errors.xrayApiPort = '端口范围 1-65535'
   if (form.slotPortBase < 1024 || form.slotPortBase > 60000) errors.slotPortBase = '端口范围 1024-60000'
   if (form.slotPoolSize < 1 || form.slotPoolSize > 200) errors.slotPoolSize = '槽位数 1-200'
@@ -88,6 +136,10 @@ function validate() {
   const slotEnd = form.slotPortBase + form.slotPoolSize
   if (form.xrayApiPort >= form.slotPortBase && form.xrayApiPort <= slotEnd) {
     errors.xrayApiPort = `不能落在 slot 端口段 ${form.slotPortBase}-${slotEnd} 内`
+  }
+  // logDir 留空 OK (后端派生); 给了就必须绝对路径
+  if (form.logDir.trim() && !form.logDir.startsWith('/')) {
+    errors.logDir = '必须以 / 开头的绝对路径 (留空走默认 <installDir>/logs)'
   }
   return Object.keys(errors).length === 0
 }
@@ -97,7 +149,7 @@ async function onSubmit() {
   const slotEnd = form.slotPortBase + form.slotPoolSize
   const ok = await confirm({
     title: '一键部署 Xray (1:1 + slot 模型)',
-    message: `将在 ${props.server.name} 上部署 Xray ${form.xrayVersion} + 预置 ${form.slotPoolSize} 个 slot (端口段 ${form.slotPortBase}-${slotEnd}).\n\n约 1-5 分钟。如已存在 Xray 配置会先备份再覆盖。`,
+    message: `将在 ${props.server.name} 上部署 Xray ${form.xrayVersion}\n安装到 ${form.installDir}\nslot ${form.slotPortBase}-${slotEnd} (共 ${form.slotPoolSize} 个)\n\n约 1-5 分钟。已存在的 Xray 配置会先备份再覆盖。`,
     type: 'warning',
     confirmText: '开始部署'
   })
@@ -106,12 +158,18 @@ async function onSubmit() {
   output.value = ''
   abortCtrl = new AbortController()
   try {
+    // logDir 留空走后端派生 (<installDir>/logs); trim 后空字符串原样传, 后端识别空字符串 = 派生
     const dto: LineServerInstallDTO = {
       xrayVersion: form.xrayVersion,
+      installDir: form.installDir.trim(),
       slotPortBase: form.slotPortBase,
       slotPoolSize: form.slotPoolSize,
       xrayApiPort: form.xrayApiPort,
-      logDir: form.logDir,
+      logDir: form.logDir.trim(),
+      logLevel: form.logLevel,
+      restartPolicy: form.restartPolicy,
+      enableOnBoot: form.enableOnBoot,
+      forceReinstall: form.forceReinstall,
       installUfw: form.installUfw,
       timezone: form.timezone || 'skip'
     }
@@ -159,7 +217,7 @@ function close() {
   <NModal
     :show="modelValue"
     preset="card"
-    style="max-width: 52rem"
+    style="max-width: 56rem"
     :bordered="false"
     :mask-closable="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
@@ -177,7 +235,7 @@ function close() {
     </template>
 
     <p class="text-xs text-zinc-500 mb-4">
-      将远程执行 nook 模块化部署脚本 (仅支持 Ubuntu 22.04+), 装 Xray 内核 + 预置 slot
+      远程执行 nook 模块化部署脚本 (仅支持 Ubuntu 22.04+), 装 Xray 内核到指定目录 + 预置 slot
       placeholder; 客户开通时通过 SSH + xray api CLI 动态加 inbound/outbound, 不重启 xray 不影响其他客户。
     </p>
 
@@ -187,7 +245,7 @@ function close() {
       require-mark-placement="right-hanging"
       size="small"
     >
-      <!-- ===== 核心参数 ===== -->
+      <!-- ===== 基础参数 ===== -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         <NFormItem required>
           <template #label>
@@ -202,12 +260,29 @@ function close() {
         </NFormItem>
         <NFormItem
           required
+          :validation-status="errors.installDir ? 'error' : undefined"
+          :feedback="errors.installDir"
+        >
+          <template #label>
+            <span>安装目录</span>
+            <span class="text-xs text-zinc-400 ml-2">binary / config / share 全在此目录下</span>
+          </template>
+          <NInput
+            v-model:value="form.installDir"
+            :disabled="installing"
+            placeholder="/home/xray"
+            :input-props="{ style: 'font-family: monospace' }"
+          />
+        </NFormItem>
+
+        <NFormItem
+          required
           :validation-status="errors.xrayApiPort ? 'error' : undefined"
           :feedback="errors.xrayApiPort"
         >
           <template #label>
             <span>Xray API 端口</span>
-            <span class="text-xs text-zinc-400 ml-2">仅 127.0.0.1 监听; xray api adi/rmi 用</span>
+            <span class="text-xs text-zinc-400 ml-2">仅 127.0.0.1; xray api adi/rmi 用</span>
           </template>
           <NInputNumber
             v-model:value="form.xrayApiPort"
@@ -215,6 +290,21 @@ function close() {
             :max="65535"
             :disabled="installing"
             class="w-full"
+          />
+        </NFormItem>
+        <NFormItem
+          :validation-status="errors.logDir ? 'error' : undefined"
+          :feedback="errors.logDir"
+        >
+          <template #label>
+            <span>日志目录</span>
+            <span class="text-xs text-zinc-400 ml-2">留空走默认 (派生自安装目录)</span>
+          </template>
+          <NInput
+            v-model:value="form.logDir"
+            :disabled="installing"
+            :placeholder="derivedLogDir || '/home/xray/logs'"
+            :input-props="{ style: 'font-family: monospace' }"
           />
         </NFormItem>
 
@@ -252,40 +342,65 @@ function close() {
             class="w-full"
           />
         </NFormItem>
+      </div>
 
-        <div class="sm:col-span-2">
-          <NFormItem label="日志目录">
-            <NInput
-              v-model:value="form.logDir"
-              :disabled="installing"
-              :input-props="{ style: 'font-family: monospace' }"
-            />
-          </NFormItem>
+      <!-- ===== 安装路径只读展示 (跟随 installDir 实时联动) ===== -->
+      <div class="mt-2 mb-4 p-3 rounded bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
+        <div class="flex items-center gap-1 text-xs font-semibold text-zinc-500 mb-2">
+          <NIcon :size="14"><FolderOpen /></NIcon>
+          安装路径预览
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
+          <div v-for="p in installPaths" :key="p.label" class="flex items-baseline gap-2">
+            <span class="text-zinc-500 w-16 flex-shrink-0">{{ p.label }}</span>
+            <span class="font-mono text-zinc-700 dark:text-zinc-300 break-all">{{ p.path }}</span>
+          </div>
         </div>
       </div>
 
-      <!-- ===== 可选模块勾选 ===== -->
+      <!-- ===== 高级设置 (默认折叠) ===== -->
       <div class="mt-2 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-        <div class="text-sm font-semibold text-zinc-500 mb-2">可选模块</div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-          <div>
-            <NCheckbox v-model:checked="form.installUfw" :disabled="installing">
-              配置 UFW 防火墙
-            </NCheckbox>
-            <p class="text-xs text-zinc-500 ml-6 mt-1">
-              放 22 + slot 端口段 ({{ form.slotPortBase }}-{{ form.slotPortBase + form.slotPoolSize }})
-            </p>
-          </div>
-        </div>
-        <p class="text-xs text-zinc-500 mt-3">
-          BBR / swap 等通用 OS 调优在服务器列表的"运维"菜单按需独立触发, 不混进部署链路.
-        </p>
+        <button
+          type="button"
+          class="flex items-center gap-1 text-sm font-semibold text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 mb-2"
+          :disabled="installing"
+          @click="advancedOpen = !advancedOpen"
+        >
+          <NIcon :size="14">
+            <ChevronDown v-if="advancedOpen" />
+            <ChevronRight v-else />
+          </NIcon>
+          高级设置
+        </button>
 
-        <div class="mt-3">
+        <div v-if="advancedOpen" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+          <NFormItem>
+            <template #label>
+              <span>日志级别</span>
+              <span class="text-xs text-zinc-400 ml-2">config.log.loglevel</span>
+            </template>
+            <NSelect
+              v-model:value="form.logLevel"
+              :options="LOG_LEVEL_OPTIONS"
+              :disabled="installing"
+            />
+          </NFormItem>
+          <NFormItem>
+            <template #label>
+              <span>Systemd 重启策略</span>
+              <span class="text-xs text-zinc-400 ml-2">Restart=</span>
+            </template>
+            <NSelect
+              v-model:value="form.restartPolicy"
+              :options="RESTART_POLICY_OPTIONS"
+              :disabled="installing"
+            />
+          </NFormItem>
+
           <NFormItem>
             <template #label>
               <span>时区</span>
-              <span class="text-xs text-zinc-400 ml-2">影响日志/到期判定; 选 skip 不修改</span>
+              <span class="text-xs text-zinc-400 ml-2">影响日志/到期判定</span>
             </template>
             <NSelect
               v-model:value="form.timezone"
@@ -293,6 +408,33 @@ function close() {
               :disabled="installing"
             />
           </NFormItem>
+
+          <div class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mt-1">
+            <div>
+              <NCheckbox v-model:checked="form.enableOnBoot" :disabled="installing">
+                开机自启 Xray
+              </NCheckbox>
+              <p class="text-xs text-zinc-500 ml-6 mt-0.5">
+                systemctl enable; 服务器重启后自动起 Xray
+              </p>
+            </div>
+            <div>
+              <NCheckbox v-model:checked="form.forceReinstall" :disabled="installing">
+                强制重装
+              </NCheckbox>
+              <p class="text-xs text-zinc-500 ml-6 mt-0.5">
+                即使版本号一致也走下载流程, 用于自编译版本
+              </p>
+            </div>
+            <div>
+              <NCheckbox v-model:checked="form.installUfw" :disabled="installing">
+                配置 UFW 防火墙
+              </NCheckbox>
+              <p class="text-xs text-zinc-500 ml-6 mt-0.5">
+                放 22 + slot 端口段 ({{ form.slotPortBase }}-{{ form.slotPortBase + form.slotPoolSize }})
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </NForm>

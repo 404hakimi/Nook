@@ -7,6 +7,7 @@ import {
   RefreshCcw,
   Search,
   Server as ServerIcon,
+  Settings2,
   Terminal,
   Trash2,
   Zap
@@ -37,6 +38,7 @@ import { testServerConnectivity } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
 import ServerFormDialog from './ServerFormDialog.vue'
 import ServerOpsDialog from './ServerOpsDialog.vue'
+import ServerOsTuneDialog from './ServerOsTuneDialog.vue'
 import { pageClients } from '@/api/xray/client'
 
 const message = useMessage()
@@ -164,13 +166,22 @@ async function onTest(s: ResourceServer) {
   }
 }
 
-// ===== Xray 运维台 =====
+// ===== Xray 管理 (状态 / 日志 / 重启 / 部署) =====
 const opsOpen = ref(false)
 const opsTarget = ref<ResourceServer | null>(null)
 
 function openOps(s: ResourceServer) {
   opsTarget.value = s
   opsOpen.value = true
+}
+
+// ===== OS 调优 (BBR / swap) - 与 Xray 管理拆开, 独立行操作入口 =====
+const osTuneOpen = ref(false)
+const osTuneTarget = ref<ResourceServer | null>(null)
+
+function openOsTune(s: ResourceServer) {
+  osTuneTarget.value = s
+  osTuneOpen.value = true
 }
 
 // ===== 当前活跃用户数(每个 server 一个数字) =====
@@ -190,6 +201,7 @@ async function loadActiveUserCounts() {
 }
 
 // ===== 行操作菜单（NDropdown 选项 + 分发） =====
+// "Xray 管理" 与 "OS 调优" 是两件事 (前者管 xray 服务/部署, 后者管内核 BBR/swap), 拆成独立入口避免概念混合.
 const ROW_ACTIONS: DropdownOption[] = [
   {
     label: '测速',
@@ -202,9 +214,14 @@ const ROW_ACTIONS: DropdownOption[] = [
     icon: () => h(NIcon, null, { default: () => h(Pencil) })
   },
   {
-    label: '运维',
+    label: 'Xray 管理',
     key: 'ops',
     icon: () => h(NIcon, null, { default: () => h(Terminal) })
+  },
+  {
+    label: 'OS 调优',
+    key: 'osTune',
+    icon: () => h(NIcon, null, { default: () => h(Settings2) })
   },
   { type: 'divider', key: 'd1' },
   {
@@ -219,6 +236,7 @@ function onRowAction(key: string | number, s: ResourceServer) {
   if (key === 'test') onTest(s)
   else if (key === 'edit') openEdit(s)
   else if (key === 'ops') openOps(s)
+  else if (key === 'osTune') openOsTune(s)
   else if (key === 'delete') onDelete(s)
 }
 
@@ -278,23 +296,6 @@ const columns = computed<DataTableColumns<ResourceServer>>(() => [
         { size: 'small', type: statusTagType(row.status) },
         { default: () => SERVER_STATUS_LABELS[row.status] || row.status }
       )
-  },
-  {
-    title: 'SSH',
-    key: 'ssh',
-    render: (row) => {
-      const sshConfigured = !!row.sshPassword
-      return h(
-        NTag,
-        {
-          size: 'small',
-          type: sshConfigured ? 'success' : 'default',
-          bordered: !sshConfigured,
-          title: sshConfigured ? 'SSH 已配置' : 'SSH 未配置'
-        },
-        { default: () => 'SSH' }
-      )
-    }
   },
   {
     title: '活跃用户',
@@ -430,7 +431,10 @@ onMounted(loadList)
       @saved="onFormSaved"
     />
 
-    <!-- Xray 运维台 -->
+    <!-- Xray 管理: 状态 / 日志 / 重启 / 部署 -->
     <ServerOpsDialog v-model="opsOpen" :server="opsTarget" />
+
+    <!-- OS 调优: BBR / swap, 与 Xray 管理独立 -->
+    <ServerOsTuneDialog v-model="osTuneOpen" :server="osTuneTarget" />
   </div>
 </template>

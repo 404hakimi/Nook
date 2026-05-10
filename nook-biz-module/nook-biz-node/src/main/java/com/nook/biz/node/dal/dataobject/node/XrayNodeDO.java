@@ -31,7 +31,7 @@ public class XrayNodeDO implements Serializable {
     @TableId(value = "server_id", type = IdType.INPUT)
     private String serverId;
 
-    /** 安装的 Xray 版本 (如 v1.8.23). */
+    /** 安装的 Xray 版本 */
     private String xrayVersion;
 
     /** Xray 内置 api server 端口 (loopback); 走 SSH 远端 `xray api -s 127.0.0.1:port adi/rmi` CLI. */
@@ -40,16 +40,19 @@ public class XrayNodeDO implements Serializable {
     /** Xray 日志目录. */
     private String xrayLogDir;
 
+    /** Xray 安装根目录 (binary / etc / share 都在此目录下); 与 reqVO.installDir 一致. */
+    private String xrayInstallDir;
+
     /** Slot 池大小, 该 node 最多承载客户数. */
     private Integer slotPoolSize;
 
     /** Slot 端口段起点; slot_index=1 → port=slot_port_base+1. */
     private Integer slotPortBase;
 
-    /** 上次探测到的 xray 启动时间, 用于判断是否需 replay. */
+    /** 上次探测到的 xray 启动时间, 用于判断是否需 replay; 重装时清零等 reconciler 重新探测填. */
     private LocalDateTime lastXrayUptime;
 
-    /** Xray 首次安装完成时间. */
+    /** 最近一次部署完成时间; 重装时也会覆写, 不是单纯的"首次"语义. */
     private LocalDateTime installedAt;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

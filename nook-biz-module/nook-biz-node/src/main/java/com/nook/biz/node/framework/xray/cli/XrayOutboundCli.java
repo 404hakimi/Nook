@@ -82,7 +82,8 @@ public class XrayOutboundCli {
     }
 
     /**
-     * 共用 ado 命令封装; 把 config JSON 写到远端临时文件并喂给 xray api ado.
+     * 共用 ado 命令封装; 把 config JSON 经 base64 喂给 xray api ado 的 stdin (新版 xray 不传文件参数即读 stdin).
+     * 没有临时文件 / race / 残留风险, pipe 的 exit code 取末段 (xray) 的, 默认行为.
      *
      * @param serverId resource_server.id
      * @param apiPort  xray 内置 api server 端口
@@ -91,13 +92,8 @@ public class XrayOutboundCli {
      */
     private void execAdo(String serverId, int apiPort, String tag, String json) {
         SshSession session = sshSessionManager.acquire(serverId);
-        // xray api ado 的位置参数必须是真实文件路径 (xray 不支持 "-" 当 stdin 占位);
-        // 用 base64 → mktemp → xray api ado <file> → rm 一气呵成
         String b64 = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
-        String cmd = "F=$(mktemp /tmp/nook-xray-ado.XXXXXX); "
-                + "echo '" + b64 + "' | base64 -d > \"$F\"; "
-                + "xray api ado --server=127.0.0.1:" + apiPort + " \"$F\"; "
-                + "rc=$?; rm -f \"$F\"; exit $rc";
+        String cmd = "echo '" + b64 + "' | base64 -d | xray api ado --server=127.0.0.1:" + apiPort;
         try {
             session.ssh().exec(cmd);
         } catch (BusinessException be) {

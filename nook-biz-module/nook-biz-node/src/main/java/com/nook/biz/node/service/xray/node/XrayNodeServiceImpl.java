@@ -27,31 +27,39 @@ public class XrayNodeServiceImpl implements XrayNodeService {
     public void upsert(String serverId,
                        String xrayVersion,
                        int xrayApiPort,
+                       String xrayInstallDir,
                        String xrayLogDir,
                        int slotPoolSize,
                        int slotPortBase) {
+        // installedAt = "最近一次部署完成时间", 重装也覆写, 让运维一眼看到"上次重装啥时候"
+        // lastXrayUptime 在重装时清空, 旧 uptime 已无效 (xray 进程被替换); 由后续 reconciler 探测重填
+        LocalDateTime now = LocalDateTime.now();
         XrayNodeDO existing = xrayNodeMapper.selectById(serverId);
         if (ObjectUtil.isNotNull(existing)) {
             existing.setXrayVersion(xrayVersion);
             existing.setXrayApiPort(xrayApiPort);
+            existing.setXrayInstallDir(xrayInstallDir);
             existing.setXrayLogDir(xrayLogDir);
             existing.setSlotPoolSize(slotPoolSize);
             existing.setSlotPortBase(slotPortBase);
+            existing.setInstalledAt(now);
+            existing.setLastXrayUptime(null);
             xrayNodeMapper.updateById(existing);
-            log.info("[xray-node] update server={} version={} apiPort={} poolSize={}",
-                    serverId, xrayVersion, xrayApiPort, slotPoolSize);
+            log.info("[xray-node] update server={} version={} apiPort={} installDir={} poolSize={}",
+                    serverId, xrayVersion, xrayApiPort, xrayInstallDir, slotPoolSize);
         } else {
             XrayNodeDO row = new XrayNodeDO();
             row.setServerId(serverId);
             row.setXrayVersion(xrayVersion);
             row.setXrayApiPort(xrayApiPort);
+            row.setXrayInstallDir(xrayInstallDir);
             row.setXrayLogDir(xrayLogDir);
             row.setSlotPoolSize(slotPoolSize);
             row.setSlotPortBase(slotPortBase);
-            row.setInstalledAt(LocalDateTime.now());
+            row.setInstalledAt(now);
             xrayNodeMapper.insert(row);
-            log.info("[xray-node] insert server={} version={} apiPort={} poolSize={}",
-                    serverId, xrayVersion, xrayApiPort, slotPoolSize);
+            log.info("[xray-node] insert server={} version={} apiPort={} installDir={} poolSize={}",
+                    serverId, xrayVersion, xrayApiPort, xrayInstallDir, slotPoolSize);
         }
 
         // xray_node 行存在 ↔ slot 池已初始化是不可分的业务约束;

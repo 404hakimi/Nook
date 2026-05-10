@@ -116,6 +116,13 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .build();
 
         int apiPort = node.getXrayApiPort();
+        // 防御性清零 stats counter: xray statsManager 按 email 索引 counter, 删 inbound 不会清,
+        // 同 email 重新 provision 时新流量会累加到旧值上. 这里 reset=true 让新 client 必然从 0 起算.
+        // 失败不阻断主流程 (新 email 时 counter 本就不存在 = no-op; SSH 不通后续 addInbound 也会抛错).
+        try {
+            statsCli.readUserTraffic(reqVO.getServerId(), apiPort, clientEmail, true);
+        } catch (Exception ignore) { }
+
         // 用旗标精确追踪主流程完成度, catch 时只回滚已实际完成的步骤; 避免 addInbound 一开始就失败时
         // 错误地去删根本没碰过的 freedom 占位, 把远端状态搞脏.
         boolean inboundAdded = false;

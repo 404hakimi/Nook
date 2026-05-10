@@ -55,18 +55,6 @@ function close() {
   emit('update:modelValue', false)
 }
 
-function fmtBytes(n: number): string {
-  if (!n) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let v = n
-  let i = 0
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024
-    i++
-  }
-  return `${v.toFixed(2)} ${units[i]}`
-}
-
 function fmtExpiry(ms: number): string {
   if (!ms) return '永不过期'
   return new Date(ms).toLocaleString()
@@ -77,15 +65,11 @@ function fmtFetchedAt(d: Date | null): string {
   return d.toLocaleTimeString()
 }
 
-const usedBytes = computed(() => (data.value ? data.value.upBytes + data.value.downBytes : 0))
-const usagePct = computed(() => {
-  if (!data.value || !data.value.totalBytes) return 0
-  return Math.min(100, Math.round((usedBytes.value / data.value.totalBytes) * 100))
-})
-// 用量等级 → NProgress status
+// 用量等级 → NProgress status; 后端 usagePct=null 时不进这个 computed (模板分支已隔离)
 const usageStatus = computed<'success' | 'warning' | 'error'>(() => {
-  if (usagePct.value >= 90) return 'error'
-  if (usagePct.value >= 70) return 'warning'
+  const pct = data.value?.usagePct ?? 0
+  if (pct >= 90) return 'error'
+  if (pct >= 70) return 'warning'
   return 'success'
 })
 const expiryDays = computed(() => {
@@ -123,23 +107,23 @@ const expiryDays = computed(() => {
     <NSpin :show="loading && !data">
       <div class="min-h-[8rem]">
         <div v-if="data" class="space-y-3 text-sm">
-          <!-- 用量进度条 -->
-          <div v-if="data.totalBytes > 0">
+          <!-- 用量进度条; usagePct=null 走"无上限"分支 (后端 totalBytes=0 时返 null) -->
+          <div v-if="data.usagePct !== null">
             <div class="flex justify-between text-xs mb-1">
               <span class="text-zinc-500">
-                已用 {{ fmtBytes(usedBytes) }} / {{ fmtBytes(data.totalBytes) }}
+                已用 {{ data.usedBytesText }} / {{ data.totalBytesText }}
               </span>
-              <span class="font-mono">{{ usagePct }}%</span>
+              <span class="font-mono">{{ data.usagePct }}%</span>
             </div>
             <NProgress
               type="line"
-              :percentage="usagePct"
+              :percentage="data.usagePct"
               :status="usageStatus"
               :show-indicator="false"
             />
           </div>
           <NAlert v-else type="info" :show-icon="false" :bordered="false">
-            <span class="text-xs">无流量上限：累计已用 {{ fmtBytes(usedBytes) }}</span>
+            <span class="text-xs">无流量上限：累计已用 {{ data.usedBytesText }}</span>
           </NAlert>
 
           <NDescriptions :column="1" size="small" label-placement="left" bordered>
@@ -147,10 +131,10 @@ const expiryDays = computed(() => {
               <span class="font-mono text-xs">{{ data.clientEmail }}</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="上行">
-              <span class="font-mono">{{ fmtBytes(data.upBytes) }}</span>
+              <span class="font-mono">{{ data.upBytesText }}</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="下行">
-              <span class="font-mono">{{ fmtBytes(data.downBytes) }}</span>
+              <span class="font-mono">{{ data.downBytesText }}</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="到期">
               {{ fmtExpiry(data.expiryEpochMillis) }}
