@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "my-database": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "universal-db-mcp",
+        "--type", "mysql",
+        "--host", "101.200.85.122",
+        "--port", "35996",
+        "--database", "nook",
+        "--user", "root",
+        "--password", "nWSDjJWE2r3fH8f7!ly8@21",
+        "--permission-mode", "full"
+      ]
+    },
+    "intellij-idea": {
+      "type": "stdio",
+      "env": {
+        "IJ_MCP_SERVER_PORT": "64342"
+      },
+      "command": "E:\\devtools\\IntelliJ IDEA\\jbr\\bin\\java",
+      "args": [
+        "-classpath",
+        "E:\\devtools\\IntelliJ IDEA\\plugins\\mcpserver\\lib\\mcpserver-frontend.jar;E:\\devtools\\IntelliJ IDEA\\lib\\util-8.jar;E:\\devtools\\IntelliJ IDEA\\lib\\intellij.libraries.kotlinx.coroutines.core.jar;E:\\devtools\\IntelliJ IDEA\\lib\\intellij.libraries.ktor.client.cio.jar;E:\\devtools\\IntelliJ IDEA\\lib\\intellij.libraries.ktor.client.jar;E:\\devtools\\IntelliJ IDEA\\lib\\intellij.libraries.ktor.network.tls.jar;E:\\devtools\\IntelliJ IDEA\\lib\\intellij.libraries.ktor.io.jar;E:\\devtools\\IntelliJ IDEA\\lib\\intellij.libraries.ktor.utils.jar;E:\\devtools\\IntelliJ IDEA\\lib\\intellij.libraries.kotlinx.io.jar;E:\\devtools\\IntelliJ IDEA\\lib\\intellij.libraries.kotlinx.serialization.core.jar;E:\\devtools\\IntelliJ IDEA\\lib\\intellij.libraries.kotlinx.serialization.json.jar",
+        "com.intellij.mcpserver.stdio.McpStdioRunnerKt"
+      ]
+    }
+  }
+}
