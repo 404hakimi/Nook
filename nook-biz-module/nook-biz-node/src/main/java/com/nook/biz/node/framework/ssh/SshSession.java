@@ -43,15 +43,6 @@ public interface SshSession extends AutoCloseable {
      */
     SshChannel ssh();
 
-    /**
-     * 开本地端口转发到远端 host:port; 同 (remoteHost, remotePort) 复用缓存的 forward.
-     *
-     * @param remoteHost 远端目标 host
-     * @param remotePort 远端目标 port
-     * @return PortForward
-     */
-    PortForward openLocalForward(String remoteHost, int remotePort);
-
     /** no-op: 引用归还由 manager 自管, 仅为 try-with-resources 语法糖. */
     @Override
     default void close() {

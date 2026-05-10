@@ -4,7 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.controller.xray.client.vo.ClientRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.framework.xray.grpc.UserTraffic;
+import com.nook.biz.node.framework.xray.handler.UserTraffic;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;

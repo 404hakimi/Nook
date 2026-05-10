@@ -61,11 +61,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         e.setSshPort(reqVO.getSshPort());
         e.setSshUser(reqVO.getSshUser());
         e.setSshPassword(reqVO.getSshPassword());
-        e.setSshPrivateKey(reqVO.getSshPrivateKey());
         e.setSshTimeoutSeconds(reqVO.getSshTimeoutSeconds());
-        e.setBackendTimeoutSeconds(reqVO.getBackendTimeoutSeconds());
-        e.setXrayGrpcHost(reqVO.getXrayGrpcHost());
-        e.setXrayGrpcPort(reqVO.getXrayGrpcPort());
         e.setTotalBandwidth(reqVO.getTotalBandwidth());
         e.setMonthlyTrafficGb(reqVO.getMonthlyTrafficGb());
         e.setIdcProvider(reqVO.getIdcProvider());
@@ -89,17 +85,13 @@ public class ResourceServerServiceImpl implements ResourceServerService {
                 && resourceServerMapper.existsByHostExcludingId(reqVO.getHost(), id)) {
             throw new BusinessException(ResourceErrorCode.SERVER_HOST_DUPLICATE, reqVO.getHost());
         }
-        // null 表示保留原值；非 null 才写入。密码字段同理(留空 == 保持旧值)。
+        // null 表示保留原值; 非 null 才写入. sshPassword 留空 = 保留旧值.
         if (StrUtil.isNotBlank(reqVO.getName())) exist.setName(reqVO.getName());
         if (StrUtil.isNotBlank(reqVO.getHost())) exist.setHost(reqVO.getHost());
         if (ObjectUtil.isNotNull(reqVO.getSshPort())) exist.setSshPort(reqVO.getSshPort());
         if (StrUtil.isNotBlank(reqVO.getSshUser())) exist.setSshUser(reqVO.getSshUser());
         if (StrUtil.isNotBlank(reqVO.getSshPassword())) exist.setSshPassword(reqVO.getSshPassword());
-        if (StrUtil.isNotBlank(reqVO.getSshPrivateKey())) exist.setSshPrivateKey(reqVO.getSshPrivateKey());
         if (ObjectUtil.isNotNull(reqVO.getSshTimeoutSeconds())) exist.setSshTimeoutSeconds(reqVO.getSshTimeoutSeconds());
-        if (ObjectUtil.isNotNull(reqVO.getBackendTimeoutSeconds())) exist.setBackendTimeoutSeconds(reqVO.getBackendTimeoutSeconds());
-        if (StrUtil.isNotBlank(reqVO.getXrayGrpcHost())) exist.setXrayGrpcHost(reqVO.getXrayGrpcHost());
-        if (ObjectUtil.isNotNull(reqVO.getXrayGrpcPort())) exist.setXrayGrpcPort(reqVO.getXrayGrpcPort());
         if (ObjectUtil.isNotNull(reqVO.getTotalBandwidth())) exist.setTotalBandwidth(reqVO.getTotalBandwidth());
         if (ObjectUtil.isNotNull(reqVO.getMonthlyTrafficGb())) exist.setMonthlyTrafficGb(reqVO.getMonthlyTrafficGb());
         if (StrUtil.isNotBlank(reqVO.getIdcProvider())) exist.setIdcProvider(reqVO.getIdcProvider());
@@ -123,13 +115,10 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         return ResourceServerConvert.INSTANCE.toCredential(findById(id));
     }
 
-    /** Create 校验：xray gRPC 地址必填 + SSH 鉴权(密码或私钥)必给一个. */
+    /** Create 校验: SSH 密码必填 (xray 配置走 xray_node 不在本表). */
     private void validateOnCreate(ResourceServerSaveReqVO reqVO) {
-        if (StrUtil.isBlank(reqVO.getXrayGrpcHost()) || ObjectUtil.isNull(reqVO.getXrayGrpcPort())) {
-            throw new BusinessException(ResourceErrorCode.SERVER_GRPC_FIELDS_REQUIRED);
-        }
-        if (StrUtil.isBlank(reqVO.getSshPassword()) && StrUtil.isBlank(reqVO.getSshPrivateKey())) {
-            throw new BusinessException(ResourceErrorCode.SERVER_SSH_AUTH_REQUIRED);
+        if (StrUtil.isBlank(reqVO.getSshPassword())) {
+            throw new BusinessException(ResourceErrorCode.SERVER_SSH_PASSWORD_REQUIRED);
         }
     }
 }

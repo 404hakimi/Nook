@@ -3,10 +3,12 @@ package com.nook.biz.resource.api.dto;
 import lombok.Builder;
 
 /**
- * 跨模块 DTO: 一台中转线路服务器的接入凭据。
- * Resource 模块从 resource_server 表读出, xray 模块用它生成 backend / 跑 SSH 命令。
+ * 跨模块 DTO: 一台服务器的 SSH 接入凭据.
  *
- * <p>所有数值字段均为 DB NOT NULL 列, 不允许 null;  调用方拿到这个 DTO 后可直接使用 — 业务侧不再做空值兜底。
+ * <p>resource 模块从 resource_server 表读出, 其他模块 (node 等) 用它跑 SSH 命令.
+ * 不再含 xray 相关字段 (那些放 xray_node 表, nook-biz-node 模块自管).
+ *
+ * @author nook
  */
 @Builder
 public record ServerCredentialDTO(
@@ -16,13 +18,6 @@ public record ServerCredentialDTO(
         int sshPort,
         String sshUser,
         String sshPassword,
-        String sshPrivateKey,
-        String sshPrivateKeyPassphrase,
-        int sshTimeoutSeconds,
-
-        String xrayGrpcHost,
-        int xrayGrpcPort,
-
-        int backendTimeoutSeconds
+        int sshTimeoutSeconds
 ) {
 }

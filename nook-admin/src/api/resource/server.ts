@@ -1,6 +1,11 @@
 import request from '@/api/request'
 
-/** 服务器列表/详情响应; SSH 密码/私钥以明文下发 (DB 明文存, 后台受信场景), 编辑时 fill 进 type=password 输入框。 */
+/**
+ * 服务器列表/详情响应; 纯硬件 + SSH 凭据.
+ *
+ * <p>SSH 密码以明文下发 (DB 明文存, 后台受信场景), 编辑时 fill 进 type=password 输入框.
+ * <p>Xray 配置 (gRPC 端口 / slot 池等) 不在本响应里, 走 xray_node 接口单独取.
+ */
 export interface ResourceServer {
   id: string
   name: string
@@ -8,16 +13,11 @@ export interface ResourceServer {
   sshPort?: number
   sshUser?: string
   sshPassword?: string
-  sshPrivateKey?: string
-  /** SSH 命令最大耗时（秒）；30 较合理，跨洲可调到 60-120 */
+  /** SSH 命令最大耗时(秒); 30 较合理, 跨洲可调到 60-120 */
   sshTimeoutSeconds?: number
-  /** Backend gRPC 调用超时(秒)；20 较合理，跨洲可调到 60 */
-  backendTimeoutSeconds?: number
-  xrayGrpcHost?: string
-  xrayGrpcPort?: number
   /** 带宽峰值速率 Mbps */
   totalBandwidth?: number
-  /** 月流量额度 GB；null/0 表示不限或未配置 */
+  /** 月流量额度 GB; null/0 表示不限或未配置 */
   monthlyTrafficGb?: number
   totalIpCount?: number
   idcProvider?: string
@@ -43,11 +43,7 @@ export interface ResourceServerSaveDTO {
   sshPort?: number
   sshUser?: string
   sshPassword?: string
-  sshPrivateKey?: string
   sshTimeoutSeconds?: number
-  backendTimeoutSeconds?: number
-  xrayGrpcHost?: string
-  xrayGrpcPort?: number
   totalBandwidth?: number
   monthlyTrafficGb?: number
   idcProvider?: string

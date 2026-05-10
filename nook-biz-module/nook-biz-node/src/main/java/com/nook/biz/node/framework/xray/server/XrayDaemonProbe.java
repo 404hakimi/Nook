@@ -1,9 +1,9 @@
 package com.nook.biz.node.framework.xray.server;
 
 import jakarta.annotation.Resource;
-import com.nook.biz.resource.api.ResourceServerApi;
 import com.nook.biz.node.framework.ssh.SshSessionManager;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
+import com.nook.biz.node.service.xray.node.XrayNodeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +26,7 @@ public class XrayDaemonProbe {
     @Resource
     private SshSessionManager sessionManager;
     @Resource
-    private ResourceServerApi resourceServerApi;
+    private XrayNodeService xrayNodeService;
 
     /**
      * 一次 SSH 复合命令拿 xray version + 监听端口段.
@@ -35,7 +35,7 @@ public class XrayDaemonProbe {
      * @return XrayDaemonExtraSnapshot
      */
     public XrayDaemonExtraSnapshot readExtras(String serverId) {
-        int grpcPort = resourceServerApi.loadCredential(serverId).xrayGrpcPort();
+        int grpcPort = xrayNodeService.loadOrThrow(serverId).getXrayGrpcPort();
         String composite = String.join("\n",
                 "echo '====[VERSION]===='",
                 "xray version 2>/dev/null | head -1 || true",

@@ -25,11 +25,9 @@ public class Socks5InstallReqVO {
     @Size(max = 64)
     private String sshUser;
 
-    /** sshPassword 与 sshPrivateKey 二选一 */
+    @NotBlank(message = "SSH 密码不能为空")
     @Size(max = 255)
     private String sshPassword;
-
-    private String sshPrivateKey;
 
     @NotNull(message = "SSH 超时必填")
     @Min(value = 5) @Max(value = 600)

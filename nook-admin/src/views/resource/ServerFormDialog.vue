@@ -48,11 +48,7 @@ const form = reactive({
   sshPort: 22 as number | null,
   sshUser: 'root',
   sshPassword: '',
-  sshPrivateKey: '',
   sshTimeoutSeconds: 30 as number | null,
-  backendTimeoutSeconds: 20 as number | null,
-  xrayGrpcHost: '127.0.0.1',
-  xrayGrpcPort: 62789 as number | null,
   totalBandwidth: 1000 as number | null,
   monthlyTrafficGb: null as number | null,
   idcProvider: '',
@@ -70,11 +66,7 @@ function fill(s: ResourceServer) {
   form.sshUser = s.sshUser ?? 'root'
   // 接口下发明文凭据, 直接 fill 进密码框 (UI 遮盖); 不改就保留, 改了就覆盖
   form.sshPassword = s.sshPassword ?? ''
-  form.sshPrivateKey = s.sshPrivateKey ?? ''
   form.sshTimeoutSeconds = s.sshTimeoutSeconds ?? 30
-  form.backendTimeoutSeconds = s.backendTimeoutSeconds ?? 20
-  form.xrayGrpcHost = s.xrayGrpcHost ?? '127.0.0.1'
-  form.xrayGrpcPort = s.xrayGrpcPort ?? 62789
   form.totalBandwidth = s.totalBandwidth ?? 1000
   form.monthlyTrafficGb = s.monthlyTrafficGb ?? null
   form.idcProvider = s.idcProvider ?? ''
@@ -89,11 +81,7 @@ function reset() {
   form.sshPort = 22
   form.sshUser = 'root'
   form.sshPassword = ''
-  form.sshPrivateKey = ''
   form.sshTimeoutSeconds = 30
-  form.backendTimeoutSeconds = 20
-  form.xrayGrpcHost = '127.0.0.1'
-  form.xrayGrpcPort = 62789
   form.totalBandwidth = 1000
   form.monthlyTrafficGb = null
   form.idcProvider = ''
@@ -137,21 +125,9 @@ function validate(): boolean {
   } else if ((form.sshTimeoutSeconds as number) < 5 || (form.sshTimeoutSeconds as number) > 300) {
     errors.sshTimeoutSeconds = 'SSH 超时需在 5-300 秒之间'
   }
-  if (form.backendTimeoutSeconds == null || isNaN(form.backendTimeoutSeconds as number)) {
-    errors.backendTimeoutSeconds = 'Backend 超时不能为空'
-  } else if (
-    (form.backendTimeoutSeconds as number) < 5 ||
-    (form.backendTimeoutSeconds as number) > 120
-  ) {
-    errors.backendTimeoutSeconds = 'Backend 超时需在 5-120 秒之间'
-  }
 
   if (props.mode === 'create') {
-    if (!form.sshPassword && !form.sshPrivateKey) {
-      errors.sshAuth = '请填 SSH 密码或私钥之一'
-    }
-    if (!form.xrayGrpcHost.trim()) errors.xrayGrpcHost = 'gRPC 主机必填'
-    if (!form.xrayGrpcPort) errors.xrayGrpcPort = 'gRPC 端口必填'
+    if (!form.sshPassword) errors.sshPassword = '请填 SSH 密码'
   }
   return Object.keys(errors).length === 0
 }
@@ -166,11 +142,7 @@ async function onSubmit() {
       sshPort: form.sshPort ?? undefined,
       sshUser: form.sshUser.trim(),
       sshPassword: form.sshPassword || undefined,
-      sshPrivateKey: form.sshPrivateKey || undefined,
       sshTimeoutSeconds: form.sshTimeoutSeconds ?? undefined,
-      backendTimeoutSeconds: form.backendTimeoutSeconds ?? undefined,
-      xrayGrpcHost: form.xrayGrpcHost.trim() || undefined,
-      xrayGrpcPort: form.xrayGrpcPort ?? undefined,
       totalBandwidth: form.totalBandwidth ?? undefined,
       monthlyTrafficGb: form.monthlyTrafficGb ?? undefined,
       idcProvider: form.idcProvider.trim() || undefined,
@@ -307,82 +279,23 @@ function close() {
             />
           </NFormItem>
           <div class="sm:col-span-3">
-            <NFormItem label="SSH 密码">
+            <NFormItem
+              label="SSH 密码"
+              :validation-status="errors.sshPassword ? 'error' : undefined"
+              :feedback="errors.sshPassword"
+            >
               <NInput
                 v-model:value="form.sshPassword"
                 type="password"
                 show-password-on="click"
                 :input-props="{ autocomplete: 'new-password' }"
+                :placeholder="isEdit ? '留空表示不修改' : '必填'"
               />
             </NFormItem>
-          </div>
-          <div class="sm:col-span-3">
-            <NFormItem label="SSH 私钥 (PEM)">
-              <NInput
-                v-model:value="form.sshPrivateKey"
-                type="password"
-                show-password-on="click"
-                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----..."
-                :input-props="{
-                  autocomplete: 'new-password',
-                  style: 'font-family: monospace'
-                }"
-              />
-            </NFormItem>
-          </div>
-          <div v-if="errors.sshAuth" class="sm:col-span-3 text-xs mb-3" style="color: var(--n-error-color)">
-            {{ errors.sshAuth }}
           </div>
         </div>
 
-        <!-- Xray gRPC -->
-        <div class="text-sm font-semibold text-zinc-500 mt-4 mb-2">Xray gRPC 配置</div>
-        <p class="text-xs text-zinc-500 mb-2">
-          nook 通过 SSH 隧道转发 gRPC, 所以 host 通常填 <code>127.0.0.1</code>(Xray
-          监听本地). 端口由部署脚本决定, 默认 62789.
-        </p>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
-          <NFormItem
-            label="gRPC 主机"
-            required
-            :validation-status="errors.xrayGrpcHost ? 'error' : undefined"
-            :feedback="errors.xrayGrpcHost"
-          >
-            <NInput
-              v-model:value="form.xrayGrpcHost"
-              :input-props="{ style: 'font-family: monospace' }"
-            />
-          </NFormItem>
-          <NFormItem
-            label="gRPC 端口"
-            required
-            :validation-status="errors.xrayGrpcPort ? 'error' : undefined"
-            :feedback="errors.xrayGrpcPort"
-          >
-            <NInputNumber
-              v-model:value="form.xrayGrpcPort"
-              :min="1"
-              :max="65535"
-              class="w-full"
-            />
-          </NFormItem>
-          <NFormItem
-            required
-            :validation-status="errors.backendTimeoutSeconds ? 'error' : undefined"
-            :feedback="errors.backendTimeoutSeconds"
-          >
-            <template #label>
-              <span>Backend 超时 (秒)</span>
-              <span class="text-xs text-zinc-400 ml-2">5-120, 建议 20</span>
-            </template>
-            <NInputNumber
-              v-model:value="form.backendTimeoutSeconds"
-              :min="5"
-              :max="120"
-              class="w-full"
-            />
-          </NFormItem>
-        </div>
+        <!-- Xray 配置 (gRPC 端口 / slot 池等) 现在在"一键部署"时填, 写入 xray_node 表; 不在本表单里编辑 -->
 
         <NFormItem label="备注">
           <NInput

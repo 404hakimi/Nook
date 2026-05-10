@@ -8,16 +8,6 @@ export interface ConnectivityTestResult {
   error?: string
 }
 
-/** 远端 inbound 列表项 (后端 InboundSnapshotRespVO). */
-export interface RemoteInbound {
-  externalInboundRef: string
-  remark?: string
-  protocol?: string
-  port?: number
-  enabled?: boolean
-  clientCount?: number
-}
-
 /** 操作系统级别基本信息 (后端 ServerSystemInfoRespVO); 不依赖 Xray 是否在跑. */
 export interface ServerSystemInfo {
   hostname?: string
@@ -103,13 +93,6 @@ export function getXrayLog(
   opts?: { lines?: number; level?: XrayLogLevel }
 ) {
   return getServiceLog(serverId, 'xray', opts)
-}
-
-// ===== 后端 XrayInboundController @ /admin/node/xray/inbound =====
-
-/** 列远端 inbound (跳过 nook 自管的 api 通道); 给运营在 inbound 关联界面下拉用. */
-export function listRemoteInbounds(serverId: string) {
-  return request.get<unknown, RemoteInbound[]>(`/admin/node/xray/inbound/${serverId}/list`)
 }
 
 // ===== 后端 XrayServerManageController @ /admin/node/xray/server =====

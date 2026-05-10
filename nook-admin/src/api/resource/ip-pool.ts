@@ -112,9 +112,8 @@ export interface Socks5InstallDTO {
   sshHost: string
   sshPort: number
   sshUser: string
-  /** sshPassword 与 sshPrivateKey 二选一 */
-  sshPassword?: string
-  sshPrivateKey?: string
+  /** SSH 密码 (必填) */
+  sshPassword: string
   sshTimeoutSeconds: number
 
   // SOCKS5 服务参数 — 部署成功后由前端按需调 createIpPool 落库

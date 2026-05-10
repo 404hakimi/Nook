@@ -6,7 +6,6 @@ import cn.hutool.core.util.StrUtil;
 import com.nook.biz.resource.api.ResourceIpPoolApi;
 import com.nook.biz.resource.api.dto.IpPoolEntryDTO;
 import com.nook.biz.resource.api.dto.ServerCredentialDTO;
-import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.controller.socks5.vo.Socks5InstallReqVO;
 import com.nook.biz.node.controller.socks5.vo.Socks5TestRespVO;
 import com.nook.biz.node.convert.socks5.Socks5OpsConvert;
@@ -14,7 +13,6 @@ import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.framework.socks5.probe.Socks5Prober;
 import com.nook.biz.node.framework.ssh.SshSessionManager;
-import com.nook.common.web.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -45,11 +43,7 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
 
     @Override
     public void installAdHocStreaming(Socks5InstallReqVO reqVO, Consumer<String> lineSink) {
-        // SSH 鉴权(密码或私钥)二选一 — 单字段 @NotBlank 表达不了, 业务侧手动校验
-        if (StrUtil.isBlank(reqVO.getSshPassword()) && StrUtil.isBlank(reqVO.getSshPrivateKey())) {
-            throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
-                    "<install-socks5>", "需提供 sshPassword 或 sshPrivateKey 之一");
-        }
+        // sshPassword 已在 ReqVO 上 @NotBlank, controller 校验拦截; 这里直接走流程
         ServerCredentialDTO cred = buildAdHocCred(reqVO);
         Map<String, String> vars = buildVars(reqVO);
         sessionManager.runAdHocVoid(cred, session ->
@@ -80,7 +74,6 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
                 .sshPort(r.getSshPort())
                 .sshUser(r.getSshUser())
                 .sshPassword(r.getSshPassword())
-                .sshPrivateKey(r.getSshPrivateKey())
                 .sshTimeoutSeconds(r.getSshTimeoutSeconds())
                 .build();
     }

@@ -20,6 +20,10 @@ public enum XrayErrorCode implements ErrorCode {
     GRPC_NOT_IMPLEMENTED(6010, "gRPC backend 该操作未实现: %s"),
     /** xray_client DB 行不存在; 与 CLIENT_NOT_FOUND (远端 client 不存在) 语义不同 */
     CLIENT_ENTITY_NOT_FOUND(6011, "xray_client 行 %s 不存在"),
+    /** server 的 slot 池已满 (已用客户数 >= slot_pool_size); 需扩容或迁移到其它 server */
+    SLOT_POOL_EXHAUSTED(6012, "server %s 的 slot 池已满, 无空闲槽位"),
+    /** server 的 nook 状态记录不存在; 通常说明该 server 还没通过 nook 部署过 */
+    SERVER_STATE_NOT_FOUND(6013, "server %s 的 nook 状态记录不存在"),
     ;
 
     private final int code;

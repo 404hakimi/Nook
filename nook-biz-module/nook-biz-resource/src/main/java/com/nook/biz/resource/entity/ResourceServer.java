@@ -6,7 +6,14 @@ import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-/** 出口 VPS 服务器，与 backend 凭据合并存储。 */
+/**
+ * 服务器资源表 (纯硬件 + SSH 凭据).
+ *
+ * <p>本表只管"机器活着 + SSH 通"; 任何 xray/business 相关字段都不应出现在这.
+ * Xray 实例配置见 {@code xray_node} 表 (nook-biz-node 模块管).
+ *
+ * @author nook
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("resource_server")
@@ -22,22 +29,13 @@ public class ResourceServer extends BaseEntity {
 
     private String sshPassword;
 
-    private String sshPrivateKey;
-
-    /** SSH 命令最大耗时(秒)；建议 30-120 */
+    /** SSH 命令最大耗时(秒); 建议 30-120 */
     private Integer sshTimeoutSeconds;
-
-    /** backend gRPC 调用超时(秒)；建议 20-60 */
-    private Integer backendTimeoutSeconds;
-
-    private String xrayGrpcHost;
-
-    private Integer xrayGrpcPort;
 
     /** 带宽峰值 Mbps */
     private Integer totalBandwidth;
 
-    /** 月流量额度 GB；null/0 表示不限或未配置 */
+    /** 月流量额度 GB; null/0 表示不限或未配置 */
     private Integer monthlyTrafficGb;
 
     private Integer totalIpCount;

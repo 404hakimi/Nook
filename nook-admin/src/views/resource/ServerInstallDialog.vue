@@ -78,8 +78,7 @@ watch(
     if (!open) return
     Object.keys(errors).forEach((k) => delete errors[k])
     output.value = ''
-    // 默认值参考服务器现有的 xrayGrpcPort (如有)
-    if (props.server?.xrayGrpcPort) form.xrayApiPort = props.server.xrayGrpcPort
+    // xray 配置默认值不再从 resource_server 取 (那里没了); 如需读已部署节点的端口, 后续可调 xray_node 接口
   }
 )
 

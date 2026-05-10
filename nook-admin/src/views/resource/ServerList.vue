@@ -283,30 +283,17 @@ const columns = computed<DataTableColumns<ResourceServer>>(() => [
     title: 'SSH',
     key: 'ssh',
     render: (row) => {
-      const sshConfigured = !!(row.sshPassword || row.sshPrivateKey)
-      const grpcConfigured = !!(row.xrayGrpcHost && row.xrayGrpcPort)
-      return h('div', { class: 'flex gap-1' }, [
-        h(
-          NTag,
-          {
-            size: 'small',
-            type: sshConfigured ? 'success' : 'default',
-            bordered: !sshConfigured,
-            title: sshConfigured ? 'SSH 已配置' : 'SSH 未配置'
-          },
-          { default: () => 'SSH' }
-        ),
-        h(
-          NTag,
-          {
-            size: 'small',
-            type: grpcConfigured ? 'success' : 'default',
-            bordered: !grpcConfigured,
-            title: grpcConfigured ? 'gRPC 已配置' : 'gRPC 未配置'
-          },
-          { default: () => 'gRPC' }
-        )
-      ])
+      const sshConfigured = !!row.sshPassword
+      return h(
+        NTag,
+        {
+          size: 'small',
+          type: sshConfigured ? 'success' : 'default',
+          bordered: !sshConfigured,
+          title: sshConfigured ? 'SSH 已配置' : 'SSH 未配置'
+        },
+        { default: () => 'SSH' }
+      )
     }
   },
   {

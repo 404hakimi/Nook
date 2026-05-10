@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { CheckCircle2, RefreshCw } from 'lucide-vue-next'
+import { CheckCircle2 } from 'lucide-vue-next'
 import {
   NButton,
   NForm,
@@ -15,7 +15,6 @@ import {
   useMessage
 } from 'naive-ui'
 import { pageServers, type ResourceServer } from '@/api/resource/server'
-import { listRemoteInbounds, type RemoteInbound } from '@/api/xray/server'
 import { pageClients, provisionClient, type XrayClientProvisionDTO } from '@/api/xray/client'
 import {
   IP_POOL_STATUS_LABELS,
@@ -38,9 +37,7 @@ const submitting = ref(false)
 const errors = reactive<Record<string, string>>({})
 
 const servers = ref<ResourceServer[]>([])
-const remoteInbounds = ref<RemoteInbound[]>([])
 const loadingServers = ref(false)
-const loadingInbounds = ref(false)
 
 const ipPool = ref<ResourceIpPool[]>([])
 const ipTypes = ref<ResourceIpType[]>([])
@@ -49,15 +46,17 @@ const loadingIpPool = ref(false)
 /** memberUserId 唯一性预校验状态; 'idle' 表示未校验, 'ok' 通过, 'dup' 已重复, 'checking' 正在请求. */
 const memberCheck = ref<'idle' | 'checking' | 'ok' | 'dup'>('idle')
 
+/**
+ * 1:1 + slot 模型下表单字段精简:
+ *   - inbound tag / 监听端口 / listenIp / transport 由 nook 业务侧自动决定
+ *     (in_slot_NN, port = slot_port_base + slot_index, 0.0.0.0, tcp), 前端不需要选/填
+ *   - 仅保留: server / 会员ID / IP / 协议 + 业务配额参数
+ */
 const form = reactive({
   serverId: '',
   ipId: '',
   memberUserId: '',
-  externalInboundRef: '',
   protocol: '',
-  transport: '',
-  listenIp: '',
-  listenPort: undefined as number | undefined,
   totalBytes: undefined as number | undefined,
   expiryEpochMillis: undefined as number | undefined,
   limitIp: undefined as number | undefined,
@@ -67,21 +66,13 @@ const form = reactive({
 const PROTOCOL_OPTIONS = [
   { label: 'vless', value: 'vless' },
   { label: 'vmess', value: 'vmess' },
-  { label: 'trojan', value: 'trojan' },
-  { label: 'shadowsocks', value: 'shadowsocks' }
+  { label: 'trojan', value: 'trojan' }
 ]
 
 const serverOptions = computed(() =>
   servers.value.map((s) => ({
     label: `${s.name} — ${s.host}`,
     value: s.id
-  }))
-)
-
-const inboundOptions = computed(() =>
-  remoteInbounds.value.map((ib) => ({
-    label: `#${ib.externalInboundRef} ${ib.remark || ''} ${ib.protocol}:${ib.port}${ib.enabled ? '' : ' [禁用]'}`,
-    value: ib.externalInboundRef
   }))
 )
 
@@ -108,17 +99,12 @@ watch(
       serverId: '',
       ipId: '',
       memberUserId: '',
-      externalInboundRef: '',
       protocol: '',
-      transport: '',
-      listenIp: '',
-      listenPort: undefined,
       totalBytes: undefined,
       expiryEpochMillis: undefined,
       limitIp: undefined,
       flow: ''
     })
-    remoteInbounds.value = []
     await Promise.all([loadServers(), loadIpPool(), loadIpTypesOnce()])
   }
 )
@@ -148,37 +134,13 @@ async function loadIpTypesOnce() {
 async function loadServers() {
   loadingServers.value = true
   try {
-    // 拉前 200 条够选了；正式环境服务器数量有限
+    // 拉前 200 条够选了; 正式环境服务器数量有限
     const res = await pageServers({ pageNo: 1, pageSize: 200 })
     servers.value = res.records
   } catch {
     /* */
   } finally {
     loadingServers.value = false
-  }
-}
-
-watch(
-  () => form.serverId,
-  (id) => {
-    // 改 server 一律清空已选 inbound + 重拉; 但不再回填 protocol / listenPort,
-    // 由用户自己选 — "Provision 写什么就是什么"
-    remoteInbounds.value = []
-    form.externalInboundRef = ''
-    if (!id) return
-    fetchRemoteInbounds()
-  }
-)
-
-async function fetchRemoteInbounds() {
-  if (!form.serverId) return
-  loadingInbounds.value = true
-  try {
-    remoteInbounds.value = await listRemoteInbounds(form.serverId)
-  } catch {
-    /* */
-  } finally {
-    loadingInbounds.value = false
   }
 }
 
@@ -222,9 +184,8 @@ function onMemberInput() {
 function validate(): boolean {
   Object.keys(errors).forEach((k) => delete errors[k])
   if (!form.serverId) errors.serverId = '请选服务器'
-  if (!form.externalInboundRef) errors.externalInboundRef = '请选 inbound'
   if (!form.memberUserId.trim()) errors.memberUserId = '请输入会员 ID'
-  if (!form.ipId.trim()) errors.ipId = '请输入 IP ID'
+  if (!form.ipId.trim()) errors.ipId = '请选 IP'
   if (!form.protocol) errors.protocol = '请选协议'
   return Object.keys(errors).length === 0
 }
@@ -235,19 +196,12 @@ async function onSubmit() {
   if (!(await checkMemberUnique())) return
   submitting.value = true
   try {
-    // "我手动 Provision 客户端填写什么就是什么":
-    // - 不再从 inbound 自动回填 protocol / listenPort
-    // - 字符串字段仅 trim 首尾空白; 全空 → undefined (= 让后端用默认值/不写库)
-    // - 数字字段保持 NInputNumber 给的 number | undefined, 不二次加工
+    // 1:1 + slot 模型下只需传业务必要字段, inbound/端口由 nook 自动分配
     const dto: XrayClientProvisionDTO = {
       serverId: form.serverId,
       ipId: form.ipId.trim(),
       memberUserId: form.memberUserId.trim(),
-      externalInboundRef: form.externalInboundRef,
       protocol: form.protocol,
-      transport: form.transport.trim() || undefined,
-      listenIp: form.listenIp.trim() || undefined,
-      listenPort: form.listenPort,
       totalBytes: form.totalBytes,
       expiryEpochMillis: form.expiryEpochMillis,
       limitIp: form.limitIp,
@@ -279,6 +233,11 @@ function close() {
     :mask-closable="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
+    <p class="text-xs text-zinc-500 mb-3">
+      1:1 + slot 模型: nook 自动给客户分配独立 inbound (in_slot_NN) + 独立端口 (slot_port_base + slot_index) +
+      独立 socks5 出站. 表单只需填业务字段, 网络层完全自动化.
+    </p>
+
     <NForm
       :model="form"
       label-placement="top"
@@ -304,40 +263,6 @@ function close() {
               :status="errors.serverId ? 'error' : undefined"
               placeholder="选服务器"
             />
-          </NFormItem>
-        </div>
-
-        <div class="sm:col-span-2">
-          <NFormItem
-            required
-            :validation-status="errors.externalInboundRef ? 'error' : undefined"
-            :feedback="errors.externalInboundRef"
-          >
-            <template #label>
-              <span>远端 Inbound</span>
-              <span v-if="loadingInbounds" class="text-xs text-zinc-400 ml-2">
-                <NSpin :size="12" /> 拉远端
-              </span>
-            </template>
-            <div class="flex gap-2 w-full">
-              <NSelect
-                v-model:value="form.externalInboundRef"
-                :options="inboundOptions"
-                :disabled="!form.serverId"
-                :status="errors.externalInboundRef ? 'error' : undefined"
-                placeholder="先选服务器"
-                class="flex-1"
-              />
-              <NButton
-                quaternary
-                size="small"
-                :disabled="!form.serverId || loadingInbounds"
-                title="重新拉取远端 inbound 列表"
-                @click="fetchRemoteInbounds"
-              >
-                <template #icon><NIcon><RefreshCw /></NIcon></template>
-              </NButton>
-            </div>
           </NFormItem>
         </div>
 
@@ -404,34 +329,12 @@ function close() {
             v-model:value="form.protocol"
             :options="PROTOCOL_OPTIONS"
             :status="errors.protocol ? 'error' : undefined"
-            placeholder="vless / vmess / trojan / shadowsocks"
+            placeholder="vless / vmess / trojan"
           />
         </NFormItem>
 
-        <NFormItem label="transport (可选)">
-          <NInput
-            v-model:value="form.transport"
-            placeholder="tcp / ws / grpc / 留空"
-            :input-props="{ style: 'font-family: monospace' }"
-          />
-        </NFormItem>
-
-        <NFormItem label="监听 IP (可选)">
-          <NInput
-            v-model:value="form.listenIp"
-            placeholder="0.0.0.0 / 留空"
-            :input-props="{ style: 'font-family: monospace' }"
-          />
-        </NFormItem>
-
-        <NFormItem label="监听端口 (可选)">
-          <NInputNumber
-            v-model:value="form.listenPort"
-            :min="1"
-            :max="65535"
-            placeholder="留空 = 后端默认"
-            class="w-full"
-          />
+        <NFormItem label="flow (vless reality)">
+          <NInput v-model:value="form.flow" placeholder="xtls-rprx-vision 或留空" />
         </NFormItem>
 
         <NFormItem label="流量上限 (字节, 0=不限)">
@@ -444,10 +347,6 @@ function close() {
 
         <NFormItem label="限 IP 数 (0=不限)">
           <NInputNumber v-model:value="form.limitIp" :min="0" class="w-full" />
-        </NFormItem>
-
-        <NFormItem label="flow (vless reality)">
-          <NInput v-model:value="form.flow" placeholder="xtls-rprx-vision 或留空" />
         </NFormItem>
       </div>
     </NForm>

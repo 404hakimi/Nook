@@ -1,7 +1,7 @@
-package com.nook.biz.node.framework.xray.grpc;
+package com.nook.biz.node.framework.xray.handler;
 
 /**
- * Xray stats 读用户流量结果; 字节计数, 0 表无限制.
+ * Xray stats 读用户流量结果; 字节计数, totalBytes / expiry / enabled 在 gRPC 模式下由 nook 业务侧维护 (0 表无限制).
  *
  * @author nook
  */

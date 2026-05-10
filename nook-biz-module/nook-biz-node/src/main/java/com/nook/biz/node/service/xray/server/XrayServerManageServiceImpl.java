@@ -11,6 +11,8 @@ import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.biz.node.framework.xray.RemoteFiles;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
+import com.nook.biz.node.service.xray.node.XrayNodeService;
+import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -41,6 +43,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private static final int DEFAULT_SLOT_POOL_SIZE = 50;
     private static final int DEFAULT_XRAY_API_PORT = 8080;
     private static final int DEFAULT_SWAP_SIZE_MB = 1024;
+    private static final int DEFAULT_BACKEND_TIMEOUT_SECONDS = 20;
 
     @Resource
     private SshSessionManager sessionManager;
@@ -50,6 +53,10 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private ServerProbe serverProbe;
     @Resource
     private XrayDaemonProbe xrayDaemonProbe;
+    @Resource
+    private XraySlotPoolService slotPoolService;
+    @Resource
+    private XrayNodeService xrayNodeService;
 
     @Override
     public void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink) {
@@ -61,6 +68,25 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                 TMP_PREFIX,
                 INSTALL_TIMEOUT,
                 lineSink);
+
+        // 部署完成 → 初始化 nook 内部状态 (xray_node 配置 + slot 池). 幂等可重入, 重复部署覆写最新配置.
+        int poolSize = parseInt(vars.get("SLOT_POOL_SIZE"), DEFAULT_SLOT_POOL_SIZE);
+        int portBase = parseInt(vars.get("SLOT_PORT_BASE"), DEFAULT_SLOT_PORT_BASE);
+        int apiPort = parseInt(vars.get("XRAY_API_PORT"), DEFAULT_XRAY_API_PORT);
+        String xrayVersion = StrUtil.blankToDefault(vars.get("XRAY_VERSION"), RemoteFiles.XRAY_DEFAULT_VERSION);
+        String logDir = StrUtil.blankToDefault(vars.get("LOG_DIR"), RemoteFiles.LOG_DIR);
+        try {
+            xrayNodeService.upsert(serverId, xrayVersion, "127.0.0.1", apiPort, logDir,
+                    DEFAULT_BACKEND_TIMEOUT_SECONDS, poolSize, portBase);
+            slotPoolService.initialize(serverId, poolSize);
+            lineSink.accept("[nook] ✔ xray_node + slot 池已初始化 (size=" + poolSize + ", portBase=" + portBase + ")\n");
+        } catch (RuntimeException e) {
+            // 远端 xray 已就绪, 但 nook DB 写入失败 — 不抛错给前端 (远端部署是成功的),
+            // 让运维通过日志看到, 后续通过"重新部署"按钮幂等重跑修复
+            log.error("[install] xray 部署成功但 nook 状态初始化失败 server={}", serverId, e);
+            lineSink.accept("[nook] ⚠ 远端部署 OK, 但 nook 状态初始化失败: " + e.getMessage()
+                    + " (重新点部署可幂等修复)\n");
+        }
     }
 
     @Override
@@ -137,6 +163,15 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     private void appendModule(StringBuilder sb, String moduleFile, Map<String, String> vars) {
         sb.append(scriptRunner.renderTemplate(MODULE_PATH + moduleFile, vars)).append("\n");
+    }
+
+    /** 安全解析数字字符串, 解析失败回落默认; 用于从 vars map 取数. */
+    private static int parseInt(String s, int fallback) {
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException | NullPointerException e) {
+            return fallback;
+        }
     }
 
     /**

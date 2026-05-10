@@ -50,7 +50,6 @@ const form = reactive({
   sshPort: 22,
   sshUser: 'root',
   sshPassword: '',
-  sshPrivateKey: '',
   sshTimeoutSeconds: 60,
 
   // SOCKS5 服务参数 (部署后用作 IP 池录入凭据)
@@ -81,7 +80,6 @@ watch(
       sshPort: 22,
       sshUser: 'root',
       sshPassword: '',
-      sshPrivateKey: '',
       sshTimeoutSeconds: 60,
       socksPort: 1080,
       socksUser: '',
@@ -97,7 +95,7 @@ function validate() {
   if (!form.sshHost.trim()) errors.sshHost = '请输入 SSH 主机'
   if (form.sshPort < 1 || form.sshPort > 65535) errors.sshPort = '端口范围 1-65535'
   if (!form.sshUser.trim()) errors.sshUser = '请输入 SSH 用户'
-  if (!form.sshPassword && !form.sshPrivateKey) errors.sshAuth = '请填 SSH 密码或私钥之一'
+  if (!form.sshPassword) errors.sshPassword = '请填 SSH 密码'
   if (form.sshTimeoutSeconds < 5 || form.sshTimeoutSeconds > 600) errors.sshTimeoutSeconds = 'SSH 超时 5-600 秒'
   if (form.socksPort < 1 || form.socksPort > 65535) errors.socksPort = '端口范围 1-65535'
   if (!form.socksUser.trim()) errors.socksUser = '请输入 SOCKS5 用户名'
@@ -127,8 +125,7 @@ async function onSubmit() {
       sshHost: form.sshHost.trim(),
       sshPort: form.sshPort,
       sshUser: form.sshUser.trim(),
-      sshPassword: form.sshPassword || undefined,
-      sshPrivateKey: form.sshPrivateKey || undefined,
+      sshPassword: form.sshPassword,
       sshTimeoutSeconds: form.sshTimeoutSeconds,
       socksPort: form.socksPort,
       socksUser: form.socksUser.trim(),
@@ -265,32 +262,21 @@ function close() {
         </div>
 
         <div class="sm:col-span-3">
-          <NFormItem label="SSH 密码">
+          <NFormItem
+            label="SSH 密码"
+            required
+            :validation-status="errors.sshPassword ? 'error' : undefined"
+            :feedback="errors.sshPassword"
+          >
             <NInput
               v-model:value="form.sshPassword"
               type="password"
               show-password-on="click"
               :disabled="installing"
               :input-props="{ autocomplete: 'new-password' }"
+              placeholder="必填"
             />
           </NFormItem>
-        </div>
-
-        <div class="sm:col-span-3">
-          <NFormItem label="SSH 私钥 (PEM)">
-            <NInput
-              v-model:value="form.sshPrivateKey"
-              type="textarea"
-              :autosize="{ minRows: 3, maxRows: 6 }"
-              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----..."
-              :disabled="installing"
-              :input-props="{ style: 'font-family: monospace; font-size: 12px' }"
-            />
-          </NFormItem>
-        </div>
-
-        <div v-if="errors.sshAuth" class="sm:col-span-3 mb-2">
-          <NAlert type="error" :show-icon="true">{{ errors.sshAuth }}</NAlert>
         </div>
       </div>
 
