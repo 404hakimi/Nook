@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -30,8 +31,16 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     /** 单条快速命令超时. */
     private static final Duration QUICK_TIMEOUT = Duration.ofSeconds(30);
 
-    private static final String TMPL_INSTALL = "scripts/install-line-server.sh.tmpl";
     private static final String TMP_PREFIX = "nook-install-xray";
+
+    /** install 模块 classpath 前缀. */
+    private static final String MODULE_PATH = "scripts/modules/";
+
+    /** 默认值常量, 与 modules/*.sh.tmpl 的占位对齐. */
+    private static final int DEFAULT_SLOT_PORT_BASE = 30000;
+    private static final int DEFAULT_SLOT_POOL_SIZE = 50;
+    private static final int DEFAULT_XRAY_API_PORT = 8080;
+    private static final int DEFAULT_SWAP_SIZE_MB = 1024;
 
     @Resource
     private SshSessionManager sessionManager;
@@ -44,10 +53,11 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     @Override
     public void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink) {
-        scriptRunner.runFromTemplateStreaming(
+        Map<String, String> vars = buildInstallVars(serverId, reqVO);
+        String script = assembleInstallScript(reqVO, vars);
+        scriptRunner.runScriptStreaming(
                 sessionManager.acquire(serverId),
-                TMPL_INSTALL,
-                buildInstallVars(serverId, reqVO),
+                script,
                 TMP_PREFIX,
                 INSTALL_TIMEOUT,
                 lineSink);
@@ -91,20 +101,75 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         ).stdout();
     }
 
-    /** 部署模板渲染变量表; INSTALL_UFW / ENABLE_BBR 默认 false, TIMEZONE 默认 "skip" 即不调时区. */
+    /**
+     * 按 reqVO 勾选项把 install 模块拼成完整脚本; 顺序固定 00 → ...→ 99.
+     * 必装: 00-prepare-env / 50-xray / 99-finalize.
+     * 可选: 10-timezone (timezone != skip) / 20-swap / 30-bbr / 40-ufw.
+     */
+    private String assembleInstallScript(LineServerInstallReqVO r, Map<String, String> vars) {
+        StringBuilder sb = new StringBuilder(8192);
+        // 公共 header: bash + set -euo pipefail (各模块不再重复写)
+        sb.append("#!/usr/bin/env bash\n");
+        sb.append("# nook server 模块化部署脚本, 渲染于 ").append(vars.get("RENDER_AT")).append("\n");
+        sb.append("# server: ").append(vars.get("SERVER_NAME")).append("\n");
+        sb.append("set -euo pipefail\n\n");
+
+        appendModule(sb, "00-prepare-env.sh.tmpl", vars);
+
+        if (StrUtil.isNotBlank(r.getTimezone()) && !"skip".equalsIgnoreCase(r.getTimezone())) {
+            appendModule(sb, "10-timezone.sh.tmpl", vars);
+        }
+        if (Boolean.TRUE.equals(r.getInstallSwap())) {
+            appendModule(sb, "20-swap.sh.tmpl", vars);
+        }
+        if (Boolean.TRUE.equals(r.getEnableBbr())) {
+            appendModule(sb, "30-bbr.sh.tmpl", vars);
+        }
+        if (Boolean.TRUE.equals(r.getInstallUfw())) {
+            appendModule(sb, "40-ufw.sh.tmpl", vars);
+        }
+
+        appendModule(sb, "50-xray.sh.tmpl", vars);
+        appendModule(sb, "99-finalize.sh.tmpl", vars);
+
+        return sb.toString();
+    }
+
+    private void appendModule(StringBuilder sb, String moduleFile, Map<String, String> vars) {
+        sb.append(scriptRunner.renderTemplate(MODULE_PATH + moduleFile, vars)).append("\n");
+    }
+
+    /**
+     * 部署模板渲染变量表; 各模块共用一套占位.
+     * 默认值与 LineServerInstallReqVO 字段语义对齐 (null 时回落默认).
+     */
     private Map<String, String> buildInstallVars(String serverId, LineServerInstallReqVO r) {
-        boolean installUfw = r.getInstallUfw() != null && r.getInstallUfw();
-        boolean enableBbr = r.getEnableBbr() != null && r.getEnableBbr();
-        return Map.ofEntries(
-                Map.entry("SERVER_NAME", StrUtil.blankToDefault(serverId, "<unset>")),
-                Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
-                Map.entry("VMESS_PORT", String.valueOf(r.getVmessPort())),
-                Map.entry("XRAY_API_PORT", String.valueOf(r.getXrayApiPort())),
-                Map.entry("LOG_DIR", StrUtil.blankToDefault(r.getLogDir(), RemoteFiles.LOG_DIR)),
-                Map.entry("INSTALL_UFW", String.valueOf(installUfw)),
-                Map.entry("ENABLE_BBR", String.valueOf(enableBbr)),
-                Map.entry("TIMEZONE", StrUtil.blankToDefault(r.getTimezone(), "skip")),
-                Map.entry("INSTALL_UFW_BLOCK_LABEL", installUfw ? "UFW 防火墙规则" : "(跳过 UFW)"),
-                Map.entry("INSTALL_BBR_BLOCK_LABEL", enableBbr ? "BBR 内核优化" : "(跳过 BBR)"));
+        int slotPortBase = r.getSlotPortBase() != null ? r.getSlotPortBase() : DEFAULT_SLOT_PORT_BASE;
+        int slotPoolSize = r.getSlotPoolSize() != null ? r.getSlotPoolSize() : DEFAULT_SLOT_POOL_SIZE;
+        int slotPortEnd = slotPortBase + slotPoolSize;
+        int xrayApiPort = r.getXrayApiPort() != null ? r.getXrayApiPort() : DEFAULT_XRAY_API_PORT;
+        int swapSizeMb = r.getSwapSizeMb() != null ? r.getSwapSizeMb() : DEFAULT_SWAP_SIZE_MB;
+        String xrayVersion = StrUtil.blankToDefault(r.getXrayVersion(), RemoteFiles.XRAY_DEFAULT_VERSION);
+        String timezone = StrUtil.blankToDefault(r.getTimezone(), "skip");
+        boolean installUfw = Boolean.TRUE.equals(r.getInstallUfw());
+        boolean enableBbr = Boolean.TRUE.equals(r.getEnableBbr());
+        boolean installSwap = Boolean.TRUE.equals(r.getInstallSwap());
+
+        // 用 LinkedHashMap 保留插入顺序便于 debug
+        Map<String, String> vars = new LinkedHashMap<>();
+        vars.put("SERVER_NAME", StrUtil.blankToDefault(serverId, "<unset>"));
+        vars.put("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        vars.put("TIMEZONE", timezone);
+        vars.put("INSTALL_UFW", String.valueOf(installUfw));
+        vars.put("ENABLE_BBR", String.valueOf(enableBbr));
+        vars.put("INSTALL_SWAP", String.valueOf(installSwap));
+        vars.put("SWAP_SIZE_MB", String.valueOf(swapSizeMb));
+        vars.put("XRAY_VERSION", xrayVersion);
+        vars.put("XRAY_API_PORT", String.valueOf(xrayApiPort));
+        vars.put("LOG_DIR", StrUtil.blankToDefault(r.getLogDir(), RemoteFiles.LOG_DIR));
+        vars.put("SLOT_PORT_BASE", String.valueOf(slotPortBase));
+        vars.put("SLOT_PORT_END", String.valueOf(slotPortEnd));
+        vars.put("SLOT_POOL_SIZE", String.valueOf(slotPoolSize));
+        return vars;
     }
 }

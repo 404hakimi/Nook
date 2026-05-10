@@ -114,6 +114,30 @@
                     </execution>
                 </executions>
             </plugin>
+            <!--
+                把 protobuf 生成的源码目录显式注册给 Maven,
+                IntelliJ / VSCode / 其它 IDE 才能识别 com.xray.* 这些自动生成的类,
+                避免 IDE 报"程序包不存在"红线 (mvn compile 是没问题的, 这只是 IDE 识别问题).
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>add-protobuf-generated-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/protobuf/java</source>
+                                <source>${project.build.directory}/generated-sources/protobuf/grpc-java</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

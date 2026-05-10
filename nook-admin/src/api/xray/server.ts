@@ -133,13 +133,32 @@ export function xrayAutostart(serverId: string, enabled: boolean) {
   )
 }
 
+/**
+ * Xray 线路服务器一键安装入参.
+ *
+ * 阶段 1 改造 (1:1 + slot 模型):
+ *   - 删除 vmessPort (旧共享 inbound 模型不存在了)
+ *   - 加 xrayVersion / slotPortBase / slotPoolSize (1:1 模型核心参数)
+ *   - 加 installSwap / swapSizeMb (模块化勾选, 小内存机推荐)
+ */
 export interface LineServerInstallDTO {
-  vmessPort: number
+  /** Xray 版本; "v1.8.23" 这种或 "latest". 默认从后端常量取. */
+  xrayVersion?: string
+  /** 客户端口段起点; 1:1 模型每客户独享 inbound 监听 base+slotIndex. 默认 30000. */
+  slotPortBase?: number
+  /** Slot 池大小, server 最多承载客户数. 默认 50. */
+  slotPoolSize?: number
+  /** Xray gRPC API 端口 (loopback, 走 SSH 隧道). */
   xrayApiPort: number
+  /** xray 日志目录, 留空 = /var/log/xray. */
   logDir?: string
   installUfw?: boolean
   enableBbr?: boolean
-  /** IANA tz, 如 Asia/Shanghai / UTC; 留空则不改 */
+  /** 是否启用 swap (小内存 VPS 推荐). */
+  installSwap?: boolean
+  /** swap 大小 MB, installSwap=true 时生效. 默认 1024. */
+  swapSizeMb?: number
+  /** IANA tz, 如 Asia/Shanghai / UTC; 留空或 "skip" 不改远端时区. */
   timezone?: string
 }
 

@@ -39,7 +39,7 @@ const outputRef = ref<HTMLPreElement | null>(null)
 let abortCtrl: AbortController | null = null
 
 const TIMEZONE_OPTIONS = [
-  { label: '不修改', value: '' },
+  { label: '不修改 (skip)', value: 'skip' },
   { label: 'Asia/Shanghai (北京)', value: 'Asia/Shanghai' },
   { label: 'Asia/Hong_Kong', value: 'Asia/Hong_Kong' },
   { label: 'Asia/Tokyo', value: 'Asia/Tokyo' },
@@ -51,12 +51,24 @@ const TIMEZONE_OPTIONS = [
   { label: 'Europe/Frankfurt', value: 'Europe/Frankfurt' }
 ]
 
+/** 项目认可的 Xray 稳定版, 与后端 RemoteFiles.XRAY_DEFAULT_VERSION 对齐. 升级时改这里. */
+const XRAY_DEFAULT_VERSION = 'v1.8.23'
+
+const XRAY_VERSION_OPTIONS = [
+  { label: `${XRAY_DEFAULT_VERSION} (稳定版, 推荐)`, value: XRAY_DEFAULT_VERSION },
+  { label: 'latest (最新, 风险自负)', value: 'latest' }
+]
+
 const form = reactive<Required<LineServerInstallDTO>>({
-  vmessPort: 443,
-  xrayApiPort: 62789,
+  xrayVersion: XRAY_DEFAULT_VERSION,
+  slotPortBase: 30000,
+  slotPoolSize: 50,
+  xrayApiPort: 8080,
   logDir: '/var/log/xray',
   installUfw: true,
   enableBbr: true,
+  installSwap: false,
+  swapSizeMb: 1024,
   timezone: 'Asia/Shanghai'
 })
 
@@ -66,26 +78,35 @@ watch(
     if (!open) return
     Object.keys(errors).forEach((k) => delete errors[k])
     output.value = ''
-    // 默认值参考服务器现有的 xrayGrpcPort(如有)
+    // 默认值参考服务器现有的 xrayGrpcPort (如有)
     if (props.server?.xrayGrpcPort) form.xrayApiPort = props.server.xrayGrpcPort
   }
 )
 
 function validate() {
   Object.keys(errors).forEach((k) => delete errors[k])
-  if (form.vmessPort < 1 || form.vmessPort > 65535) errors.vmessPort = '端口范围 1-65535'
   if (form.xrayApiPort < 1 || form.xrayApiPort > 65535) errors.xrayApiPort = '端口范围 1-65535'
-  if (form.vmessPort === form.xrayApiPort) errors.xrayApiPort = '不能与 vmess 端口相同'
+  if (form.slotPortBase < 1024 || form.slotPortBase > 60000) errors.slotPortBase = '端口范围 1024-60000'
+  if (form.slotPoolSize < 1 || form.slotPoolSize > 200) errors.slotPoolSize = '槽位数 1-200'
+  // slot 端口段不能覆盖 gRPC API 端口
+  const slotEnd = form.slotPortBase + form.slotPoolSize
+  if (form.xrayApiPort >= form.slotPortBase && form.xrayApiPort <= slotEnd) {
+    errors.xrayApiPort = `不能落在 slot 端口段 ${form.slotPortBase}-${slotEnd} 内`
+  }
+  if (form.installSwap && (form.swapSizeMb < 256 || form.swapSizeMb > 8192)) {
+    errors.swapSizeMb = 'swap 范围 256-8192 MB'
+  }
   return Object.keys(errors).length === 0
 }
 
 async function onSubmit() {
   if (!validate() || !props.server) return
+  const slotEnd = form.slotPortBase + form.slotPoolSize
   const ok = await confirm({
-    title: '一键安装/重装 Xray',
-    message: `将在 ${props.server.name} 上安装 Xray + 标配配置（约 1-5 分钟）。\n\n如已存在 Xray 配置会先备份再覆盖。\n\n下方日志会实时显示远端输出。`,
+    title: '一键部署 Xray (1:1 + slot 模型)',
+    message: `将在 ${props.server.name} 上部署 Xray ${form.xrayVersion} + 预置 ${form.slotPoolSize} 个 slot (端口段 ${form.slotPortBase}-${slotEnd}).\n\n约 1-5 分钟。如已存在 Xray 配置会先备份再覆盖。`,
     type: 'warning',
-    confirmText: '开始安装'
+    confirmText: '开始部署'
   })
   if (!ok) return
   installing.value = true
@@ -93,15 +114,19 @@ async function onSubmit() {
   abortCtrl = new AbortController()
   try {
     const dto: LineServerInstallDTO = {
-      vmessPort: form.vmessPort,
+      xrayVersion: form.xrayVersion,
+      slotPortBase: form.slotPortBase,
+      slotPoolSize: form.slotPoolSize,
       xrayApiPort: form.xrayApiPort,
-      logDir: form.logDir,
+      logDir: form.logDir || undefined,
       installUfw: form.installUfw,
       enableBbr: form.enableBbr,
-      timezone: form.timezone || undefined
+      installSwap: form.installSwap,
+      swapSizeMb: form.installSwap ? form.swapSizeMb : undefined,
+      timezone: form.timezone || 'skip'
     }
     await xrayInstallStream(props.server.id, dto, appendOutput, abortCtrl.signal)
-    message.success('安装完成')
+    message.success('部署完成')
     emit('installed')
   } catch (e) {
     if ((e as Error).name === 'AbortError') {
@@ -109,7 +134,7 @@ async function onSubmit() {
       message.warning('已取消, 但远端可能仍在执行')
     } else {
       appendOutput(`\n[error] ${(e as Error).message || ''}\n`)
-      message.error('安装失败, 看输出日志定位')
+      message.error('部署失败, 看输出日志定位')
     }
   } finally {
     installing.value = false
@@ -117,12 +142,12 @@ async function onSubmit() {
   }
 }
 
-// 剥 ANSI 颜色码 (\x1b[0;32m 等) 与 OSC 序列, 远端 apt/Xray 安装等命令可能带颜色
+// 剥 ANSI 颜色码 (\x1b[0;32m 等), 远端 apt/Xray 安装等命令可能带颜色
 const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g
 
 function appendOutput(chunk: string) {
   output.value += chunk.replace(ANSI_RE, '')
-  // 下一帧滚到底,让用户始终看到最新一行
+  // 下一帧滚到底, 让用户始终看到最新一行
   nextTick(() => {
     if (outputRef.value) {
       outputRef.value.scrollTop = outputRef.value.scrollHeight
@@ -144,7 +169,7 @@ function close() {
   <NModal
     :show="modelValue"
     preset="card"
-    style="max-width: 48rem"
+    style="max-width: 52rem"
     :bordered="false"
     :mask-closable="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
@@ -152,7 +177,7 @@ function close() {
     <template #header>
       <div class="flex items-center gap-2">
         <NIcon :size="20" :depth="2"><Rocket /></NIcon>
-        <span>一键部署 Xray</span>
+        <span>一键部署 Xray (1:1 + slot 模型)</span>
       </div>
     </template>
     <template #header-extra>
@@ -162,8 +187,8 @@ function close() {
     </template>
 
     <p class="text-xs text-zinc-500 mb-4">
-      将远程执行 nook 自带的安装脚本（仅支持 Ubuntu 22.04+），装纯 Xray 内核 + 标配
-      xray.json（含 grpc-api）；已有配置会先备份。
+      将远程执行 nook 模块化部署脚本 (仅支持 Ubuntu 22.04+), 装 Xray 内核 + 预置 slot
+      placeholder; 客户开通时通过 gRPC 动态加 inbound, 不重启 xray 不影响其他客户。
     </p>
 
     <NForm
@@ -172,22 +197,17 @@ function close() {
       require-mark-placement="right-hanging"
       size="small"
     >
+      <!-- ===== 核心参数 ===== -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-        <NFormItem
-          required
-          :validation-status="errors.vmessPort ? 'error' : undefined"
-          :feedback="errors.vmessPort"
-        >
+        <NFormItem required>
           <template #label>
-            <span>vmess 入站端口</span>
-            <span class="text-xs text-zinc-400 ml-2">客户连接用</span>
+            <span>Xray 版本</span>
+            <span class="text-xs text-zinc-400 ml-2">推荐稳定版</span>
           </template>
-          <NInputNumber
-            v-model:value="form.vmessPort"
-            :min="1"
-            :max="65535"
+          <NSelect
+            v-model:value="form.xrayVersion"
+            :options="XRAY_VERSION_OPTIONS"
             :disabled="installing"
-            class="w-full"
           />
         </NFormItem>
         <NFormItem
@@ -207,6 +227,42 @@ function close() {
             class="w-full"
           />
         </NFormItem>
+
+        <NFormItem
+          required
+          :validation-status="errors.slotPortBase ? 'error' : undefined"
+          :feedback="errors.slotPortBase"
+        >
+          <template #label>
+            <span>Slot 端口段起点</span>
+            <span class="text-xs text-zinc-400 ml-2">每客户独享一个端口</span>
+          </template>
+          <NInputNumber
+            v-model:value="form.slotPortBase"
+            :min="1024"
+            :max="60000"
+            :disabled="installing"
+            class="w-full"
+          />
+        </NFormItem>
+        <NFormItem
+          required
+          :validation-status="errors.slotPoolSize ? 'error' : undefined"
+          :feedback="errors.slotPoolSize"
+        >
+          <template #label>
+            <span>Slot 池大小</span>
+            <span class="text-xs text-zinc-400 ml-2">该 server 客户上限 (含冗余)</span>
+          </template>
+          <NInputNumber
+            v-model:value="form.slotPoolSize"
+            :min="1"
+            :max="200"
+            :disabled="installing"
+            class="w-full"
+          />
+        </NFormItem>
+
         <div class="sm:col-span-2">
           <NFormItem label="日志目录">
             <NInput
@@ -216,23 +272,57 @@ function close() {
             />
           </NFormItem>
         </div>
-        <div>
-          <NCheckbox v-model:checked="form.installUfw" :disabled="installing">
-            配置 UFW 防火墙
-          </NCheckbox>
-          <p class="text-xs text-zinc-500 ml-6 mt-1">仅放 22 + vmess 端口</p>
+      </div>
+
+      <!-- ===== 可选模块勾选 ===== -->
+      <div class="mt-2 pt-3 border-t border-zinc-200 dark:border-zinc-700">
+        <div class="text-sm font-semibold text-zinc-500 mb-2">可选模块</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+          <div>
+            <NCheckbox v-model:checked="form.installUfw" :disabled="installing">
+              配置 UFW 防火墙
+            </NCheckbox>
+            <p class="text-xs text-zinc-500 ml-6 mt-1">
+              放 22 + slot 端口段 ({{ form.slotPortBase }}-{{ form.slotPortBase + form.slotPoolSize }})
+            </p>
+          </div>
+          <div>
+            <NCheckbox v-model:checked="form.enableBbr" :disabled="installing">
+              启用 BBR 拥塞控制
+            </NCheckbox>
+            <p class="text-xs text-zinc-500 ml-6 mt-1">提升跨境吞吐</p>
+          </div>
+          <div>
+            <NCheckbox v-model:checked="form.installSwap" :disabled="installing">
+              启用 swap
+            </NCheckbox>
+            <p class="text-xs text-zinc-500 ml-6 mt-1">小内存机推荐, 防 xray 高峰 OOM</p>
+          </div>
+          <div v-if="form.installSwap">
+            <NFormItem
+              :validation-status="errors.swapSizeMb ? 'error' : undefined"
+              :feedback="errors.swapSizeMb"
+              :show-label="false"
+            >
+              <NInputNumber
+                v-model:value="form.swapSizeMb"
+                :min="256"
+                :max="8192"
+                :step="256"
+                :disabled="installing"
+                class="w-full"
+              >
+                <template #suffix>MB</template>
+              </NInputNumber>
+            </NFormItem>
+          </div>
         </div>
-        <div>
-          <NCheckbox v-model:checked="form.enableBbr" :disabled="installing">
-            启用 BBR 拥塞控制
-          </NCheckbox>
-          <p class="text-xs text-zinc-500 ml-6 mt-1">提升跨境吞吐</p>
-        </div>
-        <div class="sm:col-span-2 mt-2">
+
+        <div class="mt-3">
           <NFormItem>
             <template #label>
               <span>时区</span>
-              <span class="text-xs text-zinc-400 ml-2">系统时区, 影响日志/到期判定</span>
+              <span class="text-xs text-zinc-400 ml-2">影响日志/到期判定; 选 skip 不修改</span>
             </template>
             <NSelect
               v-model:value="form.timezone"
@@ -256,7 +346,7 @@ function close() {
       <pre
         ref="outputRef"
         class="text-xs max-h-72 overflow-auto bg-zinc-900 text-zinc-100 min-h-32 px-4 py-3 rounded whitespace-pre-wrap break-all font-mono leading-relaxed"
-      ><code v-if="output">{{ output }}</code><span v-else class="text-zinc-500">{{ installing ? '准备中...' : '点"开始安装"触发, 远端 stdout 会逐行回传到这里' }}</span></pre>
+      ><code v-if="output">{{ output }}</code><span v-else class="text-zinc-500">{{ installing ? '准备中...' : '点"开始部署"触发, 远端 stdout 会逐行回传到这里' }}</span></pre>
     </div>
 
     <template #footer>
@@ -272,7 +362,7 @@ function close() {
           <template #icon>
             <NIcon><Rocket /></NIcon>
           </template>
-          {{ installing ? '安装中...' : '开始安装' }}
+          {{ installing ? '部署中...' : '开始部署' }}
         </NButton>
       </NSpace>
     </template>
