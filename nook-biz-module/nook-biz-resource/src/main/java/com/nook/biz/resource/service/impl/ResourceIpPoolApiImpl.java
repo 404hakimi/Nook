@@ -5,6 +5,7 @@ import com.nook.biz.resource.api.dto.IpPoolEntryDTO;
 import com.nook.biz.resource.entity.ResourceIpPool;
 import com.nook.biz.resource.mapper.ResourceIpPoolMapper;
 import com.nook.biz.resource.service.ResourceIpPoolService;
+import com.nook.common.utils.object.BeanUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -28,13 +29,9 @@ public class ResourceIpPoolApiImpl implements ResourceIpPoolApi {
     private final ResourceIpPoolMapper resourceIpPoolMapper;
 
     @Override
-    public IpPoolEntryDTO pickAvailable(String region, String ipTypeId, String memberUserId) {
-        return toDto(resourceIpPoolService.occupyOne(region, ipTypeId, memberUserId));
-    }
-
-    @Override
     public IpPoolEntryDTO occupyById(String ipId, String memberUserId) {
-        return toDto(resourceIpPoolService.occupyById(ipId, memberUserId));
+        ResourceIpPool ipPool = resourceIpPoolService.occupyById(ipId, memberUserId);
+        return BeanUtils.toBean(ipPool, IpPoolEntryDTO.class);
     }
 
     @Override
@@ -44,7 +41,8 @@ public class ResourceIpPoolApiImpl implements ResourceIpPoolApi {
 
     @Override
     public IpPoolEntryDTO loadEntry(String ipId) {
-        return toDto(resourceIpPoolService.findById(ipId));
+        ResourceIpPool ipPool = resourceIpPoolService.findById(ipId);
+        return BeanUtils.toBean(ipPool, IpPoolEntryDTO.class);
     }
 
     @Override
@@ -71,7 +69,6 @@ public class ResourceIpPoolApiImpl implements ResourceIpPoolApi {
                 .region(e.getRegion())
                 .ipTypeId(e.getIpTypeId())
                 .ipAddress(e.getIpAddress())
-                .socks5Host(e.getSocks5Host())
                 .socks5Port(e.getSocks5Port())
                 .socks5Username(e.getSocks5Username())
                 .socks5Password(e.getSocks5Password())
