@@ -9,7 +9,7 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 
-/** 分页查询统一返回结构: { total, records }；与具体 ORM 解耦。entity→VO 的转换由 convert 层完成，不在此提供 map。 */
+/** 分页结构对象 */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
