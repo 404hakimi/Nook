@@ -1,18 +1,22 @@
 package com.nook.biz.node.service.socks5;
 
-import jakarta.annotation.Resource;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.resource.api.ResourceIpPoolApi;
-import com.nook.biz.resource.api.dto.IpPoolEntryDTO;
-import com.nook.biz.resource.api.dto.ServerCredentialDTO;
 import com.nook.biz.node.controller.socks5.vo.Socks5InstallReqVO;
 import com.nook.biz.node.controller.socks5.vo.Socks5TestRespVO;
 import com.nook.biz.node.convert.socks5.Socks5OpsConvert;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
+import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.framework.socks5.probe.Socks5Prober;
 import com.nook.biz.node.framework.ssh.SshSessionManager;
+import com.nook.biz.node.validator.Socks5InstallValidator;
+import com.nook.biz.resource.api.ResourceIpPoolApi;
+import com.nook.biz.resource.api.dto.IpPoolEntryDTO;
+import com.nook.biz.resource.api.dto.ServerCredentialDTO;
+import com.nook.common.web.error.CommonErrorCode;
+import com.nook.common.web.exception.BusinessException;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -26,12 +30,6 @@ import java.util.function.Consumer;
 @Service
 public class Socks5OpsServiceImpl implements Socks5OpsService {
 
-    /** 安装超时; apt 拉包慢可能要几分钟, 给 10 分钟兜底. */
-    private static final Duration INSTALL_TIMEOUT = Duration.ofSeconds(600);
-
-    private static final String TMPL_INSTALL_SOCKS5 = "scripts/install-socks5-landing.sh.tmpl";
-    private static final String TMP_PREFIX = "nook-install-socks5";
-
     @Resource
     private SshSessionManager sessionManager;
     @Resource
@@ -40,19 +38,26 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
     private Socks5Prober socks5Prober;
     @Resource
     private ResourceIpPoolApi resourceIpPoolApi;
+    @Resource
+    private Socks5InstallValidator installValidator;
 
     @Override
     public void installAdHocStreaming(Socks5InstallReqVO reqVO, Consumer<String> lineSink) {
-        // sshPassword 已在 ReqVO 上 @NotBlank, controller 校验拦截; 这里直接走流程
+        installValidator.validateForInstall(reqVO);
         ServerCredentialDTO cred = buildAdHocCred(reqVO);
         Map<String, String> vars = buildVars(reqVO);
+        Duration installTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
         sessionManager.runAdHocVoid(cred, session ->
                 scriptRunner.runFromTemplateStreaming(
-                        session, TMPL_INSTALL_SOCKS5, vars, TMP_PREFIX, INSTALL_TIMEOUT, lineSink));
+                        session, RemoteScriptPaths.SOCKS5_INSTALL_TMPL, vars,
+                        RemoteScriptPaths.INSTALL_SOCKS5_TMP, installTimeout, lineSink));
     }
 
     @Override
     public Socks5TestRespVO testConnectivity(String ipId) {
+        if (StrUtil.isBlank(ipId)) {
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "ipId 不能为空");
+        }
         IpPoolEntryDTO ip = resourceIpPoolApi.loadEntry(ipId);
         if (StrUtil.isBlank(ip.getSocks5Host()) || ObjectUtil.isNull(ip.getSocks5Port())) {
             // 凭据未配置时不调 prober, 直接返回结构化失败 (与"拨号失败"区分)
@@ -69,16 +74,20 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
     /** 把请求里的 ad-hoc SSH 字段封成 ServerCredentialDTO; 不入库, 只为统一调用 SshSessionManager. */
     private ServerCredentialDTO buildAdHocCred(Socks5InstallReqVO r) {
         return ServerCredentialDTO.builder()
-                .serverId("ad-hoc:" + r.getSshHost())  // 仅供日志识别, 不参与 DB 查询
+                // serverId 仅供日志识别, 不参与 DB 查询
+                .serverId("ad-hoc:" + r.getSshHost())
                 .sshHost(r.getSshHost())
                 .sshPort(r.getSshPort())
                 .sshUser(r.getSshUser())
                 .sshPassword(r.getSshPassword())
                 .sshTimeoutSeconds(r.getSshTimeoutSeconds())
+                .sshOpTimeoutSeconds(r.getSshOpTimeoutSeconds())
+                .sshUploadTimeoutSeconds(r.getSshUploadTimeoutSeconds())
+                .installTimeoutSeconds(r.getInstallTimeoutSeconds())
                 .build();
     }
 
-    /** 模板渲染变量表 (RENDER_AT/SOCKS_PORT/...); ALLOW_FROM 默认 0.0.0.0/0, INSTALL_UFW 默认 false. */
+    /** 模板渲染变量表 (RENDER_AT / SOCKS_PORT / ...); ALLOW_FROM 默认 0.0.0.0/0. */
     private Map<String, String> buildVars(Socks5InstallReqVO r) {
         return Map.of(
                 "RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),

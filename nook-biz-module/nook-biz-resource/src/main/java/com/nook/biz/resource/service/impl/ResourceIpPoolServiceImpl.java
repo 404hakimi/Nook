@@ -12,6 +12,8 @@ import com.nook.biz.resource.entity.ResourceIpType;
 import com.nook.biz.resource.mapper.ResourceIpPoolMapper;
 import com.nook.biz.resource.mapper.ResourceIpTypeMapper;
 import com.nook.biz.resource.service.ResourceIpPoolService;
+import com.nook.biz.resource.validator.ResourceIpPoolValidator;
+import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
@@ -25,19 +27,17 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
-    /** 抢占失败重试次数; SELECT-then-UPDATE 防双卖偶尔会与并发兑换抢同一行, 这是技术常量不是业务参数。 */
+    /** 抢占失败重试次数; SELECT-then-UPDATE 防双卖偶尔会与并发兑换抢同一行, 这是技术常量不是业务参数. */
     private static final int OCCUPY_RETRY = 2;
 
     private final ResourceIpPoolMapper resourceIpPoolMapper;
     private final ResourceIpTypeMapper resourceIpTypeMapper;
+    private final ResourceIpPoolValidator ipPoolValidator;
 
     @Override
     public ResourceIpPool findById(String id) {
-        ResourceIpPool e = resourceIpPoolMapper.selectById(id);
-        if (ObjectUtil.isNull(e)) {
-            throw new BusinessException(ResourceErrorCode.IP_POOL_NOT_FOUND, id);
-        }
-        return e;
+        requireId(id);
+        return ipPoolValidator.validateExists(id);
     }
 
     @Override
@@ -49,12 +49,8 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     @Override
     public ResourceIpPool create(ResourceIpPoolSaveReqVO reqVO) {
-        validateIpTypeExists(reqVO.getIpTypeId());
-        if (resourceIpPoolMapper.selectByIpAddress(reqVO.getIpAddress()) != null) {
-            throw new BusinessException(ResourceErrorCode.IP_POOL_IP_DUPLICATE, reqVO.getIpAddress());
-        }
-        // status / score / assign_count 在 DB 是 NOT NULL DEFAULT, 上层不传时 MyBatis-Plus 默认策略
-        // 会跳过 null 列让 DB 兜默认值; 业务侧不再 fallback。
+        ipPoolValidator.validateForCreate(reqVO);
+        // status / score / assign_count 在 DB 是 NOT NULL DEFAULT, 上层不传时 MyBatis-Plus 默认策略会跳过 null 列让 DB 兜默认值
         ResourceIpPool e = new ResourceIpPool();
         e.setRegion(reqVO.getRegion());
         e.setIpTypeId(reqVO.getIpTypeId());
@@ -74,16 +70,16 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     @Override
     public ResourceIpPool update(String id, ResourceIpPoolSaveReqVO reqVO) {
+        ipPoolValidator.validateForUpdate(reqVO);
         ResourceIpPool exist = findById(id);
         if (StrUtil.isNotBlank(reqVO.getIpTypeId())) {
-            validateIpTypeExists(reqVO.getIpTypeId());
+            ipPoolValidator.validateIpTypeExists(reqVO.getIpTypeId());
         }
         if (StrUtil.isNotBlank(reqVO.getIpAddress())
-                && !StrUtil.equals(reqVO.getIpAddress(), exist.getIpAddress())
-                && resourceIpPoolMapper.existsByIpAddressExcludingId(reqVO.getIpAddress(), id)) {
-            throw new BusinessException(ResourceErrorCode.IP_POOL_IP_DUPLICATE, reqVO.getIpAddress());
+                && !StrUtil.equals(reqVO.getIpAddress(), exist.getIpAddress())) {
+            ipPoolValidator.validateIpAddressUnique(id, reqVO.getIpAddress());
         }
-        // 留空 = 保留原值; 非空才覆盖。
+        // 留空 = 保留原值; 非空才覆盖
         if (StrUtil.isNotBlank(reqVO.getRegion())) exist.setRegion(reqVO.getRegion());
         if (StrUtil.isNotBlank(reqVO.getIpTypeId())) exist.setIpTypeId(reqVO.getIpTypeId());
         if (StrUtil.isNotBlank(reqVO.getIpAddress())) exist.setIpAddress(reqVO.getIpAddress());
@@ -108,7 +104,7 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     @Override
     public ResourceIpPool occupyOne(String region, String ipTypeId, String memberUserId) {
-        // 防并发双卖: selectAvailable 拿到候选 → markOccupied(WHERE status=1) 原子改; 0 行受影响 = 被别人抢了, 重试。
+        // 防并发双卖: selectAvailable 拿到候选 → markOccupied(WHERE status=1) 原子改; 0 行受影响 = 被别人抢了, 重试
         String lastIp = "";
         for (int i = 0; i <= OCCUPY_RETRY; i++) {
             ResourceIpPool candidate = resourceIpPoolMapper.selectAvailable(region, ipTypeId);
@@ -119,7 +115,7 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
             lastIp = candidate.getIpAddress();
             int affected = resourceIpPoolMapper.markOccupied(candidate.getId(), memberUserId, LocalDateTime.now());
             if (affected > 0) {
-                // 回填实际写入字段; 减少调用方再 selectById。
+                // 回填实际写入字段; 减少调用方再 selectById
                 candidate.setStatus(2);
                 candidate.setAssignedMemberId(memberUserId);
                 candidate.setAssignedAt(LocalDateTime.now());
@@ -151,11 +147,9 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
         return n;
     }
 
-    /** 引用 ip_type.id 必须存在; 录入/编辑时校验。 */
-    private void validateIpTypeExists(String ipTypeId) {
-        ResourceIpType type = resourceIpTypeMapper.selectById(ipTypeId);
-        if (ObjectUtil.isNull(type)) {
-            throw new BusinessException(ResourceErrorCode.IP_TYPE_NOT_FOUND, ipTypeId);
+    private static void requireId(String id) {
+        if (StrUtil.isBlank(id)) {
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "id 不能为空");
         }
     }
 }

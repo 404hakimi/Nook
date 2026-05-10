@@ -1,6 +1,6 @@
 package com.nook.biz.node.framework.ssh;
 
-import com.nook.biz.node.framework.ssh.dto.SshExecResult;
+import com.nook.biz.node.framework.ssh.dto.MinaSshExecResult;
 
 import java.time.Duration;
 import java.util.function.Consumer;
@@ -13,26 +13,42 @@ import java.util.function.Consumer;
 public interface SshChannel {
 
     /**
-     * 跑命令, 退出码非 0 抛 BACKEND_OPERATION_FAILED.
+     * 跑命令; 默认超时取 cred.sshOpTimeoutSeconds (跨地区可调).
+     *
+     * @param cmd 远端 shell 命令
+     * @return SshExecResult
+     */
+    MinaSshExecResult exec(String cmd);
+
+    /**
+     * 跑命令 (显式 timeout); 仅在跟通用 op timeout 语义不同的场景用 (如 5s 探活).
      *
      * @param cmd     远端 shell 命令
      * @param timeout 超时
      * @return SshExecResult
      */
-    SshExecResult exec(String cmd, Duration timeout);
+    MinaSshExecResult exec(String cmd, Duration timeout);
 
     /**
-     * 流式跑命令, 每读到一行 stdout 回调 lineConsumer; stderr 不走回调, 调用方需手动 2>&1.
+     * 流式跑命令; 每读到一行 stdout 回调 lineConsumer; stderr 不走回调, 调用方需手动 2>&1.
      *
      * @param cmd          远端 shell 命令
-     * @param timeout      超时
+     * @param timeout      超时 (流式场景超时差异大, 必须显式)
      * @param lineConsumer 每行 stdout 的消费回调
      * @return SshExecResult (stdout 留空, 已被 lineConsumer 实时消费)
      */
-    SshExecResult execStream(String cmd, Duration timeout, Consumer<String> lineConsumer);
+    MinaSshExecResult execStream(String cmd, Duration timeout, Consumer<String> lineConsumer);
 
     /**
-     * 把字符串写到远端路径并 chmod 600, 走 base64 + exec 不依赖 shell 转义.
+     * 把字符串写到远端路径并 chmod 600; 默认超时取 cred.sshUploadTimeoutSeconds.
+     *
+     * @param remotePath 远端绝对路径
+     * @param content    文件内容
+     */
+    void uploadString(String remotePath, String content);
+
+    /**
+     * 把字符串写到远端路径并 chmod 600 (显式 timeout).
      *
      * @param remotePath 远端绝对路径
      * @param content    文件内容

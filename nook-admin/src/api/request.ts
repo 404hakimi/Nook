@@ -13,7 +13,7 @@ import type { ApiResult } from './types'
 /** axios 实例: 开发期走 vite proxy 转发到 :8080; 生产打包后由 nginx 反代。 */
 const request: AxiosInstance = axios.create({
   baseURL: '/api',
-  timeout: 15000
+  timeout: 300000
 })
 
 // 请求拦截器: 携带 sa-token

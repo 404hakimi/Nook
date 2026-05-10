@@ -21,39 +21,33 @@ public class XrayNodeServiceImpl implements XrayNodeService {
     @Override
     public void upsert(String serverId,
                        String xrayVersion,
-                       String xrayGrpcHost,
-                       int xrayGrpcPort,
+                       int xrayApiPort,
                        String xrayLogDir,
-                       int backendTimeoutSeconds,
                        int slotPoolSize,
                        int slotPortBase) {
         XrayNodeDO existing = xrayNodeMapper.selectById(serverId);
         if (ObjectUtil.isNotNull(existing)) {
             existing.setXrayVersion(xrayVersion);
-            existing.setXrayGrpcHost(xrayGrpcHost);
-            existing.setXrayGrpcPort(xrayGrpcPort);
+            existing.setXrayApiPort(xrayApiPort);
             existing.setXrayLogDir(xrayLogDir);
-            existing.setBackendTimeoutSeconds(backendTimeoutSeconds);
             existing.setSlotPoolSize(slotPoolSize);
             existing.setSlotPortBase(slotPortBase);
             xrayNodeMapper.updateById(existing);
-            log.info("[xray-node] update server={} version={} grpcPort={} poolSize={}",
-                    serverId, xrayVersion, xrayGrpcPort, slotPoolSize);
+            log.info("[xray-node] update server={} version={} apiPort={} poolSize={}",
+                    serverId, xrayVersion, xrayApiPort, slotPoolSize);
             return;
         }
         XrayNodeDO row = new XrayNodeDO();
         row.setServerId(serverId);
         row.setXrayVersion(xrayVersion);
-        row.setXrayGrpcHost(xrayGrpcHost);
-        row.setXrayGrpcPort(xrayGrpcPort);
+        row.setXrayApiPort(xrayApiPort);
         row.setXrayLogDir(xrayLogDir);
-        row.setBackendTimeoutSeconds(backendTimeoutSeconds);
         row.setSlotPoolSize(slotPoolSize);
         row.setSlotPortBase(slotPortBase);
         row.setInstalledAt(LocalDateTime.now());
         xrayNodeMapper.insert(row);
-        log.info("[xray-node] insert server={} version={} grpcPort={} poolSize={}",
-                serverId, xrayVersion, xrayGrpcPort, slotPoolSize);
+        log.info("[xray-node] insert server={} version={} apiPort={} poolSize={}",
+                serverId, xrayVersion, xrayApiPort, slotPoolSize);
     }
 
     @Override

@@ -6,13 +6,18 @@ import com.nook.biz.node.controller.xray.server.vo.LineServerInstallReqVO;
 import com.nook.biz.node.controller.xray.server.vo.ServiceStatusRespVO;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
+import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
+import com.nook.biz.node.framework.ssh.SshSession;
 import com.nook.biz.node.framework.ssh.SshSessionManager;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
-import com.nook.biz.node.framework.xray.RemoteFiles;
+import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
+import com.nook.biz.node.validator.XrayServerInstallValidator;
+import com.nook.common.web.error.CommonErrorCode;
+import com.nook.common.web.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -27,24 +32,6 @@ import java.util.function.Consumer;
 @Service
 public class XrayServerManageServiceImpl implements XrayServerManageService {
 
-    /** 安装超时; apt 拉包慢可能要几分钟, 给 10 分钟兜底. */
-    private static final Duration INSTALL_TIMEOUT = Duration.ofSeconds(600);
-
-    /** 单条快速命令超时. */
-    private static final Duration QUICK_TIMEOUT = Duration.ofSeconds(30);
-
-    private static final String TMP_PREFIX = "nook-install-xray";
-
-    /** install 模块 classpath 前缀. */
-    private static final String MODULE_PATH = "scripts/modules/";
-
-    /** 默认值常量, 与 modules/*.sh.tmpl 的占位对齐. */
-    private static final int DEFAULT_SLOT_PORT_BASE = 30000;
-    private static final int DEFAULT_SLOT_POOL_SIZE = 50;
-    private static final int DEFAULT_XRAY_API_PORT = 8080;
-    private static final int DEFAULT_SWAP_SIZE_MB = 1024;
-    private static final int DEFAULT_BACKEND_TIMEOUT_SECONDS = 20;
-
     @Resource
     private SshSessionManager sessionManager;
     @Resource
@@ -57,29 +44,37 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private XraySlotPoolService slotPoolService;
     @Resource
     private XrayNodeService xrayNodeService;
+    @Resource
+    private XrayServerInstallValidator installValidator;
 
     @Override
     public void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink) {
+        requireServerId(serverId);
+        installValidator.validateForInstall(reqVO);
+        SshSession session = sessionManager.acquire(serverId);
         Map<String, String> vars = buildInstallVars(serverId, reqVO);
         String script = assembleInstallScript(reqVO, vars);
+        Duration installTimeout = Duration.ofSeconds(session.cred().getInstallTimeoutSeconds());
         scriptRunner.runScriptStreaming(
-                sessionManager.acquire(serverId),
+                session,
                 script,
-                TMP_PREFIX,
-                INSTALL_TIMEOUT,
+                RemoteScriptPaths.INSTALL_XRAY_TMP,
+                installTimeout,
                 lineSink);
 
         // 部署完成 → 初始化 nook 内部状态 (xray_node 配置 + slot 池). 幂等可重入, 重复部署覆写最新配置.
-        int poolSize = parseInt(vars.get("SLOT_POOL_SIZE"), DEFAULT_SLOT_POOL_SIZE);
-        int portBase = parseInt(vars.get("SLOT_PORT_BASE"), DEFAULT_SLOT_PORT_BASE);
-        int apiPort = parseInt(vars.get("XRAY_API_PORT"), DEFAULT_XRAY_API_PORT);
-        String xrayVersion = StrUtil.blankToDefault(vars.get("XRAY_VERSION"), RemoteFiles.XRAY_DEFAULT_VERSION);
-        String logDir = StrUtil.blankToDefault(vars.get("LOG_DIR"), RemoteFiles.LOG_DIR);
+        // reqVO 字段已经全部由 LineServerInstallReqVOValidator 校验, 这里直接拆箱不再有 fallback.
         try {
-            xrayNodeService.upsert(serverId, xrayVersion, "127.0.0.1", apiPort, logDir,
-                    DEFAULT_BACKEND_TIMEOUT_SECONDS, poolSize, portBase);
-            slotPoolService.initialize(serverId, poolSize);
-            lineSink.accept("[nook] ✔ xray_node + slot 池已初始化 (size=" + poolSize + ", portBase=" + portBase + ")\n");
+            xrayNodeService.upsert(
+                    serverId,
+                    reqVO.getXrayVersion(),
+                    reqVO.getXrayApiPort(),
+                    reqVO.getLogDir(),
+                    reqVO.getSlotPoolSize(),
+                    reqVO.getSlotPortBase());
+            slotPoolService.initialize(serverId, reqVO.getSlotPoolSize());
+            lineSink.accept("[nook] ✔ xray_node + slot 池已初始化 (size=" + reqVO.getSlotPoolSize()
+                    + ", portBase=" + reqVO.getSlotPortBase() + ")\n");
         } catch (RuntimeException e) {
             // 远端 xray 已就绪, 但 nook DB 写入失败 — 不抛错给前端 (远端部署是成功的),
             // 让运维通过日志看到, 后续通过"重新部署"按钮幂等重跑修复
@@ -91,47 +86,47 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     @Override
     public String restart(String serverId) {
-        String unit = RemoteFiles.SYSTEMD_UNIT;
+        requireServerId(serverId);
+        SshSession session = sessionManager.acquire(serverId);
+        String unit = XrayConstants.SYSTEMD_UNIT;
         // restart → sleep 2 → is-active → xray version: 一条复合命令拿"是否活+版本"做前端展示
-        return sessionManager.acquire(serverId).ssh().exec(
+        return session.ssh().exec(
                 "systemctl restart " + unit + " && sleep 2 && systemctl is-active " + unit
-                        + " && xray version | head -1",
-                QUICK_TIMEOUT
-        ).stdout();
+                        + " && xray version | head -1"
+        ).getStdout();
     }
 
     @Override
     public ServiceStatusRespVO status(String serverId) {
+        requireServerId(serverId);
         // ServerProbe 只回通用 systemd 状态 (active/uptime/enabled); xray 专属 (version + 监听端口) 走 XrayDaemonProbe
-        SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(serverId, RemoteFiles.SYSTEMD_UNIT);
-        XrayDaemonExtraSnapshot extras = xrayDaemonProbe.readExtras(serverId);
+        SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(serverId, XrayConstants.SYSTEMD_UNIT);
+        int apiPort = xrayNodeService.loadOrThrow(serverId).getXrayApiPort();
+        XrayDaemonExtraSnapshot extras = xrayDaemonProbe.readExtras(serverId, apiPort);
 
         ServiceStatusRespVO vo = new ServiceStatusRespVO();
-        vo.setUnit(sysd.unit());
-        vo.setActive(sysd.active());
-        vo.setUptimeFrom(sysd.uptimeFrom());
-        vo.setEnabled(sysd.enabled());
-        vo.setVersion(extras.version());
-        vo.setListening(extras.listening());
+        vo.setUnit(sysd.getUnit());
+        vo.setActive(sysd.getActive());
+        vo.setUptimeFrom(sysd.getUptimeFrom());
+        vo.setEnabled(sysd.getEnabled());
+        vo.setVersion(extras.getVersion());
+        vo.setListening(extras.getListening());
         return vo;
     }
 
     @Override
     public String setAutostart(String serverId, boolean enabled) {
-        String unit = RemoteFiles.SYSTEMD_UNIT;
+        requireServerId(serverId);
+        SshSession session = sessionManager.acquire(serverId);
+        String unit = XrayConstants.SYSTEMD_UNIT;
         // enable/disable 退出码非 0 也算正常 (already-enabled 等), 用 || true 兜底; 末尾 is-enabled 给前端确认结果
         String op = enabled ? "enable" : "disable";
-        return sessionManager.acquire(serverId).ssh().exec(
-                "systemctl " + op + " " + unit + " 2>&1 || true; systemctl is-enabled " + unit + " 2>/dev/null || true",
-                QUICK_TIMEOUT
-        ).stdout();
+        return session.ssh().exec(
+                "systemctl " + op + " " + unit + " 2>&1 || true; systemctl is-enabled " + unit + " 2>/dev/null || true"
+        ).getStdout();
     }
 
-    /**
-     * 按 reqVO 勾选项把 install 模块拼成完整脚本; 顺序固定 00 → ...→ 99.
-     * 必装: 00-prepare-env / 50-xray / 99-finalize.
-     * 可选: 10-timezone (timezone != skip) / 20-swap / 30-bbr / 40-ufw.
-     */
+    /** 按 reqVO 勾选项把 install 模块拼成完整脚本; 必装 00/50/99, 可选 10-timezone/40-ufw; swap/bbr 不在此链路. */
     private String assembleInstallScript(LineServerInstallReqVO r, Map<String, String> vars) {
         StringBuilder sb = new StringBuilder(8192);
         // 公共 header: bash + set -euo pipefail (各模块不再重复写)
@@ -142,14 +137,8 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
         appendModule(sb, "00-prepare-env.sh.tmpl", vars);
 
-        if (StrUtil.isNotBlank(r.getTimezone()) && !"skip".equalsIgnoreCase(r.getTimezone())) {
+        if (!"skip".equalsIgnoreCase(r.getTimezone())) {
             appendModule(sb, "10-timezone.sh.tmpl", vars);
-        }
-        if (Boolean.TRUE.equals(r.getInstallSwap())) {
-            appendModule(sb, "20-swap.sh.tmpl", vars);
-        }
-        if (Boolean.TRUE.equals(r.getEnableBbr())) {
-            appendModule(sb, "30-bbr.sh.tmpl", vars);
         }
         if (Boolean.TRUE.equals(r.getInstallUfw())) {
             appendModule(sb, "40-ufw.sh.tmpl", vars);
@@ -162,49 +151,31 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     }
 
     private void appendModule(StringBuilder sb, String moduleFile, Map<String, String> vars) {
-        sb.append(scriptRunner.renderTemplate(MODULE_PATH + moduleFile, vars)).append("\n");
+        sb.append(scriptRunner.renderTemplate(RemoteScriptPaths.INSTALL_MODULES_DIR + moduleFile, vars)).append("\n");
     }
 
-    /** 安全解析数字字符串, 解析失败回落默认; 用于从 vars map 取数. */
-    private static int parseInt(String s, int fallback) {
-        try {
-            return Integer.parseInt(s);
-        } catch (NumberFormatException | NullPointerException e) {
-            return fallback;
+    private static void requireServerId(String serverId) {
+        if (StrUtil.isBlank(serverId)) {
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "serverId 不能为空");
         }
     }
 
-    /**
-     * 部署模板渲染变量表; 各模块共用一套占位.
-     * 默认值与 LineServerInstallReqVO 字段语义对齐 (null 时回落默认).
-     */
+    /** 部署模板渲染变量表; reqVO 字段已被 XrayServerInstallValidator 校验, 这里直接拆箱. */
     private Map<String, String> buildInstallVars(String serverId, LineServerInstallReqVO r) {
-        int slotPortBase = r.getSlotPortBase() != null ? r.getSlotPortBase() : DEFAULT_SLOT_PORT_BASE;
-        int slotPoolSize = r.getSlotPoolSize() != null ? r.getSlotPoolSize() : DEFAULT_SLOT_POOL_SIZE;
-        int slotPortEnd = slotPortBase + slotPoolSize;
-        int xrayApiPort = r.getXrayApiPort() != null ? r.getXrayApiPort() : DEFAULT_XRAY_API_PORT;
-        int swapSizeMb = r.getSwapSizeMb() != null ? r.getSwapSizeMb() : DEFAULT_SWAP_SIZE_MB;
-        String xrayVersion = StrUtil.blankToDefault(r.getXrayVersion(), RemoteFiles.XRAY_DEFAULT_VERSION);
-        String timezone = StrUtil.blankToDefault(r.getTimezone(), "skip");
-        boolean installUfw = Boolean.TRUE.equals(r.getInstallUfw());
-        boolean enableBbr = Boolean.TRUE.equals(r.getEnableBbr());
-        boolean installSwap = Boolean.TRUE.equals(r.getInstallSwap());
+        int slotPortEnd = r.getSlotPortBase() + r.getSlotPoolSize();
 
         // 用 LinkedHashMap 保留插入顺序便于 debug
         Map<String, String> vars = new LinkedHashMap<>();
         vars.put("SERVER_NAME", StrUtil.blankToDefault(serverId, "<unset>"));
         vars.put("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        vars.put("TIMEZONE", timezone);
-        vars.put("INSTALL_UFW", String.valueOf(installUfw));
-        vars.put("ENABLE_BBR", String.valueOf(enableBbr));
-        vars.put("INSTALL_SWAP", String.valueOf(installSwap));
-        vars.put("SWAP_SIZE_MB", String.valueOf(swapSizeMb));
-        vars.put("XRAY_VERSION", xrayVersion);
-        vars.put("XRAY_API_PORT", String.valueOf(xrayApiPort));
-        vars.put("LOG_DIR", StrUtil.blankToDefault(r.getLogDir(), RemoteFiles.LOG_DIR));
-        vars.put("SLOT_PORT_BASE", String.valueOf(slotPortBase));
+        vars.put("TIMEZONE", r.getTimezone());
+        vars.put("INSTALL_UFW", String.valueOf(Boolean.TRUE.equals(r.getInstallUfw())));
+        vars.put("XRAY_VERSION", r.getXrayVersion());
+        vars.put("XRAY_API_PORT", String.valueOf(r.getXrayApiPort()));
+        vars.put("LOG_DIR", r.getLogDir());
+        vars.put("SLOT_PORT_BASE", String.valueOf(r.getSlotPortBase()));
         vars.put("SLOT_PORT_END", String.valueOf(slotPortEnd));
-        vars.put("SLOT_POOL_SIZE", String.valueOf(slotPoolSize));
+        vars.put("SLOT_POOL_SIZE", String.valueOf(r.getSlotPoolSize()));
         return vars;
     }
 }

@@ -34,17 +34,11 @@ public class XrayNodeDO implements Serializable {
     /** 安装的 Xray 版本 (如 v1.8.23). */
     private String xrayVersion;
 
-    /** Xray gRPC API 主机, 通常 127.0.0.1 走 SSH 隧道访问. */
-    private String xrayGrpcHost;
-
-    /** Xray gRPC API 端口 (loopback). */
-    private Integer xrayGrpcPort;
+    /** Xray 内置 api server 端口 (loopback); 走 SSH 远端 `xray api -s 127.0.0.1:port adi/rmi` CLI. */
+    private Integer xrayApiPort;
 
     /** Xray 日志目录. */
     private String xrayLogDir;
-
-    /** Xray gRPC 调用超时 (秒); 跨洲建议 20-60. */
-    private Integer backendTimeoutSeconds;
 
     /** Slot 池大小, 该 node 最多承载客户数. */
     private Integer slotPoolSize;

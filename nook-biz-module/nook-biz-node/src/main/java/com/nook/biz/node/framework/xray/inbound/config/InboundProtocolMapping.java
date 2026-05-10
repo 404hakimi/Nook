@@ -25,8 +25,8 @@ public enum InboundProtocolMapping {
         @Override
         public JSONObject buildClientJson(InboundUserSpec spec) {
             JSONObject c = new JSONObject();
-            c.put("id", spec.uuid());
-            c.put("email", spec.email());
+            c.put("id", spec.getUuid());
+            c.put("email", spec.getEmail());
             c.put("alterId", 0);
             c.put("level", 0);
             return c;
@@ -37,9 +37,9 @@ public enum InboundProtocolMapping {
         @Override
         public JSONObject buildClientJson(InboundUserSpec spec) {
             JSONObject c = new JSONObject();
-            c.put("id", spec.uuid());
-            c.put("email", spec.email());
-            if (StrUtil.isNotBlank(spec.flow())) c.put("flow", spec.flow());
+            c.put("id", spec.getUuid());
+            c.put("email", spec.getEmail());
+            if (StrUtil.isNotBlank(spec.getFlow())) c.put("flow", spec.getFlow());
             c.put("level", 0);
             return c;
         }
@@ -49,8 +49,8 @@ public enum InboundProtocolMapping {
         @Override
         public JSONObject buildClientJson(InboundUserSpec spec) {
             JSONObject c = new JSONObject();
-            c.put("password", spec.uuid());
-            c.put("email", spec.email());
+            c.put("password", spec.getUuid());
+            c.put("email", spec.getEmail());
             c.put("level", 0);
             return c;
         }

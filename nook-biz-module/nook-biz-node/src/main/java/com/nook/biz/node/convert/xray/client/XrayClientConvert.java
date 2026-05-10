@@ -4,7 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.controller.xray.client.vo.ClientRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.framework.xray.handler.UserTraffic;
+import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
@@ -27,16 +27,22 @@ public interface XrayClientConvert {
         return PageResult.of(page.getTotal(), convertList(page.getRecords()));
     }
 
-    /** 远端 traffic + 实体 → 出参 VO. */
-    default ClientTrafficRespVO toTrafficVO(XrayClientDO e, UserTraffic t) {
+    /**
+     * 把远端 traffic 快照 + 实体合并成出参 VO.
+     *
+     * @param e 客户端实体
+     * @param t 远端流量快照
+     * @return ClientTrafficRespVO
+     */
+    default ClientTrafficRespVO toTrafficVO(XrayClientDO e, XrayUserTrafficSnapshot t) {
         ClientTrafficRespVO vo = new ClientTrafficRespVO();
         vo.setInboundEntityId(e.getId());
-        vo.setClientEmail(t.email());
-        vo.setUpBytes(t.upBytes());
-        vo.setDownBytes(t.downBytes());
-        vo.setTotalBytes(t.totalBytes());
-        vo.setExpiryEpochMillis(t.expiryEpochMillis());
-        vo.setEnabled(t.enabled());
+        vo.setClientEmail(t.getEmail());
+        vo.setUpBytes(t.getUpBytes());
+        vo.setDownBytes(t.getDownBytes());
+        vo.setTotalBytes(t.getTotalBytes());
+        vo.setExpiryEpochMillis(t.getExpiryEpochMillis());
+        vo.setEnabled(t.isEnabled());
         return vo;
     }
 

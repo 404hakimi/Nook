@@ -6,13 +6,14 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.resource.api.dto.ServerCredentialDTO;
 import com.nook.biz.resource.api.event.ServerCredentialChangedEvent;
-import com.nook.biz.resource.constant.ResourceErrorCode;
 import com.nook.biz.resource.controller.server.vo.ResourceServerPageReqVO;
 import com.nook.biz.resource.controller.server.vo.ResourceServerSaveReqVO;
 import com.nook.biz.resource.convert.ResourceServerConvert;
 import com.nook.biz.resource.entity.ResourceServer;
 import com.nook.biz.resource.mapper.ResourceServerMapper;
 import com.nook.biz.resource.service.ResourceServerService;
+import com.nook.biz.resource.validator.ResourceServerValidator;
+import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
@@ -25,14 +26,12 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     private final ResourceServerMapper resourceServerMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final ResourceServerValidator serverValidator;
 
     @Override
     public ResourceServer findById(String id) {
-        ResourceServer e = resourceServerMapper.selectById(id);
-        if (ObjectUtil.isNull(e)) {
-            throw new BusinessException(ResourceErrorCode.SERVER_NOT_FOUND, id);
-        }
-        return e;
+        requireId(id);
+        return serverValidator.validateExists(id);
     }
 
     @Override
@@ -44,17 +43,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public ResourceServer create(ResourceServerSaveReqVO reqVO) {
-        validateOnCreate(reqVO);
-        if (resourceServerMapper.existsByName(reqVO.getName())) {
-            throw new BusinessException(ResourceErrorCode.SERVER_NAME_DUPLICATE, reqVO.getName());
-        }
-        if (resourceServerMapper.existsByHost(reqVO.getHost())) {
-            throw new BusinessException(ResourceErrorCode.SERVER_HOST_DUPLICATE, reqVO.getHost());
-        }
-        // 必填字段由 SaveReqVO @NotNull(Create) + @Validated 在 Controller 层校验过, 这里直接落库;
-        // sshPort / sshUser / sshTimeout / backendTimeout / totalBandwidth / status 等
-        // 在 DB 层是 NOT NULL DEFAULT, 即便 entity 字段为 null MyBatis-Plus 也会被 DB 默认值兜住,
-        // Java 层不再重复填默认值.
+        serverValidator.validateForCreate(reqVO);
         ResourceServer e = new ResourceServer();
         e.setName(reqVO.getName());
         e.setHost(reqVO.getHost());
@@ -62,6 +51,9 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         e.setSshUser(reqVO.getSshUser());
         e.setSshPassword(reqVO.getSshPassword());
         e.setSshTimeoutSeconds(reqVO.getSshTimeoutSeconds());
+        e.setSshOpTimeoutSeconds(reqVO.getSshOpTimeoutSeconds());
+        e.setSshUploadTimeoutSeconds(reqVO.getSshUploadTimeoutSeconds());
+        e.setInstallTimeoutSeconds(reqVO.getInstallTimeoutSeconds());
         e.setTotalBandwidth(reqVO.getTotalBandwidth());
         e.setMonthlyTrafficGb(reqVO.getMonthlyTrafficGb());
         e.setIdcProvider(reqVO.getIdcProvider());
@@ -74,24 +66,25 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public ResourceServer update(String id, ResourceServerSaveReqVO reqVO) {
+        serverValidator.validateForUpdate(reqVO);
         ResourceServer exist = findById(id);
-        if (StrUtil.isNotBlank(reqVO.getName())
-                && !StrUtil.equals(reqVO.getName(), exist.getName())
-                && resourceServerMapper.existsByNameExcludingId(reqVO.getName(), id)) {
-            throw new BusinessException(ResourceErrorCode.SERVER_NAME_DUPLICATE, reqVO.getName());
+
+        if (StrUtil.isNotBlank(reqVO.getName()) && !StrUtil.equals(reqVO.getName(), exist.getName())) {
+            serverValidator.validateNameUnique(id, reqVO.getName());
+            exist.setName(reqVO.getName());
         }
-        if (StrUtil.isNotBlank(reqVO.getHost())
-                && !StrUtil.equals(reqVO.getHost(), exist.getHost())
-                && resourceServerMapper.existsByHostExcludingId(reqVO.getHost(), id)) {
-            throw new BusinessException(ResourceErrorCode.SERVER_HOST_DUPLICATE, reqVO.getHost());
+        if (StrUtil.isNotBlank(reqVO.getHost()) && !StrUtil.equals(reqVO.getHost(), exist.getHost())) {
+            serverValidator.validateHostUnique(id, reqVO.getHost());
+            exist.setHost(reqVO.getHost());
         }
-        // null 表示保留原值; 非 null 才写入. sshPassword 留空 = 保留旧值.
-        if (StrUtil.isNotBlank(reqVO.getName())) exist.setName(reqVO.getName());
-        if (StrUtil.isNotBlank(reqVO.getHost())) exist.setHost(reqVO.getHost());
         if (ObjectUtil.isNotNull(reqVO.getSshPort())) exist.setSshPort(reqVO.getSshPort());
         if (StrUtil.isNotBlank(reqVO.getSshUser())) exist.setSshUser(reqVO.getSshUser());
+        // sshPassword 留空 = 保留旧值, 非空才覆盖
         if (StrUtil.isNotBlank(reqVO.getSshPassword())) exist.setSshPassword(reqVO.getSshPassword());
         if (ObjectUtil.isNotNull(reqVO.getSshTimeoutSeconds())) exist.setSshTimeoutSeconds(reqVO.getSshTimeoutSeconds());
+        if (ObjectUtil.isNotNull(reqVO.getSshOpTimeoutSeconds())) exist.setSshOpTimeoutSeconds(reqVO.getSshOpTimeoutSeconds());
+        if (ObjectUtil.isNotNull(reqVO.getSshUploadTimeoutSeconds())) exist.setSshUploadTimeoutSeconds(reqVO.getSshUploadTimeoutSeconds());
+        if (ObjectUtil.isNotNull(reqVO.getInstallTimeoutSeconds())) exist.setInstallTimeoutSeconds(reqVO.getInstallTimeoutSeconds());
         if (ObjectUtil.isNotNull(reqVO.getTotalBandwidth())) exist.setTotalBandwidth(reqVO.getTotalBandwidth());
         if (ObjectUtil.isNotNull(reqVO.getMonthlyTrafficGb())) exist.setMonthlyTrafficGb(reqVO.getMonthlyTrafficGb());
         if (StrUtil.isNotBlank(reqVO.getIdcProvider())) exist.setIdcProvider(reqVO.getIdcProvider());
@@ -115,10 +108,9 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         return ResourceServerConvert.INSTANCE.toCredential(findById(id));
     }
 
-    /** Create 校验: SSH 密码必填 (xray 配置走 xray_node 不在本表). */
-    private void validateOnCreate(ResourceServerSaveReqVO reqVO) {
-        if (StrUtil.isBlank(reqVO.getSshPassword())) {
-            throw new BusinessException(ResourceErrorCode.SERVER_SSH_PASSWORD_REQUIRED);
+    private static void requireId(String id) {
+        if (StrUtil.isBlank(id)) {
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "id 不能为空");
         }
     }
 }

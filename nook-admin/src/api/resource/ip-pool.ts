@@ -114,7 +114,14 @@ export interface Socks5InstallDTO {
   sshUser: string
   /** SSH 密码 (必填) */
   sshPassword: string
+  /** SSH 会话握手超时(秒); 5-600 */
   sshTimeoutSeconds: number
+  /** SSH 单条命令超时(秒); 5-300 */
+  sshOpTimeoutSeconds: number
+  /** SCP 上传超时(秒); 5-600 */
+  sshUploadTimeoutSeconds: number
+  /** 安装脚本最大耗时(秒); 60-3600 */
+  installTimeoutSeconds: number
 
   // SOCKS5 服务参数 — 部署成功后由前端按需调 createIpPool 落库
   socksPort: number

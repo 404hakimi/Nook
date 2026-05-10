@@ -2,7 +2,6 @@
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { CheckCircle2, Plus, Rocket } from 'lucide-vue-next'
 import {
-  NAlert,
   NButton,
   NCheckbox,
   NForm,
@@ -50,7 +49,11 @@ const form = reactive({
   sshPort: 22,
   sshUser: 'root',
   sshPassword: '',
+  // 跨地区差异化超时, 跨洲拉高
   sshTimeoutSeconds: 60,
+  sshOpTimeoutSeconds: 60,
+  sshUploadTimeoutSeconds: 60,
+  installTimeoutSeconds: 600,
 
   // SOCKS5 服务参数 (部署后用作 IP 池录入凭据)
   socksPort: 1080,
@@ -81,6 +84,9 @@ watch(
       sshUser: 'root',
       sshPassword: '',
       sshTimeoutSeconds: 60,
+      sshOpTimeoutSeconds: 60,
+      sshUploadTimeoutSeconds: 60,
+      installTimeoutSeconds: 600,
       socksPort: 1080,
       socksUser: '',
       socksPass: '',
@@ -96,7 +102,10 @@ function validate() {
   if (form.sshPort < 1 || form.sshPort > 65535) errors.sshPort = '端口范围 1-65535'
   if (!form.sshUser.trim()) errors.sshUser = '请输入 SSH 用户'
   if (!form.sshPassword) errors.sshPassword = '请填 SSH 密码'
-  if (form.sshTimeoutSeconds < 5 || form.sshTimeoutSeconds > 600) errors.sshTimeoutSeconds = 'SSH 超时 5-600 秒'
+  if (form.sshTimeoutSeconds < 5 || form.sshTimeoutSeconds > 600) errors.sshTimeoutSeconds = 'SSH 握手超时 5-600 秒'
+  if (form.sshOpTimeoutSeconds < 5 || form.sshOpTimeoutSeconds > 300) errors.sshOpTimeoutSeconds = 'SSH 单条命令超时 5-300 秒'
+  if (form.sshUploadTimeoutSeconds < 5 || form.sshUploadTimeoutSeconds > 600) errors.sshUploadTimeoutSeconds = 'SCP 上传超时 5-600 秒'
+  if (form.installTimeoutSeconds < 60 || form.installTimeoutSeconds > 3600) errors.installTimeoutSeconds = '安装超时 60-3600 秒'
   if (form.socksPort < 1 || form.socksPort > 65535) errors.socksPort = '端口范围 1-65535'
   if (!form.socksUser.trim()) errors.socksUser = '请输入 SOCKS5 用户名'
   if (!form.socksPass) errors.socksPass = '请输入 SOCKS5 密码'
@@ -127,6 +136,9 @@ async function onSubmit() {
       sshUser: form.sshUser.trim(),
       sshPassword: form.sshPassword,
       sshTimeoutSeconds: form.sshTimeoutSeconds,
+      sshOpTimeoutSeconds: form.sshOpTimeoutSeconds,
+      sshUploadTimeoutSeconds: form.sshUploadTimeoutSeconds,
+      installTimeoutSeconds: form.installTimeoutSeconds,
       socksPort: form.socksPort,
       socksUser: form.socksUser.trim(),
       socksPass: form.socksPass,
@@ -242,24 +254,7 @@ function close() {
           <NInput v-model:value="form.sshUser" :disabled="installing" />
         </NFormItem>
 
-        <div class="sm:col-span-2">
-          <NFormItem
-            :validation-status="errors.sshTimeoutSeconds ? 'error' : undefined"
-            :feedback="errors.sshTimeoutSeconds"
-          >
-            <template #label>
-              <span>SSH 超时 (秒)</span>
-              <span class="text-xs text-zinc-400 ml-2">5-600, 跨洲建议 60-120</span>
-            </template>
-            <NInputNumber
-              v-model:value="form.sshTimeoutSeconds"
-              :min="5"
-              :max="600"
-              :disabled="installing"
-              style="width: 100%"
-            />
-          </NFormItem>
-        </div>
+        <div class="sm:col-span-2"></div>
 
         <div class="sm:col-span-3">
           <NFormItem
@@ -278,6 +273,77 @@ function close() {
             />
           </NFormItem>
         </div>
+      </div>
+
+      <div class="text-sm font-semibold mt-4 mb-2">
+        超时配置
+        <span class="text-xs font-normal text-zinc-400 ml-2">跨洲拉高 op / upload</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+        <NFormItem
+          :validation-status="errors.sshTimeoutSeconds ? 'error' : undefined"
+          :feedback="errors.sshTimeoutSeconds"
+        >
+          <template #label>
+            <span>SSH 握手超时 (秒)</span>
+            <span class="text-xs text-zinc-400 ml-2">5-600</span>
+          </template>
+          <NInputNumber
+            v-model:value="form.sshTimeoutSeconds"
+            :min="5"
+            :max="600"
+            :disabled="installing"
+            style="width: 100%"
+          />
+        </NFormItem>
+        <NFormItem
+          :validation-status="errors.sshOpTimeoutSeconds ? 'error' : undefined"
+          :feedback="errors.sshOpTimeoutSeconds"
+        >
+          <template #label>
+            <span>SSH 单条命令超时 (秒)</span>
+            <span class="text-xs text-zinc-400 ml-2">5-300</span>
+          </template>
+          <NInputNumber
+            v-model:value="form.sshOpTimeoutSeconds"
+            :min="5"
+            :max="300"
+            :disabled="installing"
+            style="width: 100%"
+          />
+        </NFormItem>
+        <NFormItem
+          :validation-status="errors.sshUploadTimeoutSeconds ? 'error' : undefined"
+          :feedback="errors.sshUploadTimeoutSeconds"
+        >
+          <template #label>
+            <span>SCP 上传超时 (秒)</span>
+            <span class="text-xs text-zinc-400 ml-2">5-600</span>
+          </template>
+          <NInputNumber
+            v-model:value="form.sshUploadTimeoutSeconds"
+            :min="5"
+            :max="600"
+            :disabled="installing"
+            style="width: 100%"
+          />
+        </NFormItem>
+        <NFormItem
+          :validation-status="errors.installTimeoutSeconds ? 'error' : undefined"
+          :feedback="errors.installTimeoutSeconds"
+        >
+          <template #label>
+            <span>安装超时 (秒)</span>
+            <span class="text-xs text-zinc-400 ml-2">60-3600</span>
+          </template>
+          <NInputNumber
+            v-model:value="form.installTimeoutSeconds"
+            :min="60"
+            :max="3600"
+            :disabled="installing"
+            style="width: 100%"
+          />
+        </NFormItem>
       </div>
 
       <div class="text-sm font-semibold mt-4 mb-2">SOCKS5 服务参数</div>

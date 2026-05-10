@@ -2,7 +2,8 @@ package com.nook.biz.node.framework.ssh.internal;
 
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.framework.ssh.SshChannel;
-import com.nook.biz.node.framework.ssh.dto.SshExecResult;
+import com.nook.biz.node.framework.ssh.dto.MinaSshExecResult;
+import com.nook.biz.resource.api.dto.ServerCredentialDTO;
 import com.nook.common.web.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,11 +32,16 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class MinaSshChannel implements SshChannel {
 
-    private final String serverId;
+    private final ServerCredentialDTO cred;
     private final ClientSession clientSession;
 
     @Override
-    public SshExecResult exec(String cmd, Duration timeout) {
+    public MinaSshExecResult exec(String cmd) {
+        return exec(cmd, Duration.ofSeconds(cred.getSshOpTimeoutSeconds()));
+    }
+
+    @Override
+    public MinaSshExecResult exec(String cmd, Duration timeout) {
         long startNs = System.nanoTime();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
@@ -50,19 +56,19 @@ public class MinaSshChannel implements SshChannel {
             String stderr = err.toString(StandardCharsets.UTF_8);
             if (exit == null || exit != 0) {
                 throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
-                        serverId, "exit=" + exit + " stderr=" + stderr);
+                        cred.getServerId(), "exit=" + exit + " stderr=" + stderr);
             }
-            return new SshExecResult(exit, stdout, stderr, elapsed);
+            return new MinaSshExecResult(exit, stdout, stderr, elapsed);
         } catch (BusinessException be) {
             throw be;
         } catch (IOException e) {
-            log.warn("[ssh] exec 失败 server={} cmd={}: {}", serverId, cmd, e.getMessage());
-            throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, e, serverId);
+            log.warn("[ssh] exec 失败 server={} cmd={}: {}", cred.getServerId(), cmd, e.getMessage());
+            throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, e, cred.getServerId());
         }
     }
 
     @Override
-    public SshExecResult execStream(String cmd, Duration timeout, Consumer<String> lineConsumer) {
+    public MinaSshExecResult execStream(String cmd, Duration timeout, Consumer<String> lineConsumer) {
         long startNs = System.nanoTime();
         // PipedOutput 容量 64KB, 远端单行 stdout 不应超过此值; 超过会阻塞 MINA 写线程
         PipedOutputStream stdoutPipe;
@@ -72,7 +78,7 @@ public class MinaSshChannel implements SshChannel {
             stdoutRead = new PipedInputStream(stdoutPipe, 64 * 1024);
         } catch (IOException e) {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, e,
-                    serverId, "建 piped stream 失败");
+                    cred.getServerId(), "建 piped stream 失败");
         }
         ByteArrayOutputStream stderrBuf = new ByteArrayOutputStream();
 
@@ -85,7 +91,7 @@ public class MinaSshChannel implements SshChannel {
             } catch (IOException ignored) {
                 // pipe 关闭即正常 EOF
             }
-        }, "ssh-stream-" + serverId);
+        }, "ssh-stream-" + cred.getServerId());
         reader.setDaemon(true);
         reader.start();
 
@@ -102,21 +108,26 @@ public class MinaSshChannel implements SshChannel {
             Duration elapsed = Duration.ofNanos(System.nanoTime() - startNs);
             if (exit == null || exit != 0) {
                 throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
-                        serverId, "exit=" + exit + " stderr=" + stderrBuf.toString(StandardCharsets.UTF_8));
+                        cred.getServerId(), "exit=" + exit + " stderr=" + stderrBuf.toString(StandardCharsets.UTF_8));
             }
             // 流式场景 stdout 已被 lineConsumer 实时消费, 这里返回空串避免重复占内存
-            return new SshExecResult(exit, "", stderrBuf.toString(StandardCharsets.UTF_8), elapsed);
+            return new MinaSshExecResult(exit, "", stderrBuf.toString(StandardCharsets.UTF_8), elapsed);
         } catch (BusinessException be) {
             throw be;
         } catch (IOException e) {
-            log.warn("[ssh] execStream 失败 server={} cmd={}: {}", serverId, cmd, e.getMessage());
-            throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, e, serverId);
+            log.warn("[ssh] execStream 失败 server={} cmd={}: {}", cred.getServerId(), cmd, e.getMessage());
+            throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, e, cred.getServerId());
         }
     }
 
     @Override
+    public void uploadString(String remotePath, String content) {
+        uploadString(remotePath, content, Duration.ofSeconds(cred.getSshUploadTimeoutSeconds()));
+    }
+
+    @Override
     public void uploadString(String remotePath, String content, Duration timeout) {
-        // 用 base64+exec 而非 SFTP, 不引入 sshd-sftp 子模块依赖; 大文件场景再切 SFTP
+        // 用 base64 + exec 而非 SFTP, 不引入 sshd-sftp 子模块依赖; 大文件场景再切 SFTP
         String b64 = Base64.getEncoder().encodeToString(content.getBytes(StandardCharsets.UTF_8));
         String safePath = remotePath.replace("'", "'\\''");
         String cmd = "echo '" + b64 + "' | base64 -d > '" + safePath + "' && chmod 600 '" + safePath + "'";

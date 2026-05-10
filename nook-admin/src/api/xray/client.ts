@@ -44,15 +44,16 @@ export interface XrayClientProvisionDTO {
   serverId: string
   ipId: string
   memberUserId: string
-  externalInboundRef: string
   protocol: string
-  transport?: string
-  listenIp?: string
-  listenPort?: number
   totalBytes?: number
   expiryEpochMillis?: number
   limitIp?: number
   flow?: string
+  // 1:1 + slot 模型下 nook 自动决定, 前端可不传; 传了也会被业务侧覆写 (后端 @Deprecated)
+  externalInboundRef?: string
+  transport?: string
+  listenIp?: string
+  listenPort?: number
 }
 
 /** 实时流量出参 (后端 ClientTrafficRespVO); 字段名以"挂在 inbound 上的 client 实体 id"语义对齐. */

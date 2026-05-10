@@ -7,6 +7,7 @@ import com.nook.biz.node.framework.server.snapshot.ConnectivitySnapshot;
 import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
+import com.nook.biz.node.framework.ssh.SshSession;
 import com.nook.biz.node.framework.ssh.SshSessionManager;
 import com.nook.common.web.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
@@ -25,8 +26,8 @@ import java.util.regex.Pattern;
 @Component
 public class ServerProbe {
 
-    /** 单次 SSH 命令超时上限; 这些只读命令通常 1-3s, 给 30s 兜底 journalctl 慢盘场景. */
-    private static final Duration OP_TIMEOUT = Duration.ofSeconds(30);
+    /** 探活专用短超时 */
+    private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(10);
 
     /** 日志默认行数 / 上限; 上限 5000 防止前端误传超大值把 journalctl 拖死. */
     private static final int DEFAULT_LOG_LINES = 100;
@@ -39,7 +40,7 @@ public class ServerProbe {
     private SshSessionManager sessionManager;
 
     /**
-     * 主机可达性探活, 走 SSH 跑 'true' 验证网络 / 凭据 / SSH 通道都通; 任何异常都包成 success=false.
+     * 主机可达性探活, 走 SSH 跑 'true' 验证网络 / 凭据 / 通道; 任何异常都包成 success=false 不抛.
      *
      * @param serverId resource_server.id
      * @return ConnectivitySnapshot
@@ -47,7 +48,7 @@ public class ServerProbe {
     public ConnectivitySnapshot probeConnectivity(String serverId) {
         long start = System.currentTimeMillis();
         try {
-            sessionManager.acquire(serverId).ssh().exec("true", Duration.ofSeconds(5));
+            sessionManager.acquire(serverId).ssh().exec("true", PROBE_TIMEOUT);
             long elapsed = System.currentTimeMillis() - start;
             log.info("[probe] OK server={} elapsed={}ms", serverId, elapsed);
             return new ConnectivitySnapshot(true, elapsed, null);
@@ -66,7 +67,7 @@ public class ServerProbe {
     }
 
     /**
-     * 主机层信息 (hostname / kernel / 内存 / 磁盘 / 时区), 一条复合 shell 拿全, 单段失败回空段不中断后续段.
+     * 主机层信息 (hostname / kernel / 内存 / 磁盘 / 时区), 一条复合 shell 拿全; 单段失败回空段不中断后续段.
      *
      * @param serverId resource_server.id
      * @return HostInfoSnapshot
@@ -91,7 +92,8 @@ public class ServerProbe {
                 "echo '====[TIMEZONE]===='",
                 "timedatectl show -p Timezone --value 2>/dev/null || date +%Z || true"
         );
-        String out = sessionManager.acquire(serverId).ssh().exec(composite, OP_TIMEOUT).stdout();
+        SshSession session = sessionManager.acquire(serverId);
+        String out = session.ssh().exec(composite).getStdout();
         return new HostInfoSnapshot(
                 section(out, "HOSTNAME").trim(),
                 section(out, "KERNEL").trim(),
@@ -124,7 +126,8 @@ public class ServerProbe {
                 // is-enabled 在 disabled/static/masked 时退出码非 0, 但 stdout 仍是状态字符串; || true 防 set -e
                 "systemctl is-enabled " + unit + " 2>/dev/null || true"
         );
-        String out = sessionManager.acquire(serverId).ssh().exec(composite, OP_TIMEOUT).stdout();
+        SshSession session = sessionManager.acquire(serverId);
+        String out = session.ssh().exec(composite).getStdout();
         return new SystemdStatusSnapshot(
                 unit,
                 section(out, "ACTIVE").trim(),
@@ -157,11 +160,17 @@ public class ServerProbe {
             default -> "";
         };
         String cmd = "journalctl -u " + unit + " " + priorityFlag + " -n " + lines + " --no-pager 2>/dev/null || true";
-        String out = sessionManager.acquire(serverId).ssh().exec(cmd, OP_TIMEOUT).stdout();
+        SshSession session = sessionManager.acquire(serverId);
+        String out = session.ssh().exec(cmd).getStdout();
         return new JournalLogSnapshot(unit, lines, level, out);
     }
 
-    /** 归一化前端传入的 level, 容错 warn/error 等同义词, 未识别一律 all. */
+    /**
+     * 归一化前端传入的 level, 容错 warn / error 等同义词, 未识别一律 all.
+     *
+     * @param raw 入参 level
+     * @return 归一化后的 level
+     */
     private static String normalizeLevel(String raw) {
         if (StrUtil.isBlank(raw)) return "all";
         String lvl = raw.trim().toLowerCase();
@@ -172,7 +181,13 @@ public class ServerProbe {
         };
     }
 
-    /** 从形如 "====[NAME]====\n<内容>\n====[NEXT]====" 的输出里切一段. */
+    /**
+     * 从形如 "====[NAME]====\n<内容>\n====[NEXT]====" 的输出里切一段.
+     *
+     * @param raw  原始 stdout
+     * @param name 段名
+     * @return 段内容
+     */
     private static String section(String raw, String name) {
         Pattern p = Pattern.compile("====\\[" + name + "\\]====\\R(.*?)(?=\\R====\\[|\\z)", Pattern.DOTALL);
         Matcher m = p.matcher(raw);

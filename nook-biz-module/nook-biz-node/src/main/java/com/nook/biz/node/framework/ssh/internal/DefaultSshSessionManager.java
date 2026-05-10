@@ -120,8 +120,8 @@ public class DefaultSshSessionManager implements SshSessionManager {
      */
     @EventListener
     public void onCredentialChanged(ServerCredentialChangedEvent event) {
-        log.info("[ssh-manager] 收到 ServerCredentialChangedEvent server={}", event.serverId());
-        invalidate(event.serverId());
+        log.info("[ssh-manager] 收到 ServerCredentialChangedEvent server={}", event.getServerId());
+        invalidate(event.getServerId());
     }
 
     /**

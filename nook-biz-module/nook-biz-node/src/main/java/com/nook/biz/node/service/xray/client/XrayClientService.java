@@ -9,7 +9,7 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.common.web.response.PageResult;
 
 /**
- * Xray client 全生命周期 (开通 / 吊销 / 轮换 / 查流量), 远端走 gRPC.
+ * Xray client 全生命周期 (开通 / 吊销 / 轮换 / 查流量); 远端走 SSH + xray CLI.
  *
  * @author nook
  */

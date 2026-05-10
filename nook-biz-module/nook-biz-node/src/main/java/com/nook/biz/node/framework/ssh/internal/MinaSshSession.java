@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
- * SshSession 的 MINA 实现, 仅持有一条 ClientSession + ssh facet, 不知道任何 gRPC / xray.
+ * SshSession 的 MINA 实现, 仅持有一条 ClientSession + ssh facet, 不知道任何业务.
  *
  * @author nook
  */
@@ -36,18 +36,18 @@ class MinaSshSession implements SshSession {
     private MinaSshSession(ServerCredentialDTO cred, ClientSession clientSession) {
         this.cred = cred;
         this.clientSession = clientSession;
-        this.sshFacet = new MinaSshChannel(cred.serverId(), clientSession);
+        this.sshFacet = new MinaSshChannel(cred, clientSession);
         this.connectedAt = Instant.now();
     }
 
     /**
-     * 同步建会话, 任一步失败回滚已建资源并抛 BACKEND_UNREACHABLE.
+     * 同步建会话; 任一步失败回滚已建资源并抛 BACKEND_UNREACHABLE.
      *
      * @param sshClient MINA 全局 SshClient
      * @param cred      SSH 凭据
      * @param props     SSH 会话基础参数
-     * @param onClose   MINA 检测到底层 SSH session 关闭时回调; manager 用它把 cache 里的死条目自动摘出
-     * @return MinaSshSession
+     * @param onClose   底层 SSH session 关闭时回调; manager 用它把 cache 里的死条目自动摘出
+     * @return 已就绪的 MinaSshSession
      */
     static MinaSshSession build(SshClient sshClient,
                                 ServerCredentialDTO cred,
@@ -58,7 +58,7 @@ class MinaSshSession implements SshSession {
         try {
             session = openAndAuth(sshClient, cred, props.getConnectTimeout());
             log.info("[ssh-session] 建立成功 server={} {}@{}:{}",
-                    cred.serverId(), cred.sshUser(), cred.sshHost(), cred.sshPort());
+                    cred.getServerId(), cred.getSshUser(), cred.getSshHost(), cred.getSshPort());
             MinaSshSession instance = new MinaSshSession(cred, session);
             instance.registerCloseListener(onClose);
             return instance;
@@ -67,25 +67,34 @@ class MinaSshSession implements SshSession {
             throw be;
         } catch (Exception e) {
             closeQuietly(session);
-            log.warn("[ssh-session] 建立失败 server={}: {}", cred.serverId(), e.getMessage());
-            throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, e, cred.serverId());
+            log.warn("[ssh-session] 建立失败 server={}: {}", cred.getServerId(), e.getMessage());
+            throw new BusinessException(XrayErrorCode.BACKEND_UNREACHABLE, e, cred.getServerId());
         }
     }
 
-    /** 把 onClose 注册到 MINA ClientSession 的 close future, 任何关闭路径都会触发. */
+    /**
+     * 把 onClose 注册到 MINA ClientSession 的 close future, 任何关闭路径都会触发.
+     *
+     * @param onClose 关闭回调
+     */
     private void registerCloseListener(Consumer<MinaSshSession> onClose) {
         clientSession.addCloseFutureListener(future -> {
             try {
                 onClose.accept(this);
             } catch (Exception e) {
-                log.warn("[ssh-session] close 回调异常 server={}", cred.serverId(), e);
+                log.warn("[ssh-session] close 回调异常 server={}", cred.getServerId(), e);
             }
         });
     }
 
     @Override
     public String serverId() {
-        return cred.serverId();
+        return cred.getServerId();
+    }
+
+    @Override
+    public ServerCredentialDTO cred() {
+        return cred;
     }
 
     @Override
@@ -98,30 +107,40 @@ class MinaSshSession implements SshSession {
         return sshFacet;
     }
 
+    /**
+     * 会话首次建立时刻.
+     *
+     * @return Instant
+     */
     Instant connectedAt() {
         return connectedAt;
     }
 
-    /** manager 调用; 释放底层资源, 幂等 (CAS 抢只让一个线程真正 close). */
+    /**
+     * 释放底层资源; manager 调用, 幂等 (CAS 抢只让一个线程真正 close).
+     */
     void shutdown() {
         if (!shutdownLatch.compareAndSet(false, true)) return;
-        log.info("[ssh-session] 关闭 server={}", cred.serverId());
+        log.info("[ssh-session] 关闭 server={}", cred.getServerId());
         closeQuietly(clientSession);
     }
 
     // ===== 构造期辅助 =====
 
-    /** 校验 SSH 必填字段; xrayGrpcHost 不在这层校验, 那是 Xray 域的事. */
+    /**
+     * 校验 SSH 必填字段; xray 域字段 (api port 等) 由 XrayNodeService 自管, 不在 SSH 层校验.
+     *
+     * @param cred SSH 凭据
+     */
     private static void validateCred(ServerCredentialDTO cred) {
-        if (StrUtil.isBlank(cred.sshHost()) || StrUtil.isBlank(cred.sshUser()) || StrUtil.isBlank(cred.sshPassword())) {
-            throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.serverId());
+        if (StrUtil.isBlank(cred.getSshHost()) || StrUtil.isBlank(cred.getSshUser()) || StrUtil.isBlank(cred.getSshPassword())) {
+            throw new BusinessException(XrayErrorCode.SERVER_CREDENTIAL_INVALID, cred.getServerId());
         }
-        // 注意: xrayGrpcHost 不在 SSH 层校验; 那是 Xray 域 (XrayGrpcChannelManager) 的事
     }
 
     /** TCP 连接 + 鉴权; 鉴权失败关掉 session 再向上抛, 防资源泄漏. */
     private static ClientSession openAndAuth(SshClient client, ServerCredentialDTO cred, Duration connectTimeout) throws IOException {
-        ConnectFuture cf = client.connect(cred.sshUser(), cred.sshHost(), cred.sshPort());
+        ConnectFuture cf = client.connect(cred.getSshUser(), cred.getSshHost(), cred.getSshPort());
         cf.verify(connectTimeout.toMillis());
         ClientSession session = cf.getSession();
         try {
@@ -136,7 +155,7 @@ class MinaSshSession implements SshSession {
 
     /** 用密码鉴权挂身份. */
     private static void attachIdentity(ClientSession session, ServerCredentialDTO cred) {
-        session.addPasswordIdentity(cred.sshPassword());
+        session.addPasswordIdentity(cred.getSshPassword());
     }
 
     /** 静默关 ClientSession; 构造期回滚用, 不希望它把上层真正的失败原因覆盖掉. */

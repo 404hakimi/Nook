@@ -26,7 +26,7 @@ public interface ResourceServerConvert {
 
     /**
      * 实体 → 跨模块 SSH 凭据 DTO; 带原文 SSH 密码, 仅 nook 内部传递.
-     * resource_server 表的 sshPort/sshUser/sshTimeout 都是 NOT NULL, 直接拆箱.
+     * resource_server 表的 sshPort/sshUser/sshTimeout/sshOpTimeout/sshUploadTimeout/installTimeout 都是 NOT NULL, 直接拆箱.
      */
     default ServerCredentialDTO toCredential(ResourceServer e) {
         if (e == null) return null;
@@ -37,6 +37,9 @@ public interface ResourceServerConvert {
                 .sshUser(e.getSshUser())
                 .sshPassword(e.getSshPassword())
                 .sshTimeoutSeconds(e.getSshTimeoutSeconds())
+                .sshOpTimeoutSeconds(e.getSshOpTimeoutSeconds())
+                .sshUploadTimeoutSeconds(e.getSshUploadTimeoutSeconds())
+                .installTimeoutSeconds(e.getInstallTimeoutSeconds())
                 .build();
     }
 }

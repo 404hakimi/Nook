@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Rocket,
   Server,
+  Settings2,
   Timer
 } from 'lucide-vue-next'
 import {
@@ -39,6 +40,7 @@ import {
 } from '@/api/xray/server'
 import type { ResourceServer } from '@/api/resource/server'
 import ServerInstallDialog from './ServerInstallDialog.vue'
+import ServerOsTuneDialog from './ServerOsTuneDialog.vue'
 
 interface Props {
   modelValue: boolean
@@ -80,6 +82,7 @@ const logLines = ref(100)
 const logLevel = ref<XrayLogLevel>('all')
 
 const installOpen = ref(false)
+const osTuneOpen = ref(false)
 
 watch(
   () => [props.modelValue, props.server?.id],
@@ -196,6 +199,10 @@ async function runToggleAutostart() {
 
 function openInstall() {
   installOpen.value = true
+}
+
+function openOsTune() {
+  osTuneOpen.value = true
 }
 
 async function onInstalled() {
@@ -321,6 +328,10 @@ const anyBusy = computed(
           <template #icon><NIcon><Power /></NIcon></template>
           重启 Xray
         </NButton>
+        <NButton size="small" :disabled="anyBusy" @click="openOsTune">
+          <template #icon><NIcon><Settings2 /></NIcon></template>
+          OS 调优
+        </NButton>
         <NButton type="primary" size="small" :disabled="anyBusy" @click="openInstall">
           <template #icon><NIcon><Rocket /></NIcon></template>
           部署/重装
@@ -437,5 +448,6 @@ const anyBusy = computed(
     </template>
 
     <ServerInstallDialog v-model="installOpen" :server="server" @installed="onInstalled" />
+    <ServerOsTuneDialog v-model="osTuneOpen" :server="server" />
   </NModal>
 </template>

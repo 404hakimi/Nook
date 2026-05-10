@@ -1,114 +1,112 @@
-package com.nook.biz.node.framework.xray.handler;
+package com.nook.biz.node.framework.xray.cli;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
-import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.framework.ssh.SshSession;
 import com.nook.biz.node.framework.ssh.SshSessionManager;
-import com.nook.biz.node.service.xray.node.XrayNodeService;
+import com.nook.biz.node.framework.xray.cli.utils.ShellEscapeUtils;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
-
 /**
- * Xray outbound 增删 CLI 客户端 (走 SSH + `xray api ado/rmo`).
- *
- * <p>同 XrayInboundCliClient 走 CLI 而非纯 gRPC, 原因相同 — AddOutbound 的 protobuf 嵌套
- * 体量大, vendor 不划算; xray CLI 已封装 JSON → OutboundHandlerConfig 的序列化, nook 直接喂 JSON.
- *
- * <p>支持两种 outbound:
- * <ul>
- *   <li>socks: 业务路径, 客户流量从 nook server 转到独享落地 IP</li>
- *   <li>freedom: 直连 (api 通道用 / placeholder 占位用 / revoke 后还原占位用)</li>
- * </ul>
+ * Xray outbound 增删 CLI 客户端 (走 SSH + xray api ado/rmo); 不查 DB, apiPort 由调用方传入.
  *
  * @author nook
  */
 @Slf4j
 @Component
-public class XrayOutboundCliClient {
-
-    /** 单条 SSH+CLI 命令默认超时. */
-    private static final Duration OP_TIMEOUT = Duration.ofSeconds(30);
+public class XrayOutboundCli {
 
     @Resource
     private SshSessionManager sshSessionManager;
-    @Resource
-    private XrayNodeService xrayNodeService;
 
     /**
-     * 加 socks5 出站 (1:1 模型 provision 时用; 把客户流量打到独享落地 IP).
+     * 加 socks5 出站 (provision 时把客户流量打到独享落地 IP).
      *
      * @param serverId  resource_server.id
-     * @param tag       outbound tag (1:1 模型: out_slot_XX)
+     * @param apiPort   xray 内置 api server 端口
+     * @param tag       outbound tag
      * @param socksHost 落地 socks5 主机
      * @param socksPort 落地 socks5 端口
-     * @param username  socks5 鉴权用户名 (空则无鉴权)
-     * @param password  socks5 鉴权密码 (空则无鉴权)
+     * @param username  socks5 鉴权用户 (可空)
+     * @param password  socks5 鉴权密码 (可空)
      */
-    public void addSocksOutbound(String serverId, String tag,
+    public void addSocksOutbound(String serverId, int apiPort, String tag,
                                  String socksHost, int socksPort,
                                  String username, String password) {
-        XrayNodeDO node = xrayNodeService.loadOrThrow(serverId);
         String json = buildSocksOutboundJson(tag, socksHost, socksPort, username, password);
-        execAdo(serverId, node, tag, json);
+        execAdo(serverId, apiPort, tag, json);
         log.info("[xray-cli] addSocksOutbound server={} tag={} socks={}:{}",
                 serverId, tag, socksHost, socksPort);
     }
 
     /**
-     * 加 freedom 直连出站 (api 通道用 / revoke 后还原 placeholder 占位用).
+     * 加 freedom 直连出站 (api 通道 / placeholder 占位 / revoke 后还原占位).
      *
      * @param serverId resource_server.id
+     * @param apiPort  xray 内置 api server 端口
      * @param tag      outbound tag
      */
-    public void addFreedomOutbound(String serverId, String tag) {
-        XrayNodeDO node = xrayNodeService.loadOrThrow(serverId);
+    public void addFreedomOutbound(String serverId, int apiPort, String tag) {
         JSONObject outbound = new JSONObject();
         outbound.put("tag", tag);
         outbound.put("protocol", "freedom");
-        execAdo(serverId, node, tag, outbound.toJSONString());
+        execAdo(serverId, apiPort, tag, outbound.toJSONString());
         log.info("[xray-cli] addFreedomOutbound server={} tag={}", serverId, tag);
     }
 
     /**
-     * 删 outbound (按 tag).
+     * 删 outbound (按 tag); tag 不存在抛 CLIENT_NOT_FOUND.
      *
      * @param serverId resource_server.id
+     * @param apiPort  xray 内置 api server 端口
      * @param tag      outbound tag
      */
-    public void removeOutbound(String serverId, String tag) {
-        XrayNodeDO node = xrayNodeService.loadOrThrow(serverId);
+    public void removeOutbound(String serverId, int apiPort, String tag) {
         SshSession session = sshSessionManager.acquire(serverId);
-        String cmd = "xray api rmo --server=127.0.0.1:" + node.getXrayGrpcPort() + " "
-                + escapeShellArg(tag);
+        String cmd = "xray api rmo --server=127.0.0.1:" + apiPort + " "
+                + ShellEscapeUtils.shellArg(tag);
         try {
-            session.ssh().exec(cmd, OP_TIMEOUT);
+            session.ssh().exec(cmd);
             log.info("[xray-cli] removeOutbound server={} tag={}", serverId, tag);
         } catch (BusinessException be) {
             throw mapRemoveOutboundError(be, serverId, tag);
         }
     }
 
-    // ===== 私有 =====
-
-    private void execAdo(String serverId, XrayNodeDO node, String tag, String json) {
+    /**
+     * 共用 ado 命令封装; 把 outbound JSON 通过 stdin 喂给 xray api ado.
+     *
+     * @param serverId resource_server.id
+     * @param apiPort  xray 内置 api server 端口
+     * @param tag      outbound tag (仅用于日志)
+     * @param json     outbound 完整 JSON 字符串
+     */
+    private void execAdo(String serverId, int apiPort, String tag, String json) {
         SshSession session = sshSessionManager.acquire(serverId);
-        String cmd = "echo '" + escapeForSingleQuote(json) + "' | xray api ado --server=127.0.0.1:"
-                + node.getXrayGrpcPort() + " -";
+        String cmd = "echo '" + ShellEscapeUtils.singleQuoteContent(json)
+                + "' | xray api ado --server=127.0.0.1:" + apiPort + " -";
         try {
-            session.ssh().exec(cmd, OP_TIMEOUT);
+            session.ssh().exec(cmd);
         } catch (BusinessException be) {
             throw mapAddOutboundError(be, serverId, tag);
         }
     }
 
-    /** 渲染 socks5 outbound JSON (含可选鉴权). */
+    /**
+     * 渲染 socks5 outbound JSON (含可选鉴权).
+     *
+     * @param tag      outbound tag
+     * @param host     落地 socks5 主机
+     * @param port     落地 socks5 端口
+     * @param username socks5 鉴权用户 (可空 = 无鉴权)
+     * @param password socks5 鉴权密码 (可空 = 无鉴权)
+     * @return outbound 完整 JSON 字符串
+     */
     private String buildSocksOutboundJson(String tag, String host, int port,
                                           String username, String password) {
         JSONObject server = new JSONObject();
@@ -137,45 +135,39 @@ public class XrayOutboundCliClient {
         return outbound.toJSONString();
     }
 
+    /**
+     * 把 CLI add 的 BusinessException 翻译成业务错误码 (识别 "already exists" 归入 CLIENT_DUPLICATE).
+     *
+     * @param be       原始异常
+     * @param serverId resource_server.id
+     * @param tag      outbound tag
+     * @return 翻译后的 BusinessException
+     */
     private BusinessException mapAddOutboundError(BusinessException be, String serverId, String tag) {
         String msg = StrUtil.blankToDefault(be.getMessage(), "");
-        if (containsAny(msg, "already running", "already exists", "duplicate", "exist")) {
+        if (StrUtil.containsAnyIgnoreCase(msg, "already running", "already exists", "duplicate", "exist")) {
             return new BusinessException(XrayErrorCode.CLIENT_DUPLICATE, tag);
         }
         log.warn("[xray-cli] addOutbound 失败 server={} tag={} stderr={}", serverId, tag, msg);
         return new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, be,
-                serverId, "addOutbound: " + truncate(msg, 200));
+                serverId, "addOutbound: " + StrUtil.maxLength(msg, 200));
     }
 
+    /**
+     * 把 CLI remove 的 BusinessException 翻译成业务错误码 (识别 "not found" 归入 CLIENT_NOT_FOUND).
+     *
+     * @param be       原始异常
+     * @param serverId resource_server.id
+     * @param tag      outbound tag
+     * @return 翻译后的 BusinessException
+     */
     private BusinessException mapRemoveOutboundError(BusinessException be, String serverId, String tag) {
         String msg = StrUtil.blankToDefault(be.getMessage(), "");
-        if (containsAny(msg, "not found", "no such")) {
+        if (StrUtil.containsAnyIgnoreCase(msg, "not found", "no such")) {
             return new BusinessException(XrayErrorCode.CLIENT_NOT_FOUND, tag);
         }
         log.warn("[xray-cli] removeOutbound 失败 server={} tag={} stderr={}", serverId, tag, msg);
         return new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, be,
-                serverId, "removeOutbound: " + truncate(msg, 200));
-    }
-
-    private static String escapeForSingleQuote(String s) {
-        return s.replace("'", "'\\''");
-    }
-
-    private static String escapeShellArg(String s) {
-        return "'" + escapeForSingleQuote(s) + "'";
-    }
-
-    private static boolean containsAny(String text, String... keys) {
-        if (StrUtil.isBlank(text)) return false;
-        String lower = text.toLowerCase();
-        for (String k : keys) {
-            if (lower.contains(k.toLowerCase())) return true;
-        }
-        return false;
-    }
-
-    private static String truncate(String s, int max) {
-        if (s == null) return "";
-        return s.length() <= max ? s : s.substring(0, max) + "...";
+                serverId, "removeOutbound: " + StrUtil.maxLength(msg, 200));
     }
 }

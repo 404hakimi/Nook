@@ -49,6 +49,10 @@ const form = reactive({
   sshUser: 'root',
   sshPassword: '',
   sshTimeoutSeconds: 30 as number | null,
+  // 跨地区差异化超时: 跨洲拉高, 同区域可保持默认
+  sshOpTimeoutSeconds: 30 as number | null,
+  sshUploadTimeoutSeconds: 30 as number | null,
+  installTimeoutSeconds: 600 as number | null,
   totalBandwidth: 1000 as number | null,
   monthlyTrafficGb: null as number | null,
   idcProvider: '',
@@ -67,6 +71,9 @@ function fill(s: ResourceServer) {
   // 接口下发明文凭据, 直接 fill 进密码框 (UI 遮盖); 不改就保留, 改了就覆盖
   form.sshPassword = s.sshPassword ?? ''
   form.sshTimeoutSeconds = s.sshTimeoutSeconds ?? 30
+  form.sshOpTimeoutSeconds = s.sshOpTimeoutSeconds ?? 30
+  form.sshUploadTimeoutSeconds = s.sshUploadTimeoutSeconds ?? 30
+  form.installTimeoutSeconds = s.installTimeoutSeconds ?? 600
   form.totalBandwidth = s.totalBandwidth ?? 1000
   form.monthlyTrafficGb = s.monthlyTrafficGb ?? null
   form.idcProvider = s.idcProvider ?? ''
@@ -82,6 +89,9 @@ function reset() {
   form.sshUser = 'root'
   form.sshPassword = ''
   form.sshTimeoutSeconds = 30
+  form.sshOpTimeoutSeconds = 30
+  form.sshUploadTimeoutSeconds = 30
+  form.installTimeoutSeconds = 600
   form.totalBandwidth = 1000
   form.monthlyTrafficGb = null
   form.idcProvider = ''
@@ -115,16 +125,26 @@ watch(
   }
 )
 
+function validateRange(field: keyof typeof form, label: string, min: number, max: number) {
+  const v = form[field] as number | null
+  if (v == null || isNaN(v)) {
+    errors[field as string] = `${label}不能为空`
+    return
+  }
+  if (v < min || v > max) {
+    errors[field as string] = `${label}需在 ${min}-${max} 之间`
+  }
+}
+
 function validate(): boolean {
   Object.keys(errors).forEach((k) => delete errors[k])
   if (!form.name.trim()) errors.name = '请输入别名'
   if (!form.host.trim()) errors.host = '请输入主机'
 
-  if (form.sshTimeoutSeconds == null || isNaN(form.sshTimeoutSeconds as number)) {
-    errors.sshTimeoutSeconds = 'SSH 超时不能为空'
-  } else if ((form.sshTimeoutSeconds as number) < 5 || (form.sshTimeoutSeconds as number) > 300) {
-    errors.sshTimeoutSeconds = 'SSH 超时需在 5-300 秒之间'
-  }
+  validateRange('sshTimeoutSeconds', 'SSH 握手超时', 5, 300)
+  validateRange('sshOpTimeoutSeconds', 'SSH 单条命令超时', 5, 300)
+  validateRange('sshUploadTimeoutSeconds', 'SCP 上传超时', 5, 600)
+  validateRange('installTimeoutSeconds', '安装超时', 60, 3600)
 
   if (props.mode === 'create') {
     if (!form.sshPassword) errors.sshPassword = '请填 SSH 密码'
@@ -143,6 +163,9 @@ async function onSubmit() {
       sshUser: form.sshUser.trim(),
       sshPassword: form.sshPassword || undefined,
       sshTimeoutSeconds: form.sshTimeoutSeconds ?? undefined,
+      sshOpTimeoutSeconds: form.sshOpTimeoutSeconds ?? undefined,
+      sshUploadTimeoutSeconds: form.sshUploadTimeoutSeconds ?? undefined,
+      installTimeoutSeconds: form.installTimeoutSeconds ?? undefined,
       totalBandwidth: form.totalBandwidth ?? undefined,
       monthlyTrafficGb: form.monthlyTrafficGb ?? undefined,
       idcProvider: form.idcProvider.trim() || undefined,
@@ -262,22 +285,7 @@ function close() {
           <NFormItem label="SSH 用户">
             <NInput v-model:value="form.sshUser" />
           </NFormItem>
-          <NFormItem
-            required
-            :validation-status="errors.sshTimeoutSeconds ? 'error' : undefined"
-            :feedback="errors.sshTimeoutSeconds"
-          >
-            <template #label>
-              <span>SSH 超时 (秒)</span>
-              <span class="text-xs text-zinc-400 ml-2">5-300, 建议 30</span>
-            </template>
-            <NInputNumber
-              v-model:value="form.sshTimeoutSeconds"
-              :min="5"
-              :max="300"
-              class="w-full"
-            />
-          </NFormItem>
+          <div class="hidden sm:block"></div>
           <div class="sm:col-span-3">
             <NFormItem
               label="SSH 密码"
@@ -295,7 +303,81 @@ function close() {
           </div>
         </div>
 
-        <!-- Xray 配置 (gRPC 端口 / slot 池等) 现在在"一键部署"时填, 写入 xray_node 表; 不在本表单里编辑 -->
+        <!-- 超时配置 (按地区差异化, 跨洲拉高) -->
+        <div class="text-sm font-semibold text-zinc-500 mt-4 mb-2">
+          超时配置
+          <span class="text-xs font-normal text-zinc-400 ml-2">
+            按地区差异化; 跨洲 (如美西 ↔ 国内) 建议拉高 ssh_op / upload
+          </span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+          <NFormItem
+            required
+            :validation-status="errors.sshTimeoutSeconds ? 'error' : undefined"
+            :feedback="errors.sshTimeoutSeconds"
+          >
+            <template #label>
+              <span>SSH 握手超时 (秒)</span>
+              <span class="text-xs text-zinc-400 ml-2">5-300, 默认 30</span>
+            </template>
+            <NInputNumber
+              v-model:value="form.sshTimeoutSeconds"
+              :min="5"
+              :max="300"
+              class="w-full"
+            />
+          </NFormItem>
+          <NFormItem
+            required
+            :validation-status="errors.sshOpTimeoutSeconds ? 'error' : undefined"
+            :feedback="errors.sshOpTimeoutSeconds"
+          >
+            <template #label>
+              <span>SSH 单条命令超时 (秒)</span>
+              <span class="text-xs text-zinc-400 ml-2">xray api / journalctl</span>
+            </template>
+            <NInputNumber
+              v-model:value="form.sshOpTimeoutSeconds"
+              :min="5"
+              :max="300"
+              class="w-full"
+            />
+          </NFormItem>
+          <NFormItem
+            required
+            :validation-status="errors.sshUploadTimeoutSeconds ? 'error' : undefined"
+            :feedback="errors.sshUploadTimeoutSeconds"
+          >
+            <template #label>
+              <span>SCP 上传超时 (秒)</span>
+              <span class="text-xs text-zinc-400 ml-2">脚本/模板上传, 5-600</span>
+            </template>
+            <NInputNumber
+              v-model:value="form.sshUploadTimeoutSeconds"
+              :min="5"
+              :max="600"
+              class="w-full"
+            />
+          </NFormItem>
+          <NFormItem
+            required
+            :validation-status="errors.installTimeoutSeconds ? 'error' : undefined"
+            :feedback="errors.installTimeoutSeconds"
+          >
+            <template #label>
+              <span>安装超时 (秒)</span>
+              <span class="text-xs text-zinc-400 ml-2">一次部署上限, 60-3600</span>
+            </template>
+            <NInputNumber
+              v-model:value="form.installTimeoutSeconds"
+              :min="60"
+              :max="3600"
+              class="w-full"
+            />
+          </NFormItem>
+        </div>
+
+        <!-- Xray 配置 (api 端口 / slot 池等) 现在在"一键部署"时填, 写入 xray_node 表; 不在本表单里编辑 -->
 
         <NFormItem label="备注">
           <NInput

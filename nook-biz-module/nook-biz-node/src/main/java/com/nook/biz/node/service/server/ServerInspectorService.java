@@ -21,7 +21,7 @@ public interface ServerInspectorService {
     ConnectivityTestRespVO testConnectivity(String serverId);
 
     /**
-     * 操作系统级基本信息 (hostname / 内存 / 磁盘 等), 不依赖 Xray 是否在跑.
+     * 操作系统级基本信息 (hostname / 内存 / 磁盘 等); 不依赖 Xray 是否在跑.
      *
      * @param serverId resource_server.id
      * @return ServerSystemInfoRespVO
@@ -29,7 +29,7 @@ public interface ServerInspectorService {
     ServerSystemInfoRespVO getSystemInfo(String serverId);
 
     /**
-     * 指定 systemd unit 的通用状态 (active / 启动时间 / 是否开机自启), 不含 service 专属字段.
+     * 指定 systemd unit 的通用状态 (active / 启动时间 / 开机自启).
      *
      * @param serverId resource_server.id
      * @param unit     systemd unit 名

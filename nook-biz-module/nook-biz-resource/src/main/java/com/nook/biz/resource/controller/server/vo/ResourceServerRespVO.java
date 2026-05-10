@@ -24,6 +24,9 @@ public class ResourceServerRespVO {
     private String sshUser;
     private String sshPassword;
     private Integer sshTimeoutSeconds;
+    private Integer sshOpTimeoutSeconds;
+    private Integer sshUploadTimeoutSeconds;
+    private Integer installTimeoutSeconds;
 
     private Integer totalBandwidth;
     private Integer monthlyTrafficGb;

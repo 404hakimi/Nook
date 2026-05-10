@@ -51,7 +51,7 @@ const TIMEZONE_OPTIONS = [
   { label: 'Europe/Frankfurt', value: 'Europe/Frankfurt' }
 ]
 
-/** 项目认可的 Xray 稳定版, 与后端 RemoteFiles.XRAY_DEFAULT_VERSION 对齐. 升级时改这里. */
+/** 项目认可的 Xray 稳定版; 升级时改这里. (后端不再有 fallback, 必须前端传值) */
 const XRAY_DEFAULT_VERSION = 'v1.8.23'
 
 const XRAY_VERSION_OPTIONS = [
@@ -59,16 +59,13 @@ const XRAY_VERSION_OPTIONS = [
   { label: 'latest (最新, 风险自负)', value: 'latest' }
 ]
 
-const form = reactive<Required<LineServerInstallDTO>>({
+const form = reactive<LineServerInstallDTO>({
   xrayVersion: XRAY_DEFAULT_VERSION,
   slotPortBase: 30000,
   slotPoolSize: 50,
   xrayApiPort: 8080,
   logDir: '/var/log/xray',
   installUfw: true,
-  enableBbr: true,
-  installSwap: false,
-  swapSizeMb: 1024,
   timezone: 'Asia/Shanghai'
 })
 
@@ -87,13 +84,10 @@ function validate() {
   if (form.xrayApiPort < 1 || form.xrayApiPort > 65535) errors.xrayApiPort = '端口范围 1-65535'
   if (form.slotPortBase < 1024 || form.slotPortBase > 60000) errors.slotPortBase = '端口范围 1024-60000'
   if (form.slotPoolSize < 1 || form.slotPoolSize > 200) errors.slotPoolSize = '槽位数 1-200'
-  // slot 端口段不能覆盖 gRPC API 端口
+  // slot 端口段不能覆盖 xray api 端口
   const slotEnd = form.slotPortBase + form.slotPoolSize
   if (form.xrayApiPort >= form.slotPortBase && form.xrayApiPort <= slotEnd) {
     errors.xrayApiPort = `不能落在 slot 端口段 ${form.slotPortBase}-${slotEnd} 内`
-  }
-  if (form.installSwap && (form.swapSizeMb < 256 || form.swapSizeMb > 8192)) {
-    errors.swapSizeMb = 'swap 范围 256-8192 MB'
   }
   return Object.keys(errors).length === 0
 }
@@ -117,11 +111,8 @@ async function onSubmit() {
       slotPortBase: form.slotPortBase,
       slotPoolSize: form.slotPoolSize,
       xrayApiPort: form.xrayApiPort,
-      logDir: form.logDir || undefined,
+      logDir: form.logDir,
       installUfw: form.installUfw,
-      enableBbr: form.enableBbr,
-      installSwap: form.installSwap,
-      swapSizeMb: form.installSwap ? form.swapSizeMb : undefined,
       timezone: form.timezone || 'skip'
     }
     await xrayInstallStream(props.server.id, dto, appendOutput, abortCtrl.signal)
@@ -187,7 +178,7 @@ function close() {
 
     <p class="text-xs text-zinc-500 mb-4">
       将远程执行 nook 模块化部署脚本 (仅支持 Ubuntu 22.04+), 装 Xray 内核 + 预置 slot
-      placeholder; 客户开通时通过 gRPC 动态加 inbound, 不重启 xray 不影响其他客户。
+      placeholder; 客户开通时通过 SSH + xray api CLI 动态加 inbound/outbound, 不重启 xray 不影响其他客户。
     </p>
 
     <NForm
@@ -215,8 +206,8 @@ function close() {
           :feedback="errors.xrayApiPort"
         >
           <template #label>
-            <span>Xray gRPC 端口</span>
-            <span class="text-xs text-zinc-400 ml-2">仅 127.0.0.1 监听</span>
+            <span>Xray API 端口</span>
+            <span class="text-xs text-zinc-400 ml-2">仅 127.0.0.1 监听; xray api adi/rmi 用</span>
           </template>
           <NInputNumber
             v-model:value="form.xrayApiPort"
@@ -285,37 +276,10 @@ function close() {
               放 22 + slot 端口段 ({{ form.slotPortBase }}-{{ form.slotPortBase + form.slotPoolSize }})
             </p>
           </div>
-          <div>
-            <NCheckbox v-model:checked="form.enableBbr" :disabled="installing">
-              启用 BBR 拥塞控制
-            </NCheckbox>
-            <p class="text-xs text-zinc-500 ml-6 mt-1">提升跨境吞吐</p>
-          </div>
-          <div>
-            <NCheckbox v-model:checked="form.installSwap" :disabled="installing">
-              启用 swap
-            </NCheckbox>
-            <p class="text-xs text-zinc-500 ml-6 mt-1">小内存机推荐, 防 xray 高峰 OOM</p>
-          </div>
-          <div v-if="form.installSwap">
-            <NFormItem
-              :validation-status="errors.swapSizeMb ? 'error' : undefined"
-              :feedback="errors.swapSizeMb"
-              :show-label="false"
-            >
-              <NInputNumber
-                v-model:value="form.swapSizeMb"
-                :min="256"
-                :max="8192"
-                :step="256"
-                :disabled="installing"
-                class="w-full"
-              >
-                <template #suffix>MB</template>
-              </NInputNumber>
-            </NFormItem>
-          </div>
         </div>
+        <p class="text-xs text-zinc-500 mt-3">
+          BBR / swap 等通用 OS 调优在服务器列表的"运维"菜单按需独立触发, 不混进部署链路.
+        </p>
 
         <div class="mt-3">
           <NFormItem>

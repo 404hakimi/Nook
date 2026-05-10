@@ -117,56 +117,56 @@ export function xrayAutostart(serverId: string, enabled: boolean) {
 }
 
 /**
- * Xray 线路服务器一键安装入参.
+ * Xray 线路服务器一键安装入参 (1:1 + slot 模型).
  *
- * 阶段 1 改造 (1:1 + slot 模型):
- *   - 删除 vmessPort (旧共享 inbound 模型不存在了)
- *   - 加 xrayVersion / slotPortBase / slotPoolSize (1:1 模型核心参数)
- *   - 加 installSwap / swapSizeMb (模块化勾选, 小内存机推荐)
+ * <p>仅 xray 内核 + slot 池 + UFW + 时区; swap / bbr 等通用 OS 调优拆到 ServerOps 接口,
+ * 在服务器列表"运维操作"菜单按需独立触发, 不混进部署链路.
+ *
+ * <p>所有字段都必须由前端传入, 后端不再 fallback (LineServerInstallReqVOValidator 严校验).
  */
 export interface LineServerInstallDTO {
-  /** Xray 版本; "v1.8.23" 这种或 "latest". 默认从后端常量取. */
-  xrayVersion?: string
-  /** 客户端口段起点; 1:1 模型每客户独享 inbound 监听 base+slotIndex. 默认 30000. */
-  slotPortBase?: number
-  /** Slot 池大小, server 最多承载客户数. 默认 50. */
-  slotPoolSize?: number
-  /** Xray gRPC API 端口 (loopback, 走 SSH 隧道). */
+  /** Xray 版本; "v1.8.23" 这种或 "latest". */
+  xrayVersion: string
+  /** 客户端口段起点; 1:1 模型每客户独享 inbound 监听 base+slotIndex. */
+  slotPortBase: number
+  /** Slot 池大小, server 最多承载客户数. */
+  slotPoolSize: number
+  /** Xray 内置 api server 端口 (loopback); xray api adi/rmi 用. */
   xrayApiPort: number
-  /** xray 日志目录, 留空 = /var/log/xray. */
-  logDir?: string
-  installUfw?: boolean
-  enableBbr?: boolean
-  /** 是否启用 swap (小内存 VPS 推荐). */
-  installSwap?: boolean
-  /** swap 大小 MB, installSwap=true 时生效. 默认 1024. */
-  swapSizeMb?: number
-  /** IANA tz, 如 Asia/Shanghai / UTC; 留空或 "skip" 不改远端时区. */
-  timezone?: string
+  /** xray 日志目录. */
+  logDir: string
+  installUfw: boolean
+  /** IANA tz, 如 Asia/Shanghai / UTC; "skip" 表示不改远端时区. */
+  timezone: string
+}
+
+/** 启用 swap 入参. */
+export interface EnableSwapDTO {
+  /** swap 大小 MB; 256-8192. */
+  sizeMb: number
 }
 
 /**
- * 一键安装/重装 Xray — 流式接口.
- * 后端用 chunked transfer 边跑边吐 stdout, 前端 fetch + ReadableStream 边读边回调 onChunk.
+ * 流式 POST 工具: 后端 chunked transfer 边跑边吐 stdout, 前端 fetch + ReadableStream 边读边回调 onChunk.
  *
- * - axios 不支持 response 流式, 这里直接用 fetch + 手写认证头.
+ * - axios 不支持 response 流式, 走 fetch + 手写认证头.
  * - signal 支持外部 abort (用户中途关弹框时取消请求).
- * - 整体超时由 server 端 ResponseBodyEmitter 设了 15 分钟; 前端不再额外限时.
+ * - 整体超时由 server 端 ResponseBodyEmitter 控制; 前端不再额外限时.
  */
-export async function xrayInstallStream(
-  serverId: string,
-  dto: LineServerInstallDTO,
+async function streamPost(
+  url: string,
+  body: unknown | undefined,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
   const userStore = useUserStore()
-  const res = await fetch(`/api/admin/node/xray/server/${serverId}/install`, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: userStore.token
     },
-    body: JSON.stringify(dto),
+    body: body === undefined ? undefined : JSON.stringify(body),
     signal
   })
   if (res.status === 401) {
@@ -191,4 +191,35 @@ export async function xrayInstallStream(
   // 收尾解码空状态(避免 multibyte 字符断在 chunk 边界丢字)
   const tail = decoder.decode()
   if (tail) onChunk(tail)
+}
+
+/** 一键安装/重装 Xray (流式). */
+export function xrayInstallStream(
+  serverId: string,
+  dto: LineServerInstallDTO,
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  return streamPost(`/api/admin/node/xray/server/${serverId}/install`, dto, onChunk, signal)
+}
+
+// ===== 后端 ServerOpsController @ /admin/node/server/{id}/ops =====
+
+/** 启用 swap (流式 stdout); 已有 swap 跳过, 不影响业务. */
+export function enableSwapStream(
+  serverId: string,
+  dto: EnableSwapDTO,
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  return streamPost(`/api/admin/node/server/${serverId}/ops/swap`, dto, onChunk, signal)
+}
+
+/** 启用 BBR (流式 stdout); 内核不支持时跳过, 不影响业务. */
+export function enableBbrStream(
+  serverId: string,
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  return streamPost(`/api/admin/node/server/${serverId}/ops/bbr`, undefined, onChunk, signal)
 }
