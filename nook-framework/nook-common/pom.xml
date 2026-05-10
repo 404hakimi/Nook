@@ -27,6 +27,11 @@
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <scope>provided</scope> <!-- 设置为 provided，只有工具类需要使用到 -->
+        </dependency>
         <!-- 序列化注解(部分 Web POJO 字段会用 @JsonFormat 等) -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
