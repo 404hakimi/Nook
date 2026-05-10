@@ -40,8 +40,13 @@ public class ResourceIpPool extends BaseEntity {
 
     private LocalDateTime coolingUntil;
 
+    /** 综合评分 0-100. */
     private BigDecimal score;
+
+    /** Scamalytics 第三方评分. */
     private Integer scamalyticsScore;
+
+    /** IPQS 第三方评分. */
     private Integer ipqsScore;
     private Integer assignCount;
     private LocalDateTime lastHealthAt;

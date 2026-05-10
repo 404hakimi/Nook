@@ -47,9 +47,10 @@ public class ResourceServerController {
     }
 
     @PutMapping("/{id}")
-    public Result<ResourceServerRespVO> update(@PathVariable String id,
-                                               @RequestBody @Valid ResourceServerSaveReqVO reqVO) {
-        return Result.ok(ResourceServerConvert.INSTANCE.convert(resourceServerService.update(id, reqVO)));
+    public Result<Void> update(@PathVariable String id,
+                               @RequestBody @Valid ResourceServerSaveReqVO reqVO) {
+        resourceServerService.update(id, reqVO);
+        return Result.ok();
     }
 
     @DeleteMapping("/{id}")

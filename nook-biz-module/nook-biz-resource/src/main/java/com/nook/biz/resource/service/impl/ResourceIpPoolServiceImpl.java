@@ -3,6 +3,7 @@ package com.nook.biz.resource.service.impl;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.resource.constant.ResourceErrorCode;
 import com.nook.biz.resource.controller.ip.vo.ResourceIpPoolPageReqVO;
@@ -13,7 +14,7 @@ import com.nook.biz.resource.mapper.ResourceIpPoolMapper;
 import com.nook.biz.resource.mapper.ResourceIpTypeMapper;
 import com.nook.biz.resource.service.ResourceIpPoolService;
 import com.nook.biz.resource.validator.ResourceIpPoolValidator;
-import com.nook.common.web.error.CommonErrorCode;
+import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +37,6 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     @Override
     public ResourceIpPool findById(String id) {
-        requireId(id);
         return ipPoolValidator.validateExists(id);
     }
 
@@ -49,57 +49,37 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     @Override
     public ResourceIpPool create(ResourceIpPoolSaveReqVO reqVO) {
-        ipPoolValidator.validateForCreate(reqVO);
-        // status / score / assign_count 在 DB 是 NOT NULL DEFAULT, 上层不传时 MyBatis-Plus 默认策略会跳过 null 列让 DB 兜默认值
-        ResourceIpPool e = new ResourceIpPool();
-        e.setRegion(reqVO.getRegion());
-        e.setIpTypeId(reqVO.getIpTypeId());
-        e.setIpAddress(reqVO.getIpAddress());
-        e.setSocks5Host(reqVO.getSocks5Host());
-        e.setSocks5Port(reqVO.getSocks5Port());
-        e.setSocks5Username(reqVO.getSocks5Username());
-        e.setSocks5Password(reqVO.getSocks5Password());
-        e.setStatus(reqVO.getStatus());
-        e.setScore(reqVO.getScore());
-        e.setScamalyticsScore(reqVO.getScamalyticsScore());
-        e.setIpqsScore(reqVO.getIpqsScore());
-        e.setRemark(reqVO.getRemark());
-        resourceIpPoolMapper.insert(e);
-        return e;
+        // 校验 IP 类型存在
+        ipPoolValidator.validateIpTypeExists(reqVO.getIpTypeId());
+        // 校验 IP 地址唯一
+        ipPoolValidator.validateIpAddressUnique(null, reqVO.getIpAddress());
+
+        // 插入 IP 池条目
+        ResourceIpPool entity = BeanUtils.toBean(reqVO, ResourceIpPool.class);
+        resourceIpPoolMapper.insert(entity);
+        return entity;
     }
 
     @Override
-    public ResourceIpPool update(String id, ResourceIpPoolSaveReqVO reqVO) {
-        ipPoolValidator.validateForUpdate(reqVO);
-        ResourceIpPool exist = findById(id);
-        if (StrUtil.isNotBlank(reqVO.getIpTypeId())) {
-            ipPoolValidator.validateIpTypeExists(reqVO.getIpTypeId());
-        }
-        if (StrUtil.isNotBlank(reqVO.getIpAddress())
-                && !StrUtil.equals(reqVO.getIpAddress(), exist.getIpAddress())) {
-            ipPoolValidator.validateIpAddressUnique(id, reqVO.getIpAddress());
-        }
-        // 留空 = 保留原值; 非空才覆盖
-        if (StrUtil.isNotBlank(reqVO.getRegion())) exist.setRegion(reqVO.getRegion());
-        if (StrUtil.isNotBlank(reqVO.getIpTypeId())) exist.setIpTypeId(reqVO.getIpTypeId());
-        if (StrUtil.isNotBlank(reqVO.getIpAddress())) exist.setIpAddress(reqVO.getIpAddress());
-        if (StrUtil.isNotBlank(reqVO.getSocks5Host())) exist.setSocks5Host(reqVO.getSocks5Host());
-        if (ObjectUtil.isNotNull(reqVO.getSocks5Port())) exist.setSocks5Port(reqVO.getSocks5Port());
-        if (StrUtil.isNotBlank(reqVO.getSocks5Username())) exist.setSocks5Username(reqVO.getSocks5Username());
-        if (StrUtil.isNotBlank(reqVO.getSocks5Password())) exist.setSocks5Password(reqVO.getSocks5Password());
-        if (ObjectUtil.isNotNull(reqVO.getStatus())) exist.setStatus(reqVO.getStatus());
-        if (ObjectUtil.isNotNull(reqVO.getScore())) exist.setScore(reqVO.getScore());
-        if (ObjectUtil.isNotNull(reqVO.getScamalyticsScore())) exist.setScamalyticsScore(reqVO.getScamalyticsScore());
-        if (ObjectUtil.isNotNull(reqVO.getIpqsScore())) exist.setIpqsScore(reqVO.getIpqsScore());
-        if (StrUtil.isNotBlank(reqVO.getRemark())) exist.setRemark(reqVO.getRemark());
-        resourceIpPoolMapper.updateById(exist);
-        return exist;
+    public void update(String id, ResourceIpPoolSaveReqVO reqVO) {
+        // 校验 IP 池条目存在
+        ipPoolValidator.validateExists(id);
+        // 校验 IP 类型存在
+        ipPoolValidator.validateIpTypeExists(reqVO.getIpTypeId());
+        // 校验 IP 地址唯一
+        ipPoolValidator.validateIpAddressUnique(id, reqVO.getIpAddress());
+
+        // 更新 IP 池条目
+        ResourceIpPool entity = BeanUtils.toBean(reqVO, ResourceIpPool.class);
+        resourceIpPoolMapper.update(entity, Wrappers.<ResourceIpPool>lambdaUpdate().eq(ResourceIpPool::getId, id));
     }
 
     @Override
     public void delete(String id) {
-        ResourceIpPool exist = findById(id);
-        resourceIpPoolMapper.deleteById(exist.getId());
+        // 校验 IP 池条目存在
+        ipPoolValidator.validateExists(id);
+        // 删除 IP 池条目
+        resourceIpPoolMapper.deleteById(id);
     }
 
     @Override
@@ -115,7 +95,6 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
             lastIp = candidate.getIpAddress();
             int affected = resourceIpPoolMapper.markOccupied(candidate.getId(), memberUserId, LocalDateTime.now());
             if (affected > 0) {
-                // 回填实际写入字段; 减少调用方再 selectById
                 candidate.setStatus(2);
                 candidate.setAssignedMemberId(memberUserId);
                 candidate.setAssignedAt(LocalDateTime.now());
@@ -128,8 +107,8 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     @Override
     public void releaseToCooling(String id) {
-        ResourceIpPool exist = findById(id);
-        // 冷却时长按 IP 类型可配 (家宽 IP 通常需要更久); ip_type.cooling_minutes 是 NOT NULL 列
+        ResourceIpPool exist = ipPoolValidator.validateExists(id);
+        // ip_type.cooling_minutes 是 NOT NULL 列; 家宽 IP 通常需要更久
         ResourceIpType type = resourceIpTypeMapper.selectById(exist.getIpTypeId());
         if (ObjectUtil.isNull(type) || ObjectUtil.isNull(type.getCoolingMinutes())) {
             throw new BusinessException(ResourceErrorCode.IP_TYPE_NOT_FOUND, exist.getIpTypeId());
@@ -145,11 +124,5 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
             n += resourceIpPoolMapper.markAvailable(ip.getId());
         }
         return n;
-    }
-
-    private static void requireId(String id) {
-        if (StrUtil.isBlank(id)) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "id 不能为空");
-        }
     }
 }

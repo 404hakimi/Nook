@@ -15,8 +15,7 @@ public interface ResourceServerService {
 
     ResourceServer create(ResourceServerSaveReqVO reqVO);
 
-    /** 更新; sshPassword 留空 = 保留旧值, 传值覆盖. */
-    ResourceServer update(String id, ResourceServerSaveReqVO reqVO);
+    void update(String id, ResourceServerSaveReqVO reqVO);
 
     void delete(String id);
 

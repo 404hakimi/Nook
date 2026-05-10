@@ -74,9 +74,8 @@ public interface XrayClientService {
      *
      * @param inboundEntityId xray_client.id
      * @param reqVO           更新入参
-     * @return XrayClientDO
      */
-    XrayClientDO update(String inboundEntityId, ClientUpdateReqVO reqVO);
+    void update(String inboundEntityId, ClientUpdateReqVO reqVO);
 
     /**
      * 协议级凭据明文 (UUID + 服务器 host), 拼订阅链接用; 与 list/detail 的 mask 行为区分.

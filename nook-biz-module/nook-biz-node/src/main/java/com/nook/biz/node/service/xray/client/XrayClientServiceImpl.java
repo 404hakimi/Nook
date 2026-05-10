@@ -4,6 +4,7 @@ import jakarta.annotation.Resource;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.controller.xray.client.vo.ClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientPageReqVO;
@@ -26,6 +27,7 @@ import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.biz.resource.api.ResourceIpPoolApi;
 import com.nook.biz.resource.api.ResourceServerApi;
 import com.nook.biz.resource.api.dto.IpPoolEntryDTO;
+import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.extern.slf4j.Slf4j;
@@ -110,25 +112,43 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .build();
 
         int apiPort = node.getXrayApiPort();
+        // 用旗标精确追踪主流程完成度, catch 时只回滚已实际完成的步骤; 避免 addInbound 一开始就失败时
+        // 错误地去删根本没碰过的 freedom 占位, 把远端状态搞脏.
+        boolean inboundAdded = false;
+        boolean freedomRemoved = false;
+        boolean socksAdded = false;
         try {
             // ⑤ 加 inbound (xray 进程内开始 listen :listenPort)
             inboundCli.addInbound(reqVO.getServerId(), apiPort, inboundTag, listenPort, userSpec);
+            inboundAdded = true;
 
             // ⑥ 替换占位 freedom outbound 为真实 socks5
             // 删 + 加是非原子的, 中间有秒级窗口 outbound tag 不存在; 但 routing rule 是预置静态映射, 没匹配就走默认 outbound (freedom direct)
             // 这个窗口客户流量可能瞬时漏到 freedom direct (走 server 公网 IP 而非落地 IP), 时长 < 200ms
-            // 真实秒级流量场景下基本不可见; 后续若担心, 可改为加新 outbound 后用 routing override 而非删占位
             outboundCli.removeOutbound(reqVO.getServerId(), apiPort, outboundTag);
+            freedomRemoved = true;
+
             outboundCli.addSocksOutbound(reqVO.getServerId(), apiPort, outboundTag,
                     ipEntry.getSocks5Host(), ipEntry.getSocks5Port(),
                     ipEntry.getSocks5Username(), ipEntry.getSocks5Password());
+            socksAdded = true;
         } catch (RuntimeException e) {
-            // CLI 中途失败: 释放 slot, 让事务回滚 DB; 已 add 的 inbound/outbound 由后续巡检兜底
-            log.error("[provision] CLI 失败 server={} slot={} email={}, 回滚 slot",
-                    reqVO.getServerId(), slotIndex, clientEmail, e);
-            try { inboundCli.removeInbound(reqVO.getServerId(), apiPort, inboundTag); } catch (Exception ignore) { }
-            try { outboundCli.removeOutbound(reqVO.getServerId(), apiPort, outboundTag); } catch (Exception ignore) { }
-            try { outboundCli.addFreedomOutbound(reqVO.getServerId(), apiPort, outboundTag); } catch (Exception ignore) { }
+            log.error("[provision] CLI 失败 server={} slot={} email={} stage=[inbound={} freedomRemoved={} socks={}], 按完成度回滚",
+                    reqVO.getServerId(), slotIndex, clientEmail, inboundAdded, freedomRemoved, socksAdded, e);
+            // 回滚顺序与正向相反; 每步独立 try-ignore, 单个失败不影响其他步骤. throw e 后事务回滚释放 slot 占用
+            if (socksAdded) {
+                try { outboundCli.removeOutbound(reqVO.getServerId(), apiPort, outboundTag); }
+                catch (Exception ignore) { }
+            }
+            if (freedomRemoved) {
+                // freedom 占位本来存在, 主流程把它删了但 socks 没加成 — 这里加回来保持 routing rule 引用不空
+                try { outboundCli.addFreedomOutbound(reqVO.getServerId(), apiPort, outboundTag); }
+                catch (Exception ignore) { }
+            }
+            if (inboundAdded) {
+                try { inboundCli.removeInbound(reqVO.getServerId(), apiPort, inboundTag); }
+                catch (Exception ignore) { }
+            }
             throw e;
         }
 
@@ -249,16 +269,12 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public XrayClientDO update(String inboundEntityId, ClientUpdateReqVO reqVO) {
+    public void update(String inboundEntityId, ClientUpdateReqVO reqVO) {
         clientValidator.validateForUpdate(reqVO);
-        XrayClientDO e = findById(inboundEntityId);
-        // 只允许改本地元数据; 不与远端同步 — 这些字段不影响远端 client 的实际行为
-        if (StrUtil.isNotBlank(reqVO.getListenIp())) e.setListenIp(reqVO.getListenIp());
-        if (ObjectUtil.isNotNull(reqVO.getListenPort())) e.setListenPort(reqVO.getListenPort());
-        if (StrUtil.isNotBlank(reqVO.getTransport())) e.setTransport(reqVO.getTransport());
-        if (ObjectUtil.isNotNull(reqVO.getStatus())) e.setStatus(reqVO.getStatus());
-        xrayClientMapper.updateById(e);
-        return e;
+        clientValidator.validateExists(inboundEntityId);
+        XrayClientDO entity = BeanUtils.toBean(reqVO, XrayClientDO.class);
+        xrayClientMapper.update(entity, Wrappers.<XrayClientDO>lambdaUpdate()
+                .eq(XrayClientDO::getId, inboundEntityId));
     }
 
     @Override

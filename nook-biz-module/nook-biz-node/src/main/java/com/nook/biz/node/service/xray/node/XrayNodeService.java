@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 public interface XrayNodeService {
 
     /**
-     * 部署成功后初始化 / 更新 xray 节点配置, 幂等; 不存在则插入, 存在则覆盖配置字段.
+     * 部署成功后初始化 / 更新 xray 节点配置 + slot 池, 幂等; 同事务保证 "xray_node 行存在 ↔ slot 池已初始化".
      *
      * @param serverId       关联 resource_server.id
      * @param xrayVersion    安装的 xray 版本

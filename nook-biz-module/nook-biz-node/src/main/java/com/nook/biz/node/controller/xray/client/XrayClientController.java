@@ -52,9 +52,10 @@ public class XrayClientController {
     }
 
     @PutMapping("/{id}")
-    public Result<ClientRespVO> update(@PathVariable String id,
-                                       @RequestBody @Valid ClientUpdateReqVO reqVO) {
-        return Result.ok(XrayClientConvert.INSTANCE.convert(xrayClientService.update(id, reqVO)));
+    public Result<Void> update(@PathVariable String id,
+                               @RequestBody @Valid ClientUpdateReqVO reqVO) {
+        xrayClientService.update(id, reqVO);
+        return Result.ok();
     }
 
     @DeleteMapping("/{id}")

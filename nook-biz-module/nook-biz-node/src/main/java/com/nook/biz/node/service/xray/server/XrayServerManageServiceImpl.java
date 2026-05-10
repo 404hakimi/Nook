@@ -14,7 +14,6 @@ import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
-import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
 import com.nook.biz.node.validator.XrayServerInstallValidator;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
@@ -41,8 +40,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     @Resource
     private XrayDaemonProbe xrayDaemonProbe;
     @Resource
-    private XraySlotPoolService slotPoolService;
-    @Resource
     private XrayNodeService xrayNodeService;
     @Resource
     private XrayServerInstallValidator installValidator;
@@ -62,8 +59,8 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                 installTimeout,
                 lineSink);
 
-        // 部署完成 → 初始化 nook 内部状态 (xray_node 配置 + slot 池). 幂等可重入, 重复部署覆写最新配置.
-        // reqVO 字段已经全部由 LineServerInstallReqVOValidator 校验, 这里直接拆箱不再有 fallback.
+        // 部署完成 → 初始化 nook 内部状态. xrayNodeService.upsert 内部同事务初始化 slot 池, 杜绝半初始化态.
+        // 失败时事务回滚 + 抛错让 emitter 红色完成, 远端 xray 进程已就绪 (可独立重跑 install 修复 nook 状态).
         try {
             xrayNodeService.upsert(
                     serverId,
@@ -72,15 +69,13 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                     reqVO.getLogDir(),
                     reqVO.getSlotPoolSize(),
                     reqVO.getSlotPortBase());
-            slotPoolService.initialize(serverId, reqVO.getSlotPoolSize());
             lineSink.accept("[nook] ✔ xray_node + slot 池已初始化 (size=" + reqVO.getSlotPoolSize()
                     + ", portBase=" + reqVO.getSlotPortBase() + ")\n");
         } catch (RuntimeException e) {
-            // 远端 xray 已就绪, 但 nook DB 写入失败 — 不抛错给前端 (远端部署是成功的),
-            // 让运维通过日志看到, 后续通过"重新部署"按钮幂等重跑修复
-            log.error("[install] xray 部署成功但 nook 状态初始化失败 server={}", serverId, e);
-            lineSink.accept("[nook] ⚠ 远端部署 OK, 但 nook 状态初始化失败: " + e.getMessage()
-                    + " (重新点部署可幂等修复)\n");
+            log.error("[install] xray 部署成功但 nook 状态初始化失败 server={}, 已自动回滚 DB", serverId, e);
+            lineSink.accept("[nook] ⚠ 远端部署 OK, 但 nook 状态初始化失败 (DB 已回滚): "
+                    + e.getMessage() + " (重新点部署即可幂等修复)\n");
+            throw e;
         }
     }
 

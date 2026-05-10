@@ -42,9 +42,10 @@ public class ResourceIpPoolController {
     }
 
     @PutMapping("/{id}")
-    public Result<ResourceIpPoolRespVO> update(@PathVariable String id,
-                                               @RequestBody @Valid ResourceIpPoolSaveReqVO reqVO) {
-        return Result.ok(ResourceIpPoolConvert.INSTANCE.convert(resourceIpPoolService.update(id, reqVO)));
+    public Result<Void> update(@PathVariable String id,
+                               @RequestBody @Valid ResourceIpPoolSaveReqVO reqVO) {
+        resourceIpPoolService.update(id, reqVO);
+        return Result.ok();
     }
 
     @DeleteMapping("/{id}")

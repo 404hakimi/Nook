@@ -52,6 +52,7 @@
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <mysql.version>8.4.0</mysql.version>
         <hutool.version>5.8.32</hutool.version>
+        <guava.version>33.5.0-jre</guava.version>
         <grpc.version>1.65.1</grpc.version>
         <protobuf.version>3.25.3</protobuf.version>
         <sshj.version>0.38.0</sshj.version>
@@ -140,6 +141,11 @@
                 <groupId>cn.hutool</groupId>
                 <artifactId>hutool-all</artifactId>
                 <version>${hutool.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.grpc</groupId>

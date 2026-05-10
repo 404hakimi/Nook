@@ -22,7 +22,7 @@ public interface ResourceIpPoolService {
     ResourceIpPool create(ResourceIpPoolSaveReqVO reqVO);
 
     /** 更新; socks5Password 留空 = 保留旧值, 传值覆盖。 */
-    ResourceIpPool update(String id, ResourceIpPoolSaveReqVO reqVO);
+    void update(String id, ResourceIpPoolSaveReqVO reqVO);
 
     void delete(String id);
 

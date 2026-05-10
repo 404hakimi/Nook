@@ -12,6 +12,9 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 /**
  * Xray outbound 增删 CLI 客户端 (走 SSH + xray api ado/rmo); 不查 DB, apiPort 由调用方传入.
  *
@@ -55,7 +58,7 @@ public class XrayOutboundCli {
         JSONObject outbound = new JSONObject();
         outbound.put("tag", tag);
         outbound.put("protocol", "freedom");
-        execAdo(serverId, apiPort, tag, outbound.toJSONString());
+        execAdo(serverId, apiPort, tag, wrapAsConfig(outbound));
         log.info("[xray-cli] addFreedomOutbound server={} tag={}", serverId, tag);
     }
 
@@ -79,22 +82,41 @@ public class XrayOutboundCli {
     }
 
     /**
-     * 共用 ado 命令封装; 把 outbound JSON 通过 stdin 喂给 xray api ado.
+     * 共用 ado 命令封装; 把 config JSON 写到远端临时文件并喂给 xray api ado.
      *
      * @param serverId resource_server.id
      * @param apiPort  xray 内置 api server 端口
      * @param tag      outbound tag (仅用于日志)
-     * @param json     outbound 完整 JSON 字符串
+     * @param json     已包装的 config JSON 字符串, 顶层须为 {"outbounds":[...]} 格式
      */
     private void execAdo(String serverId, int apiPort, String tag, String json) {
         SshSession session = sshSessionManager.acquire(serverId);
-        String cmd = "echo '" + ShellEscapeUtils.singleQuoteContent(json)
-                + "' | xray api ado --server=127.0.0.1:" + apiPort + " -";
+        // xray api ado 的位置参数必须是真实文件路径 (xray 不支持 "-" 当 stdin 占位);
+        // 用 base64 → mktemp → xray api ado <file> → rm 一气呵成
+        String b64 = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+        String cmd = "F=$(mktemp /tmp/nook-xray-ado.XXXXXX); "
+                + "echo '" + b64 + "' | base64 -d > \"$F\"; "
+                + "xray api ado --server=127.0.0.1:" + apiPort + " \"$F\"; "
+                + "rc=$?; rm -f \"$F\"; exit $rc";
         try {
             session.ssh().exec(cmd);
         } catch (BusinessException be) {
             throw mapAddOutboundError(be, serverId, tag);
         }
+    }
+
+    /**
+     * 把 outbound 对象包成 xray Config 顶层结构 {"outbounds":[...]}, ado 解析时只识别这种格式.
+     *
+     * @param outbound outbound 对象
+     * @return 含顶层 "outbounds" 数组的完整 JSON 字符串
+     */
+    private static String wrapAsConfig(JSONObject outbound) {
+        JSONArray outbounds = new JSONArray();
+        outbounds.add(outbound);
+        JSONObject config = new JSONObject();
+        config.put("outbounds", outbounds);
+        return config.toJSONString();
     }
 
     /**
@@ -105,7 +127,7 @@ public class XrayOutboundCli {
      * @param port     落地 socks5 端口
      * @param username socks5 鉴权用户 (可空 = 无鉴权)
      * @param password socks5 鉴权密码 (可空 = 无鉴权)
-     * @return outbound 完整 JSON 字符串
+     * @return 含顶层 "outbounds" 数组的完整 JSON 字符串
      */
     private String buildSocksOutboundJson(String tag, String host, int port,
                                           String username, String password) {
@@ -132,7 +154,7 @@ public class XrayOutboundCli {
         outbound.put("tag", tag);
         outbound.put("protocol", "socks");
         outbound.put("settings", settings);
-        return outbound.toJSONString();
+        return wrapAsConfig(outbound);
     }
 
     /**
