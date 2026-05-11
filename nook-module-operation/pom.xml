@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.nook</groupId>
+        <artifactId>nook</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>nook-module-operation</artifactId>
+    <description>
+        危险操作排队 (per-server FIFO 互斥 + 超时杀 + audit):
+          - api/        Orchestrator / Handler / Context / EnqueueRequest / OpStatus / OpType / OpErrorCode
+          - config/     OpTimeoutProperties / OpOrchestratorProperties
+          - internal/   DefaultOperationOrchestrator + Worker + Watchdog + StartupCleaner (package-private)
+          - persistence/ + mapper/  op_log 实体 + 状态机 mapper / UI 查询 mapper
+          - service/ + controller/ + convert/   后台 op_log 查询 + 取消
+        其他 biz 模块要用排队能力, 直接依赖本模块, 写自己的 OperationHandler + 在 api/OpType 加枚举值即可.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-mybatis</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+        </dependency>
+    </dependencies>
+</project>

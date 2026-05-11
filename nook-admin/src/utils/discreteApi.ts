@@ -28,7 +28,7 @@ export const message: MessageApi = new Proxy({} as MessageApi, {
     if (!_messageApi) {
       throw new Error('Naive UI message API 未就绪; 确认 App.vue 已 mount + DiscreteApiProvider 已加载')
     }
-    return (_messageApi as Record<string, unknown>)[key]
+    return (_messageApi as unknown as Record<string, unknown>)[key]
   }
 })
 
@@ -37,6 +37,6 @@ export const dialog: DialogApi = new Proxy({} as DialogApi, {
     if (!_dialogApi) {
       throw new Error('Naive UI dialog API 未就绪; 确认 App.vue 已 mount + DiscreteApiProvider 已加载')
     }
-    return (_dialogApi as Record<string, unknown>)[key]
+    return (_dialogApi as unknown as Record<string, unknown>)[key]
   }
 })

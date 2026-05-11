@@ -435,7 +435,7 @@ const pagination = computed(() => ({
   itemCount: total.value,
   pageSizes: [10, 20, 50],
   showSizePicker: true,
-  prefix: ({ itemCount }: { itemCount: number }) => `共 ${itemCount} 条`,
+  prefix: ({ itemCount }: { itemCount?: number }) => `共 ${itemCount ?? 0} 条`,
   onUpdatePage: (p: number) => {
     query.pageNo = p
     loadList()

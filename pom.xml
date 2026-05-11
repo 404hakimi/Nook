@@ -20,7 +20,10 @@
 
     <modules>
         <module>nook-framework</module>
-        <module>nook-biz-module</module>
+        <module>nook-module-system</module>
+        <module>nook-module-member</module>
+        <module>nook-module-operation</module>
+        <module>nook-module-node</module>
         <module>nook-server</module>
     </modules>
 
@@ -53,9 +56,6 @@
         <mysql.version>8.4.0</mysql.version>
         <hutool.version>5.8.32</hutool.version>
         <guava.version>33.5.0-jre</guava.version>
-        <grpc.version>1.65.1</grpc.version>
-        <protobuf.version>3.25.3</protobuf.version>
-        <sshj.version>0.38.0</sshj.version>
         <mina-sshd.version>2.14.0</mina-sshd.version>
         <knife4j.version>4.5.0</knife4j.version>
         <sa-token.version>1.39.0</sa-token.version>
@@ -102,32 +102,22 @@
             </dependency>
             <dependency>
                 <groupId>com.nook</groupId>
-                <artifactId>nook-biz-system</artifactId>
+                <artifactId>nook-module-system</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.nook</groupId>
-                <artifactId>nook-biz-member</artifactId>
+                <artifactId>nook-module-member</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.nook</groupId>
-                <artifactId>nook-biz-resource</artifactId>
+                <artifactId>nook-module-operation</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.nook</groupId>
-                <artifactId>nook-biz-node</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.nook</groupId>
-                <artifactId>nook-biz-business</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.nook</groupId>
-                <artifactId>nook-biz-monitor</artifactId>
+                <artifactId>nook-module-node</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -151,23 +141,6 @@
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
                 <version>${guava.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-bom</artifactId>
-                <version>${grpc.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.google.protobuf</groupId>
-                <artifactId>protobuf-java</artifactId>
-                <version>${protobuf.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.hierynomus</groupId>
-                <artifactId>sshj</artifactId>
-                <version>${sshj.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.sshd</groupId>

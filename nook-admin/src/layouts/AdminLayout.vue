@@ -17,7 +17,8 @@ import {
   Sun,
   Moon,
   LogOut,
-  ScrollText
+  ScrollText,
+  History
 } from 'lucide-vue-next'
 import {
   NAvatar,
@@ -81,6 +82,7 @@ const menuOptions: MenuOption[] = [
     ]
   },
   { key: '/xray/clients', label: routerLabel('/xray/clients', '客户端管理'), icon: icon(Cable) },
+  { key: '/operation/op-log', label: routerLabel('/operation/op-log', '操作流水'), icon: icon(History) },
   { key: '/monitor/alerts', label: routerLabel('/monitor/alerts', '监控告警'), icon: icon(Bell) }
 ]
 

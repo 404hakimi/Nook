@@ -54,6 +54,12 @@ const routes: RouteRecordRaw[] = [
         name: 'xray-clients',
         component: () => import('@/views/xray/ClientList.vue'),
         meta: { title: '客户端管理' }
+      },
+      {
+        path: 'operation/op-log',
+        name: 'operation-op-log',
+        component: () => import('@/views/operation/OpLogList.vue'),
+        meta: { title: '操作流水' }
       }
     ]
   },

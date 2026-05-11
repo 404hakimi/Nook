@@ -17,27 +17,19 @@
     <dependencies>
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-biz-system</artifactId>
+            <artifactId>nook-module-system</artifactId>
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-biz-member</artifactId>
+            <artifactId>nook-module-member</artifactId>
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-biz-resource</artifactId>
+            <artifactId>nook-module-operation</artifactId>
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-biz-node</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-biz-business</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-biz-monitor</artifactId>
+            <artifactId>nook-module-node</artifactId>
         </dependency>
     </dependencies>
 
