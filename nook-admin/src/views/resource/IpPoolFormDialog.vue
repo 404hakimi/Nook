@@ -23,7 +23,7 @@ import {
 import type { ResourceIpType } from '@/api/resource/ip-type'
 
 interface SocksPrefill {
-  socks5Host: string
+  ipAddress: string
   socks5Port: number
   socks5Username: string
   socks5Password: string
@@ -61,11 +61,7 @@ const ipTypeOptions = computed(() =>
   props.ipTypes.map((t) => ({ label: t.name, value: t.id }))
 )
 
-/**
- * 表单字段; 不包含 socks5Host —— 主机始终 = ipAddress, 提交时由 buildSaveDto 自动同步。
- * 表上 socks5_host 列保留是为后续兼容更多代理协议 (HTTP / HTTPS / TROJAN-SOCKS 等),
- * 也方便运营在表里直接看到入口地址; 但对当前 SOCKS5 场景与 IP 地址等价, 不让用户重复填。
- */
+/** 表单字段; SOCKS5 主机 = ipAddress, 不再单独存. */
 const form = reactive({
   region: '',
   ipTypeId: '',
@@ -83,7 +79,6 @@ function fill(ip: ResourceIpPool) {
   form.region = ip.region
   form.ipTypeId = ip.ipTypeId
   form.ipAddress = ip.ipAddress
-  // socks5Host 不在 form 里, 由模板只读展示 form.ipAddress
   form.socks5Port = ip.socks5Port
   form.socks5Username = ip.socks5Username ?? ''
   // 接口下发明文密码, 直接 fill 进密码框 (UI 自然遮盖); 用户改一字会立即覆盖, 不改就保持
@@ -120,11 +115,9 @@ watch(
       }
     } else {
       reset()
-      // 模式 = create 且父组件传了 socksPrefill (部署成功接力场景), 预填 SOCKS5 + IP 地址。
-      // socksPrefill.socks5Host 来自部署 dialog 里用户填的 sshHost, 这里同时作为 ipAddress 的初值;
-      // socks5Host 不在 form 里, 由模板自动跟随 form.ipAddress
+      // create 且父组件传了 socksPrefill (部署成功接力场景), 预填 IP + SOCKS5 端口/账号
       if (props.socksPrefill) {
-        form.ipAddress = props.socksPrefill.socks5Host
+        form.ipAddress = props.socksPrefill.ipAddress
         form.socks5Port = props.socksPrefill.socks5Port
         form.socks5Username = props.socksPrefill.socks5Username
         form.socks5Password = props.socksPrefill.socks5Password
@@ -139,8 +132,7 @@ function validate(): boolean {
   if (!form.ipTypeId) errors.ipTypeId = '请选择类型'
   if (!form.ipAddress.trim()) errors.ipAddress = '请输入 IP 地址'
 
-  // 创建时 SOCKS5 端口/账号/密码必填; 编辑时未填的密码不会被覆盖, 端口与用户名按表单值更新。
-  // socks5Host 不再校验 — 由 form.ipAddress 自动同步, 已在前面校验 ipAddress 必填。
+  // 创建时 SOCKS5 端口/账号/密码必填; 编辑时未填的密码不会被覆盖
   if (props.mode === 'create') {
     if (!form.socks5Port) errors.socks5Port = 'SOCKS5 端口必填'
     if (!form.socks5Username.trim()) errors.socks5Username = 'SOCKS5 用户名必填'
@@ -161,8 +153,6 @@ async function onSubmit() {
       region: form.region.trim(),
       ipTypeId: form.ipTypeId,
       ipAddress: ip,
-      // socks5Host 始终 = ipAddress; 表单不让用户独立改, 避免不一致
-      socks5Host: ip,
       socks5Port: form.socks5Port,
       socks5Username: form.socks5Username.trim() || undefined,
       socks5Password: form.socks5Password || undefined,
@@ -198,10 +188,6 @@ function close() {
     :mask-closable="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
-    <p class="text-xs text-zinc-500 mb-4">
-      本表单仅保存 IP 池条目元数据。<strong>一键部署 SOCKS5</strong> 在配置完成后, 通过列表行的 "部署" 按钮触发。
-    </p>
-
     <NSpin :show="loadingDetail">
       <NForm
         :model="form"
@@ -227,7 +213,7 @@ function close() {
             label="类型"
             required
             :validation-status="errors.ipTypeId ? 'error' : undefined"
-            :feedback="errors.ipTypeId || (!ipTypeOptions.length ? '未找到 IP 类型 — 请先在数据库执行 sql/99_seed.sql 初始化 resource_ip_type' : undefined)"
+            :feedback="errors.ipTypeId || (!ipTypeOptions.length ? '未找到 IP 类型, 请检查 resource_ip_type 是否已初始化' : undefined)"
           >
             <NSelect
               v-model:value="form.ipTypeId"
@@ -258,25 +244,7 @@ function close() {
         </div>
 
         <NDivider title-placement="left">SOCKS5 凭据</NDivider>
-        <p class="text-xs text-zinc-500 mb-2 -mt-2">
-          SOCKS5 主机自动跟随 IP 地址 (后续支持 HTTP / 其它代理协议时仍按此入口); 端口 / 用户名 / 密码由部署或外部 SOCKS5 服务决定。
-        </p>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
-          <div class="sm:col-span-2">
-            <NFormItem>
-              <template #label>
-                <span>SOCKS5 主机</span>
-                <span class="text-xs text-zinc-400 ml-2">= IP 地址</span>
-              </template>
-              <NInput
-                :value="form.ipAddress"
-                readonly
-                disabled
-                :input-props="{ style: 'font-family: monospace' }"
-              />
-            </NFormItem>
-          </div>
-
           <NFormItem
             :label="'SOCKS5 端口'"
             :required="!isEdit"

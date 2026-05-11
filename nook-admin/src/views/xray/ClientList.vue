@@ -6,6 +6,7 @@ import {
   Pencil,
   Plus,
   RefreshCcw,
+  RefreshCw,
   RotateCw,
   Search,
   Share2,
@@ -32,6 +33,7 @@ import {
   resetClientTraffic,
   revokeClient,
   rotateClient,
+  syncClient,
   type XrayClient,
   type XrayClientQuery
 } from '@/api/xray/client'
@@ -206,6 +208,26 @@ async function onResetTraffic(e: XrayClient) {
   }
 }
 
+// ===== 同步到远端 (reconciler 入口); 幂等 = 远端有就先删再加, 用 DB 现有 UUID =====
+async function onSync(e: XrayClient) {
+  if (busy.value[e.id]) return
+  const ok = await confirm({
+    title: '同步到远端',
+    message: `把 ${e.clientEmail} 按 DB 状态推到远端 xray? 客户连接会断 1-2 秒重连.`,
+    type: 'warning',
+    confirmText: '同步'
+  })
+  if (!ok) return
+  busy.value[e.id] = true
+  try {
+    await syncClient(e.id)
+    message.success('已同步')
+    loadList()
+  } catch { /* */ } finally {
+    busy.value[e.id] = false
+  }
+}
+
 // ===== 看流量 =====
 const trafficOpen = ref(false)
 const trafficTarget = ref<XrayClient | null>(null)
@@ -262,6 +284,11 @@ const ROW_ACTIONS: DropdownOption[] = [
   },
   { type: 'divider', key: 'd1' },
   {
+    label: '同步到远端',
+    key: 'sync',
+    icon: () => h(NIcon, null, { default: () => h(RefreshCw) })
+  },
+  {
     label: '轮换密钥',
     key: 'rotate',
     icon: () => h(NIcon, null, { default: () => h(RotateCw) })
@@ -284,6 +311,7 @@ function onRowAction(key: string | number, row: XrayClient) {
   if (key === 'share') openShare(row)
   else if (key === 'traffic') openTraffic(row)
   else if (key === 'edit') openEdit(row)
+  else if (key === 'sync') onSync(row)
   else if (key === 'rotate') onRotate(row)
   else if (key === 'reset-traffic') onResetTraffic(row)
   else if (key === 'revoke') onRevoke(row)

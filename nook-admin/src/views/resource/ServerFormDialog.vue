@@ -372,8 +372,6 @@ function close() {
           </NFormItem>
         </div>
 
-        <!-- Xray 配置 (api 端口 / slot 池等) 现在在"一键部署"时填, 写入 xray_node 表; 不在本表单里编辑 -->
-
         <NFormItem label="备注">
           <NInput
             v-model:value="form.remark"

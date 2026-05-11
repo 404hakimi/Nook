@@ -81,8 +81,8 @@ function statusTagType(status?: number): 'success' | 'info' | 'warning' | 'error
 
 const socks5Endpoint = computed(() => {
   const d = detail.value
-  if (!d || !d.socks5Host || !d.socks5Port) return ''
-  return `${d.socks5Host}:${d.socks5Port}`
+  if (!d || !d.ipAddress || !d.socks5Port) return ''
+  return `${d.ipAddress}:${d.socks5Port}`
 })
 
 async function copyToClipboard(text: string, label: string) {

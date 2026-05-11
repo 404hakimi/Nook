@@ -2,14 +2,17 @@
 import { computed, ref, watch } from 'vue'
 import {
   Activity,
+  CheckCircle2,
   Cpu,
   HardDrive,
   MemoryStick,
   Power,
   PowerOff,
   RefreshCw,
+  RotateCcw,
   Rocket,
   Server,
+  ShieldAlert,
   Timer
 } from 'lucide-vue-next'
 import {
@@ -37,6 +40,7 @@ import {
   type XrayLogLevel,
   type XrayServiceStatus
 } from '@/api/xray/server'
+import { getSyncStatus, replayServer, type ReplayReport, type SyncStatus } from '@/api/xray/client'
 import type { ResourceServer } from '@/api/resource/server'
 import ServerInstallDialog from './ServerInstallDialog.vue'
 
@@ -89,6 +93,7 @@ watch(
       systemInfo.value = null
       serviceStatus.value = null
       xrayLog.value = null
+      syncStatus.value = null
       runStatus()
     }
   }
@@ -198,6 +203,54 @@ function openInstall() {
   installOpen.value = true
 }
 
+// ===== 对账 (按需触发, 不进 status tab 自动拉以免 1c2g 机型 SSH 拥塞) =====
+const syncStatus = ref<SyncStatus | null>(null)
+const syncStatusLoading = ref(false)
+async function runSyncStatus() {
+  if (!props.server || syncStatusLoading.value) return
+  syncStatusLoading.value = true
+  try {
+    syncStatus.value = await getSyncStatus(props.server.id)
+  } catch (e) {
+    syncStatus.value = null
+    message.error('对账失败: ' + ((e as Error).message ?? ''))
+  } finally {
+    syncStatusLoading.value = false
+  }
+}
+
+// ===== Replay 全部 client (一致性 reconciler 入口); 失败的 client 标 status=3 留下次自动重试 =====
+const replaying = ref(false)
+async function runReplay() {
+  if (!props.server || replaying.value) return
+  const ok = await confirm({
+    title: 'Replay 全部 client',
+    message: `把 "${props.server.name}" 上所有 client 按 DB 状态推一遍到远端 xray?\n\n用于 server 重启 / 部署覆盖后状态恢复. 客户连接会断 1-2 秒.`,
+    type: 'warning',
+    confirmText: '开始 replay'
+  })
+  if (!ok) return
+  replaying.value = true
+  try {
+    const report: ReplayReport = await replayServer(props.server.id)
+    const tip = `总 ${report.totalCount} · 已对齐 ${report.alreadyOkCount} · 推送 ${report.successCount}`
+    if (report.failedClientIds.length === 0) {
+      // 全 OK 时区分"实际推送过"vs"全在远端", 让运维知道是空操作还是真修了
+      message.success(report.successCount === 0
+        ? `Replay 跳过: 全部 ${report.alreadyOkCount} 个 client 远端已对齐, 没动`
+        : `Replay 完成: ${tip}`)
+    } else {
+      message.warning(
+        `Replay 部分失败: ${tip} · 失败 ${report.failedClientIds.length} (已标 status=3 等下轮自动重试)`
+      )
+    }
+  } catch (e) {
+    message.error('Replay 失败: ' + ((e as Error).message ?? ''))
+  } finally {
+    replaying.value = false
+  }
+}
+
 async function onInstalled() {
   message.success('安装完成,正在刷新状态')
   await runStatus()
@@ -234,9 +287,10 @@ const autostartCurrentlyEnabled = computed(
   () => serviceStatus.value?.enabled?.trim() === 'enabled'
 )
 
-/** 顶栏统一 disabled 信号: 任意拉取或重启 / 切自启进行中都禁用按钮 */
+/** 顶栏统一 disabled 信号: 任意拉取或重启 / 切自启 / replay / 对账 进行中都禁用按钮 */
 const anyBusy = computed(
   () => statusLoading.value || logLoading.value || restarting.value || togglingAutostart.value
+      || replaying.value || syncStatusLoading.value
 )
 </script>
 
@@ -320,6 +374,16 @@ const anyBusy = computed(
         <NButton type="warning" size="small" :disabled="anyBusy" @click="runRestart">
           <template #icon><NIcon><Power /></NIcon></template>
           重启 Xray
+        </NButton>
+        <NButton
+          size="small"
+          :disabled="anyBusy"
+          :loading="replaying"
+          title="把所有 client 按 DB 推到远端 xray (server 重启后恢复用)"
+          @click="runReplay"
+        >
+          <template #icon><NIcon><RotateCcw /></NIcon></template>
+          Replay 全部
         </NButton>
         <NButton type="primary" size="small" :disabled="anyBusy" @click="openInstall">
           <template #icon><NIcon><Rocket /></NIcon></template>
@@ -417,6 +481,82 @@ const anyBusy = computed(
               </div>
             </div>
             <div v-else class="text-xs text-zinc-400 py-2">(未获取到)</div>
+          </NCard>
+
+          <!-- 对账: 按需触发, 不在 status 自动拉路径里 (避免每次开 dialog 都跑 SSH lsi) -->
+          <NCard size="small">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs font-semibold text-zinc-500 flex items-center gap-1">
+                <NIcon :size="14"><ShieldAlert /></NIcon>
+                远端 vs DB 对账
+              </div>
+              <NButton
+                quaternary
+                size="tiny"
+                :loading="syncStatusLoading"
+                :disabled="anyBusy"
+                @click="runSyncStatus"
+              >
+                <template #icon><NIcon><RefreshCw /></NIcon></template>
+                {{ syncStatus ? '重新对账' : '开始对账' }}
+              </NButton>
+            </div>
+
+            <div v-if="!syncStatus" class="text-xs text-zinc-400 py-2">
+              点"开始对账"拉远端 inbound list 跟 DB 比对; 不自动触发以免 1c2g 机型 SSH 拥塞.
+            </div>
+            <div v-else class="space-y-2 text-sm">
+              <div v-if="!syncStatus.reachable">
+                <NTag size="small" type="error">不可达</NTag>
+                <span class="text-xs text-zinc-500 ml-2">SSH 不通或 xray 未起, 跳过本次对账</span>
+              </div>
+              <template v-else>
+                <div class="grid grid-cols-3 gap-2">
+                  <div class="flex items-center gap-1">
+                    <NIcon :size="14" color="var(--n-success-color)"><CheckCircle2 /></NIcon>
+                    <span class="text-xs text-zinc-500">OK</span>
+                    <span class="font-mono font-semibold">{{ syncStatus.okTags.length }}</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs text-zinc-500">DB 有远端无</span>
+                    <span
+                      class="font-mono font-semibold"
+                      :style="syncStatus.staleDbTags.length > 0 ? 'color: var(--n-warning-color)' : ''"
+                    >{{ syncStatus.staleDbTags.length }}</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs text-zinc-500">远端孤儿</span>
+                    <span
+                      class="font-mono font-semibold"
+                      :style="syncStatus.orphanRemoteTags.length > 0 ? 'color: var(--n-info-color)' : ''"
+                    >{{ syncStatus.orphanRemoteTags.length }}</span>
+                  </div>
+                </div>
+
+                <div
+                  v-if="syncStatus.staleDbTags.length > 0"
+                  class="text-xs"
+                  style="color: var(--n-warning-color)"
+                >
+                  缺失: {{ syncStatus.staleDbTags.join(', ') }}
+                  <span class="text-zinc-500 ml-1">- 点顶部"Replay 全部"恢复</span>
+                </div>
+                <div
+                  v-if="syncStatus.orphanRemoteTags.length > 0"
+                  class="text-xs text-zinc-500"
+                >
+                  孤儿: {{ syncStatus.orphanRemoteTags.join(', ') }}
+                  <span class="text-zinc-400 ml-1">- 当前不自动清理</span>
+                </div>
+                <div
+                  v-if="syncStatus.staleDbTags.length === 0 && syncStatus.orphanRemoteTags.length === 0"
+                  class="text-xs"
+                  style="color: var(--n-success-color)"
+                >
+                  ✓ 已对齐
+                </div>
+              </template>
+            </div>
           </NCard>
         </div>
       </NSpin>

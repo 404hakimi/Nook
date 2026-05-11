@@ -25,7 +25,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
   /** 部署成功后用户点 "添加到 IP 池", 把这些字段交给父组件预填到新增表单。 */
   (e: 'add-to-pool', payload: {
-    socks5Host: string
+    ipAddress: string
     socks5Port: number
     socks5Username: string
     socks5Password: string
@@ -62,9 +62,9 @@ const form = reactive({
   installUfw: true
 })
 
-/** 部署完成后, "添加到 IP 池" 按钮把这些值发给父组件。 */
+/** 部署完成后, "添加到 IP 池" 按钮把这些值发给父组件; ipAddress 默认 = sshHost (出网 IP). */
 const deployedSocks5 = computed(() => ({
-  socks5Host: form.sshHost.trim(),
+  ipAddress: form.sshHost.trim(),
   socks5Port: form.socksPort,
   socks5Username: form.socksUser.trim(),
   socks5Password: form.socksPass
@@ -114,11 +114,8 @@ function validate() {
 async function onSubmit() {
   if (!validate()) return
   const ok = await confirm({
-    title: '部署 SOCKS5 落地节点',
-    message:
-      `将通过 SSH 连接 ${form.sshHost}:${form.sshPort} 安装 Xray + SOCKS5 inbound。\n\n` +
-      `SOCKS5 端口: ${form.socksPort}, 用户: ${form.socksUser}\n` +
-      `仅支持 Ubuntu 22.04+, 已存在的 Xray 配置会先备份再覆盖。`,
+    title: '部署 SOCKS5',
+    message: `在 ${form.sshHost}:${form.sshPort} 部署 SOCKS5 (端口 ${form.socksPort})?`,
     type: 'warning',
     confirmText: '开始部署'
   })
@@ -201,11 +198,6 @@ function close() {
         <span>部署 SOCKS5 落地节点</span>
       </div>
     </template>
-
-    <p class="text-xs text-zinc-500 mb-4">
-      在远端主机上自动安装 Xray + SOCKS5 inbound; SSH 凭据仅本次使用、不入库。
-      部署成功后可一键把 SOCKS5 凭据 (host=出网 IP / port / 用户 / 密码) 添加到 IP 池。
-    </p>
 
     <NForm
       :model="form"
@@ -428,7 +420,7 @@ function close() {
       <pre
         ref="outputRef"
         class="text-xs max-h-72 min-h-32 overflow-auto bg-zinc-900 text-zinc-100 px-4 py-3 rounded whitespace-pre-wrap break-all font-mono leading-relaxed"
-      ><code v-if="output">{{ output }}</code><span v-else class="text-zinc-500">{{ installing ? '准备中...' : '点 "开始部署" 触发, 远端 stdout 会逐行回传到这里' }}</span></pre>
+      ><code v-if="output">{{ output }}</code><span v-else class="text-zinc-500">{{ installing ? '准备中...' : '远端 stdout 实时输出' }}</span></pre>
     </div>
 
     <template #footer>

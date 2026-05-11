@@ -148,8 +148,8 @@ async function onSubmit() {
   if (!validate() || !props.server) return
   const slotEnd = form.slotPortBase + form.slotPoolSize
   const ok = await confirm({
-    title: '一键部署 Xray (1:1 + slot 模型)',
-    message: `将在 ${props.server.name} 上部署 Xray ${form.xrayVersion}\n安装到 ${form.installDir}\nslot ${form.slotPortBase}-${slotEnd} (共 ${form.slotPoolSize} 个)\n\n约 1-5 分钟。已存在的 Xray 配置会先备份再覆盖。`,
+    title: '部署 Xray',
+    message: `在 ${props.server.name} 部署 Xray ${form.xrayVersion}, slot ${form.slotPortBase}-${slotEnd} (${form.slotPoolSize} 个)?`,
     type: 'warning',
     confirmText: '开始部署'
   })
@@ -233,11 +233,6 @@ function close() {
         {{ server.name }} ({{ server.host }})
       </span>
     </template>
-
-    <p class="text-xs text-zinc-500 mb-4">
-      远程执行 nook 模块化部署脚本 (仅支持 Ubuntu 22.04+), 装 Xray 内核到指定目录 + 预置 slot
-      placeholder; 客户开通时通过 SSH + xray api CLI 动态加 inbound/outbound, 不重启 xray 不影响其他客户。
-    </p>
 
     <NForm
       :model="form"
@@ -410,30 +405,15 @@ function close() {
           </NFormItem>
 
           <div class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mt-1">
-            <div>
-              <NCheckbox v-model:checked="form.enableOnBoot" :disabled="installing">
-                开机自启 Xray
-              </NCheckbox>
-              <p class="text-xs text-zinc-500 ml-6 mt-0.5">
-                systemctl enable; 服务器重启后自动起 Xray
-              </p>
-            </div>
-            <div>
-              <NCheckbox v-model:checked="form.forceReinstall" :disabled="installing">
-                强制重装
-              </NCheckbox>
-              <p class="text-xs text-zinc-500 ml-6 mt-0.5">
-                即使版本号一致也走下载流程, 用于自编译版本
-              </p>
-            </div>
-            <div>
-              <NCheckbox v-model:checked="form.installUfw" :disabled="installing">
-                配置 UFW 防火墙
-              </NCheckbox>
-              <p class="text-xs text-zinc-500 ml-6 mt-0.5">
-                放 22 + slot 端口段 ({{ form.slotPortBase }}-{{ form.slotPortBase + form.slotPoolSize }})
-              </p>
-            </div>
+            <NCheckbox v-model:checked="form.enableOnBoot" :disabled="installing">
+              开机自启 Xray
+            </NCheckbox>
+            <NCheckbox v-model:checked="form.forceReinstall" :disabled="installing">
+              强制重装
+            </NCheckbox>
+            <NCheckbox v-model:checked="form.installUfw" :disabled="installing">
+              配置 UFW 防火墙 (22 + slot 端口段)
+            </NCheckbox>
           </div>
         </div>
       </div>
@@ -451,7 +431,7 @@ function close() {
       <pre
         ref="outputRef"
         class="text-xs max-h-72 overflow-auto bg-zinc-900 text-zinc-100 min-h-32 px-4 py-3 rounded whitespace-pre-wrap break-all font-mono leading-relaxed"
-      ><code v-if="output">{{ output }}</code><span v-else class="text-zinc-500">{{ installing ? '准备中...' : '点"开始部署"触发, 远端 stdout 会逐行回传到这里' }}</span></pre>
+      ><code v-if="output">{{ output }}</code><span v-else class="text-zinc-500">{{ installing ? '准备中...' : '远端 stdout 实时输出' }}</span></pre>
     </div>
 
     <template #footer>

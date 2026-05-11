@@ -1,13 +1,12 @@
 import request from '@/api/request'
 import { useUserStore } from '@/stores/user'
 
-/** IP 池条目: SOCKS5 落地节点; 一条 = 一台跑了 3proxy 的小 VPS, ip_address 即用户对外暴露的"独享 IP". */
+/** IP 池条目: SOCKS5 落地节点; 一条 = 一台跑了 3proxy 的小 VPS, ip_address 即用户对外暴露的"独享 IP", 同时也是 SOCKS5 服务监听地址. */
 export interface ResourceIpPool {
   id: string
   region: string
   ipTypeId: string
   ipAddress: string
-  socks5Host?: string
   socks5Port?: number
   socks5Username?: string
   /** 明文 SOCKS5 密码 — DB 明文存储, 后台受信场景直接下发, 编辑时 fill 进 type=password 输入框 */
@@ -37,7 +36,6 @@ export interface ResourceIpPoolSaveDTO {
   region?: string
   ipTypeId?: string
   ipAddress?: string
-  socks5Host?: string
   socks5Port?: number
   socks5Username?: string
   socks5Password?: string

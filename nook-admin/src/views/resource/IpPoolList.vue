@@ -73,13 +73,10 @@ const total = ref(0)
 const loading = ref(false)
 
 async function loadIpTypes() {
-  // 加载失败不静默 — 错误已被 request 拦截器 toast, 这里再 console.error 帮助定位;
-  // 拉到空数组也提醒一次, 通常是 99_seed.sql 没跑导致 resource_ip_type 表为空
   try {
     ipTypes.value = await listIpTypes()
     if (!ipTypes.value.length) {
-      console.warn('[ip-pool] 未拉到任何 IP 类型. 请确认 sql/99_seed.sql 已执行 (resource_ip_type 表至少 3 条)')
-      message.warning('IP 类型为空, 请运营在数据库中执行 99_seed.sql 初始化')
+      message.warning('IP 类型为空, 请先初始化 resource_ip_type')
     }
   } catch (e) {
     console.error('[ip-pool] 加载 IP 类型失败:', e)
@@ -151,9 +148,9 @@ function statusTagType(status: number): 'success' | 'info' | 'warning' | 'error'
 const formOpen = ref(false)
 const formMode = ref<'create' | 'edit'>('create')
 const formIp = ref<ResourceIpPool | null>(null)
-/** 由 DeployDialog 部署成功 → 添加到 IP 池 时预填的 SOCKS5 字段; 仅 create 时生效。 */
+/** 由 DeployDialog 部署成功 → 添加到 IP 池 时预填的字段; 仅 create 时生效。 */
 const formSocksPrefill = ref<{
-  socks5Host: string
+  ipAddress: string
   socks5Port: number
   socks5Username: string
   socks5Password: string
@@ -220,9 +217,9 @@ function openDeploy() {
   deployOpen.value = true
 }
 
-/** 部署成功后用户点 "添加到 IP 池": 把 SOCKS5 凭据交给 FormDialog 预填走 create 流程。 */
+/** 部署成功后用户点 "添加到 IP 池": 把凭据交给 FormDialog 预填走 create 流程。 */
 function onAddToPoolFromDeploy(payload: {
-  socks5Host: string
+  ipAddress: string
   socks5Port: number
   socks5Username: string
   socks5Password: string
@@ -235,7 +232,7 @@ function onAddToPoolFromDeploy(payload: {
 
 /** SOCKS5 凭据是否齐全, 决定是否能触发"测试"按钮 (拨号需要这些参数)。 */
 function canTest(ip: ResourceIpPool): boolean {
-  return !!ip.socks5Host
+  return !!ip.ipAddress
       && !!ip.socks5Port
       && !!ip.socks5Username
       && !!ip.socks5Password
@@ -320,12 +317,12 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
     title: 'SOCKS5',
     key: 'socks5',
     render: (row) => {
-      if (!row.socks5Host) {
+      if (!row.socks5Port) {
         return h('span', { class: 'text-xs text-zinc-400' }, '未部署')
       }
       const children: ReturnType<typeof h>[] = [
         h('span', { class: 'font-mono text-xs' }, [
-          row.socks5Host,
+          row.ipAddress,
           h('span', { class: 'text-zinc-400' }, `:${row.socks5Port}`)
         ])
       ]

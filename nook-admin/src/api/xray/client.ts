@@ -48,16 +48,20 @@ export interface XrayClientProvisionDTO {
   serverId: string
   ipId: string
   memberUserId: string
-  protocol: string
+  /** 协议 vless / vmess / trojan. */
+  protocol: 'vless' | 'vmess' | 'trojan'
+  /** 传输层 tcp / ws / grpc / h2 / quic; 当前 streamSettings 仅 tcp 走通. */
+  transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
+  /** 监听 IP, 0.0.0.0 = 所有 IPv4 接口, :: = 所有 IPv6 接口. */
+  listenIp: string
+  /** 流量上限(字节); 0/不传 = 不限. */
   totalBytes?: number
+  /** 到期时间戳(毫秒); 0/不传 = 永久. */
   expiryEpochMillis?: number
+  /** 单客户端最多并发源 IP 数; 0/不传 = 不限, 上限 100. */
   limitIp?: number
+  /** vless flow, 例 xtls-rprx-vision; vmess / trojan 必须留空. */
   flow?: string
-  // 1:1 + slot 模型下 nook 自动决定, 前端可不传; 传了也会被业务侧覆写 (后端 @Deprecated)
-  externalInboundRef?: string
-  transport?: string
-  listenIp?: string
-  listenPort?: number
 }
 
 /**
@@ -160,4 +164,47 @@ export function resetClientTraffic(id: string) {
  */
 export function getClientCredential(id: string) {
   return request.get<unknown, XrayClientCredential>(`/admin/node/xray/client/${id}/credential`)
+}
+
+// ===== reconciler 对账接口 =====
+
+/** server 远端 vs DB 对账结果. */
+export interface SyncStatus {
+  serverId: string
+  /** 能否 SSH 连通 + xray 跑着. */
+  reachable: boolean
+  /** DB 与远端均有 (双方对齐). */
+  okTags: string[]
+  /** DB 有但远端缺失; 调 sync 推回去. */
+  staleDbTags: string[]
+  /** 远端有但 DB 没有 (排除静态预置 api); 视为孤儿. */
+  orphanRemoteTags: string[]
+}
+
+/** server 全量 replay 报告. */
+export interface ReplayReport {
+  serverId: string
+  /** DB 里 status≠2 的 client 总数. */
+  totalCount: number
+  /** 远端已对齐, 跳过未推 (避免无谓断连). */
+  alreadyOkCount: number
+  /** 实际推成功数 (远端缺失 → 重建). */
+  successCount: number
+  /** 推失败的 client id; 已标 status=3, 下轮 reconciler 重试. */
+  failedClientIds: string[]
+}
+
+/** 拉 server 远端 vs DB 对账状态; 不修改任何状态, 只读. */
+export function getSyncStatus(serverId: string) {
+  return request.get<unknown, SyncStatus>(`/admin/node/xray/client/server/${serverId}/sync-status`)
+}
+
+/** 把单条 client 推到远端 (幂等: 远端有就先删再加). */
+export function syncClient(id: string) {
+  return request.post<unknown, void>(`/admin/node/xray/client/${id}/sync`)
+}
+
+/** 把 server 下所有 status≠2 的 client 全推一遍, 返回报告. */
+export function replayServer(serverId: string) {
+  return request.post<unknown, ReplayReport>(`/admin/node/xray/client/server/${serverId}/replay`)
 }
