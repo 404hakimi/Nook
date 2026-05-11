@@ -17,7 +17,7 @@ import java.util.function.Consumer;
 @Component
 public class StreamingEndpointSupport {
 
-    @Resource
+    @Resource(name = "applicationTaskExecutor")
     private AsyncTaskExecutor asyncExecutor;
 
     /**
