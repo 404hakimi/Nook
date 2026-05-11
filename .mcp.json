@@ -6,10 +6,10 @@
       "args": [
         "universal-db-mcp",
         "--type", "mysql",
-        "--host", "101.200.85.122",
-        "--port", "35996",
+        "--host", "36.111.148.126",
+        "--port", "13306",
         "--database", "nook",
-        "--user", "root",
+        "--user", "nook",
         "--password", "nWSDjJWE2r3fH8f7!ly8@21",
         "--permission-mode", "full"
       ]
