@@ -28,13 +28,10 @@ public class ResourceIpPoolSaveReqVO {
     @Min(value = 1) @Max(value = 2)
     private Integer provisionMode;
 
+    /** 出网真实 IP; 同时作为 SOCKS5 服务监听地址 (host = ipAddress, 不再单独存 socks5Host). */
     @NotBlank(message = "IP 地址不能为空")
     @Size(max = 45)
     private String ipAddress;
-
-    @NotBlank(message = "SOCKS5 主机不能为空")
-    @Size(max = 128)
-    private String socks5Host;
 
     @NotNull(message = "SOCKS5 端口不能为空")
     @Min(value = 1) @Max(value = 65535)

@@ -20,9 +20,9 @@ public class ResourceIpPoolRespVO {
     /** 1=self_deploy 2=external */
     private Integer provisionMode;
 
+    /** 出网真实 IP; 同时作为 SOCKS5 服务监听地址. */
     private String ipAddress;
 
-    private String socks5Host;
     private Integer socks5Port;
     private String socks5Username;
     private String socks5Password;
