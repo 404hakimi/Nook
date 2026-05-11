@@ -1,4 +1,4 @@
-package com.nook.biz.node.service.support;
+package com.nook.biz.node.event;
 
 import com.nook.framework.ssh.core.SshSessionManager;
 import com.nook.biz.resource.api.event.ServerCredentialChangedEvent;
