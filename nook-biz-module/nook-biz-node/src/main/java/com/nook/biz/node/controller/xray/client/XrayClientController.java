@@ -6,9 +6,11 @@ import com.nook.biz.node.controller.xray.client.vo.ClientProvisionReqVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientUpdateReqVO;
+import com.nook.biz.node.controller.xray.client.vo.ReplayReportRespVO;
+import com.nook.biz.node.controller.xray.client.vo.SyncStatusRespVO;
 import com.nook.biz.node.convert.xray.client.XrayClientConvert;
-import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.service.xray.client.XrayClientService;
+import com.nook.biz.resource.api.ResourceIpPoolApi;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
@@ -24,7 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Xray 客户端后台管理接口; controller 仅做参数绑定 + 调 service, 校验由 service 注入的 Validator 在内部完成.
+ * Xray 客户端后台管理接口
  *
  * @author nook
  */
@@ -34,28 +36,22 @@ public class XrayClientController {
 
     @Resource
     private XrayClientService xrayClientService;
+    @Resource
+    private ResourceIpPoolApi resourceIpPoolApi;
 
     @GetMapping
     public Result<PageResult<ClientRespVO>> page(@ModelAttribute ClientPageReqVO reqVO) {
-        PageResult<ClientRespVO> page = XrayClientConvert.INSTANCE.convertPage(xrayClientService.page(reqVO));
-        // page 出参一行一行展示给运维, 把 ipId hash 翻成可读 ipAddress; 这里走 service 的批量 enrich, 一次 SQL
-        xrayClientService.enrichIpAddress(page.getRecords());
-        return Result.ok(page);
+        return Result.ok(XrayClientConvert.INSTANCE.convertPage(xrayClientService.page(reqVO), resourceIpPoolApi));
     }
 
     @GetMapping("/{id}")
     public Result<ClientRespVO> detail(@PathVariable String id) {
-        ClientRespVO vo = XrayClientConvert.INSTANCE.convert(xrayClientService.findById(id));
-        xrayClientService.enrichIpAddress(java.util.Collections.singletonList(vo));
-        return Result.ok(vo);
+        return Result.ok(XrayClientConvert.INSTANCE.convert(xrayClientService.findById(id), resourceIpPoolApi));
     }
 
     @PostMapping("/provision")
     public Result<ClientRespVO> provision(@RequestBody @Valid ClientProvisionReqVO reqVO) {
-        XrayClientDO e = xrayClientService.provision(reqVO);
-        ClientRespVO vo = XrayClientConvert.INSTANCE.convert(e);
-        xrayClientService.enrichIpAddress(java.util.Collections.singletonList(vo));
-        return Result.ok(vo);
+        return Result.ok(XrayClientConvert.INSTANCE.convert(xrayClientService.provision(reqVO), resourceIpPoolApi));
     }
 
     @PutMapping("/{id}")
@@ -73,9 +69,7 @@ public class XrayClientController {
 
     @PostMapping("/{id}/rotate")
     public Result<ClientRespVO> rotate(@PathVariable String id) {
-        ClientRespVO vo = XrayClientConvert.INSTANCE.convert(xrayClientService.rotate(id));
-        xrayClientService.enrichIpAddress(java.util.Collections.singletonList(vo));
-        return Result.ok(vo);
+        return Result.ok(XrayClientConvert.INSTANCE.convert(xrayClientService.rotate(id), resourceIpPoolApi));
     }
 
     @GetMapping("/{id}/traffic")
@@ -92,5 +86,21 @@ public class XrayClientController {
     @GetMapping("/{id}/credential")
     public Result<ClientCredentialRespVO> credential(@PathVariable String id) {
         return Result.ok(xrayClientService.loadCredential(id));
+    }
+
+    @GetMapping("/server/{serverId}/sync-status")
+    public Result<SyncStatusRespVO> syncStatus(@PathVariable String serverId) {
+        return Result.ok(xrayClientService.getSyncStatus(serverId));
+    }
+
+    @PostMapping("/{id}/sync")
+    public Result<Void> sync(@PathVariable String id) {
+        xrayClientService.syncOne(id);
+        return Result.ok();
+    }
+
+    @PostMapping("/server/{serverId}/replay")
+    public Result<ReplayReportRespVO> replay(@PathVariable String serverId) {
+        return Result.ok(xrayClientService.replayServer(serverId));
     }
 }

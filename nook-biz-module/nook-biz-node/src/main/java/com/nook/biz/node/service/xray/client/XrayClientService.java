@@ -3,13 +3,12 @@ package com.nook.biz.node.service.xray.client;
 import com.nook.biz.node.controller.xray.client.vo.ClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientPageReqVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientProvisionReqVO;
-import com.nook.biz.node.controller.xray.client.vo.ClientRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientUpdateReqVO;
+import com.nook.biz.node.controller.xray.client.vo.ReplayReportRespVO;
+import com.nook.biz.node.controller.xray.client.vo.SyncStatusRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.common.web.response.PageResult;
-
-import java.util.Collection;
 
 /**
  * Xray client 全生命周期 (开通 / 吊销 / 轮换 / 查流量); 远端走 SSH + xray CLI.
@@ -43,7 +42,7 @@ public interface XrayClientService {
     XrayClientDO provision(ClientProvisionReqVO reqVO);
 
     /**
-     * 吊销 client, 远端先删再硬删 DB; 远端 CLIENT_NOT_FOUND 也算成功 (目标态本就是没了).
+     * 吊销 client, 远端先删再硬删 DB;
      *
      * @param inboundEntityId xray_client.id
      */
@@ -89,10 +88,33 @@ public interface XrayClientService {
     ClientCredentialRespVO loadCredential(String inboundEntityId);
 
     /**
-     * 给一批出参 VO 批量补 ipAddress (按 ipId 一次性查 resource_ip_pool); list / detail / provision / rotate 出参共用.
-     * 已删 / 不存在的 IP 不写, ipAddress 留 null 由前端 fallback 显示 ipId.
+     * server 远端 vs DB 对账; 返回 ok / 缺失 / 孤儿 三类 tag.
      *
-     * @param vos 待补字段的 VO 列表; null / 空集合不报错
+     * @param serverId resource_server.id
+     * @return SyncStatusRespVO
      */
-    void enrichIpAddress(Collection<ClientRespVO> vos);
+    SyncStatusRespVO getSyncStatus(String serverId);
+
+    /**
+     * 把单条 client 推到远端 (幂等: 远端有就先删再加); 失败标 status=3 抛错.
+     *
+     * @param clientId xray_client.id
+     */
+    void syncOne(String clientId);
+
+    /**
+     * 把 server 下所有 status≠2 的 client 全推一遍; 失败行收集到报告, 单条失败不阻断整批.
+     *
+     * @param serverId resource_server.id
+     * @return ReplayReportRespVO
+     */
+    ReplayReportRespVO replayServer(String serverId);
+
+    /**
+     * Reconciler 调度入口: 探 xray uptime, 检测到重启 (uptime 比 last_xray_uptime 新) 才 replay 该 server.
+     * 平时仅 1 次 SSH 探活, 重启后才 ADI/RMI; 不可达时静默跳过.
+     *
+     * @param serverId resource_server.id
+     */
+    void replayIfRestarted(String serverId);
 }

@@ -7,11 +7,12 @@ import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
-import com.nook.biz.node.framework.ssh.SshSession;
-import com.nook.biz.node.framework.ssh.SshSessionManager;
+import com.nook.framework.ssh.core.SshSession;
+import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
+import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -29,8 +30,6 @@ import java.util.function.Consumer;
 public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     @Resource
-    private SshSessionManager sessionManager;
-    @Resource
     private RemoteScriptRunner scriptRunner;
     @Resource
     private ServerProbe serverProbe;
@@ -38,10 +37,13 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private XrayDaemonProbe xrayDaemonProbe;
     @Resource
     private XrayNodeService xrayNodeService;
+    @Resource
+    private SessionCredentialMapper sessionCredentialMapper;
 
     @Override
     public void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink) {
-        SshSession session = sessionManager.acquire(serverId);
+        // 长任务 (1-10 min) 用 INSTALL scope, 跟短任务 SHARED 隔离 cache, 防被 invalidate 半路打断
+        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.INSTALL);
         // logDir 留空时按 <installDir>/logs 派生; vars 与落库都用同一份, 保持一致
         String effectiveLogDir = StrUtil.isBlank(reqVO.getLogDir())
                 ? reqVO.getInstallDir() + "/logs"
@@ -56,9 +58,9 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                 installTimeout,
                 lineSink);
 
-        // 装完后跑 xray version 把字面 "latest" 解析成具体 tag (如 "v26.3.27"), 让 xray_node 反映远端真实版本;
-        // 解析失败 (SSH 抖动 / xray 没起) 不阻断主流程, fallback 留前端入参原值.
-        String resolvedVersion = resolveActualVersion(session, reqVO.getXrayVersion());
+        // 装完后把字面 "latest" 解析成具体 tag (如 "v26.3.27"), 让 xray_node 反映远端真实版本;
+        // 解析失败 fallback 原值, 不阻断主流程.
+        String resolvedVersion = xrayDaemonProbe.resolveActualVersion(session, reqVO.getXrayVersion());
         if (!resolvedVersion.equals(reqVO.getXrayVersion())) {
             lineSink.accept("[nook] xray 实际版本: " + resolvedVersion + " (前端选 "
                     + reqVO.getXrayVersion() + ")\n");
@@ -85,48 +87,19 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         }
     }
 
-    /**
-     * 把前端选的 "latest" 解析成远端实际安装的具体版本 tag (如 "v26.3.27");
-     * 非 latest 直接原样返回 (用户已显式指版本).
-     *
-     * @param session    SSH 会话, 复用主流程已 acquire 的连接
-     * @param requested  前端入参 xrayVersion ("latest" 或 "vX.Y.Z")
-     * @return 实际安装的版本 tag; 抓取失败 fallback 原值
-     */
-    private String resolveActualVersion(SshSession session, String requested) {
-        if (!"latest".equalsIgnoreCase(requested)) return requested;
-        // xray version 输出首行: "Xray 26.3.27 (Xray, Penetrates Everything.) ..."
-        // awk 取第二段拿到纯版本号; 失败 fallback 空串走兜底
-        String raw;
-        try {
-            raw = session.ssh().exec("xray version 2>/dev/null | head -1 | awk '{print $2}' || true")
-                    .getStdout().trim();
-        } catch (RuntimeException e) {
-            log.warn("[install] 解析 xray 真实版本失败, 回落到字面 latest: {}", e.getMessage());
-            return requested;
-        }
-        if (StrUtil.isBlank(raw)) return requested;
-        // 防御性: 远端可能加 v 前缀, 也可能不加; 统一规范成 "vX.Y.Z" 落库
-        return raw.startsWith("v") ? raw : "v" + raw;
-    }
-
     @Override
     public String restart(String serverId) {
-        SshSession session = sessionManager.acquire(serverId);
-        String unit = XrayConstants.SYSTEMD_UNIT;
-        // restart → sleep 2 → is-active → xray version: 一条复合命令拿"是否活+版本"做前端展示
-        return session.ssh().exec(
-                "systemctl restart " + unit + " && sleep 2 && systemctl is-active " + unit
-                        + " && xray version | head -1"
-        ).getStdout();
+        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
+        return xrayDaemonProbe.restart(session);
     }
 
     @Override
-    public ServiceStatusRespVO status(String serverId) {
+    public ServiceStatusRespVO getXraySystemdStatus(String serverId) {
+        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
         // ServerProbe 只回通用 systemd 状态 (active/uptime/enabled); xray 专属 (version + 监听端口) 走 XrayDaemonProbe
-        SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(serverId, XrayConstants.SYSTEMD_UNIT);
+        SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, XrayConstants.SYSTEMD_UNIT);
         int apiPort = xrayNodeService.loadOrThrow(serverId).getXrayApiPort();
-        XrayDaemonExtraSnapshot extras = xrayDaemonProbe.readExtras(serverId, apiPort);
+        XrayDaemonExtraSnapshot extras = xrayDaemonProbe.readExtras(session, apiPort);
 
         ServiceStatusRespVO vo = new ServiceStatusRespVO();
         vo.setUnit(sysd.getUnit());
@@ -140,13 +113,8 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     @Override
     public String setAutostart(String serverId, boolean enabled) {
-        SshSession session = sessionManager.acquire(serverId);
-        String unit = XrayConstants.SYSTEMD_UNIT;
-        // enable/disable 退出码非 0 也算正常 (already-enabled 等), 用 || true 兜底; 末尾 is-enabled 给前端确认结果
-        String op = enabled ? "enable" : "disable";
-        return session.ssh().exec(
-                "systemctl " + op + " " + unit + " 2>&1 || true; systemctl is-enabled " + unit + " 2>/dev/null || true"
-        ).getStdout();
+        return xrayDaemonProbe.setAutostart(
+                sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED), enabled);
     }
 
     /** 按 reqVO 勾选项把 install 模块拼成完整脚本; 必装 00/50/99, 可选 10-timezone/40-ufw; swap/bbr 不在此链路. */

@@ -43,8 +43,8 @@
         </dependency>
 
         <dependency>
-            <groupId>org.apache.sshd</groupId>
-            <artifactId>sshd-core</artifactId>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-ssh</artifactId>
         </dependency>
 
         <dependency>

@@ -2,8 +2,11 @@ package com.nook.biz.node.dal.dataobject.client;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.nook.framework.mybatis.entity.BaseEntity;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 
@@ -11,6 +14,9 @@ import java.time.LocalDateTime;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("xray_client")
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
 public class XrayClientDO extends BaseEntity {
 
     private String serverId;

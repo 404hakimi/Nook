@@ -2,7 +2,7 @@ package com.nook.biz.node.framework.server.script;
 
 import cn.hutool.core.io.resource.ResourceUtil;
 import com.nook.biz.node.enums.XrayErrorCode;
-import com.nook.biz.node.framework.ssh.SshSession;
+import com.nook.framework.ssh.core.SshSession;
 import com.nook.common.web.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

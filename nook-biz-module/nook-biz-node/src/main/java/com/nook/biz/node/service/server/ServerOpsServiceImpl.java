@@ -5,8 +5,9 @@ import com.nook.biz.node.controller.xray.server.vo.EnableSwapReqVO;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
 import com.nook.biz.node.framework.server.script.config.ServerOsOp;
-import com.nook.biz.node.framework.ssh.SshSession;
-import com.nook.biz.node.framework.ssh.SshSessionManager;
+import com.nook.framework.ssh.core.SshSession;
+import com.nook.framework.ssh.core.SshSessionScope;
+import com.nook.biz.node.service.support.SessionCredentialMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,9 @@ import java.util.function.Consumer;
 public class ServerOpsServiceImpl implements ServerOpsService {
 
     @Resource
-    private SshSessionManager sessionManager;
-    @Resource
     private RemoteScriptRunner scriptRunner;
+    @Resource
+    private SessionCredentialMapper sessionCredentialMapper;
 
     @Override
     public void enableSwap(String serverId, EnableSwapReqVO reqVO, Consumer<String> lineSink) {
@@ -42,7 +43,8 @@ public class ServerOpsServiceImpl implements ServerOpsService {
                          ServerOsOp op,
                          Map<String, String> vars,
                          Consumer<String> lineSink) {
-        SshSession session = sessionManager.acquire(serverId);
+        // bbr / swap 是流式部署长任务, 走 INSTALL scope 跟短任务隔离, 避免被并发 invalidate 打断
+        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.INSTALL);
         String helpers = ResourceUtil.readUtf8Str(RemoteScriptPaths.OPS_HELPERS);
         String body = scriptRunner.renderTemplate(op.modulePath(), vars);
         String script = helpers + "\n" + body + "\n";

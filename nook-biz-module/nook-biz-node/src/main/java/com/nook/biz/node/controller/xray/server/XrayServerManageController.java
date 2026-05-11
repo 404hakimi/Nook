@@ -41,7 +41,7 @@ public class XrayServerManageController {
 
     @GetMapping("/{id}/status")
     public Result<ServiceStatusRespVO> status(@PathVariable String id) {
-        return Result.ok(xrayServerManageService.status(id));
+        return Result.ok(xrayServerManageService.getXraySystemdStatus(id));
     }
 
     @PostMapping("/{id}/restart")
@@ -59,8 +59,7 @@ public class XrayServerManageController {
     public ResponseBodyEmitter install(@PathVariable String id,
                                        @RequestBody @Valid LineServerInstallReqVO reqVO) {
         // Emitter 端比 install 端略宽 (+60s), 保证 Service 自己 timeout 时还能把错误吐回前端
-        Duration emitterTimeout = Duration.ofSeconds(resourceServerApi.loadCredential(id).getInstallTimeoutSeconds())
-                .plus(EMITTER_BUFFER);
+        Duration emitterTimeout = Duration.ofSeconds(resourceServerApi.loadCredential(id).getInstallTimeoutSeconds()).plus(EMITTER_BUFFER);
         return streamingSupport.stream("install:" + id, emitterTimeout,
                 lineSink -> xrayServerManageService.installStreaming(id, reqVO, lineSink));
     }

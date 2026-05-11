@@ -4,21 +4,23 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.enums.XrayErrorCode;
-import com.nook.biz.node.framework.ssh.SshSession;
-import com.nook.biz.node.framework.ssh.SshSessionManager;
+import com.nook.framework.ssh.core.SshSession;
 import com.nook.biz.node.framework.xray.cli.utils.ShellEscapeUtils;
 import com.nook.biz.node.framework.xray.inbound.config.InboundProtocolMapping;
 import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
 import com.nook.common.web.exception.BusinessException;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
- * Xray inbound 整体增删 CLI 客户端 (走 SSH + xray api adi/rmi); 不查 DB, apiPort 由调用方传入.
+ * Xray inbound 整体增删 CLI 客户端 (走 SSH + xray api adi/rmi); 由 caller 传入已 acquire 的 session.
  *
  * @author nook
  */
@@ -26,49 +28,69 @@ import java.util.Base64;
 @Component
 public class XrayInboundCli {
 
-    @Resource
-    private SshSessionManager sshSessionManager;
-
     /**
      * 加一个完整 inbound (1:1 模型每客户独享一个 inbound, 仅 1 个 user); 已存在抛 CLIENT_DUPLICATE.
      *
-     * @param serverId resource_server.id
-     * @param apiPort  xray 内置 api server 端口
-     * @param tag      inbound tag (1:1 模型: in_slot_XX)
-     * @param port     监听端口 (= node.slotPortBase + slot_index)
-     * @param user     user 协议规格
+     * @param session caller 已 acquire 的 SSH 会话
+     * @param apiPort xray 内置 api server 端口
+     * @param tag     inbound tag (1:1 模型: in_slot_XX)
+     * @param port    监听端口 (= node.slotPortBase + slot_index)
+     * @param user    user 协议规格
      */
-    public void addInbound(String serverId, int apiPort, String tag, int port, InboundUserSpec user) {
+    public void addInbound(SshSession session, int apiPort, String tag, int port, InboundUserSpec user) {
         String json = buildInboundJson(tag, port, user);
-        SshSession session = sshSessionManager.acquire(serverId);
         // xray api adi 的位置参数必须是真实文件路径 (跟 v2ray 不同, xray 不支持 "-" 当 stdin 占位);
         // 用 base64 → mktemp → xray api adi <file> → rm 一气呵成, 避免 stdin 路径
         String cmd = buildAdiCmd(apiPort, json);
         try {
             session.ssh().exec(cmd);
             log.info("[xray-cli] addInbound server={} tag={} port={} protocol={} email={}",
-                    serverId, tag, port, user.getProtocol(), user.getEmail());
+                    session.serverId(), tag, port, user.getProtocol(), user.getEmail());
         } catch (BusinessException be) {
-            throw mapAddInboundError(be, serverId, tag);
+            throw mapAddInboundError(be, session.serverId(), tag);
         }
+    }
+
+    /**
+     * 列远端所有 inbound tag (走 xray api lsi); 用于 reconciler 跟 DB 对账. SSH 抖动 / xray 没起返空集.
+     *
+     * @param session caller 已 acquire 的 SSH 会话
+     * @param apiPort xray 内置 api server 端口
+     * @return tag 列表 (含静态预置如 api, 调用方按需过滤)
+     */
+    public List<String> listInbounds(SshSession session, int apiPort) {
+        // jq 提取 .inbounds[].tag, 失败兜底空串避免抛错; 远端 jq 在 50-xray 模板里已确认装了
+        String cmd = "xray api lsi --server=127.0.0.1:" + apiPort
+                + " 2>/dev/null | jq -r '.inbounds[].tag' 2>/dev/null || true";
+        String stdout;
+        try {
+            stdout = session.ssh().exec(cmd).getStdout();
+        } catch (RuntimeException e) {
+            log.warn("[xray-cli] listInbounds 失败 server={}: {}", session.serverId(), e.getMessage());
+            return Collections.emptyList();
+        }
+        if (StrUtil.isBlank(stdout)) return Collections.emptyList();
+        return Arrays.stream(stdout.split("\\R"))
+                .map(String::trim)
+                .filter(StrUtil::isNotBlank)
+                .collect(Collectors.toList());
     }
 
     /**
      * 删一个 inbound (按 tag); tag 不存在抛 CLIENT_NOT_FOUND.
      *
-     * @param serverId resource_server.id
-     * @param apiPort  xray 内置 api server 端口
-     * @param tag      inbound tag
+     * @param session caller 已 acquire 的 SSH 会话
+     * @param apiPort xray 内置 api server 端口
+     * @param tag     inbound tag
      */
-    public void removeInbound(String serverId, int apiPort, String tag) {
-        SshSession session = sshSessionManager.acquire(serverId);
+    public void removeInbound(SshSession session, int apiPort, String tag) {
         String cmd = "xray api rmi --server=127.0.0.1:" + apiPort + " "
                 + ShellEscapeUtils.shellArg(tag);
         try {
             session.ssh().exec(cmd);
-            log.info("[xray-cli] removeInbound server={} tag={}", serverId, tag);
+            log.info("[xray-cli] removeInbound server={} tag={}", session.serverId(), tag);
         } catch (BusinessException be) {
-            throw mapRemoveInboundError(be, serverId, tag);
+            throw mapRemoveInboundError(be, session.serverId(), tag);
         }
     }
 

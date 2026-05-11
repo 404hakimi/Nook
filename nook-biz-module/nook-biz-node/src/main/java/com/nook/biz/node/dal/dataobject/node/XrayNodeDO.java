@@ -27,7 +27,7 @@ public class XrayNodeDO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 关联 resource_server.id, 1:1 主键. */
+    /** 服务器ID */
     @TableId(value = "server_id", type = IdType.INPUT)
     private String serverId;
 

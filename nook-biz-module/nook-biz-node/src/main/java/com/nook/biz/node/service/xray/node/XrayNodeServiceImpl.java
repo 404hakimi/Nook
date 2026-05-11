@@ -31,40 +31,33 @@ public class XrayNodeServiceImpl implements XrayNodeService {
                        String xrayLogDir,
                        int slotPoolSize,
                        int slotPortBase) {
-        // installedAt = "最近一次部署完成时间", 重装也覆写, 让运维一眼看到"上次重装啥时候"
-        // lastXrayUptime 在重装时清空, 旧 uptime 已无效 (xray 进程被替换); 由后续 reconciler 探测重填
-        LocalDateTime now = LocalDateTime.now();
+        // installedAt 每次部署覆写 (语义=最近一次部署完成时间); lastXrayUptime 重装清空, 等 reconciler 重新探测.
         XrayNodeDO existing = xrayNodeMapper.selectById(serverId);
-        if (ObjectUtil.isNotNull(existing)) {
-            existing.setXrayVersion(xrayVersion);
-            existing.setXrayApiPort(xrayApiPort);
-            existing.setXrayInstallDir(xrayInstallDir);
-            existing.setXrayLogDir(xrayLogDir);
-            existing.setSlotPoolSize(slotPoolSize);
-            existing.setSlotPortBase(slotPortBase);
-            existing.setInstalledAt(now);
-            existing.setLastXrayUptime(null);
-            xrayNodeMapper.updateById(existing);
-            log.info("[xray-node] update server={} version={} apiPort={} installDir={} poolSize={}",
-                    serverId, xrayVersion, xrayApiPort, xrayInstallDir, slotPoolSize);
-        } else {
-            XrayNodeDO row = new XrayNodeDO();
-            row.setServerId(serverId);
-            row.setXrayVersion(xrayVersion);
-            row.setXrayApiPort(xrayApiPort);
-            row.setXrayInstallDir(xrayInstallDir);
-            row.setXrayLogDir(xrayLogDir);
-            row.setSlotPoolSize(slotPoolSize);
-            row.setSlotPortBase(slotPortBase);
-            row.setInstalledAt(now);
-            xrayNodeMapper.insert(row);
-            log.info("[xray-node] insert server={} version={} apiPort={} installDir={} poolSize={}",
-                    serverId, xrayVersion, xrayApiPort, xrayInstallDir, slotPoolSize);
-        }
+        boolean isInsert = ObjectUtil.isNull(existing);
+        XrayNodeDO row = isInsert ? new XrayNodeDO() : existing;
 
-        // xray_node 行存在 ↔ slot 池已初始化是不可分的业务约束;
-        // 同事务内 initialize 让 "半初始化" 状态 (有 xray_node 但 slot 池空) 物理上不可能出现.
-        // initialize 自身幂等: 已存在的 slot 行不动, 缺失的补齐到 slot_pool_size.
+        // 公共字段统一装载
+        row.setXrayVersion(xrayVersion);
+        row.setXrayApiPort(xrayApiPort);
+        row.setXrayInstallDir(xrayInstallDir);
+        row.setXrayLogDir(xrayLogDir);
+        row.setSlotPoolSize(slotPoolSize);
+        row.setSlotPortBase(slotPortBase);
+        row.setInstalledAt(LocalDateTime.now());
+
+        // 差异字段 + 落库分支
+        if (isInsert) {
+            row.setServerId(serverId);
+            xrayNodeMapper.insert(row);
+        } else {
+            row.setLastXrayUptime(null);
+            xrayNodeMapper.updateById(row);
+        }
+        log.info("[xray-node] {} server={} version={} apiPort={} installDir={} poolSize={}",
+                isInsert ? "insert" : "update",
+                serverId, xrayVersion, xrayApiPort, xrayInstallDir, slotPoolSize);
+
+        // xray_node 与 slot 池在同事务初始化, 杜绝半初始化态; initialize 自身幂等.
         slotPoolService.initialize(serverId, slotPoolSize);
     }
 

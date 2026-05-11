@@ -30,12 +30,12 @@ public interface XrayServerManageService {
     String restart(String serverId);
 
     /**
-     * Xray 服务状态: active / version / 启动时间 / 监听端口 / 开机自启.
+     * 获取 Xray 服务状态
      *
-     * @param serverId resource_server.id
+     * @param serverId 服务器ID
      * @return ServiceStatusRespVO
      */
-    ServiceStatusRespVO status(String serverId);
+    ServiceStatusRespVO getXraySystemdStatus(String serverId);
 
     /**
      * 开/关 Xray 开机自启 (systemctl enable/disable), 末尾返回 is-enabled 结果给前端确认.

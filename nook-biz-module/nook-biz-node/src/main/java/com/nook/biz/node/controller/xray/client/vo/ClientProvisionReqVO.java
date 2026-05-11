@@ -7,8 +7,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 运营手动 provision 入参; 业务自动 provision 走 XrayClientApi;
- * (memberUserId, ipId) 防重由 XrayClientValidator 校验.
+ * 运营手动 provision 入参; (memberUserId, ipId) 防重 + 字段间约束由 XrayClientValidator 校验.
  *
  * @author nook
  */
@@ -33,6 +32,19 @@ public class ClientProvisionReqVO {
     @Size(max = 16)
     private String protocol;
 
+    /** 传输层: tcp / ws / grpc / h2 / quic; 当前 inbound 仅 tcp 走通, 其它已收到入参但 streamSettings 暂未生效. */
+    @NotBlank(message = "transport 必填")
+    @Pattern(regexp = "tcp|ws|grpc|h2|quic", message = "transport 必须是 tcp / ws / grpc / h2 / quic 之一")
+    @Size(max = 32)
+    private String transport;
+
+    /** 监听 IP, 0.0.0.0 = 所有 IPv4 接口, :: = 所有 IPv6 接口. */
+    @NotBlank(message = "listenIp 必填")
+    @Pattern(regexp = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$|^::$|^::[0-9a-fA-F]+$|^[0-9a-fA-F:]+$",
+            message = "listenIp 必须是合法 IPv4 / IPv6")
+    @Size(max = 45)
+    private String listenIp;
+
     /** 流量上限(字节); 0 = 不限. */
     @Min(value = 0, message = "totalBytes 不能为负")
     private Long totalBytes;
@@ -41,23 +53,11 @@ public class ClientProvisionReqVO {
     @Min(value = 0, message = "expiryEpochMillis 不能为负")
     private Long expiryEpochMillis;
 
+    /** 单客户端最多并发源 IP 数; 0 = 不限. */
     @Min(value = 0, message = "limitIp 不能为负")
     private Integer limitIp;
 
-    /** vless flow, 例 xtls-rprx-vision; 其它协议留空. */
+    /** vless flow, 例 xtls-rprx-vision; vmess / trojan 必须为空 (Validator 跨字段校验). */
     @Size(max = 64)
     private String flow;
-
-    // 1:1 + slot 模型下 nook 自动决定, 前端可不传; 传了也会被业务侧覆写
-    @Deprecated
-    private String externalInboundRef;
-
-    @Deprecated
-    private String transport;
-
-    @Deprecated
-    private String listenIp;
-
-    @Deprecated
-    private Integer listenPort;
 }

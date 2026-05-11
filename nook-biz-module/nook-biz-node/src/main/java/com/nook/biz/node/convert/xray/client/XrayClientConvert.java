@@ -5,6 +5,7 @@ import com.nook.biz.node.controller.xray.client.vo.ClientRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
+import com.nook.biz.resource.api.ResourceIpPoolApi;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
@@ -12,7 +13,12 @@ import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.factory.Mappers;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** ClientDO 实体 ↔ VO 转换; clientUuid 在出参里 mask 不暴露明文. */
 @Mapper
@@ -21,8 +27,10 @@ public interface XrayClientConvert {
     XrayClientConvert INSTANCE = Mappers.getMapper(XrayClientConvert.class);
 
     /**
-     * ipAddress 不在 DO 上, 由 controller 调 service.enrichIpAddress 批量补,
-     * 这里显式 ignore 以静默 mapstruct "Unmapped target property" 警告.
+     * ipAddress 在 DO 上不存在, 由带 ipPoolApi 重载方法补; 此处 ignore 静默 mapstruct 警告.
+     *
+     * @param entity 客户端实体
+     * @return ClientRespVO (ipAddress 字段为 null)
      */
     @Mapping(target = "ipAddress", ignore = true)
     ClientRespVO convert(XrayClientDO entity);
@@ -31,6 +39,52 @@ public interface XrayClientConvert {
 
     default PageResult<ClientRespVO> convertPage(PageResult<XrayClientDO> page) {
         return PageResult.of(page.getTotal(), convertList(page.getRecords()));
+    }
+
+    /**
+     * 转 + 一次性 enrich ipAddress; 单条 detail / provision / rotate 出参用.
+     *
+     * @param entity     客户端实体
+     * @param ipPoolApi  Resource 模块跨模块 API, 用于按 ipId 批量查 ipAddress
+     * @return ClientRespVO (ipAddress 已填; 已删 IP 留 null 由前端 fallback)
+     */
+    default ClientRespVO convert(XrayClientDO entity, ResourceIpPoolApi ipPoolApi) {
+        ClientRespVO vo = convert(entity);
+        enrichIpAddress(Collections.singletonList(vo), ipPoolApi);
+        return vo;
+    }
+
+    /**
+     * 转 + 一次性 enrich ipAddress; 列表 page 出参用.
+     *
+     * @param page       service 层返回的实体分页
+     * @param ipPoolApi  Resource 模块跨模块 API
+     * @return PageResult VO 分页 (records 全部已 enrich)
+     */
+    default PageResult<ClientRespVO> convertPage(PageResult<XrayClientDO> page, ResourceIpPoolApi ipPoolApi) {
+        PageResult<ClientRespVO> vo = convertPage(page);
+        enrichIpAddress(vo.getRecords(), ipPoolApi);
+        return vo;
+    }
+
+    /**
+     * 收集 vos 里的 ipId 一次批量查 ipAddress, 填回各 vo.
+     *
+     * @param vos        待 enrich 的 VO 集合
+     * @param ipPoolApi  Resource 模块跨模块 API
+     */
+    default void enrichIpAddress(Collection<ClientRespVO> vos, ResourceIpPoolApi ipPoolApi) {
+        if (vos == null || vos.isEmpty()) return;
+        Set<String> ipIds = vos.stream()
+                .map(ClientRespVO::getIpId)
+                .filter(StrUtil::isNotBlank)
+                .collect(Collectors.toSet());
+        if (ipIds.isEmpty()) return;
+        Map<String, String> map = ipPoolApi.loadIpAddressMap(ipIds);
+        for (ClientRespVO v : vos) {
+            String addr = map.get(v.getIpId());
+            if (addr != null) v.setIpAddress(addr);
+        }
     }
 
     /**

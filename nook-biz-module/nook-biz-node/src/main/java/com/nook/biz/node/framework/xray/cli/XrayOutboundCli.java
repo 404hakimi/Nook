@@ -4,11 +4,9 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.enums.XrayErrorCode;
-import com.nook.biz.node.framework.ssh.SshSession;
-import com.nook.biz.node.framework.ssh.SshSessionManager;
+import com.nook.framework.ssh.core.SshSession;
 import com.nook.biz.node.framework.xray.cli.utils.ShellEscapeUtils;
 import com.nook.common.web.exception.BusinessException;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 /**
- * Xray outbound 增删 CLI 客户端 (走 SSH + xray api ado/rmo); 不查 DB, apiPort 由调用方传入.
+ * Xray outbound 增删 CLI 客户端 (走 SSH + xray api ado/rmo); 由 caller 传入已 acquire 的 session.
  *
  * @author nook
  */
@@ -24,13 +22,10 @@ import java.util.Base64;
 @Component
 public class XrayOutboundCli {
 
-    @Resource
-    private SshSessionManager sshSessionManager;
-
     /**
      * 加 socks5 出站 (provision 时把客户流量打到独享落地 IP).
      *
-     * @param serverId  resource_server.id
+     * @param session   caller 已 acquire 的 SSH 会话
      * @param apiPort   xray 内置 api server 端口
      * @param tag       outbound tag
      * @param socksHost 落地 socks5 主机
@@ -38,46 +33,45 @@ public class XrayOutboundCli {
      * @param username  socks5 鉴权用户 (可空)
      * @param password  socks5 鉴权密码 (可空)
      */
-    public void addSocksOutbound(String serverId, int apiPort, String tag,
+    public void addSocksOutbound(SshSession session, int apiPort, String tag,
                                  String socksHost, int socksPort,
                                  String username, String password) {
         String json = buildSocksOutboundJson(tag, socksHost, socksPort, username, password);
-        execAdo(serverId, apiPort, tag, json);
+        execAdo(session, apiPort, tag, json);
         log.info("[xray-cli] addSocksOutbound server={} tag={} socks={}:{}",
-                serverId, tag, socksHost, socksPort);
+                session.serverId(), tag, socksHost, socksPort);
     }
 
     /**
      * 加 freedom 直连出站 (api 通道 / placeholder 占位 / revoke 后还原占位).
      *
-     * @param serverId resource_server.id
-     * @param apiPort  xray 内置 api server 端口
-     * @param tag      outbound tag
+     * @param session caller 已 acquire 的 SSH 会话
+     * @param apiPort xray 内置 api server 端口
+     * @param tag     outbound tag
      */
-    public void addFreedomOutbound(String serverId, int apiPort, String tag) {
+    public void addFreedomOutbound(SshSession session, int apiPort, String tag) {
         JSONObject outbound = new JSONObject();
         outbound.put("tag", tag);
         outbound.put("protocol", "freedom");
-        execAdo(serverId, apiPort, tag, wrapAsConfig(outbound));
-        log.info("[xray-cli] addFreedomOutbound server={} tag={}", serverId, tag);
+        execAdo(session, apiPort, tag, wrapAsConfig(outbound));
+        log.info("[xray-cli] addFreedomOutbound server={} tag={}", session.serverId(), tag);
     }
 
     /**
      * 删 outbound (按 tag); tag 不存在抛 CLIENT_NOT_FOUND.
      *
-     * @param serverId resource_server.id
-     * @param apiPort  xray 内置 api server 端口
-     * @param tag      outbound tag
+     * @param session caller 已 acquire 的 SSH 会话
+     * @param apiPort xray 内置 api server 端口
+     * @param tag     outbound tag
      */
-    public void removeOutbound(String serverId, int apiPort, String tag) {
-        SshSession session = sshSessionManager.acquire(serverId);
+    public void removeOutbound(SshSession session, int apiPort, String tag) {
         String cmd = "xray api rmo --server=127.0.0.1:" + apiPort + " "
                 + ShellEscapeUtils.shellArg(tag);
         try {
             session.ssh().exec(cmd);
-            log.info("[xray-cli] removeOutbound server={} tag={}", serverId, tag);
+            log.info("[xray-cli] removeOutbound server={} tag={}", session.serverId(), tag);
         } catch (BusinessException be) {
-            throw mapRemoveOutboundError(be, serverId, tag);
+            throw mapRemoveOutboundError(be, session.serverId(), tag);
         }
     }
 
@@ -85,19 +79,18 @@ public class XrayOutboundCli {
      * 共用 ado 命令封装; 把 config JSON 经 base64 喂给 xray api ado 的 stdin (新版 xray 不传文件参数即读 stdin).
      * 没有临时文件 / race / 残留风险, pipe 的 exit code 取末段 (xray) 的, 默认行为.
      *
-     * @param serverId resource_server.id
-     * @param apiPort  xray 内置 api server 端口
-     * @param tag      outbound tag (仅用于日志)
-     * @param json     已包装的 config JSON 字符串, 顶层须为 {"outbounds":[...]} 格式
+     * @param session caller 已 acquire 的 SSH 会话
+     * @param apiPort xray 内置 api server 端口
+     * @param tag     outbound tag (仅用于日志)
+     * @param json    已包装的 config JSON 字符串, 顶层须为 {"outbounds":[...]} 格式
      */
-    private void execAdo(String serverId, int apiPort, String tag, String json) {
-        SshSession session = sshSessionManager.acquire(serverId);
+    private void execAdo(SshSession session, int apiPort, String tag, String json) {
         String b64 = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
         String cmd = "echo '" + b64 + "' | base64 -d | xray api ado --server=127.0.0.1:" + apiPort;
         try {
             session.ssh().exec(cmd);
         } catch (BusinessException be) {
-            throw mapAddOutboundError(be, serverId, tag);
+            throw mapAddOutboundError(be, session.serverId(), tag);
         }
     }
 

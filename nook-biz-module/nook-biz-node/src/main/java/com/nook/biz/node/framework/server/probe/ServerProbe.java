@@ -1,14 +1,12 @@
 package com.nook.biz.node.framework.server.probe;
 
-import jakarta.annotation.Resource;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.framework.server.snapshot.ConnectivitySnapshot;
 import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
-import com.nook.biz.node.framework.ssh.SshSession;
-import com.nook.biz.node.framework.ssh.SshSessionManager;
+import com.nook.framework.ssh.core.SshSession;
 import com.nook.common.web.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -19,6 +17,7 @@ import java.util.regex.Pattern;
 
 /**
  * 服务器只读探测: 主机信息 / systemd 状态 / journal 日志 / 探活, 仅返回 snapshot record.
+ * 由 caller 传入已 acquire 的 session, framework 不知道凭据从哪来.
  *
  * @author nook
  */
@@ -36,31 +35,26 @@ public class ServerProbe {
     /** systemd unit 合法字符 (字母/数字/._-@); 直接拼到 shell 前必须校验防注入. */
     private static final Pattern UNIT_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9._@-]{1,128}$");
 
-    @Resource
-    private SshSessionManager sessionManager;
-
     /**
-     * 主机可达性探活, 走 SSH 跑 'true' 验证网络 / 凭据 / 通道; 任何异常都包成 success=false 不抛.
+     * 在已 acquire 的 session 上跑 'true' 验证 shell 通道; 与"无法连"区分由业务侧捕获 acquire 异常.
      *
-     * @param serverId resource_server.id
+     * @param session caller 已 acquire 的 SSH 会话
      * @return ConnectivitySnapshot
      */
-    public ConnectivitySnapshot probeConnectivity(String serverId) {
+    public ConnectivitySnapshot probeConnectivity(SshSession session) {
         long start = System.currentTimeMillis();
         try {
-            sessionManager.acquire(serverId).ssh().exec("true", PROBE_TIMEOUT);
+            session.ssh().exec("true", PROBE_TIMEOUT);
             long elapsed = System.currentTimeMillis() - start;
-            log.info("[probe] OK server={} elapsed={}ms", serverId, elapsed);
+            log.info("[probe] OK server={} elapsed={}ms", session.serverId(), elapsed);
             return new ConnectivitySnapshot(true, elapsed, null);
         } catch (BusinessException be) {
-            // 业务异常已是预期失败 (凭据不全/远端拒绝/超时), warn 级别足够; 不打 stacktrace
             log.warn("[probe] FAIL server={} code={} msg={} elapsed={}ms",
-                    serverId, be.getCode(), be.getMessage(), System.currentTimeMillis() - start);
+                    session.serverId(), be.getCode(), be.getMessage(), System.currentTimeMillis() - start);
             return new ConnectivitySnapshot(false, 0L, be.getMessage());
         } catch (Exception e) {
-            // 非预期异常 (NPE 等) 也给前端友好响应
             log.error("[probe] UNEXPECTED server={} elapsed={}ms",
-                    serverId, System.currentTimeMillis() - start, e);
+                    session.serverId(), System.currentTimeMillis() - start, e);
             return new ConnectivitySnapshot(false, 0L,
                     "探活异常: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
@@ -69,10 +63,10 @@ public class ServerProbe {
     /**
      * 主机层信息 (hostname / kernel / 内存 / 磁盘 / 时区), 一条复合 shell 拿全; 单段失败回空段不中断后续段.
      *
-     * @param serverId resource_server.id
+     * @param session caller 已 acquire 的 SSH 会话
      * @return HostInfoSnapshot
      */
-    public HostInfoSnapshot readHostInfo(String serverId) {
+    public HostInfoSnapshot readHostInfo(SshSession session) {
         // 一条复合 shell 拿全; 单段失败 echo 空段, 不中断后续段
         String composite = String.join("\n",
                 "echo '====[HOSTNAME]===='",
@@ -92,7 +86,6 @@ public class ServerProbe {
                 "echo '====[TIMEZONE]===='",
                 "timedatectl show -p Timezone --value 2>/dev/null || date +%Z || true"
         );
-        SshSession session = sessionManager.acquire(serverId);
         String out = session.ssh().exec(composite).getStdout();
         return new HostInfoSnapshot(
                 section(out, "HOSTNAME").trim(),
@@ -108,14 +101,14 @@ public class ServerProbe {
     /**
      * 指定 systemd unit 的运行状态 (active / 启动时间 / 开机自启); unit 走 UNIT_NAME_PATTERN 防 shell 注入.
      *
-     * @param serverId resource_server.id
-     * @param unit     systemd unit 名
+     * @param session caller 已 acquire 的 SSH 会话
+     * @param unit    systemd unit 名
      * @return SystemdStatusSnapshot
      */
-    public SystemdStatusSnapshot readSystemdStatus(String serverId, String unit) {
+    public SystemdStatusSnapshot readSystemdStatus(SshSession session, String unit) {
         if (StrUtil.isBlank(unit) || !UNIT_NAME_PATTERN.matcher(unit).matches()) {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
-                    serverId, "非法 systemd unit 名: " + unit);
+                    session.serverId(), "非法 systemd unit 名: " + unit);
         }
         String composite = String.join("\n",
                 "echo '====[ACTIVE]===='",
@@ -126,7 +119,6 @@ public class ServerProbe {
                 // is-enabled 在 disabled/static/masked 时退出码非 0, 但 stdout 仍是状态字符串; || true 防 set -e
                 "systemctl is-enabled " + unit + " 2>/dev/null || true"
         );
-        SshSession session = sessionManager.acquire(serverId);
         String out = session.ssh().exec(composite).getStdout();
         return new SystemdStatusSnapshot(
                 unit,
@@ -135,20 +127,20 @@ public class ServerProbe {
                 section(out, "ENABLED").trim());
     }
 
-    /**
+   /**
      * 指定 systemd unit 的 journalctl 日志, 按行数 + 级别过滤; unit 走 UNIT_NAME_PATTERN 防 shell 注入.
      *
-     * @param serverId resource_server.id
+     * @param session  caller 已 acquire 的 SSH 会话
      * @param unit     systemd unit 名
      * @param logLines 行数 (默认 100, 上限 5000)
      * @param logLevel 级别过滤 (all / warning / err)
      * @return JournalLogSnapshot
      */
-    public JournalLogSnapshot readJournalLog(String serverId, String unit, Integer logLines, String logLevel) {
+    public JournalLogSnapshot readJournalLog(SshSession session, String unit, Integer logLines, String logLevel) {
         if (StrUtil.isBlank(unit) || !UNIT_NAME_PATTERN.matcher(unit).matches()) {
             // 直接拼到 journalctl -u <unit>, 必须严格校验; 非法 unit 抛业务异常而非裸 shell 注入
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
-                    serverId, "非法 systemd unit 名: " + unit);
+                    session.serverId(), "非法 systemd unit 名: " + unit);
         }
         int lines = (logLines == null || logLines <= 0)
                 ? DEFAULT_LOG_LINES
@@ -160,7 +152,6 @@ public class ServerProbe {
             default -> "";
         };
         String cmd = "journalctl -u " + unit + " " + priorityFlag + " -n " + lines + " --no-pager 2>/dev/null || true";
-        SshSession session = sessionManager.acquire(serverId);
         String out = session.ssh().exec(cmd).getStdout();
         return new JournalLogSnapshot(unit, lines, level, out);
     }
