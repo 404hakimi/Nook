@@ -2,10 +2,12 @@ package com.nook.biz.operation.internal;
 
 import com.nook.biz.operation.api.EnqueueRequest;
 import com.nook.biz.operation.api.OpErrorCode;
+import com.nook.biz.operation.api.OpProgressEvent;
 import com.nook.biz.operation.api.OpStatus;
 import com.nook.biz.operation.api.OperationHandler;
 import com.nook.biz.operation.api.OperationOrchestrator;
 import com.nook.biz.operation.config.OpTimeoutProperties;
+import com.nook.biz.operation.internal.ws.OpProgressHub;
 import com.nook.biz.operation.mapper.OpLogMapper;
 import com.nook.biz.operation.persistence.OpLog;
 import com.nook.common.web.exception.BusinessException;
@@ -27,6 +29,9 @@ import java.util.concurrent.TimeoutException;
  *
  * <p>互斥靠 ServerSlot.workerActive 的 CAS, 不靠 Lock 关键字; 见 ServerSlot 文档.
  *
+ * <p>状态变迁同步广播 OpProgressEvent (QUEUED / RUNNING / 终态), handler 内部 ctx.report
+ * 走 Context 自己广播 RUNNING 中的细粒度进度.
+ *
  * @author nook
  */
 @Slf4j
@@ -37,6 +42,7 @@ class DefaultOperationOrchestrator implements OperationOrchestrator {
     private final OpTimeoutProperties timeoutProps;
     private final OpWatchdog watchdog;
     private final ExecutorService workerPool;
+    private final OpProgressHub hub;
 
     private final ConcurrentMap<String, ServerSlot> slots = new ConcurrentHashMap<>();
     /** 同步等待 future: opId → 调用方在等的 future; processOne 完成时 complete 它 */
@@ -46,12 +52,14 @@ class DefaultOperationOrchestrator implements OperationOrchestrator {
                                  HandlerRegistry handlerRegistry,
                                  OpTimeoutProperties timeoutProps,
                                  OpWatchdog watchdog,
-                                 ExecutorService workerPool) {
+                                 ExecutorService workerPool,
+                                 OpProgressHub hub) {
         this.opLogMapper = opLogMapper;
         this.handlerRegistry = handlerRegistry;
         this.timeoutProps = timeoutProps;
         this.watchdog = watchdog;
         this.workerPool = workerPool;
+        this.hub = hub;
     }
 
     @Override
@@ -95,6 +103,11 @@ class DefaultOperationOrchestrator implements OperationOrchestrator {
         int n = opLogMapper.casQueuedToCancelled(opId, LocalDateTime.now());
         if (n > 0) {
             log.info("[op] 已取消 opId={}", opId);
+            // 推一条终态事件让前端进度条立即跳走
+            OpLog row = opLogMapper.selectById(opId);
+            if (row != null) {
+                broadcast(row, OpStatus.CANCELLED, "已取消", null, null, null);
+            }
             CompletableFuture<Object> f = waiters.get(opId);
             if (f != null) {
                 f.completeExceptionally(new BusinessException(OpErrorCode.OP_NOT_CANCELLABLE, opId));
@@ -125,6 +138,8 @@ class DefaultOperationOrchestrator implements OperationOrchestrator {
                 .paramsJson(req.getParamsJson())
                 .status(OpStatus.QUEUED)
                 .activeKey(activeKey)
+                .currentStep("等待中")
+                .progressPct(0)
                 .enqueuedAt(LocalDateTime.now())
                 .build();
         try {
@@ -140,6 +155,7 @@ class DefaultOperationOrchestrator implements OperationOrchestrator {
         }
         log.info("[op] 入队 opId={} server={} type={} target={} operator={}",
                 opId, req.getServerId(), req.getOpType(), req.getTargetId(), req.getOperator());
+        broadcast(row, OpStatus.QUEUED, "等待中", 0, null, null);
         ServerSlot slot = slots.computeIfAbsent(req.getServerId(), k -> new ServerSlot());
         slot.queue.offer(opId);
         tryStartWorker(req.getServerId(), slot);
@@ -189,27 +205,33 @@ class DefaultOperationOrchestrator implements OperationOrchestrator {
             log.debug("[op] opId={} 未能进入 RUNNING (可能已取消), 跳过", opId);
             return;
         }
+        broadcast(op, OpStatus.RUNNING, "已开始", 5, null, null);
         String opType = op.getOpType();
         watchdog.schedule(opId, serverId, timeoutProps.of(opType));
         Object result = null;
         Throwable error = null;
         try {
             OperationHandler handler = handlerRegistry.resolve(opType);
-            result = handler.execute(new DefaultOperationContext(op, opLogMapper));
+            result = handler.execute(new DefaultOperationContext(op, opLogMapper, hub));
             int done = opLogMapper.casRunningToDone(opId, LocalDateTime.now());
             if (done == 0) {
                 error = new BusinessException(OpErrorCode.OP_TIMED_OUT, opId);
                 log.warn("[op] opId={} handler 成功返回但状态已非 RUNNING (大概率超时被切)", opId);
+            } else {
+                broadcast(op, OpStatus.DONE, "已完成", 100, null, null);
             }
         } catch (BusinessException be) {
             opLogMapper.casRunningToFailed(opId, LocalDateTime.now(),
                     String.valueOf(be.getCode()), be.getMessage());
             log.warn("[op] opId={} 业务失败 code={} msg={}", opId, be.getCode(), be.getMessage());
+            broadcast(op, OpStatus.FAILED, "已失败", null,
+                    String.valueOf(be.getCode()), be.getMessage());
             error = be;
         } catch (Throwable t) {
             opLogMapper.casRunningToFailed(opId, LocalDateTime.now(),
                     "INTERNAL", String.valueOf(t.getMessage()));
             log.error("[op] opId={} type={} 异常", opId, opType, t);
+            broadcast(op, OpStatus.FAILED, "已失败", null, "INTERNAL", String.valueOf(t.getMessage()));
             error = t;
         } finally {
             watchdog.cancel(opId);
@@ -229,6 +251,23 @@ class DefaultOperationOrchestrator implements OperationOrchestrator {
     private void completeWaiterError(String opId, Throwable t) {
         CompletableFuture<Object> f = waiters.get(opId);
         if (f != null) f.completeExceptionally(t);
+    }
+
+    /** WS 广播工具方法; hub 为 null 时无操作, 让 op 模块在无 WS 环境也能跑 (测试 / 离线). */
+    private void broadcast(OpLog op, OpStatus status, String step, Integer pct,
+                           String errorCode, String errorMsg) {
+        if (hub == null) return;
+        hub.broadcast(OpProgressEvent.builder()
+                .opId(op.getId())
+                .serverId(op.getServerId())
+                .opType(op.getOpType())
+                .status(status)
+                .currentStep(step)
+                .progressPct(pct)
+                .errorCode(errorCode)
+                .errorMsg(errorMsg)
+                .timestamp(System.currentTimeMillis())
+                .build());
     }
 
     private static void validate(EnqueueRequest req) {

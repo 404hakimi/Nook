@@ -3,9 +3,11 @@ package com.nook.biz.operation.api;
 /**
  * 传给 OperationHandler.execute 的上下文; handler 只通过 ctx 看入参 + 报进度, 不依赖 internal.
  *
+ * <p>继承 ProgressSink 让 service 直接接受 ctx 当 sink 用 — 业务 service 无须 import OperationContext.
+ *
  * @author nook
  */
-public interface OperationContext {
+public interface OperationContext extends ProgressSink {
 
     /** op_log.id (32 位无连字符 UUID) */
     String opId();

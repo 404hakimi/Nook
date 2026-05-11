@@ -9,10 +9,10 @@ import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.framework.socks5.probe.Socks5Prober;
+import com.nook.biz.node.resource.entity.ResourceIpPool;
+import com.nook.biz.node.resource.service.ResourceIpPoolService;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSessionManager;
-import com.nook.biz.node.resource.api.ResourceIpPoolApi;
-import com.nook.biz.node.resource.api.dto.IpPoolEntryDTO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,7 +34,7 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
     @Resource
     private Socks5Prober socks5Prober;
     @Resource
-    private ResourceIpPoolApi resourceIpPoolApi;
+    private ResourceIpPoolService resourceIpPoolService;
 
     @Override
     public void installAdHocStreaming(Socks5InstallReqVO reqVO, Consumer<String> lineSink) {
@@ -50,7 +50,7 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
 
     @Override
     public Socks5TestRespVO testConnectivity(String ipId) {
-        IpPoolEntryDTO ip = resourceIpPoolApi.loadEntry(ipId);
+        ResourceIpPool ip = resourceIpPoolService.findById(ipId);
         if (StrUtil.isBlank(ip.getIpAddress()) || ObjectUtil.isNull(ip.getSocks5Port())) {
             // 凭据未配置时不调 prober, 直接返回结构化失败 (与"拨号失败"区分)
             Socks5TestRespVO vo = new Socks5TestRespVO();

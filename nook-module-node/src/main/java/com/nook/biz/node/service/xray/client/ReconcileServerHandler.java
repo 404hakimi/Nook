@@ -24,8 +24,8 @@ public class ReconcileServerHandler implements OperationHandler {
 
     @Override
     public Object execute(OperationContext ctx) {
-        ctx.report("对账中", 20);
-        serviceImpl.doReplayIfRestarted(ctx.serverId());
+        ctx.report("准备对账", 15);
+        serviceImpl.doReplayIfRestarted(ctx.serverId(), ctx);
         return null;
     }
 }

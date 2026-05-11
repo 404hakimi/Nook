@@ -3,12 +3,11 @@ package com.nook.biz.node.resource.service.impl;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.nook.biz.node.resource.api.dto.ServerCredentialDTO;
-import com.nook.biz.node.resource.api.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.resource.controller.server.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.resource.controller.server.vo.ResourceServerSaveReqVO;
-import com.nook.biz.node.resource.convert.ResourceServerConvert;
+import com.nook.biz.node.resource.dto.ServerBriefDTO;
 import com.nook.biz.node.resource.entity.ResourceServer;
+import com.nook.biz.node.resource.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.resource.mapper.ResourceServerMapper;
 import com.nook.biz.node.resource.service.ResourceServerService;
 import com.nook.biz.node.resource.validator.ResourceServerValidator;
@@ -17,6 +16,14 @@ import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +39,11 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     }
 
     @Override
+    public boolean exists(String id) {
+        return resourceServerMapper.selectById(id) != null;
+    }
+
+    @Override
     public PageResult<ResourceServer> page(ResourceServerPageReqVO reqVO) {
         IPage<ResourceServer> result = resourceServerMapper.selectPageByQuery(
                 Page.of(reqVO.getPageNo(), reqVO.getPageSize()), reqVO);
@@ -40,12 +52,9 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public ResourceServer create(ResourceServerSaveReqVO reqVO) {
-        // 校验别名唯一
         serverValidator.validateNameUnique(null, reqVO.getName());
-        // 校验主机唯一
         serverValidator.validateHostUnique(null, reqVO.getHost());
 
-        // 插入服务器
         ResourceServer entity = BeanUtils.toBean(reqVO, ResourceServer.class);
         resourceServerMapper.insert(entity);
         return entity;
@@ -53,32 +62,40 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public void update(String id, ResourceServerSaveReqVO reqVO) {
-        // 校验服务器存在
         serverValidator.validateExists(id);
-        // 校验别名唯一
         serverValidator.validateNameUnique(id, reqVO.getName());
-        // 校验主机唯一
         serverValidator.validateHostUnique(id, reqVO.getHost());
 
-        // 更新服务器
         ResourceServer entity = BeanUtils.toBean(reqVO, ResourceServer.class);
         resourceServerMapper.update(entity, Wrappers.<ResourceServer>lambdaUpdate().eq(ResourceServer::getId, id));
-        // 发布凭据变更事件: SshSessionManager 据此清掉该 server 的 SSH 会话缓存, 下次调用走新凭据
+        // 凭据变更事件: SshSessionManager 据此清掉该 server 的 SSH 会话缓存, 下次调用走新凭据
         applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(id));
     }
 
     @Override
     public void delete(String id) {
-        // 校验服务器存在
         serverValidator.validateExists(id);
-        // 删除服务器
         resourceServerMapper.deleteById(id);
-        // 发布凭据变更事件: 让 SshSessionManager 立即关闭并释放该 server 的 SSH 连接
         applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(id));
     }
 
     @Override
-    public ServerCredentialDTO loadCredential(String id) {
-        return ResourceServerConvert.INSTANCE.toCredential(findById(id));
+    public Map<String, ServerBriefDTO> loadBriefMap(Collection<String> serverIds) {
+        if (serverIds == null || serverIds.isEmpty()) return Collections.emptyMap();
+        Set<String> dedup = new HashSet<>();
+        for (String id : serverIds) {
+            if (id != null && !id.isEmpty()) dedup.add(id);
+        }
+        if (dedup.isEmpty()) return Collections.emptyMap();
+        List<ResourceServer> rows = resourceServerMapper.selectBatchIds(dedup);
+        Map<String, ServerBriefDTO> out = new HashMap<>(rows.size() * 2);
+        for (ResourceServer e : rows) {
+            out.put(e.getId(), ServerBriefDTO.builder()
+                    .serverId(e.getId())
+                    .name(e.getName())
+                    .host(e.getHost())
+                    .build());
+        }
+        return out;
     }
 }

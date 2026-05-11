@@ -9,7 +9,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_PROVISION handler; 入参 JSON 反序列回 ClientProvisionReqVO.
+ * CLIENT_PROVISION handler; 入参 JSON 反序列回 ClientProvisionReqVO. 进度细分见 service.doProvision.
  *
  * @author nook
  */
@@ -27,7 +27,7 @@ public class ProvisionClientHandler implements OperationHandler {
     @Override
     public Object execute(OperationContext ctx) {
         ClientProvisionReqVO reqVO = JSON.parseObject(ctx.paramsJson(), ClientProvisionReqVO.class);
-        ctx.report("开通中", 30);
-        return serviceImpl.doProvision(reqVO);
+        ctx.report("入参校验", 10);
+        return serviceImpl.doProvision(reqVO, ctx);
     }
 }

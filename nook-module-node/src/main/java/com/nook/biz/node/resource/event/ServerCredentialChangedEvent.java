@@ -1,4 +1,4 @@
-package com.nook.biz.node.resource.api.event;
+package com.nook.biz.node.resource.event;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

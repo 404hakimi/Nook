@@ -177,7 +177,11 @@ public class XrayInboundCli {
     }
 
     /**
-     * 把 CLI remove 的 BusinessException 翻译成业务错误码 (识别 "not found" 归入 CLIENT_NOT_FOUND).
+     * 把 CLI remove 的 BusinessException 翻译成业务错误码; "目标不在" 一类统一归入 CLIENT_NOT_FOUND.
+     *
+     * <p>xray 找不到 inbound 时除 "not found" 还会回:
+     * "common: not enough information for making a decision" (dispatcher 解析失败的兜底文案);
+     * 视为 inbound 已不在, 让 sync/revoke/rotate 的幂等路径继续, 避免误报失败.
      *
      * @param be       原始异常
      * @param serverId resource_server.id
@@ -186,7 +190,8 @@ public class XrayInboundCli {
      */
     private BusinessException mapRemoveInboundError(BusinessException be, String serverId, String tag) {
         String msg = StrUtil.blankToDefault(be.getMessage(), "");
-        if (StrUtil.containsAnyIgnoreCase(msg, "not found", "no such")) {
+        if (StrUtil.containsAnyIgnoreCase(msg,
+                "not found", "no such", "not enough information", "no inbound", "inbound not exist")) {
             return new BusinessException(XrayErrorCode.CLIENT_NOT_FOUND, tag);
         }
         log.warn("[xray-cli] removeInbound 失败 server={} tag={} stderr={}", serverId, tag, msg);

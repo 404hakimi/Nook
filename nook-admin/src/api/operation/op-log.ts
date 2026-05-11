@@ -25,9 +25,16 @@ export type OpType =
 export interface OpLog {
   id: string
   serverId: string
+  /** 后端 OpLogEnricher 补充: resource_server.name; 缺失时显示 serverId 兜底 */
+  serverName?: string
   opType: OpType
   targetId?: string
+  /** 后端 OpLogEnricher 补充: 业务侧目标友好名 (如 xray_client.client_email) */
+  targetName?: string
+  /** admin id 或系统占位 (SYSTEM / SCHEDULER); UI 优先取 operatorName */
   operator?: string
+  /** 后端 OpLogEnricher 补充: admin realName/username; 系统调度直接是占位符字面值 */
+  operatorName?: string
   status: OpStatus
   currentStep?: string
   progressPct?: number

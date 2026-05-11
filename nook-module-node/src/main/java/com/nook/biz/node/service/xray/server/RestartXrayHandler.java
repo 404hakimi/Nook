@@ -24,9 +24,8 @@ public class RestartXrayHandler implements OperationHandler {
 
     @Override
     public Object execute(OperationContext ctx) {
-        ctx.report("正在重启 xray", 30);
-        String stdout = serviceImpl.doRestart(ctx.serverId());
-        ctx.report("xray 已重启", 100);
-        return stdout;
+        ctx.report("建立 SSH 会话", 15);
+        // service 内部会用 sink 报 systemctl 状态
+        return serviceImpl.doRestart(ctx.serverId(), ctx);
     }
 }

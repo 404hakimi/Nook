@@ -4,6 +4,10 @@ import request from '@/api/request'
 export interface XrayClient {
   id: string
   serverId: string
+  /** server 别名 (后端 enrich); server 已删时为空, 前端 fallback 到 serverId */
+  serverName?: string
+  /** server 主机 (后端 enrich) */
+  serverHost?: string
   ipId: string
   /**
    * 落地 IP 地址 (后端按 ipId 在 resource_ip_pool 里 enrich); 已删/缺失时后端会留空, 由前端 fallback 到 ipId 显示.

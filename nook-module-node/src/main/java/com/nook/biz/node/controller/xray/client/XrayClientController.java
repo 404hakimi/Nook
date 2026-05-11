@@ -10,7 +10,9 @@ import com.nook.biz.node.controller.xray.client.vo.ReplayReportRespVO;
 import com.nook.biz.node.controller.xray.client.vo.SyncStatusRespVO;
 import com.nook.biz.node.convert.xray.client.XrayClientConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.resource.api.ResourceIpPoolApi;
+import com.nook.biz.node.resource.dto.ServerBriefDTO;
+import com.nook.biz.node.resource.service.ResourceIpPoolService;
+import com.nook.biz.node.resource.service.ResourceServerService;
 import com.nook.biz.node.service.xray.client.XrayClientService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -42,27 +45,28 @@ public class XrayClientController {
     @Resource
     private XrayClientService xrayClientService;
     @Resource
-    private ResourceIpPoolApi resourceIpPoolApi;
+    private ResourceIpPoolService resourceIpPoolService;
+    @Resource
+    private ResourceServerService resourceServerService;
 
     @GetMapping
     public Result<PageResult<ClientRespVO>> page(@ModelAttribute ClientPageReqVO reqVO) {
         PageResult<XrayClientDO> entities = xrayClientService.page(reqVO);
-        Map<String, String> ipAddressMap = loadIpAddressMap(XrayClientConvert.collectIpIds(entities.getRecords()));
-        return Result.ok(XrayClientConvert.INSTANCE.convertPage(entities, ipAddressMap));
+        return Result.ok(XrayClientConvert.INSTANCE.convertPage(entities,
+                loadIpAddressMap(XrayClientConvert.collectIpIds(entities.getRecords())),
+                loadServerBriefMap(XrayClientConvert.collectServerIds(entities.getRecords()))));
     }
 
     @GetMapping("/{id}")
     public Result<ClientRespVO> detail(@PathVariable String id) {
         XrayClientDO entity = xrayClientService.findById(id);
-        Map<String, String> ipAddressMap = loadIpAddressMap(XrayClientConvert.collectIpIds(Collections.singletonList(entity)));
-        return Result.ok(XrayClientConvert.INSTANCE.convert(entity, ipAddressMap));
+        return Result.ok(convertOne(entity));
     }
 
     @PostMapping("/provision")
     public Result<ClientRespVO> provision(@RequestBody @Valid ClientProvisionReqVO reqVO) {
-        XrayClientDO entity = xrayClientService.provision(reqVO);
-        Map<String, String> ipAddressMap = loadIpAddressMap(XrayClientConvert.collectIpIds(Collections.singletonList(entity)));
-        return Result.ok(XrayClientConvert.INSTANCE.convert(entity, ipAddressMap));
+        XrayClientDO client = xrayClientService.provision(reqVO);
+        return Result.ok(convertOne(client));
     }
 
     @PutMapping("/{id}")
@@ -81,8 +85,7 @@ public class XrayClientController {
     @PostMapping("/{id}/rotate")
     public Result<ClientRespVO> rotate(@PathVariable String id) {
         XrayClientDO entity = xrayClientService.rotate(id);
-        Map<String, String> ipAddressMap = loadIpAddressMap(XrayClientConvert.collectIpIds(Collections.singletonList(entity)));
-        return Result.ok(XrayClientConvert.INSTANCE.convert(entity, ipAddressMap));
+        return Result.ok(convertOne(entity));
     }
 
     @GetMapping("/{id}/traffic")
@@ -117,9 +120,21 @@ public class XrayClientController {
         return Result.ok(xrayClientService.replayServer(serverId));
     }
 
-    /** ipIds 空集时直接返空 map, 不打 RPC. */
+    /** 单条 detail / provision / rotate 共用的 enrich 路径. */
+    private ClientRespVO convertOne(XrayClientDO entity) {
+        List<XrayClientDO> single = Collections.singletonList(entity);
+        return XrayClientConvert.INSTANCE.convert(entity,
+                loadIpAddressMap(XrayClientConvert.collectIpIds(single)),
+                loadServerBriefMap(XrayClientConvert.collectServerIds(single)));
+    }
+
     private Map<String, String> loadIpAddressMap(Set<String> ipIds) {
         if (ipIds.isEmpty()) return Collections.emptyMap();
-        return resourceIpPoolApi.loadIpAddressMap(ipIds);
+        return resourceIpPoolService.loadIpAddressMap(ipIds);
+    }
+
+    private Map<String, ServerBriefDTO> loadServerBriefMap(Set<String> serverIds) {
+        if (serverIds.isEmpty()) return Collections.emptyMap();
+        return resourceServerService.loadBriefMap(serverIds);
     }
 }

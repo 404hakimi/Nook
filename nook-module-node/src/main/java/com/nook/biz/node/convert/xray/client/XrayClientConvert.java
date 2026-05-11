@@ -5,6 +5,7 @@ import com.nook.biz.node.controller.xray.client.vo.ClientRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
+import com.nook.biz.node.resource.dto.ServerBriefDTO;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
@@ -29,23 +30,30 @@ public interface XrayClientConvert {
 
     XrayClientConvert INSTANCE = Mappers.getMapper(XrayClientConvert.class);
 
-    /** ipAddress 不在 DO 上, 由带 map 的重载补; 单独调本方法时 ipAddress 留 null. */
+    /** ipAddress / serverName / serverHost 不在 DO 上, 由带 map 的重载补; 单独调本方法时这些字段留 null. */
     @Mapping(target = "ipAddress", ignore = true)
+    @Mapping(target = "serverName", ignore = true)
+    @Mapping(target = "serverHost", ignore = true)
     ClientRespVO convert(XrayClientDO entity);
 
     List<ClientRespVO> convertList(List<XrayClientDO> entities);
 
-    default ClientRespVO convert(XrayClientDO entity, Map<String, String> ipAddressMap) {
+    default ClientRespVO convert(XrayClientDO entity,
+                                 Map<String, String> ipAddressMap,
+                                 Map<String, ServerBriefDTO> serverBriefMap) {
         ClientRespVO vo = convert(entity);
         fillIpAddress(vo, ipAddressMap);
+        fillServerBrief(vo, serverBriefMap);
         return vo;
     }
 
     default PageResult<ClientRespVO> convertPage(PageResult<XrayClientDO> page,
-                                                 Map<String, String> ipAddressMap) {
+                                                 Map<String, String> ipAddressMap,
+                                                 Map<String, ServerBriefDTO> serverBriefMap) {
         List<ClientRespVO> records = convertList(page.getRecords());
         for (ClientRespVO v : records) {
             fillIpAddress(v, ipAddressMap);
+            fillServerBrief(v, serverBriefMap);
         }
         return PageResult.of(page.getTotal(), records);
     }
@@ -55,6 +63,15 @@ public interface XrayClientConvert {
         if (entities == null || entities.isEmpty()) return Collections.emptySet();
         return entities.stream()
                 .map(XrayClientDO::getIpId)
+                .filter(StrUtil::isNotBlank)
+                .collect(Collectors.toSet());
+    }
+
+    /** 从一批 DO 抽出去重 serverId 集合, 供 controller 做一次性批量查 server brief. */
+    static Set<String> collectServerIds(Collection<XrayClientDO> entities) {
+        if (entities == null || entities.isEmpty()) return Collections.emptySet();
+        return entities.stream()
+                .map(XrayClientDO::getServerId)
                 .filter(StrUtil::isNotBlank)
                 .collect(Collectors.toSet());
     }
@@ -94,6 +111,15 @@ public interface XrayClientConvert {
         if (vo == null || ipAddressMap == null) return;
         String addr = ipAddressMap.get(vo.getIpId());
         if (addr != null) vo.setIpAddress(addr);
+    }
+
+    private static void fillServerBrief(ClientRespVO vo, Map<String, ServerBriefDTO> serverBriefMap) {
+        if (vo == null || serverBriefMap == null) return;
+        ServerBriefDTO s = serverBriefMap.get(vo.getServerId());
+        if (s != null) {
+            vo.setServerName(s.getName());
+            vo.setServerHost(s.getHost());
+        }
     }
 
     private static String maskUuid(String uuid) {

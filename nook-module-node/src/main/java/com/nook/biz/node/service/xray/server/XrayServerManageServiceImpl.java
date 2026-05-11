@@ -17,6 +17,8 @@ import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.operation.api.EnqueueRequest;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.OperationOrchestrator;
+import com.nook.biz.operation.api.ProgressSink;
+import com.nook.framework.security.stp.StpSystemUtil;
 import org.springframework.context.annotation.Lazy;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
@@ -107,15 +109,20 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         EnqueueRequest req = EnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.XRAY_RESTART.name())
-                .operator("ADMIN")
+                .operator(currentOperator())
                 .build();
         return operationOrchestrator.submitAndWait(req, RESTART_WAIT, String.class);
     }
 
     /** XRAY_RESTART handler 直接调本方法; package-private 防止业务代码绕过队列直接调用. */
-    String doRestart(String serverId) {
+    String doRestart(String serverId, ProgressSink progress) {
+        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+        sink.report("获取 SSH 会话", 30);
         SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
-        return xrayDaemonProbe.restart(session);
+        sink.report("正在执行 systemctl restart", 50);
+        String out = xrayDaemonProbe.restart(session);
+        sink.report("等待进程就绪", 90);
+        return out;
     }
 
     @Override
@@ -143,16 +150,19 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         EnqueueRequest req = EnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.SERVER_AUTOSTART.name())
-                .operator("ADMIN")
+                .operator(currentOperator())
                 .paramsJson(params.toJSONString())
                 .build();
         return operationOrchestrator.submitAndWait(req, AUTOSTART_WAIT, String.class);
     }
 
     /** SERVER_AUTOSTART handler 调本方法. */
-    String doSetAutostart(String serverId, boolean enabled) {
-        return xrayDaemonProbe.setAutostart(
-                sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED), enabled);
+    String doSetAutostart(String serverId, boolean enabled, ProgressSink progress) {
+        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+        sink.report("建立 SSH 会话", 50);
+        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
+        sink.report(enabled ? "执行 systemctl enable" : "执行 systemctl disable", 80);
+        return xrayDaemonProbe.setAutostart(session, enabled);
     }
 
     /** 按 reqVO 勾选项把 install 模块拼成完整脚本; 必装 00/50/99, 可选 10-timezone/40-ufw; swap/bbr 不在此链路. */
@@ -181,6 +191,18 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     private void appendModule(StringBuilder sb, String moduleFile, Map<String, String> vars) {
         sb.append(scriptRunner.renderTemplate(RemoteScriptPaths.INSTALL_MODULES_DIR + moduleFile, vars)).append("\n");
+    }
+
+    /**
+     * 取当前后台登录的 admin id 作 operator; 没有登录态 (定时器 / 系统调用) 退回 "SYSTEM".
+     */
+    private static String currentOperator() {
+        try {
+            String id = StpSystemUtil.getLoginIdAsString();
+            return StrUtil.blankToDefault(id, "SYSTEM");
+        } catch (Exception ignore) {
+            return "SYSTEM";
+        }
     }
 
     /** 部署模板渲染变量表; reqVO 字段已被 jakarta @Valid + @AssertTrue 校验, 这里直接拆箱. */

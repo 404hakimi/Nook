@@ -9,7 +9,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_SYNC handler.
+ * CLIENT_SYNC handler; 进度由 service 内部 ProgressSink 细分发, 这里只起一个开始点.
  *
  * @author nook
  */
@@ -28,8 +28,8 @@ public class SyncClientHandler implements OperationHandler {
     public Object execute(OperationContext ctx) {
         JSONObject params = JSON.parseObject(ctx.paramsJson());
         String clientId = params.getString("clientId");
-        ctx.report("正在同步", 30);
-        serviceImpl.doSyncOne(clientId);
+        ctx.report("校验客户端", 10);
+        serviceImpl.doSyncOne(clientId, ctx);
         return null;
     }
 }

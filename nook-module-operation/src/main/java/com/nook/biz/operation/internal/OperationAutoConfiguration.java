@@ -4,6 +4,7 @@ import com.nook.biz.operation.api.OperationHandler;
 import com.nook.biz.operation.api.OperationOrchestrator;
 import com.nook.biz.operation.config.OpOrchestratorProperties;
 import com.nook.biz.operation.config.OpTimeoutProperties;
+import com.nook.biz.operation.internal.ws.OpProgressHub;
 import com.nook.biz.operation.mapper.OpLogMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -54,8 +55,9 @@ public class OperationAutoConfiguration {
     public OpWatchdog operationWatchdog(ScheduledExecutorService operationWatchdogScheduler,
                                         OpLogMapper opLogMapper,
                                         @org.springframework.beans.factory.annotation.Autowired(required = false)
-                                        OpWatchdog.TimeoutInterrupter interrupter) {
-        return new OpWatchdog(operationWatchdogScheduler, opLogMapper, interrupter);
+                                        OpWatchdog.TimeoutInterrupter interrupter,
+                                        OpProgressHub opProgressHub) {
+        return new OpWatchdog(operationWatchdogScheduler, opLogMapper, interrupter, opProgressHub);
     }
 
     @Bean
@@ -64,9 +66,10 @@ public class OperationAutoConfiguration {
                                                        HandlerRegistry operationHandlerRegistry,
                                                        OpTimeoutProperties timeoutProps,
                                                        OpWatchdog operationWatchdog,
-                                                       ExecutorService operationWorkerPool) {
+                                                       ExecutorService operationWorkerPool,
+                                                       OpProgressHub opProgressHub) {
         return new DefaultOperationOrchestrator(opLogMapper, operationHandlerRegistry,
-                timeoutProps, operationWatchdog, operationWorkerPool);
+                timeoutProps, operationWatchdog, operationWorkerPool, opProgressHub);
     }
 
     @Bean

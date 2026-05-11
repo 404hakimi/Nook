@@ -21,16 +21,13 @@ import {
   type XrayClient,
   type XrayClientUpdateDTO
 } from '@/api/xray/client'
-import type { ResourceServer } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 
 interface Props {
   modelValue: boolean
   inbound?: XrayClient | null
-  /** 父级传入的 serverId → 服务器映射，用于显示服务器名 */
-  serverMap?: Record<string, ResourceServer>
 }
-const props = withDefaults(defineProps<Props>(), { serverMap: () => ({}) })
+const props = defineProps<Props>()
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
   (e: 'saved'): void
@@ -93,7 +90,7 @@ function fillFromInbound(e: XrayClient) {
 
 const serverName = computed(() => {
   if (!detail.value) return ''
-  return props.serverMap[detail.value.serverId]?.name ?? detail.value.serverId
+  return detail.value.serverName ?? detail.value.serverId
 })
 
 function validate(): boolean {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { RefreshCcw, Search, Eye, Ban } from 'lucide-vue-next'
 import {
   NButton,
@@ -24,6 +24,7 @@ import {
   type OpStatus,
   type OpType
 } from '@/api/operation/op-log'
+import { opProgressClient, type OpProgressEvent } from '@/api/operation/op-progress-ws'
 import { formatDateTime } from '@/utils/date'
 import OpLogDetailDialog from './OpLogDetailDialog.vue'
 
@@ -60,18 +61,53 @@ const list = ref<OpLog[]>([])
 const total = ref(0)
 const loading = ref(false)
 
-// 自动刷新: 列表里有 QUEUED/RUNNING 时, 5s 轮询拉新数据保实时性
-let autoRefreshTimer: number | undefined
-const AUTO_REFRESH_MS = 5000
+// WebSocket 实时进度: 活跃行 (QUEUED/RUNNING) 自动订阅, 终态自动 unsubscribe;
+// 终态事件还触发一次 silent loadList 兜底取回耗时 / 错误信息等持久化字段.
+const unsubscribers = new Map<string, () => void>()
+let finalRefreshTimer: number | undefined
+const FINAL_REFRESH_DEBOUNCE_MS = 600
 
-function hasActiveRows(rows: OpLog[]): boolean {
-  return rows.some((r) => r.status === 'QUEUED' || r.status === 'RUNNING')
+function applyEvent(ev: OpProgressEvent) {
+  const row = list.value.find((r) => r.id === ev.opId)
+  if (!row) return
+  row.status = ev.status
+  if (ev.currentStep != null) row.currentStep = ev.currentStep
+  if (ev.progressPct != null) row.progressPct = ev.progressPct
+  if (ev.message != null) row.lastMessage = ev.message
+  if (ev.errorCode != null) row.errorCode = ev.errorCode
+  if (ev.errorMsg != null) row.errorMsg = ev.errorMsg
+  if (isTerminal(ev.status)) {
+    // 终态: 取消订阅 + debounce 刷新一次拿 elapsedMs / startedAt / endedAt 等
+    const un = unsubscribers.get(ev.opId)
+    if (un) {
+      un()
+      unsubscribers.delete(ev.opId)
+    }
+    if (finalRefreshTimer) window.clearTimeout(finalRefreshTimer)
+    finalRefreshTimer = window.setTimeout(() => loadList(/* silent */ true), FINAL_REFRESH_DEBOUNCE_MS)
+  }
 }
 
-function scheduleAutoRefresh() {
-  if (autoRefreshTimer) window.clearTimeout(autoRefreshTimer)
-  if (!hasActiveRows(list.value)) return
-  autoRefreshTimer = window.setTimeout(() => loadList(/* silent */ true), AUTO_REFRESH_MS)
+function isTerminal(s: OpStatus): boolean {
+  return s === 'DONE' || s === 'FAILED' || s === 'CANCELLED' || s === 'TIMED_OUT'
+}
+
+/** 同步当前 list 与订阅: 活跃行没订阅就订阅, 终态行有订阅就清掉. */
+function syncSubscriptions() {
+  const activeIds = new Set(list.value.filter((r) => !isTerminal(r.status)).map((r) => r.id))
+  // 新增订阅
+  for (const id of activeIds) {
+    if (!unsubscribers.has(id)) {
+      unsubscribers.set(id, opProgressClient.subscribe(id, applyEvent))
+    }
+  }
+  // 已不存在 / 终态的清掉
+  for (const id of Array.from(unsubscribers.keys())) {
+    if (!activeIds.has(id)) {
+      unsubscribers.get(id)!()
+      unsubscribers.delete(id)
+    }
+  }
 }
 
 async function loadList(silent = false) {
@@ -93,7 +129,7 @@ async function loadList(silent = false) {
     }
     list.value = res.records
     total.value = res.total
-    scheduleAutoRefresh()
+    syncSubscriptions()
   } catch {
     /* request 拦截器已 toast */
   } finally {
@@ -176,17 +212,24 @@ const columns = computed<DataTableColumns<OpLog>>(() => [
     title: '服务器',
     key: 'serverId',
     render: (row) =>
-      h('span', { class: 'font-mono text-xs' }, row.serverId.slice(0, 12))
+      h(
+        'span',
+        // 后端 enrich 后 serverName 是别名, hover tooltip 看完整 id
+        { class: 'text-xs', title: row.serverId },
+        row.serverName || row.serverId.slice(0, 12)
+      )
   },
   {
     title: '目标',
     key: 'targetId',
-    render: (row) =>
-      h(
+    render: (row) => {
+      if (!row.targetId) return h('span', { class: 'text-zinc-400 text-xs' }, '-')
+      return h(
         'span',
-        { class: 'font-mono text-xs text-zinc-400' },
-        row.targetId ? row.targetId.slice(0, 12) : '-'
+        { class: 'text-xs', title: row.targetId },
+        row.targetName || row.targetId.slice(0, 12)
       )
+    }
   },
   {
     title: '状态',
@@ -202,7 +245,8 @@ const columns = computed<DataTableColumns<OpLog>>(() => [
     key: 'progress',
     width: 130,
     render: (row) => {
-      if (row.status !== 'RUNNING') {
+      // RUNNING / QUEUED 都画进度条 (QUEUED = 0%); 终态用 tag 显示, 不重复占视觉
+      if (row.status !== 'RUNNING' && row.status !== 'QUEUED') {
         return h('span', { class: 'text-zinc-400 text-xs' }, '-')
       }
       const pct = row.progressPct ?? 0
@@ -211,7 +255,8 @@ const columns = computed<DataTableColumns<OpLog>>(() => [
         percentage: pct,
         showIndicator: true,
         height: 6,
-        indicatorPlacement: 'inside'
+        indicatorPlacement: 'inside',
+        status: row.status === 'QUEUED' ? 'default' : 'info'
       })
     }
   },
@@ -228,8 +273,14 @@ const columns = computed<DataTableColumns<OpLog>>(() => [
   {
     title: '触发者',
     key: 'operator',
-    width: 100,
-    render: (row) => row.operator || '-'
+    width: 110,
+    render: (row) =>
+      h(
+        'span',
+        // hover tooltip 看原始 id (排查时用); 显示用 enricher 拼好的 name
+        { class: 'text-xs', title: row.operator || '' },
+        row.operatorName || row.operator || '-'
+      )
   },
   {
     title: '入队时间',
@@ -306,6 +357,12 @@ const pagination = computed(() => ({
 }))
 
 onMounted(loadList)
+
+onUnmounted(() => {
+  for (const un of unsubscribers.values()) un()
+  unsubscribers.clear()
+  if (finalRefreshTimer) window.clearTimeout(finalRefreshTimer)
+})
 </script>
 
 <template>

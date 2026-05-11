@@ -10,6 +10,10 @@ public class ClientRespVO {
 
     private String id;
     private String serverId;
+    /** server 别名 (resource_server.name); 由 controller 预拉 + convert 填; server 已删该字段为空, 由前端 fallback 到 serverId. */
+    private String serverName;
+    /** server 主机地址 (resource_server.host); enrich 来源同 serverName. */
+    private String serverHost;
     private String ipId;
     /**
      * 落地 IP 地址 (resource_ip_pool.ip_address); ipId 在 DB 是 32 位 hash 主键, 列表页直接展示对运维不友好.

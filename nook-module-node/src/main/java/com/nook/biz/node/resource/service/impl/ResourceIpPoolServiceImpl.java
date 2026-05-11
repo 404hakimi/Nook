@@ -22,6 +22,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -143,5 +150,21 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
             n += resourceIpPoolMapper.markAvailable(ip.getId());
         }
         return n;
+    }
+
+    @Override
+    public Map<String, String> loadIpAddressMap(Collection<String> ipIds) {
+        if (ipIds == null || ipIds.isEmpty()) return Collections.emptyMap();
+        Set<String> dedup = new HashSet<>();
+        for (String id : ipIds) {
+            if (id != null && !id.isEmpty()) dedup.add(id);
+        }
+        if (dedup.isEmpty()) return Collections.emptyMap();
+        List<ResourceIpPool> rows = resourceIpPoolMapper.selectBatchIds(dedup);
+        Map<String, String> out = new HashMap<>(rows.size() * 2);
+        for (ResourceIpPool e : rows) {
+            out.put(e.getId(), e.getIpAddress());
+        }
+        return out;
     }
 }

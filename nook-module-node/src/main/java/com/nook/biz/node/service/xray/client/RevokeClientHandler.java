@@ -28,8 +28,8 @@ public class RevokeClientHandler implements OperationHandler {
     public Object execute(OperationContext ctx) {
         JSONObject params = JSON.parseObject(ctx.paramsJson());
         String clientId = params.getString("clientId");
-        ctx.report("正在吊销", 30);
-        serviceImpl.doRevoke(clientId);
+        ctx.report("加载客户端记录", 15);
+        serviceImpl.doRevoke(clientId, ctx);
         return null;
     }
 }

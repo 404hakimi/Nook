@@ -5,6 +5,9 @@ import com.nook.biz.node.resource.controller.ip.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.resource.entity.ResourceIpPool;
 import com.nook.common.web.response.PageResult;
 
+import java.util.Collection;
+import java.util.Map;
+
 /**
  * IP 池管理。
  * 状态机:
@@ -42,4 +45,10 @@ public interface ResourceIpPoolService {
 
     /** 冷却到期批量回到 available; 调度器 / 定时任务调用。返回处理条数。 */
     int sweepExpiredCooling();
+
+    /**
+     * 批量按 id 取 ip_address (list 页 enrich 用); 走 selectBatchIds 避免 N+1.
+     * 不下发 socks5 凭据; 缺失的 id 直接不进结果 map.
+     */
+    Map<String, String> loadIpAddressMap(Collection<String> ipIds);
 }

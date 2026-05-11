@@ -31,6 +31,16 @@
             <groupId>com.nook</groupId>
             <artifactId>nook-spring-boot-starter-mybatis</artifactId>
         </dependency>
+        <!-- WebSocket 推送实时进度 — 实现在本模块, 业务模块不感知协议细节 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+        <!-- 鉴权: 握手阶段从 query 取 token, 调用 sa-token 校验 -->
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-security</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>jakarta.annotation</groupId>

@@ -82,13 +82,23 @@ function elapsedText(ms?: number): string {
             {{ OP_TYPE_LABELS[detail.opType] || detail.opType }}
           </NDescriptionsItem>
           <NDescriptionsItem label="触发者">
-            {{ detail.operator || '-' }}
+            <span>{{ detail.operatorName || detail.operator || '-' }}</span>
+            <span
+              v-if="detail.operatorName && detail.operator && detail.operatorName !== detail.operator"
+              class="ml-2 font-mono text-xs text-zinc-400"
+              >({{ detail.operator }})</span
+            >
           </NDescriptionsItem>
-          <NDescriptionsItem label="server">
-            <span class="font-mono text-xs">{{ detail.serverId }}</span>
+          <NDescriptionsItem label="操作服务器">
+            <span>{{ detail.serverName || '-' }}</span>
+            <span class="ml-2 font-mono text-xs text-zinc-400">{{ detail.serverId }}</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="target">
-            <span class="font-mono text-xs">{{ detail.targetId || '-' }}</span>
+          <NDescriptionsItem label="操作目标">
+            <template v-if="detail.targetId">
+              <span>{{ detail.targetName || '-' }}</span>
+              <span class="ml-2 font-mono text-xs text-zinc-400">{{ detail.targetId }}</span>
+            </template>
+            <span v-else class="text-zinc-400">-</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="入队时间">
             {{ formatDateTime(detail.enqueuedAt) }}

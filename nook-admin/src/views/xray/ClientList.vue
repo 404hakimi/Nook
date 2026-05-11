@@ -37,7 +37,6 @@ import {
   type XrayClient,
   type XrayClientQuery
 } from '@/api/xray/client'
-import { pageServers, type ResourceServer } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import ClientEditDialog from './ClientEditDialog.vue'
 import ClientProvisionDialog from './ClientProvisionDialog.vue'
@@ -69,25 +68,6 @@ const list = ref<XrayClient[]>([])
 const total = ref(0)
 const loading = ref(false)
 const advancedOpen = ref(false)
-
-// serverId → 服务器名/host 缓存；进入页面时拉一次，便于把 inbound 行里的裸 UUID 翻译成可读
-const serverMap = ref<Record<string, ResourceServer>>({})
-async function loadServerMap() {
-  try {
-    // 服务器总数有限，一把拉 200 条够用
-    const res = await pageServers({ pageNo: 1, pageSize: 200 })
-    serverMap.value = Object.fromEntries(res.records.map((s) => [s.id, s]))
-  } catch {
-    /* 拉不到不影响主流程，列表会回落到显示原始 ID */
-  }
-}
-function serverLabel(id: string): string {
-  const s = serverMap.value[id]
-  return s ? s.name : id.slice(0, 8) + '…'
-}
-function serverHost(id: string): string {
-  return serverMap.value[id]?.host ?? ''
-}
 
 async function loadList() {
   loading.value = true
@@ -335,9 +315,10 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
     key: 'serverId',
     render: (row) =>
       h('div', { class: 'flex flex-col' }, [
-        h('span', { class: 'text-sm', title: row.serverId }, serverLabel(row.serverId)),
-        serverHost(row.serverId)
-          ? h('span', { class: 'font-mono text-xs text-zinc-500' }, serverHost(row.serverId))
+        h('span', { class: 'text-sm', title: row.serverId },
+          row.serverName || row.serverId.slice(0, 8) + '…'),
+        row.serverHost
+          ? h('span', { class: 'font-mono text-xs text-zinc-500' }, row.serverHost)
           : null
       ])
   },
@@ -456,8 +437,6 @@ const advancedFilterCount = computed(() => {
 })
 
 onMounted(() => {
-  // 并发拉服务器映射 + inbound 列表，二者无依赖
-  loadServerMap()
   loadList()
 })
 </script>
@@ -567,10 +546,8 @@ onMounted(() => {
     <ClientEditDialog
       v-model="editOpen"
       :inbound="editTarget"
-      :server-map="serverMap"
       @saved="onEdited"
     />
-    <!-- ShareDialog 自己拉 reveal 接口拿明文凭据, 不依赖父组件传 serverMap -->
     <ClientShareDialog v-model="shareOpen" :client="shareTarget" />
     <!-- 点击列表 IP 列触发: 只读详情, 不带改 IP 入口 (改 IP 走 IP 池管理页) -->
     <IpPoolDetailDialog v-model="ipDetailOpen" :ip-id="ipDetailId" />

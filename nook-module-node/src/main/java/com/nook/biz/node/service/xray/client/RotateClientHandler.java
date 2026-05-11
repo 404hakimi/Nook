@@ -28,7 +28,7 @@ public class RotateClientHandler implements OperationHandler {
     public Object execute(OperationContext ctx) {
         JSONObject params = JSON.parseObject(ctx.paramsJson());
         String clientId = params.getString("clientId");
-        ctx.report("UUID 轮换中", 30);
-        return serviceImpl.doRotate(clientId);
+        ctx.report("加载客户端记录", 15);
+        return serviceImpl.doRotate(clientId, ctx);
     }
 }

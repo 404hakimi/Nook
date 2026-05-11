@@ -28,6 +28,7 @@ public class SetAutostartHandler implements OperationHandler {
     public Object execute(OperationContext ctx) {
         JSONObject params = JSON.parseObject(ctx.paramsJson());
         boolean enabled = params.getBooleanValue("enabled");
-        return serviceImpl.doSetAutostart(ctx.serverId(), enabled);
+        ctx.report(enabled ? "开启开机自启" : "关闭开机自启", 30);
+        return serviceImpl.doSetAutostart(ctx.serverId(), enabled, ctx);
     }
 }

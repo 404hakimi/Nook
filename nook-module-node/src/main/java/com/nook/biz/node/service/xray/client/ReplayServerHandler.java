@@ -24,7 +24,7 @@ public class ReplayServerHandler implements OperationHandler {
 
     @Override
     public Object execute(OperationContext ctx) {
-        ctx.report("server replay 启动", 10);
-        return serviceImpl.doReplayServer(ctx.serverId());
+        ctx.report("准备 replay", 10);
+        return serviceImpl.doReplayServer(ctx.serverId(), ctx);
     }
 }

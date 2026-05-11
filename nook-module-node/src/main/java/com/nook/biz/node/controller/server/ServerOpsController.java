@@ -1,8 +1,8 @@
 package com.nook.biz.node.controller.server;
 
 import com.nook.biz.node.controller.xray.server.vo.EnableSwapReqVO;
+import com.nook.biz.node.resource.service.ResourceServerService;
 import com.nook.biz.node.service.server.ServerOpsService;
-import com.nook.biz.node.resource.api.ResourceServerApi;
 import com.nook.framework.web.StreamingEndpointSupport;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
@@ -35,7 +35,7 @@ public class ServerOpsController {
     @Resource
     private StreamingEndpointSupport streamingSupport;
     @Resource
-    private ResourceServerApi resourceServerApi;
+    private ResourceServerService resourceServerService;
 
     @PostMapping(value = "/swap", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter enableSwap(@PathVariable String id,
@@ -51,7 +51,7 @@ public class ServerOpsController {
     }
 
     private Duration emitterTimeout(String id) {
-        return Duration.ofSeconds(resourceServerApi.loadCredential(id).getInstallTimeoutSeconds())
+        return Duration.ofSeconds(resourceServerService.findById(id).getInstallTimeoutSeconds())
                 .plus(EMITTER_BUFFER);
     }
 }
