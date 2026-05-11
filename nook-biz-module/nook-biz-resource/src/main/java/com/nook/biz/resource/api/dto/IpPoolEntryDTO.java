@@ -14,9 +14,9 @@ public class IpPoolEntryDTO {
     private String id;
     private String region;
     private String ipTypeId;
+    /** 出网真实 IP; 同时作为 SOCKS5 服务监听地址 (host = ipAddress). */
     private String ipAddress;
 
-    private String socks5Host;
     private Integer socks5Port;
     private String socks5Username;
     private String socks5Password;

@@ -16,12 +16,6 @@ import java.util.Map;
 public interface ResourceIpPoolApi {
 
     /**
-     * 选一个可分配的 IP 并原子占用。
-     * 池子无货抛 IP_POOL_EXHAUSTED；并发抢占多次失败抛 IP_POOL_OCCUPY_CONFLICT。
-     */
-    IpPoolEntryDTO pickAvailable(String region, String ipTypeId, String memberUserId);
-
-    /**
      * 按指定 ipId 原子占用 (provision 走前端选定 IP 的路径用); IP 当前必须是 available, 否则抛 IP_POOL_NOT_AVAILABLE.
      * 与 pickAvailable 区别: 后者按 region/type 自动挑, 这里指定 id; 都走 markOccupied(WHERE status=1) 防双卖.
      *
