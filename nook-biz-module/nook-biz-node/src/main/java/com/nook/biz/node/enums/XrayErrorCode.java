@@ -24,6 +24,8 @@ public enum XrayErrorCode implements ErrorCode {
     SLOT_POOL_EXHAUSTED(6012, "server %s 的 slot 池已满, 无空闲槽位"),
     /** server 的 nook 状态记录不存在; 通常说明该 server 还没通过 nook 部署过 */
     SERVER_STATE_NOT_FOUND(6013, "server %s 的 nook 状态记录不存在"),
+    /** provision 入参跨字段校验失败 (如 flow 跟 protocol 不匹配 / expiry 已过期 / limitIp 超上限) */
+    CLIENT_PROVISION_INVALID(6014, "客户端开通参数非法: %s"),
     ;
 
     private final int code;
