@@ -47,7 +47,7 @@ const routes: RouteRecordRaw[] = [
         path: 'resource/ip-pool',
         name: 'resource-ip-pool',
         component: () => import('@/views/resource/IpPoolList.vue'),
-        meta: { title: 'IP 池' }
+        meta: { title: 'IP代理池' }
       },
       {
         path: 'xray/clients',

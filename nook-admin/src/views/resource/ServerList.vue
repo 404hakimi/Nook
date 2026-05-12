@@ -38,7 +38,6 @@ import { formatDateTime } from '@/utils/date'
 import ServerFormDialog from './ServerFormDialog.vue'
 import ServerOpsDialog from './ServerOpsDialog.vue'
 import ServerOsTuneDialog from './ServerOsTuneDialog.vue'
-import { pageClients } from '@/api/xray/client'
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -81,8 +80,6 @@ async function loadList() {
     }
     list.value = res.records
     total.value = res.total
-    // 刷完列表后异步拉每台 server 的活跃用户数
-    loadActiveUserCounts()
   } catch {
     /* request 拦截器已 toast */
   } finally {
@@ -183,22 +180,6 @@ function openOsTune(s: ResourceServer) {
   osTuneOpen.value = true
 }
 
-// ===== 当前活跃用户数(每个 server 一个数字) =====
-// 进列表后并发拉,失败不影响主流程,仅显示 "?" / "-"
-const activeUserCount = ref<Record<string, number>>({})
-async function loadActiveUserCounts() {
-  if (!list.value.length) return
-  const tasks = list.value.map(async (s) => {
-    try {
-      const res = await pageClients({ pageNo: 1, pageSize: 1, serverId: s.id, status: 1 })
-      activeUserCount.value[s.id] = res.total
-    } catch {
-      // 忽略个别失败,UI 显示 -
-    }
-  })
-  await Promise.allSettled(tasks)
-}
-
 // ===== 行操作菜单（NDropdown 选项 + 分发） =====
 // "Xray 管理" 与 "OS 调优" 是两件事 (前者管 xray 服务/部署, 后者管内核 BBR/swap), 拆成独立入口避免概念混合.
 const ROW_ACTIONS: DropdownOption[] = [
@@ -242,6 +223,20 @@ function onRowAction(key: string | number, s: ResourceServer) {
 // ===== 表格列定义 =====
 const columns = computed<DataTableColumns<ResourceServer>>(() => [
   {
+    title: 'IDC 供应商',
+    key: 'idcProvider',
+    render: (row) =>
+      row.idcProvider
+        ? h('span', null, row.idcProvider)
+        : h('span', { class: 'text-zinc-400' }, '-')
+  },
+  {
+    title: '区域',
+    key: 'region',
+    render: (row) =>
+      row.region ? h('span', null, row.region) : h('span', { class: 'text-zinc-400' }, '-')
+  },
+  {
     title: '别名',
     key: 'name',
     render: (row) =>
@@ -258,11 +253,6 @@ const columns = computed<DataTableColumns<ResourceServer>>(() => [
         row.host,
         h('span', { class: 'text-zinc-400' }, `:${row.sshPort || 22}`)
       ])
-  },
-  {
-    title: '区域',
-    key: 'region',
-    render: (row) => row.region || '-'
   },
   {
     title: '带宽',
@@ -282,11 +272,6 @@ const columns = computed<DataTableColumns<ResourceServer>>(() => [
     }
   },
   {
-    title: 'IP 数',
-    key: 'totalIpCount',
-    render: (row) => row.totalIpCount ?? 0
-  },
-  {
     title: '状态',
     key: 'status',
     render: (row) =>
@@ -294,16 +279,6 @@ const columns = computed<DataTableColumns<ResourceServer>>(() => [
         NTag,
         { size: 'small', type: statusTagType(row.status) },
         { default: () => SERVER_STATUS_LABELS[row.status] || row.status }
-      )
-  },
-  {
-    title: '活跃用户',
-    key: 'activeUsers',
-    render: (row) =>
-      h(
-        'span',
-        { class: 'font-mono text-sm' },
-        activeUserCount.value[row.id] !== undefined ? String(activeUserCount.value[row.id]) : '-'
       )
   },
   {

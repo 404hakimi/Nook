@@ -78,7 +78,7 @@ const menuOptions: MenuOption[] = [
     icon: icon(Server),
     children: [
       { key: '/resource/servers', label: routerLabel('/resource/servers', '服务器'), icon: icon(Server) },
-      { key: '/resource/ip-pool', label: routerLabel('/resource/ip-pool', 'IP 池'), icon: icon(Globe2) }
+      { key: '/resource/ip-pool', label: routerLabel('/resource/ip-pool', 'IP代理池'), icon: icon(Globe2) }
     ]
   },
   { key: '/xray/clients', label: routerLabel('/xray/clients', '客户端管理'), icon: icon(Cable) },
