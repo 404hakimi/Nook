@@ -6,7 +6,9 @@ import com.nook.biz.node.controller.xray.server.vo.ServiceStatusRespVO;
 import java.util.function.Consumer;
 
 /**
- * Xray 线路服务器一站式管理: 部署 / 重启 / 状态查询 / 开机自启开关.
+ * Xray 线路服务器管理 Service 接口
+ *
+ * <p>负责 Xray 部署 / 重启 / 状态查询 / 开机自启开关.
  *
  * @author nook
  */

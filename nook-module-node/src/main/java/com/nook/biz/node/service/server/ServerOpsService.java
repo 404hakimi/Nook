@@ -5,7 +5,9 @@ import com.nook.biz.node.controller.xray.server.vo.EnableSwapReqVO;
 import java.util.function.Consumer;
 
 /**
- * 服务器通用 OS 调优运维接口; swap / bbr 等独立触发, 跟 xray install 解耦.
+ * 服务器通用 OS 调优运维 Service 接口
+ *
+ * <p>swap / bbr 等独立触发, 跟 xray install 解耦.
  *
  * @author nook
  */

@@ -17,6 +17,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * 服务器通用 OS 调优运维 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 public class ServerOpsServiceImpl implements ServerOpsService {

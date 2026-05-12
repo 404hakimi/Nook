@@ -14,6 +14,11 @@ import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
+/**
+ * 服务器只读检视 Service 实现类
+ *
+ * @author nook
+ */
 @Service
 public class ServerInspectorServiceImpl implements ServerInspectorService {
 
@@ -48,7 +53,7 @@ public class ServerInspectorServiceImpl implements ServerInspectorService {
     }
 
     @Override
-    public ServiceLogRespVO getLog(String serverId, String unit, Integer logLines, String logLevel) {
+    public ServiceLogRespVO getServiceLog(String serverId, String unit, Integer logLines, String logLevel) {
         return ServerInspectorConvert.INSTANCE.convert(serverProbe.readJournalLog(
                 sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED), unit, logLines, logLevel));
     }

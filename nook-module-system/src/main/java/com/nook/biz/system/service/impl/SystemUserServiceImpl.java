@@ -10,6 +10,7 @@ import com.nook.biz.system.entity.SystemUser;
 import com.nook.biz.system.mapper.SystemUserMapper;
 import com.nook.biz.system.service.SystemUserService;
 import com.nook.biz.system.validator.SystemUserValidator;
+import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -93,5 +97,13 @@ public class SystemUserServiceImpl implements SystemUserService {
         systemUserValidator.validateExists(id);
         // 更新密码哈希
         systemUserMapper.updatePasswordHash(id, bCryptPasswordEncoder.encode(newPlainPassword));
+    }
+
+    @Override
+    public Map<String, String> loadUserNameMap(Collection<String> userIds) {
+        if (CollectionUtils.isAnyEmpty(userIds)) return Collections.emptyMap();
+        return CollectionUtils.convertMap(systemUserMapper.selectBatchIds(userIds), SystemUser::getId,
+                // realName 优先, 缺失退回 username (登录账号)
+                u -> u.getRealName() != null && !u.getRealName().isEmpty() ? u.getRealName() : u.getUsername());
     }
 }

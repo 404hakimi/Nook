@@ -1,7 +1,7 @@
 package com.nook.biz.node.service.support;
 
-import com.nook.biz.node.resource.entity.ResourceServer;
-import com.nook.biz.node.resource.service.ResourceServerService;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionManager;
@@ -24,11 +24,11 @@ public class SessionCredentialMapper {
 
     /** 加载 server 实体 → 转 SessionCredential → framework acquire SSH session. */
     public SshSession acquire(String serverId, SshSessionScope scope) {
-        SessionCredential credential = toCredential(resourceServerService.findById(serverId));
+        SessionCredential credential = toCredential(resourceServerService.getServer(serverId));
         return sessionManager.acquire(credential, scope);
     }
 
-    private static SessionCredential toCredential(ResourceServer e) {
+    private static SessionCredential toCredential(ResourceServerDO e) {
         return SessionCredential.builder()
                 .serverId(e.getId())
                 .sshHost(e.getHost())

@@ -5,7 +5,6 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.controller.xray.client.vo.ClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientPageReqVO;
@@ -14,10 +13,11 @@ import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientUpdateReqVO;
 import com.nook.biz.node.controller.xray.client.vo.ReplayReportRespVO;
 import com.nook.biz.node.controller.xray.client.vo.SyncStatusRespVO;
-import com.nook.biz.node.convert.xray.client.XrayClientConvert;
+import com.nook.biz.node.convert.xray.XrayClientConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
@@ -37,9 +37,9 @@ import com.nook.biz.operation.api.OperationOrchestrator;
 import com.nook.biz.operation.api.ProgressSink;
 import com.nook.framework.security.stp.StpSystemUtil;
 import org.springframework.context.annotation.Lazy;
-import com.nook.biz.node.resource.entity.ResourceIpPool;
-import com.nook.biz.node.resource.service.ResourceIpPoolService;
-import com.nook.biz.node.resource.service.ResourceServerService;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
+import com.nook.biz.node.service.resource.ResourceIpPoolService;
+import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
@@ -53,6 +53,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -62,12 +63,19 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * Xray Client Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 public class XrayClientServiceImpl implements XrayClientService {
 
     @Resource
     private XrayClientMapper xrayClientMapper;
+    @Resource
+    private XrayClientTrafficMapper xrayClientTrafficMapper;
     @Resource
     private XrayInboundCli inboundCli;
     @Resource
@@ -88,6 +96,8 @@ public class XrayClientServiceImpl implements XrayClientService {
     private XrayDaemonProbe xrayDaemonProbe;
     @Resource
     private SessionCredentialMapper sessionCredentialMapper;
+    @Resource
+    private XrayTrafficSampleService trafficSampleService;
     /** @Lazy 破除循环依赖: service → orchestrator → handlerRegistry → handler → service */
     @Lazy
     @Resource
@@ -102,19 +112,19 @@ public class XrayClientServiceImpl implements XrayClientService {
     private static final Duration WAIT_RECONCILE = Duration.ofMinutes(10);
 
     @Override
-    public XrayClientDO findById(String id) {
+    public XrayClientDO getXrayClient(String id) {
         return clientValidator.validateExists(id);
     }
 
     @Override
-    public PageResult<XrayClientDO> page(ClientPageReqVO reqVO) {
+    public PageResult<XrayClientDO> getXrayClientPage(ClientPageReqVO pageReqVO) {
         IPage<XrayClientDO> result = xrayClientMapper.selectPageByQuery(
-                Page.of(reqVO.getPageNo(), reqVO.getPageSize()), reqVO);
+                Page.of(pageReqVO.getPageNo(), pageReqVO.getPageSize()), pageReqVO);
         return PageResult.of(result.getTotal(), result.getRecords());
     }
 
     @Override
-    public XrayClientDO provision(ClientProvisionReqVO reqVO) {
+    public XrayClientDO provisionXrayClient(ClientProvisionReqVO reqVO) {
         EnqueueRequest req = EnqueueRequest.builder()
                 .serverId(reqVO.getServerId())
                 .opType(OpType.CLIENT_PROVISION.name())
@@ -136,11 +146,11 @@ public class XrayClientServiceImpl implements XrayClientService {
 
         // 加载 server xray 节点配置
         sink.report("加载节点信息", 25);
-        XrayNodeDO node = xrayNodeService.loadOrThrow(reqVO.getServerId());
+        XrayNodeDO node = xrayNodeService.getXrayNode(reqVO.getServerId());
 
         // 原子占用落地 IP, 同事务回滚自动归还
         sink.report("占用落地 IP", 35);
-        ResourceIpPool ipEntry = resourceIpPoolService.occupyById(reqVO.getIpId(), reqVO.getMemberUserId());
+        ResourceIpPoolDO ipEntry = resourceIpPoolService.occupyById(reqVO.getIpId(), reqVO.getMemberUserId());
         if (StrUtil.isBlank(ipEntry.getIpAddress()) || ObjectUtil.isNull(ipEntry.getSocks5Port())) {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
                     reqVO.getIpId(), "落地 IP 的 SOCKS5 凭据未配置");
@@ -149,7 +159,7 @@ public class XrayClientServiceImpl implements XrayClientService {
         // 分配 client id + slot
         sink.report("分配 slot 与端口", 45);
         String clientId = UUID.randomUUID().toString().replace("-", "");
-        int slotIndex = slotPoolService.allocate(reqVO.getServerId(), clientId);
+        int slotIndex = slotPoolService.allocateSlot(reqVO.getServerId(), clientId);
         int listenPort = node.getSlotPortBase() + slotIndex;
         String inboundTag = formatSlotTag("in_slot_", slotIndex);
         String outboundTag = formatSlotTag("out_slot_", slotIndex);
@@ -236,8 +246,8 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public void revoke(String inboundEntityId) {
-        XrayClientDO e = findById(inboundEntityId);
+    public void revokeXrayClient(String inboundEntityId) {
+        XrayClientDO e = getXrayClient(inboundEntityId);
         EnqueueRequest req = EnqueueRequest.builder()
                 .serverId(e.getServerId())
                 .opType(OpType.CLIENT_REVOKE.name())
@@ -253,10 +263,10 @@ public class XrayClientServiceImpl implements XrayClientService {
     void doRevoke(String inboundEntityId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("加载客户端记录", 20);
-        XrayClientDO e = findById(inboundEntityId);
+        XrayClientDO e = getXrayClient(inboundEntityId);
         String inboundTag = e.getExternalInboundRef();
         String outboundTag = formatSlotTag("out_slot_", e.getSlotIndex());
-        int apiPort = xrayNodeService.loadOrThrow(e.getServerId()).getXrayApiPort();
+        int apiPort = xrayNodeService.getXrayNode(e.getServerId()).getXrayApiPort();
         sink.report("建立 SSH 会话", 35);
         SshSession session = sessionCredentialMapper.acquire(e.getServerId(), SshSessionScope.SHARED);
 
@@ -285,10 +295,11 @@ public class XrayClientServiceImpl implements XrayClientService {
                     e.getServerId(), outboundTag, re);
         }
 
-        // DB 硬删 + slot 释放
+        // DB 硬删 + slot 释放; 流量累计行也一并清掉, 避免 client_id 死引用孤儿
         sink.report("DB 删除与 slot 释放", 80);
         xrayClientMapper.deleteById(e.getId());
-        slotPoolService.release(e.getServerId(), e.getSlotIndex());
+        xrayClientTrafficMapper.deleteByClientId(e.getId());
+        slotPoolService.releaseSlot(e.getServerId(), e.getSlotIndex());
 
         // 退订落地 IP: occupied → cooling, 等冷却到期由 sweep 任务回到 available;
         // 走 try 是因为 IP 行可能已被运维手动删 / 状态错位, 不阻断 revoke 主流程
@@ -309,8 +320,8 @@ public class XrayClientServiceImpl implements XrayClientService {
      * 客户旧连接断 (~200ms), 用新 UUID 重连即可.
      */
     @Override
-    public XrayClientDO rotate(String inboundEntityId) {
-        XrayClientDO e = findById(inboundEntityId);
+    public XrayClientDO rotateXrayClient(String inboundEntityId) {
+        XrayClientDO e = getXrayClient(inboundEntityId);
         EnqueueRequest req = EnqueueRequest.builder()
                 .serverId(e.getServerId())
                 .opType(OpType.CLIENT_ROTATE.name())
@@ -325,10 +336,10 @@ public class XrayClientServiceImpl implements XrayClientService {
     XrayClientDO doRotate(String inboundEntityId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("加载客户端记录", 20);
-        XrayClientDO e = findById(inboundEntityId);
+        XrayClientDO e = getXrayClient(inboundEntityId);
         String inboundTag = e.getExternalInboundRef();
         String newUuid = UUID.randomUUID().toString();
-        int apiPort = xrayNodeService.loadOrThrow(e.getServerId()).getXrayApiPort();
+        int apiPort = xrayNodeService.getXrayNode(e.getServerId()).getXrayApiPort();
         sink.report("建立 SSH 会话", 35);
         SshSession session = sessionCredentialMapper.acquire(e.getServerId(), SshSessionScope.SHARED);
 
@@ -366,43 +377,42 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public ClientTrafficRespVO getTraffic(String inboundEntityId) {
-        XrayClientDO xrayClient = findById(inboundEntityId);
-        int apiPort = xrayNodeService.loadOrThrow(xrayClient.getServerId()).getXrayApiPort();
-        SshSession session = sessionCredentialMapper.acquire(xrayClient.getServerId(), SshSessionScope.SHARED);
-        XrayUserTrafficSnapshot traffic = statsCli.readUserTraffic(session, apiPort, xrayClient.getClientEmail(), false);
+    public ClientTrafficRespVO getXrayClientTraffic(String inboundEntityId) {
+        XrayClientDO xrayClient = getXrayClient(inboundEntityId);
+        // 走累计快照: DB 累计 + xray in-memory 当前增量 (上次 sample 到现在); 跨 xray 重启不丢
+        XrayUserTrafficSnapshot traffic = trafficSampleService.getTotalTraffic(inboundEntityId);
         return XrayClientConvert.INSTANCE.toTrafficVO(xrayClient, traffic);
     }
 
     @Override
-    public void resetTraffic(String inboundEntityId) {
-        XrayClientDO e = findById(inboundEntityId);
-        int apiPort = xrayNodeService.loadOrThrow(e.getServerId()).getXrayApiPort();
+    public void resetXrayClientTraffic(String inboundEntityId) {
+        XrayClientDO e = getXrayClient(inboundEntityId);
+        int apiPort = xrayNodeService.getXrayNode(e.getServerId()).getXrayApiPort();
         SshSession session = sessionCredentialMapper.acquire(e.getServerId(), SshSessionScope.SHARED);
         // reset=true 原子返回旧值并清零
         statsCli.readUserTraffic(session, apiPort, e.getClientEmail(), true);
     }
 
     @Override
-    public void update(String inboundEntityId, ClientUpdateReqVO reqVO) {
+    public void updateXrayClient(String inboundEntityId, ClientUpdateReqVO updateReqVO) {
         // 校验 client 存在
         clientValidator.validateExists(inboundEntityId);
         // 更新本地元数据; null 字段由 MP NOT_NULL 策略跳过, 即"保留原值"
-        XrayClientDO entity = BeanUtils.toBean(reqVO, XrayClientDO.class);
+        XrayClientDO entity = BeanUtils.toBean(updateReqVO, XrayClientDO.class);
         xrayClientMapper.update(entity, Wrappers.<XrayClientDO>lambdaUpdate()
                 .eq(XrayClientDO::getId, inboundEntityId));
     }
 
     @Override
-    public ClientCredentialRespVO loadCredential(String inboundEntityId) {
-        XrayClientDO e = findById(inboundEntityId);
+    public ClientCredentialRespVO getXrayClientCredential(String inboundEntityId) {
+        XrayClientDO e = getXrayClient(inboundEntityId);
         ClientCredentialRespVO vo = new ClientCredentialRespVO();
         vo.setId(e.getId());
         vo.setClientUuid(e.getClientUuid());
         vo.setClientEmail(e.getClientEmail());
         vo.setProtocol(e.getProtocol());
         // 客户连接的 host = server 公网 IP (resource_server.host); 拼订阅链接用
-        vo.setServerHost(resourceServerService.findById(e.getServerId()).getHost());
+        vo.setServerHost(resourceServerService.getServer(e.getServerId()).getHost());
         vo.setListenPort(e.getListenPort());
         vo.setTransport(e.getTransport());
         return vo;
@@ -419,7 +429,7 @@ public class XrayClientServiceImpl implements XrayClientService {
         SshSession session;
         int apiPort;
         try {
-            apiPort = xrayNodeService.loadOrThrow(serverId).getXrayApiPort();
+            apiPort = xrayNodeService.getXrayNode(serverId).getXrayApiPort();
             session = sessionCredentialMapper.acquire(serverId, SshSessionScope.RECONCILE);
         } catch (RuntimeException e) {
             vo.setReachable(false);
@@ -455,7 +465,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public void syncOne(String clientId) {
+    public void syncXrayClient(String clientId) {
         XrayClientDO c = clientValidator.validateExists(clientId);
         EnqueueRequest req = EnqueueRequest.builder()
                 .serverId(c.getServerId())
@@ -472,11 +482,11 @@ public class XrayClientServiceImpl implements XrayClientService {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         XrayClientDO c = clientValidator.validateExists(clientId);
         sink.report("加载节点配置", 20);
-        XrayNodeDO node = xrayNodeService.loadOrThrow(c.getServerId());
+        XrayNodeDO node = xrayNodeService.getXrayNode(c.getServerId());
         sink.report("建立 SSH 会话", 30);
         SshSession session = sessionCredentialMapper.acquire(c.getServerId(), SshSessionScope.RECONCILE);
         sink.report("加载落地 IP 凭据", 40);
-        ResourceIpPool ipEntry = resourceIpPoolService.findById(c.getIpId());
+        ResourceIpPoolDO ipEntry = resourceIpPoolService.getIpPool(c.getIpId());
         syncSingle(session, node.getXrayApiPort(), c, ipEntry, sink);
     }
 
@@ -494,7 +504,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     ReplayReportRespVO doReplayServer(String serverId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("加载节点配置", 15);
-        XrayNodeDO node = xrayNodeService.loadOrThrow(serverId);
+        XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
         sink.report("建立 SSH 会话", 25);
         SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.RECONCILE);
         return replayInternal(session, node, sink);
@@ -514,7 +524,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     void doReplayIfRestarted(String serverId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("加载节点", 20);
-        XrayNodeDO node = xrayNodeService.loadOrThrow(serverId);
+        XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
         SshSession session;
         try {
             sink.report("建立 SSH 会话", 35);
@@ -573,12 +583,12 @@ public class XrayClientServiceImpl implements XrayClientService {
 
         // 仅对 needSync 准备 IP 凭据; 已对齐的不查省 DB 调用
         sink.report("加载 IP 凭据", 55);
-        Map<String, ResourceIpPool> ipMap = new HashMap<>(needSync.size() * 2);
+        Map<String, ResourceIpPoolDO> ipMap = new HashMap<>(needSync.size() * 2);
         for (XrayClientDO c : needSync) {
             String ipId = c.getIpId();
             if (StrUtil.isBlank(ipId) || ipMap.containsKey(ipId)) continue;
             try {
-                ipMap.put(ipId, resourceIpPoolService.findById(ipId));
+                ipMap.put(ipId, resourceIpPoolService.getIpPool(ipId));
             } catch (Exception ex) {
                 ipMap.put(ipId, null);
             }
@@ -622,7 +632,7 @@ public class XrayClientServiceImpl implements XrayClientService {
      * progress 写中间步骤百分比; replay 循环里传 noop 不打扰 UI.
      */
     private void syncSingle(SshSession session, int apiPort, XrayClientDO c,
-                            ResourceIpPool ipEntry, ProgressSink progress) {
+                            ResourceIpPoolDO ipEntry, ProgressSink progress) {
         if (ipEntry == null || StrUtil.isBlank(ipEntry.getIpAddress()) || ObjectUtil.isNull(ipEntry.getSocks5Port())) {
             xrayClientMapper.updateStatus(c.getId(), 3, LocalDateTime.now());
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
@@ -691,5 +701,14 @@ public class XrayClientServiceImpl implements XrayClientService {
             // 未登录 / 无 token 上下文 — sa-token 抛 NotLoginException
             return "SYSTEM";
         }
+    }
+
+    @Override
+    public Map<String, String> getEmailMap(Collection<String> clientIds) {
+        if (com.nook.common.utils.collection.CollectionUtils.isAnyEmpty(clientIds)) return Collections.emptyMap();
+        return com.nook.common.utils.collection.CollectionUtils.convertMap(
+                xrayClientMapper.selectBatchIds(clientIds),
+                XrayClientDO::getId,
+                c -> c.getClientEmail() != null ? c.getClientEmail() : c.getId());
     }
 }

@@ -36,6 +36,11 @@
             <groupId>com.nook</groupId>
             <artifactId>nook-module-operation</artifactId>
         </dependency>
+        <!-- op_log.operator 回填 admin realName/username -->
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-module-system</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>jakarta.annotation</groupId>

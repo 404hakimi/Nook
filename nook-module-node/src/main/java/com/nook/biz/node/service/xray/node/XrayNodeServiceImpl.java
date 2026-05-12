@@ -13,6 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+/**
+ * Xray 节点 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 public class XrayNodeServiceImpl implements XrayNodeService {
@@ -20,17 +25,17 @@ public class XrayNodeServiceImpl implements XrayNodeService {
     @Resource
     private XrayNodeMapper xrayNodeMapper;
     @Resource
-    private XraySlotPoolService slotPoolService;
+    private XraySlotPoolService xraySlotPoolService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void upsert(String serverId,
-                       String xrayVersion,
-                       int xrayApiPort,
-                       String xrayInstallDir,
-                       String xrayLogDir,
-                       int slotPoolSize,
-                       int slotPortBase) {
+    public void upsertXrayNode(String serverId,
+                               String xrayVersion,
+                               int xrayApiPort,
+                               String xrayInstallDir,
+                               String xrayLogDir,
+                               int slotPoolSize,
+                               int slotPortBase) {
         // installedAt 每次部署覆写 (语义=最近一次部署完成时间); lastXrayUptime 重装清空, 等 reconciler 重新探测.
         XrayNodeDO existing = xrayNodeMapper.selectById(serverId);
         boolean isInsert = ObjectUtil.isNull(existing);
@@ -57,12 +62,12 @@ public class XrayNodeServiceImpl implements XrayNodeService {
                 isInsert ? "insert" : "update",
                 serverId, xrayVersion, xrayApiPort, xrayInstallDir, slotPoolSize);
 
-        // xray_node 与 slot 池在同事务初始化, 杜绝半初始化态; initialize 自身幂等.
-        slotPoolService.initialize(serverId, slotPoolSize);
+        // xray_node 与 slot 池在同事务初始化, 杜绝半初始化态; initSlotPool 自身幂等.
+        xraySlotPoolService.initSlotPool(serverId, slotPoolSize);
     }
 
     @Override
-    public XrayNodeDO loadOrThrow(String serverId) {
+    public XrayNodeDO getXrayNode(String serverId) {
         XrayNodeDO row = xrayNodeMapper.selectById(serverId);
         if (ObjectUtil.isNull(row)) {
             // 复用 SERVER_STATE_NOT_FOUND 错误码 (语义一致: server 没 nook 内部状态记录)
@@ -72,7 +77,7 @@ public class XrayNodeServiceImpl implements XrayNodeService {
     }
 
     @Override
-    public XrayNodeDO loadOrNull(String serverId) {
+    public XrayNodeDO getXrayNodeOrNull(String serverId) {
         return xrayNodeMapper.selectById(serverId);
     }
 

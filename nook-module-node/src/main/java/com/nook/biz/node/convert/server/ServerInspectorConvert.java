@@ -12,7 +12,13 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
-/** ServerProbe 的 framework snapshot ↔ controller VO 映射. */
+/**
+ * 服务器检视 Convert
+ *
+ * <p>ServerProbe 的 framework snapshot ↔ controller VO 映射.
+ *
+ * @author nook
+ */
 @Mapper
 public interface ServerInspectorConvert {
 

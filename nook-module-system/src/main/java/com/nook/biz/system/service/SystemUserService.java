@@ -6,6 +6,9 @@ import com.nook.biz.system.controller.user.vo.SystemUserUpdateReqVO;
 import com.nook.biz.system.entity.SystemUser;
 import com.nook.common.web.response.PageResult;
 
+import java.util.Collection;
+import java.util.Map;
+
 /**
  * 后台用户基础读写 + CRUD.
  *
@@ -76,4 +79,12 @@ public interface SystemUserService {
      * @param newPlainPassword 新密码明文
      */
     void resetPassword(String id, String newPlainPassword);
+
+    /**
+     * 批量取 friendly name (realName 优先, 退回 username); 走 selectBatchIds 避免 N+1; 缺失 id 不进结果 map.
+     *
+     * @param userIds id 集合; null / 空返空 map
+     * @return Map of userId → name
+     */
+    Map<String, String> loadUserNameMap(Collection<String> userIds);
 }

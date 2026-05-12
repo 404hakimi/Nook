@@ -30,7 +30,7 @@ public class XrayClientReconcilerJob {
     /**
      * 每日 03:00; 单 server 失败不影响其他.
      */
-    @Scheduled(cron = "${nook.reconciler.cron:0 0 3 * * ?}")
+    //@Scheduled(cron = "${nook.reconciler.cron:0 0 3 * * ?}")
     public void reconcile() {
         List<XrayNodeDO> nodes = xrayNodeMapper.selectList(null);
         if (nodes == null || nodes.isEmpty()) return;

@@ -1,7 +1,7 @@
 package com.nook.biz.node.event;
 
 import com.nook.framework.ssh.core.SshSessionManager;
-import com.nook.biz.node.resource.event.ServerCredentialChangedEvent;
+import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;

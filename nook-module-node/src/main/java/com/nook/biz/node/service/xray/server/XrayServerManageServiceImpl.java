@@ -14,6 +14,7 @@ import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
 import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
+import com.nook.biz.node.service.xray.client.XrayTrafficSampleService;
 import com.nook.biz.operation.api.EnqueueRequest;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.OperationOrchestrator;
@@ -33,6 +34,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * Xray 线路服务器管理 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 public class XrayServerManageServiceImpl implements XrayServerManageService {
@@ -47,6 +53,9 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private XrayNodeService xrayNodeService;
     @Resource
     private SessionCredentialMapper sessionCredentialMapper;
+    /** restart 前置 sample 让流量数据不丢; 失败仅 warn, 不阻塞 restart 主流程 */
+    @Resource
+    private XrayTrafficSampleService trafficSampleService;
     /** @Lazy 破除循环依赖: service → orchestrator → handlerRegistry → handler → service */
     @Lazy
     @Resource
@@ -83,10 +92,10 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                     + reqVO.getXrayVersion() + ")\n");
         }
 
-        // 部署完成 → 初始化 nook 内部状态. xrayNodeService.upsert 内部同事务初始化 slot 池, 杜绝半初始化态.
+        // 部署完成 → 初始化 nook 内部状态. xrayNodeService.upsertXrayNode 内部同事务初始化 slot 池, 杜绝半初始化态.
         // 失败时事务回滚 + 抛错让 emitter 红色完成, 远端 xray 进程已就绪 (可独立重跑 install 修复 nook 状态).
         try {
-            xrayNodeService.upsert(
+            xrayNodeService.upsertXrayNode(
                     serverId,
                     resolvedVersion,
                     reqVO.getXrayApiPort(),
@@ -117,9 +126,17 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     /** XRAY_RESTART handler 直接调本方法; package-private 防止业务代码绕过队列直接调用. */
     String doRestart(String serverId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
-        sink.report("获取 SSH 会话", 30);
+        // restart 是可控的"清零事件" — systemctl restart 后 xray in-memory counter 全归零;
+        // 先 sample 一次把当前增量入库, 让用户层流量统计跨重启不丢. 失败仅 warn, 不阻塞 restart.
+        sink.report("采样流量入库", 20);
+        try {
+            trafficSampleService.sampleServerTraffic(serverId);
+        } catch (Exception e) {
+            log.warn("[restart] server={} 前置 sample 失败, 仍继续 restart: {}", serverId, e.getMessage());
+        }
+        sink.report("获取 SSH 会话", 40);
         SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
-        sink.report("正在执行 systemctl restart", 50);
+        sink.report("正在执行 systemctl restart", 60);
         String out = xrayDaemonProbe.restart(session);
         sink.report("等待进程就绪", 90);
         return out;
@@ -130,7 +147,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
         // ServerProbe 只回通用 systemd 状态 (active/uptime/enabled); xray 专属 (version + 监听端口) 走 XrayDaemonProbe
         SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, XrayConstants.SYSTEMD_UNIT);
-        int apiPort = xrayNodeService.loadOrThrow(serverId).getXrayApiPort();
+        int apiPort = xrayNodeService.getXrayNode(serverId).getXrayApiPort();
         XrayDaemonExtraSnapshot extras = xrayDaemonProbe.readExtras(session, apiPort);
 
         ServiceStatusRespVO vo = new ServiceStatusRespVO();

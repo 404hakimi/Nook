@@ -9,8 +9,8 @@ import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.framework.socks5.probe.Socks5Prober;
-import com.nook.biz.node.resource.entity.ResourceIpPool;
-import com.nook.biz.node.resource.service.ResourceIpPoolService;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
+import com.nook.biz.node.service.resource.ResourceIpPoolService;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSessionManager;
 import jakarta.annotation.Resource;
@@ -23,6 +23,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * SOCKS5 落地节点 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 public class Socks5OpsServiceImpl implements Socks5OpsService {
@@ -37,7 +42,7 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
     private ResourceIpPoolService resourceIpPoolService;
 
     @Override
-    public void installAdHocStreaming(Socks5InstallReqVO reqVO, Consumer<String> lineSink) {
+    public void installSocks5(Socks5InstallReqVO reqVO, Consumer<String> lineSink) {
         // ad-hoc 凭据来自前端表单, 不入 resource_server, 直接构造 framework 值对象绕开业务 DTO
         SessionCredential cred = buildAdHocCred(reqVO);
         Map<String, String> vars = buildVars(reqVO);
@@ -49,8 +54,8 @@ public class Socks5OpsServiceImpl implements Socks5OpsService {
     }
 
     @Override
-    public Socks5TestRespVO testConnectivity(String ipId) {
-        ResourceIpPool ip = resourceIpPoolService.findById(ipId);
+    public Socks5TestRespVO testSocks5(String ipId) {
+        ResourceIpPoolDO ip = resourceIpPoolService.getIpPool(ipId);
         if (StrUtil.isBlank(ip.getIpAddress()) || ObjectUtil.isNull(ip.getSocks5Port())) {
             // 凭据未配置时不调 prober, 直接返回结构化失败 (与"拨号失败"区分)
             Socks5TestRespVO vo = new Socks5TestRespVO();

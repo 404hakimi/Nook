@@ -6,7 +6,11 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
-/** Socks5Prober snapshot ↔ controller VO 映射. */
+/**
+ * Socks5Prober snapshot ↔ controller VO.
+ *
+ * @author nook
+ */
 @Mapper
 public interface Socks5OpsConvert {
 

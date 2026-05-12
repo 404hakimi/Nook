@@ -8,16 +8,17 @@ import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
 import com.nook.biz.node.controller.xray.client.vo.ClientUpdateReqVO;
 import com.nook.biz.node.controller.xray.client.vo.ReplayReportRespVO;
 import com.nook.biz.node.controller.xray.client.vo.SyncStatusRespVO;
-import com.nook.biz.node.convert.xray.client.XrayClientConvert;
+import com.nook.biz.node.convert.xray.XrayClientConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.resource.dto.ServerBriefDTO;
-import com.nook.biz.node.resource.service.ResourceIpPoolService;
-import com.nook.biz.node.resource.service.ResourceServerService;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.service.resource.ResourceIpPoolService;
+import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.client.XrayClientService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -34,12 +35,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Xray 客户端后台管理接口
+ * 管理后台 - Xray Client
  *
  * @author nook
  */
 @RestController
 @RequestMapping("/admin/node/xray/client")
+@Validated
 public class XrayClientController {
 
     @Resource
@@ -50,91 +52,95 @@ public class XrayClientController {
     private ResourceServerService resourceServerService;
 
     @GetMapping
-    public Result<PageResult<ClientRespVO>> page(@ModelAttribute ClientPageReqVO reqVO) {
-        PageResult<XrayClientDO> entities = xrayClientService.page(reqVO);
-        return Result.ok(XrayClientConvert.INSTANCE.convertPage(entities,
-                loadIpAddressMap(XrayClientConvert.collectIpIds(entities.getRecords())),
-                loadServerBriefMap(XrayClientConvert.collectServerIds(entities.getRecords()))));
+    public Result<PageResult<ClientRespVO>> getXrayClientPage(@ModelAttribute ClientPageReqVO pageReqVO) {
+        PageResult<XrayClientDO> pageResult = xrayClientService.getXrayClientPage(pageReqVO);
+        Map<String, String> ipMap = loadIpAddressMap(XrayClientConvert.collectIpIds(pageResult.getRecords()));
+        Map<String, ResourceServerDO> serverMap = loadServerMap(XrayClientConvert.collectServerIds(pageResult.getRecords()));
+        return Result.ok(XrayClientConvert.INSTANCE.convertPage(pageResult, ipMap, serverMap));
     }
 
     @GetMapping("/{id}")
-    public Result<ClientRespVO> detail(@PathVariable String id) {
-        XrayClientDO entity = xrayClientService.findById(id);
+    public Result<ClientRespVO> getXrayClient(@PathVariable("id") String id) {
+        XrayClientDO entity = xrayClientService.getXrayClient(id);
         return Result.ok(convertOne(entity));
     }
 
     @PostMapping("/provision")
-    public Result<ClientRespVO> provision(@RequestBody @Valid ClientProvisionReqVO reqVO) {
-        XrayClientDO client = xrayClientService.provision(reqVO);
+    public Result<ClientRespVO> provisionXrayClient(@RequestBody @Valid ClientProvisionReqVO createReqVO) {
+        XrayClientDO client = xrayClientService.provisionXrayClient(createReqVO);
         return Result.ok(convertOne(client));
     }
 
     @PutMapping("/{id}")
-    public Result<Void> update(@PathVariable String id,
-                               @RequestBody @Valid ClientUpdateReqVO reqVO) {
-        xrayClientService.update(id, reqVO);
-        return Result.ok();
+    public Result<Boolean> updateXrayClient(@PathVariable("id") String id,
+                                            @RequestBody @Valid ClientUpdateReqVO updateReqVO) {
+        xrayClientService.updateXrayClient(id, updateReqVO);
+        return Result.ok(true);
     }
 
     @DeleteMapping("/{id}")
-    public Result<Void> revoke(@PathVariable String id) {
-        xrayClientService.revoke(id);
-        return Result.ok();
+    public Result<Boolean> revokeXrayClient(@PathVariable("id") String id) {
+        xrayClientService.revokeXrayClient(id);
+        return Result.ok(true);
     }
 
     @PostMapping("/{id}/rotate")
-    public Result<ClientRespVO> rotate(@PathVariable String id) {
-        XrayClientDO entity = xrayClientService.rotate(id);
+    public Result<ClientRespVO> rotateXrayClient(@PathVariable("id") String id) {
+        XrayClientDO entity = xrayClientService.rotateXrayClient(id);
         return Result.ok(convertOne(entity));
     }
 
     @GetMapping("/{id}/traffic")
-    public Result<ClientTrafficRespVO> traffic(@PathVariable String id) {
-        return Result.ok(xrayClientService.getTraffic(id));
+    public Result<ClientTrafficRespVO> getXrayClientTraffic(@PathVariable("id") String id) {
+        ClientTrafficRespVO traffic = xrayClientService.getXrayClientTraffic(id);
+        return Result.ok(traffic);
     }
 
     @PostMapping("/{id}/reset-traffic")
-    public Result<Void> resetTraffic(@PathVariable String id) {
-        xrayClientService.resetTraffic(id);
-        return Result.ok();
+    public Result<Boolean> resetXrayClientTraffic(@PathVariable("id") String id) {
+        xrayClientService.resetXrayClientTraffic(id);
+        return Result.ok(true);
     }
 
     @GetMapping("/{id}/credential")
-    public Result<ClientCredentialRespVO> credential(@PathVariable String id) {
-        return Result.ok(xrayClientService.loadCredential(id));
+    public Result<ClientCredentialRespVO> getXrayClientCredential(@PathVariable("id") String id) {
+        ClientCredentialRespVO credential = xrayClientService.getXrayClientCredential(id);
+        return Result.ok(credential);
     }
 
     @GetMapping("/server/{serverId}/sync-status")
-    public Result<SyncStatusRespVO> syncStatus(@PathVariable String serverId) {
-        return Result.ok(xrayClientService.getSyncStatus(serverId));
+    public Result<SyncStatusRespVO> getSyncStatus(@PathVariable("serverId") String serverId) {
+        SyncStatusRespVO status = xrayClientService.getSyncStatus(serverId);
+        return Result.ok(status);
     }
 
     @PostMapping("/{id}/sync")
-    public Result<Void> sync(@PathVariable String id) {
-        xrayClientService.syncOne(id);
-        return Result.ok();
+    public Result<Boolean> syncXrayClient(@PathVariable("id") String id) {
+        xrayClientService.syncXrayClient(id);
+        return Result.ok(true);
     }
 
     @PostMapping("/server/{serverId}/replay")
-    public Result<ReplayReportRespVO> replay(@PathVariable String serverId) {
-        return Result.ok(xrayClientService.replayServer(serverId));
+    public Result<ReplayReportRespVO> replayServer(@PathVariable("serverId") String serverId) {
+        ReplayReportRespVO report = xrayClientService.replayServer(serverId);
+        return Result.ok(report);
     }
 
     /** 单条 detail / provision / rotate 共用的 enrich 路径. */
     private ClientRespVO convertOne(XrayClientDO entity) {
         List<XrayClientDO> single = Collections.singletonList(entity);
-        return XrayClientConvert.INSTANCE.convert(entity,
-                loadIpAddressMap(XrayClientConvert.collectIpIds(single)),
-                loadServerBriefMap(XrayClientConvert.collectServerIds(single)));
+        Map<String, String> ipMap = loadIpAddressMap(XrayClientConvert.collectIpIds(single));
+        Map<String, ResourceServerDO> serverMap = loadServerMap(XrayClientConvert.collectServerIds(single));
+        return XrayClientConvert.INSTANCE.convert(entity, ipMap, serverMap);
     }
 
     private Map<String, String> loadIpAddressMap(Set<String> ipIds) {
         if (ipIds.isEmpty()) return Collections.emptyMap();
-        return resourceIpPoolService.loadIpAddressMap(ipIds);
+        return resourceIpPoolService.getIpAddressMap(ipIds);
     }
 
-    private Map<String, ServerBriefDTO> loadServerBriefMap(Set<String> serverIds) {
+    private Map<String, ResourceServerDO> loadServerMap(Set<String> serverIds) {
         if (serverIds.isEmpty()) return Collections.emptyMap();
-        return resourceServerService.loadBriefMap(serverIds);
+        return resourceServerService.getServerMap(serverIds);
     }
 }
