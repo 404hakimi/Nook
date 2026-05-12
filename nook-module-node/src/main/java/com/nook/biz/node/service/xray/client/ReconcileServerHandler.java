@@ -1,8 +1,8 @@
 package com.nook.biz.node.service.xray.client;
 
 import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.OperationContext;
-import com.nook.biz.operation.api.OperationHandler;
+import com.nook.biz.operation.api.spi.OperationContext;
+import com.nook.biz.operation.api.spi.OperationHandler;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 

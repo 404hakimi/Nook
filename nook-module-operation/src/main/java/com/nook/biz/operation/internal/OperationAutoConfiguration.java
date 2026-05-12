@@ -1,14 +1,24 @@
 package com.nook.biz.operation.internal;
 
-import com.nook.biz.operation.api.OperationHandler;
-import com.nook.biz.operation.api.OperationOrchestrator;
+import com.nook.biz.operation.api.spi.OpConfigResolver;
+import com.nook.biz.operation.api.spi.OperationHandler;
+import com.nook.biz.operation.api.spi.OperationOrchestrator;
 import com.nook.biz.operation.config.OpOrchestratorProperties;
 import com.nook.biz.operation.config.OpTimeoutProperties;
-import com.nook.biz.operation.internal.ws.OpProgressHub;
-import com.nook.biz.operation.mapper.OpLogMapper;
+import com.nook.biz.operation.dal.mysql.mapper.OpConfigMapper;
+import com.nook.biz.operation.dal.mysql.mapper.OpLogMapper;
+import com.nook.biz.operation.internal.orchestrator.DefaultOperationOrchestrator;
+import com.nook.biz.operation.internal.orchestrator.HandlerRegistry;
+import com.nook.biz.operation.internal.orchestrator.OpWatchdog;
+import com.nook.biz.operation.internal.progress.ws.OpProgressHub;
+import com.nook.biz.operation.internal.resolver.DefaultOpConfigResolver;
+import com.nook.biz.operation.internal.startup.OpConfigBootstrapper;
+import com.nook.biz.operation.internal.startup.OpStartupCleaner;
+import com.nook.biz.operation.service.OpConfigService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 
 import java.util.List;
@@ -19,7 +29,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * nook-biz-operation 自动装配; 由 META-INF/spring/.../AutoConfiguration.imports 引导.
+ * nook-biz-operation 自动装配; 由 META-INF/spring/.../AutoConfiguration.imports 引导
  *
  * @author nook
  */
@@ -62,14 +72,29 @@ public class OperationAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public OpConfigResolver opConfigResolver(OpConfigMapper opConfigMapper,
+                                             OpTimeoutProperties opTimeoutProperties) {
+        return new DefaultOpConfigResolver(opConfigMapper, opTimeoutProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public OpConfigBootstrapper opConfigBootstrapper(OpConfigService opConfigService,
+                                                     OpTimeoutProperties opTimeoutProperties,
+                                                     ApplicationEventPublisher publisher) {
+        return new OpConfigBootstrapper(opConfigService, opTimeoutProperties, publisher);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public OperationOrchestrator operationOrchestrator(OpLogMapper opLogMapper,
                                                        HandlerRegistry operationHandlerRegistry,
-                                                       OpTimeoutProperties timeoutProps,
+                                                       OpConfigResolver opConfigResolver,
                                                        OpWatchdog operationWatchdog,
                                                        ExecutorService operationWorkerPool,
                                                        OpProgressHub opProgressHub) {
         return new DefaultOperationOrchestrator(opLogMapper, operationHandlerRegistry,
-                timeoutProps, operationWatchdog, operationWorkerPool, opProgressHub);
+                opConfigResolver, operationWatchdog, operationWorkerPool, opProgressHub);
     }
 
     @Bean

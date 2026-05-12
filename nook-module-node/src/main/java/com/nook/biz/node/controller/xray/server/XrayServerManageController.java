@@ -1,5 +1,6 @@
 package com.nook.biz.node.controller.xray.server;
 
+import com.nook.biz.node.config.WebStreamingProperties;
 import com.nook.biz.node.controller.xray.server.vo.LineServerInstallReqVO;
 import com.nook.biz.node.controller.xray.server.vo.ServiceStatusRespVO;
 import com.nook.biz.node.service.resource.ResourceServerService;
@@ -31,15 +32,14 @@ import java.time.Duration;
 @Validated
 public class XrayServerManageController {
 
-    /** Emitter 超时 = installTimeoutSeconds + buffer, 留给 service 主动报错 / 收尾的余地. */
-    private static final Duration EMITTER_BUFFER = Duration.ofSeconds(60);
-
     @Resource
     private XrayServerManageService xrayServerManageService;
     @Resource
     private StreamingEndpointSupport streamingSupport;
     @Resource
     private ResourceServerService resourceServerService;
+    @Resource
+    private WebStreamingProperties webStreamingProperties;
 
     @GetMapping("/{id}/status")
     public Result<ServiceStatusRespVO> getXrayStatus(@PathVariable("id") String id) {
@@ -63,9 +63,9 @@ public class XrayServerManageController {
     @PostMapping(value = "/{id}/install", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter installXray(@PathVariable("id") String id,
                                            @RequestBody @Valid LineServerInstallReqVO reqVO) {
-        // Emitter 端比 install 端略宽 (+60s), 保证 Service 自己 timeout 时还能把错误吐回前端
+        // Emitter 端比 install 端略宽, 保证 Service 自己 timeout 时还能把错误吐回前端
         int installTimeout = resourceServerService.getServer(id).getInstallTimeoutSeconds();
-        Duration emitterTimeout = Duration.ofSeconds(installTimeout).plus(EMITTER_BUFFER);
+        Duration emitterTimeout = Duration.ofSeconds(installTimeout).plus(webStreamingProperties.getEmitterBuffer());
         return streamingSupport.stream("install:" + id, emitterTimeout,
                 lineSink -> xrayServerManageService.installStreaming(id, reqVO, lineSink));
     }

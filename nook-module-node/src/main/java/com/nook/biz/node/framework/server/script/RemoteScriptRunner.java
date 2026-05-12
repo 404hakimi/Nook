@@ -1,9 +1,11 @@
 package com.nook.biz.node.framework.server.script;
 
 import cn.hutool.core.io.resource.ResourceUtil;
+import com.nook.biz.node.config.ServerOpsProperties;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.common.web.exception.BusinessException;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -20,8 +22,8 @@ import java.util.function.Consumer;
 @Component
 public class RemoteScriptRunner {
 
-    /** 兜底清理超时; 远端 rm -f */
-    private static final Duration CLEANUP_TIMEOUT = Duration.ofSeconds(20);
+    @Resource
+    private ServerOpsProperties serverOpsProperties;
 
     /**
      * 渲染 classpath 模板 + 流式跑, 每行 stdout 回调; 单文件模板专用.
@@ -75,7 +77,7 @@ public class RemoteScriptRunner {
             lineConsumer.accept("[nook] ────────────────────────────────────────");
             lineConsumer.accept("[nook] 远端脚本已结束, 临时文件已清理");
         } finally {
-            cleanupQuietly(session, remote);
+            cleanupQuietly(session, remote, serverOpsProperties.getScriptCleanupTimeout());
         }
     }
 
@@ -101,16 +103,11 @@ public class RemoteScriptRunner {
         return tmpl;
     }
 
-    /**
-     * 远端临时脚本兜底清理; 静默吞错避免覆盖原始失败原因.
-     *
-     * @param session    已就绪 SSH 会话
-     * @param remotePath 远端临时脚本绝对路径
-     */
-    private static void cleanupQuietly(SshSession session, String remotePath) {
+    /** 远端临时脚本兜底清理; 静默吞错避免覆盖原始失败原因. */
+    private static void cleanupQuietly(SshSession session, String remotePath, Duration cleanupTimeout) {
         try {
             String safe = remotePath.replace("'", "'\\''");
-            session.ssh().exec("rm -f '" + safe + "'", CLEANUP_TIMEOUT);
+            session.ssh().exec("rm -f '" + safe + "'", cleanupTimeout);
         } catch (RuntimeException cleanupErr) {
             log.warn("[script-runner] 清理临时脚本失败 server={} path={}",
                     session.serverId(), remotePath, cleanupErr);

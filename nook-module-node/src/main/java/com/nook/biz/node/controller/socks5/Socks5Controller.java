@@ -1,8 +1,10 @@
 package com.nook.biz.node.controller.socks5;
 
+import com.nook.biz.node.config.Socks5Properties;
+import com.nook.biz.node.config.WebStreamingProperties;
 import com.nook.biz.node.controller.socks5.vo.Socks5InstallReqVO;
 import com.nook.biz.node.controller.socks5.vo.Socks5TestRespVO;
-import com.nook.biz.node.service.socks5.Socks5OpsService;
+import com.nook.biz.node.service.resource.ResourceIpSocksService;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.StreamingEndpointSupport;
 import jakarta.annotation.Resource;
@@ -28,31 +30,29 @@ import java.time.Duration;
 @Validated
 public class Socks5Controller {
 
-    /** Emitter 端比 install 端多留的余量, 给 service 自身超时收尾的窗口. */
-    private static final Duration EMITTER_BUFFER = Duration.ofSeconds(60);
-
-    /** install 超时缺省值 (秒); reqVO.installTimeoutSeconds 为空时兜底. */
-    private static final long DEFAULT_INSTALL_TIMEOUT_SECONDS = 600L;
-
     @Resource
-    private Socks5OpsService socks5OpsService;
+    private ResourceIpSocksService resourceIpSocksService;
     @Resource
     private StreamingEndpointSupport streamingSupport;
+    @Resource
+    private WebStreamingProperties webStreamingProperties;
+    @Resource
+    private Socks5Properties socks5Properties;
 
     @PostMapping(value = "/install", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter installSocks5(@RequestBody @Valid Socks5InstallReqVO reqVO) {
-        // Emitter 端比 install 端长一点, 留 service 主动报错的窗口; 缺 installTimeoutSeconds 走兜底, service validator 仍会拒
+        // 缺 installTimeoutSeconds 走兜底, service validator 仍会拒空请求
         long secs = reqVO != null && reqVO.getInstallTimeoutSeconds() != null
-                ? reqVO.getInstallTimeoutSeconds() : DEFAULT_INSTALL_TIMEOUT_SECONDS;
-        Duration emitterTimeout = Duration.ofSeconds(secs).plus(EMITTER_BUFFER);
+                ? reqVO.getInstallTimeoutSeconds() : socks5Properties.getDefaultInstallTimeoutSeconds();
+        Duration emitterTimeout = Duration.ofSeconds(secs).plus(webStreamingProperties.getEmitterBuffer());
         String streamKey = "socks5:" + (reqVO != null ? reqVO.getSshHost() : "unknown");
         return streamingSupport.stream(streamKey, emitterTimeout,
-                lineSink -> socks5OpsService.installSocks5(reqVO, lineSink));
+                lineSink -> resourceIpSocksService.installSocks5(reqVO, lineSink));
     }
 
     @PostMapping("/{ipId}/test")
     public Result<Socks5TestRespVO> testSocks5(@PathVariable("ipId") String ipId) {
-        Socks5TestRespVO result = socks5OpsService.testSocks5(ipId);
+        Socks5TestRespVO result = resourceIpSocksService.testSocks5(ipId);
         return Result.ok(result);
     }
 }

@@ -15,9 +15,10 @@ import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
 import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.service.xray.client.XrayTrafficSampleService;
-import com.nook.biz.operation.api.EnqueueRequest;
+import com.nook.biz.operation.api.dto.EnqueueRequest;
+import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.OperationOrchestrator;
+import com.nook.biz.operation.api.spi.OperationOrchestrator;
 import com.nook.biz.operation.api.ProgressSink;
 import com.nook.framework.security.stp.StpSystemUtil;
 import org.springframework.context.annotation.Lazy;
@@ -60,11 +61,8 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     @Lazy
     @Resource
     private OperationOrchestrator operationOrchestrator;
-
-    /** restart op 在队列中等待并执行的最长时间; 实际超时由 nook.op.timeouts.XRAY_RESTART 控制 */
-    private static final Duration RESTART_WAIT = Duration.ofMinutes(2);
-    /** autostart 切换很快; 队列等待 1 分钟够 */
-    private static final Duration AUTOSTART_WAIT = Duration.ofMinutes(1);
+    @Resource
+    private OpConfigResolver opConfigResolver;
 
     @Override
     public void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink) {
@@ -120,7 +118,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                 .opType(OpType.XRAY_RESTART.name())
                 .operator(currentOperator())
                 .build();
-        return operationOrchestrator.submitAndWait(req, RESTART_WAIT, String.class);
+        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.XRAY_RESTART.name()), String.class);
     }
 
     /** XRAY_RESTART handler 直接调本方法; package-private 防止业务代码绕过队列直接调用. */
@@ -170,7 +168,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                 .operator(currentOperator())
                 .paramsJson(params.toJSONString())
                 .build();
-        return operationOrchestrator.submitAndWait(req, AUTOSTART_WAIT, String.class);
+        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_AUTOSTART.name()), String.class);
     }
 
     /** SERVER_AUTOSTART handler 调本方法. */

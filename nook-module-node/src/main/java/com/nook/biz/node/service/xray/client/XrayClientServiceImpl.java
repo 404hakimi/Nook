@@ -31,9 +31,10 @@ import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
 import com.nook.biz.node.validator.XrayClientValidator;
-import com.nook.biz.operation.api.EnqueueRequest;
+import com.nook.biz.operation.api.dto.EnqueueRequest;
+import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.OperationOrchestrator;
+import com.nook.biz.operation.api.spi.OperationOrchestrator;
 import com.nook.biz.operation.api.ProgressSink;
 import com.nook.framework.security.stp.StpSystemUtil;
 import org.springframework.context.annotation.Lazy;
@@ -98,18 +99,12 @@ public class XrayClientServiceImpl implements XrayClientService {
     private SessionCredentialMapper sessionCredentialMapper;
     @Resource
     private XrayTrafficSampleService trafficSampleService;
+    @Resource
+    private OpConfigResolver opConfigResolver;
     /** @Lazy 破除循环依赖: service → orchestrator → handlerRegistry → handler → service */
     @Lazy
     @Resource
     private OperationOrchestrator operationOrchestrator;
-
-    /** 各 op 排队 + 等执行的最大时长 (与 nook.op.timeouts 配合; 一般略大于实际超时) */
-    private static final Duration WAIT_PROVISION = Duration.ofMinutes(3);
-    private static final Duration WAIT_REVOKE    = Duration.ofMinutes(2);
-    private static final Duration WAIT_ROTATE    = Duration.ofMinutes(2);
-    private static final Duration WAIT_SYNC      = Duration.ofMinutes(2);
-    private static final Duration WAIT_REPLAY    = Duration.ofMinutes(35);
-    private static final Duration WAIT_RECONCILE = Duration.ofMinutes(10);
 
     @Override
     public XrayClientDO getXrayClient(String id) {
@@ -132,7 +127,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .paramsJson(JSON.toJSONString(reqVO))
                 .allowDuplicate(true) // 新建资源, 多个并发 provision 应排队 FIFO 跑而非互斥
                 .build();
-        return operationOrchestrator.submitAndWait(req, WAIT_PROVISION, XrayClientDO.class);
+        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_PROVISION.name()), XrayClientDO.class);
     }
 
     /** CLIENT_PROVISION handler 调本方法; package-private 防止业务代码绕过队列. */
@@ -255,7 +250,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .operator(currentOperator())
                 .paramsJson("{\"clientId\":\"" + inboundEntityId + "\"}")
                 .build();
-        operationOrchestrator.submitAndWait(req, WAIT_REVOKE, Void.class);
+        operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_REVOKE.name()), Void.class);
     }
 
     /** CLIENT_REVOKE handler 调本方法. */
@@ -329,7 +324,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .operator(currentOperator())
                 .paramsJson("{\"clientId\":\"" + inboundEntityId + "\"}")
                 .build();
-        return operationOrchestrator.submitAndWait(req, WAIT_ROTATE, XrayClientDO.class);
+        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_ROTATE.name()), XrayClientDO.class);
     }
 
     /** CLIENT_ROTATE handler 调本方法. */
@@ -474,7 +469,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .operator(currentOperator())
                 .paramsJson("{\"clientId\":\"" + clientId + "\"}")
                 .build();
-        operationOrchestrator.submitAndWait(req, WAIT_SYNC, Void.class);
+        operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_SYNC.name()), Void.class);
     }
 
     /** CLIENT_SYNC handler 调本方法; progress 让 caller 控, replay 场景循环复用本方法可传 noop. */
@@ -497,7 +492,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .opType(OpType.SERVER_REPLAY.name())
                 .operator(currentOperator())
                 .build();
-        return operationOrchestrator.submitAndWait(req, WAIT_REPLAY, ReplayReportRespVO.class);
+        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_REPLAY.name()), ReplayReportRespVO.class);
     }
 
     /** SERVER_REPLAY handler 调本方法. */
@@ -517,7 +512,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .opType(OpType.SERVER_RECONCILE.name())
                 .operator("SCHEDULER")
                 .build();
-        operationOrchestrator.submitAndWait(req, WAIT_RECONCILE, Void.class);
+        operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_RECONCILE.name()), Void.class);
     }
 
     /** SERVER_RECONCILE handler 调本方法. */

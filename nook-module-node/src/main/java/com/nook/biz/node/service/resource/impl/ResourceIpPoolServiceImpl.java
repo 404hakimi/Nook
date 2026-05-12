@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nook.biz.node.config.ResourceIpPoolProperties;
 import com.nook.biz.node.controller.resource.ip.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.node.controller.resource.ip.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
@@ -39,12 +40,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
-    /** 抢占失败重试次数; SELECT-then-UPDATE 防双卖偶尔会与并发兑换抢同一行 */
-    private static final int OCCUPY_RETRY = 2;
-
     private final ResourceIpPoolMapper resourceIpPoolMapper;
     private final ResourceIpTypeMapper resourceIpTypeMapper;
     private final ResourceIpPoolValidator ipPoolValidator;
+    private final ResourceIpPoolProperties resourceIpPoolProperties;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -101,7 +100,8 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     public ResourceIpPoolDO occupyOne(String region, String ipTypeId, String memberUserId) {
         // 防并发双卖: selectAvailable 拿到候选 → markOccupied(WHERE status=AVAILABLE) 原子改; 0 行受影响 = 被别人抢了, 重试
         String lastIp = "";
-        for (int i = 0; i <= OCCUPY_RETRY; i++) {
+        int maxRetry = resourceIpPoolProperties.getOccupyRetry();
+        for (int i = 0; i <= maxRetry; i++) {
             ResourceIpPoolDO candidate = resourceIpPoolMapper.selectAvailable(region, ipTypeId);
             if (ObjectUtil.isNull(candidate)) {
                 throw new BusinessException(ResourceErrorCode.IP_POOL_EXHAUSTED,

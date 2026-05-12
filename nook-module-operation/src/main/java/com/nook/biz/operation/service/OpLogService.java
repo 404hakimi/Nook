@@ -2,7 +2,7 @@ package com.nook.biz.operation.service;
 
 import com.nook.biz.operation.api.OpStatus;
 import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.persistence.OpLog;
+import com.nook.biz.operation.dal.dataobject.OpLogDO;
 import com.nook.common.web.response.PageResult;
 
 /**
@@ -22,15 +22,15 @@ public interface OpLogService {
      * @param opType   操作类型过滤; null = 不过滤
      * @return DO 分页结果
      */
-    PageResult<OpLog> page(int pageNo, int pageSize, OpStatus status, String serverId, OpType opType);
+    PageResult<OpLogDO> page(int pageNo, int pageSize, OpStatus status, String serverId, OpType opType);
 
     /**
      * 按 id 加载; 不存在抛 BusinessException.
      *
      * @param id op_log.id
-     * @return OpLog
+     * @return OpLogDO
      */
-    OpLog findById(String id);
+    OpLogDO findById(String id);
 
     /**
      * 取消队列中的 op; 仅 QUEUED 生效, 其余状态返 false.

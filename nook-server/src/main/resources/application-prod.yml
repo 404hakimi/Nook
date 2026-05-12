@@ -27,6 +27,26 @@ nook:
     grpc-local-port-base: 10085
   monitor:
     snapshot-interval-seconds: 300
+  traffic:
+    # xray in-memory stats 定时入库; 关闭后 getTraffic 退化为只看 in-memory (跨重启会丢)
+    enabled: true
+    # 采样间隔 ms; 默认 30 min, 与 XRAY_RESTART 前置 sample 配合, 实际丢失窗口 ≤ 30 min
+    sample-interval-ms: 1800000
+    # 应用启动后多久跑第一次 sweep, 避免 xray_node 缓存 / SSH manager 还没就绪
+    initial-delay-ms: 60000
+  # Op 调度: timeouts = handler exec 上限 (watchdog 切线程); wait-timeouts 不配则按 exec + queue-grace 派生
+  op:
+    default-timeout: 2m
+    queue-grace-period: 30s
+    timeouts:
+      CLIENT_PROVISION: 2m30s
+      CLIENT_REVOKE: 1m30s
+      CLIENT_ROTATE: 1m30s
+      CLIENT_SYNC: 1m30s
+      SERVER_REPLAY: 30m
+      SERVER_RECONCILE: 9m30s
+      XRAY_RESTART: 1m30s
+      SERVER_AUTOSTART: 30s
 
 logging:
   level:

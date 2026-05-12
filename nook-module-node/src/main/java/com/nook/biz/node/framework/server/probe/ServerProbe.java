@@ -1,6 +1,7 @@
 package com.nook.biz.node.framework.server.probe;
 
 import cn.hutool.core.util.StrUtil;
+import com.nook.biz.node.config.ServerOpsProperties;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.framework.server.snapshot.ConnectivitySnapshot;
 import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
@@ -8,10 +9,10 @@ import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.common.web.exception.BusinessException;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,15 +26,15 @@ import java.util.regex.Pattern;
 @Component
 public class ServerProbe {
 
-    /** 探活专用短超时 */
-    private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(10);
-
     /** 日志默认行数 / 上限; 上限 5000 防止前端误传超大值把 journalctl 拖死. */
     private static final int DEFAULT_LOG_LINES = 100;
     private static final int MAX_LOG_LINES = 5000;
 
     /** systemd unit 合法字符 (字母/数字/._-@); 直接拼到 shell 前必须校验防注入. */
     private static final Pattern UNIT_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9._@-]{1,128}$");
+
+    @Resource
+    private ServerOpsProperties serverOpsProperties;
 
     /**
      * 在已 acquire 的 session 上跑 'true' 验证 shell 通道; 与"无法连"区分由业务侧捕获 acquire 异常.
@@ -44,7 +45,7 @@ public class ServerProbe {
     public ConnectivitySnapshot probeConnectivity(SshSession session) {
         long start = System.currentTimeMillis();
         try {
-            session.ssh().exec("true", PROBE_TIMEOUT);
+            session.ssh().exec("true", serverOpsProperties.getProbeTimeout());
             long elapsed = System.currentTimeMillis() - start;
             log.info("[probe] OK server={} elapsed={}ms", session.serverId(), elapsed);
             return new ConnectivitySnapshot(true, elapsed, null);

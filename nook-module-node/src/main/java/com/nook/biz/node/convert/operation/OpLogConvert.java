@@ -2,7 +2,7 @@ package com.nook.biz.node.convert.operation;
 
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.controller.operation.vo.OpLogRespVO;
-import com.nook.biz.operation.persistence.OpLog;
+import com.nook.biz.operation.dal.dataobject.OpLogDO;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.Mapper;
@@ -24,10 +24,10 @@ public interface OpLogConvert {
 
     OpLogConvert INSTANCE = Mappers.getMapper(OpLogConvert.class);
 
-    OpLogRespVO convert(OpLog entity);
+    OpLogRespVO convert(OpLogDO entity);
 
     /** 列表用: 去掉 paramsJson + errorMsg (大字段), 加 elapsedMs. */
-    default OpLogRespVO convertForList(OpLog entity) {
+    default OpLogRespVO convertForList(OpLogDO entity) {
         OpLogRespVO vo = convert(entity);
         if (vo == null) return null;
         vo.setParamsJson(null);
@@ -37,7 +37,7 @@ public interface OpLogConvert {
     }
 
     /** 详情用: 全量字段 + elapsedMs. */
-    default OpLogRespVO convertForDetail(OpLog entity) {
+    default OpLogRespVO convertForDetail(OpLogDO entity) {
         OpLogRespVO vo = convert(entity);
         if (vo == null) return null;
         vo.setElapsedMs(elapsedMs(entity));
@@ -53,7 +53,7 @@ public interface OpLogConvert {
      * @param targetNames   Map of targetId → targetName
      * @return VO 分页
      */
-    default PageResult<OpLogRespVO> convertPageWithInfo(PageResult<OpLog> page,
+    default PageResult<OpLogRespVO> convertPageWithInfo(PageResult<OpLogDO> page,
                                                        Map<String, String> serverNames,
                                                        Map<String, String> operatorNames,
                                                        Map<String, String> targetNames) {
@@ -65,7 +65,7 @@ public interface OpLogConvert {
     }
 
     /** 详情 + 名称回填. */
-    default OpLogRespVO convertForDetailWithInfo(OpLog entity,
+    default OpLogRespVO convertForDetailWithInfo(OpLogDO entity,
                                                   Map<String, String> serverNames,
                                                   Map<String, String> operatorNames,
                                                   Map<String, String> targetNames) {
@@ -77,22 +77,22 @@ public interface OpLogConvert {
     }
 
     /** 抽 serverId 去重集合; 供 controller 批量查 server. */
-    static Set<String> extractServerIds(Collection<OpLog> entities) {
-        return CollectionUtils.convertSet(entities, OpLog::getServerId, e -> StrUtil.isNotBlank(e.getServerId()));
+    static Set<String> extractServerIds(Collection<OpLogDO> entities) {
+        return CollectionUtils.convertSet(entities, OpLogDO::getServerId, e -> StrUtil.isNotBlank(e.getServerId()));
     }
 
     /** 抽 operator 去重集合 (含系统占位符如 SYSTEM / SCHEDULER). */
-    static Set<String> extractOperatorIds(Collection<OpLog> entities) {
-        return CollectionUtils.convertSet(entities, OpLog::getOperator, e -> StrUtil.isNotBlank(e.getOperator()));
+    static Set<String> extractOperatorIds(Collection<OpLogDO> entities) {
+        return CollectionUtils.convertSet(entities, OpLogDO::getOperator, e -> StrUtil.isNotBlank(e.getOperator()));
     }
 
     /** 抽 targetId 去重集合 (server 级 op 没 targetId, 过滤掉). */
-    static Set<String> extractTargetIds(Collection<OpLog> entities) {
-        return CollectionUtils.convertSet(entities, OpLog::getTargetId, e -> StrUtil.isNotBlank(e.getTargetId()));
+    static Set<String> extractTargetIds(Collection<OpLogDO> entities) {
+        return CollectionUtils.convertSet(entities, OpLogDO::getTargetId, e -> StrUtil.isNotBlank(e.getTargetId()));
     }
 
     /** 算 started_at → ended_at 的毫秒差; 任一为 null 返 null. */
-    static Long elapsedMs(OpLog e) {
+    static Long elapsedMs(OpLogDO e) {
         if (e == null || e.getStartedAt() == null || e.getEndedAt() == null) return null;
         return Duration.between(e.getStartedAt(), e.getEndedAt()).toMillis();
     }

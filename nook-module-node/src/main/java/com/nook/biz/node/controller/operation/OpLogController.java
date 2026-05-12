@@ -5,7 +5,7 @@ import com.nook.biz.node.controller.operation.vo.OpLogRespVO;
 import com.nook.biz.node.convert.operation.OpLogConvert;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.client.XrayClientService;
-import com.nook.biz.operation.persistence.OpLog;
+import com.nook.biz.operation.dal.dataobject.OpLogDO;
 import com.nook.biz.operation.service.OpLogService;
 import com.nook.biz.system.service.SystemUserService;
 import com.nook.common.web.response.PageResult;
@@ -45,9 +45,9 @@ public class OpLogController {
 
     @GetMapping
     public Result<PageResult<OpLogRespVO>> getOpLogPage(@ModelAttribute OpLogPageReqVO pageReqVO) {
-        PageResult<OpLog> pageResult = opLogService.page(pageReqVO.getPageNo(), pageReqVO.getPageSize(),
+        PageResult<OpLogDO> pageResult = opLogService.page(pageReqVO.getPageNo(), pageReqVO.getPageSize(),
                 pageReqVO.getStatus(), pageReqVO.getServerId(), pageReqVO.getOpType());
-        List<OpLog> rows = pageResult.getRecords();
+        List<OpLogDO> rows = pageResult.getRecords();
 
         // 批量回填名称: server / 操作人 / target (xray_client.email)
         Set<String> serverIds = OpLogConvert.extractServerIds(rows);
@@ -63,8 +63,8 @@ public class OpLogController {
 
     @GetMapping("/{id}")
     public Result<OpLogRespVO> getOpLog(@PathVariable("id") String id) {
-        OpLog entity = opLogService.findById(id);
-        List<OpLog> single = Collections.singletonList(entity);
+        OpLogDO entity = opLogService.findById(id);
+        List<OpLogDO> single = Collections.singletonList(entity);
         Map<String, String> serverNames = resourceServerService.getServerNameMap(OpLogConvert.extractServerIds(single));
         Map<String, String> operatorNames = systemUserService.loadUserNameMap(OpLogConvert.extractOperatorIds(single));
         Map<String, String> targetNames = xrayClientService.getEmailMap(OpLogConvert.extractTargetIds(single));
