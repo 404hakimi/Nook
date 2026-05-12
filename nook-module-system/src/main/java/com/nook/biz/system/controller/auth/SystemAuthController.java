@@ -48,7 +48,7 @@ public class SystemAuthController {
     public Result<SystemUserRespVO> me() {
         SystemUser user = systemUserService.findById(StpSystemUtil.getLoginIdAsString());
         if (ObjectUtil.isNull(user)) {
-            // 极端场景：token 还在但用户已被物理删除
+            // 极端场景: token 还在但用户已被逻辑删除 (deleted=1, MP 默认过滤掉了)
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
         }
         return Result.ok(SystemUserConvert.INSTANCE.convert(user));
