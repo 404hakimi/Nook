@@ -1,7 +1,7 @@
 package com.nook.biz.node.service.xray.server;
 
-import com.nook.biz.node.controller.xray.server.vo.LineServerInstallReqVO;
-import com.nook.biz.node.controller.xray.server.vo.ServiceStatusRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 
 import java.util.function.Consumer;
 
@@ -21,7 +21,7 @@ public interface XrayServerManageService {
      * @param reqVO    安装参数
      * @param lineSink 每行 stdout 的消费回调
      */
-    void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink);
+    void installStreaming(String serverId, XrayServerInstallReqVO reqVO, Consumer<String> lineSink);
 
     /**
      * 重启 Xray 服务, 客户连接会断 1-2 秒.
@@ -37,7 +37,7 @@ public interface XrayServerManageService {
      * @param serverId 服务器ID
      * @return ServiceStatusRespVO
      */
-    ServiceStatusRespVO getXraySystemdStatus(String serverId);
+    XrayServerStatusRespVO getXraySystemdStatus(String serverId);
 
     /**
      * 开/关 Xray 开机自启 (systemctl enable/disable), 末尾返回 is-enabled 结果给前端确认.

@@ -1,6 +1,6 @@
 package com.nook.biz.node.convert.resource;
 
-import com.nook.biz.node.controller.resource.server.vo.ResourceServerRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.Mapper;

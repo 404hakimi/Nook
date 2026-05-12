@@ -1,12 +1,12 @@
 package com.nook.biz.node.service.xray.client;
 
-import com.nook.biz.node.controller.xray.client.vo.ClientCredentialRespVO;
-import com.nook.biz.node.controller.xray.client.vo.ClientPageReqVO;
-import com.nook.biz.node.controller.xray.client.vo.ClientProvisionReqVO;
-import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
-import com.nook.biz.node.controller.xray.client.vo.ClientUpdateReqVO;
-import com.nook.biz.node.controller.xray.client.vo.ReplayReportRespVO;
-import com.nook.biz.node.controller.xray.client.vo.SyncStatusRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientTrafficRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientUpdateReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.common.web.response.PageResult;
 
@@ -36,7 +36,7 @@ public interface XrayClientService {
      * @param pageReqVO 分页 + 过滤条件
      * @return 分页结果
      */
-    PageResult<XrayClientDO> getXrayClientPage(ClientPageReqVO pageReqVO);
+    PageResult<XrayClientDO> getXrayClientPage(XrayClientPageReqVO pageReqVO);
 
     /**
      * 开通 Xray Client; 远端 addUser 成功后才落 DB; 同 (memberUserId, ipId) 已存在抛 CLIENT_DUPLICATE
@@ -44,7 +44,7 @@ public interface XrayClientService {
      * @param createReqVO 开通入参
      * @return 新开通的 Client
      */
-    XrayClientDO provisionXrayClient(ClientProvisionReqVO createReqVO);
+    XrayClientDO provisionXrayClient(XrayClientProvisionReqVO createReqVO);
 
     /**
      * 吊销 Xray Client; 远端先删再硬删 DB
@@ -67,7 +67,7 @@ public interface XrayClientService {
      * @param id xray_client.id
      * @return 流量信息
      */
-    ClientTrafficRespVO getXrayClientTraffic(String id);
+    XrayClientTrafficRespVO getXrayClientTraffic(String id);
 
     /**
      * 累计上下行计数清零, 不影响 client 本身
@@ -82,7 +82,7 @@ public interface XrayClientService {
      * @param id          xray_client.id
      * @param updateReqVO 更新入参
      */
-    void updateXrayClient(String id, ClientUpdateReqVO updateReqVO);
+    void updateXrayClient(String id, XrayClientUpdateReqVO updateReqVO);
 
     /**
      * 获得 Xray Client 协议级凭据明文 (UUID + 服务器 host), 拼订阅链接用; 与 list/detail 的 mask 行为区分
@@ -90,7 +90,7 @@ public interface XrayClientService {
      * @param id xray_client.id
      * @return 凭据信息
      */
-    ClientCredentialRespVO getXrayClientCredential(String id);
+    XrayClientCredentialRespVO getXrayClientCredential(String id);
 
     /**
      * 获得 server 远端 vs DB 对账结果; 返回 ok / 缺失 / 孤儿 三类 tag
@@ -98,7 +98,7 @@ public interface XrayClientService {
      * @param serverId resource_server.id
      * @return 对账结果
      */
-    SyncStatusRespVO getSyncStatus(String serverId);
+    XrayClientSyncStatusRespVO getSyncStatus(String serverId);
 
     /**
      * 把单条 Xray Client 推到远端 (幂等: 远端有就先删再加); 失败标 status=3 抛错
@@ -113,7 +113,7 @@ public interface XrayClientService {
      * @param serverId resource_server.id
      * @return Replay 报告
      */
-    ReplayReportRespVO replayServer(String serverId);
+    XrayClientReplayReportRespVO replayServer(String serverId);
 
     /**
      * Reconciler 调度入口: 探 xray uptime, 检测到重启 (uptime 比 last_xray_uptime 新) 才 replay 该 server

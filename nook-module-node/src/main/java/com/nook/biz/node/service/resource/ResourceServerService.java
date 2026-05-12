@@ -1,7 +1,7 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.resource.server.vo.ResourceServerPageReqVO;
-import com.nook.biz.node.controller.resource.server.vo.ResourceServerSaveReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerSaveReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.common.web.response.PageResult;
 

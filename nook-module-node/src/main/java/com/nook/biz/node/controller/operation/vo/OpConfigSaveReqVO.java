@@ -2,6 +2,7 @@ package com.nook.biz.node.controller.operation.vo;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -13,6 +14,11 @@ import lombok.Data;
  */
 @Data
 public class OpConfigSaveReqVO {
+
+    /** 中文显示名 (op_type 不可改) */
+    @NotBlank
+    @Size(max = 64)
+    private String name;
 
     @NotNull
     @Min(1)

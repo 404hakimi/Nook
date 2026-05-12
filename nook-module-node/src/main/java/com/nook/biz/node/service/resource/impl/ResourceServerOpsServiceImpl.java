@@ -1,7 +1,7 @@
 package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.io.resource.ResourceUtil;
-import com.nook.biz.node.controller.resource.server.vo.EnableSwapReqVO;
+import com.nook.biz.node.controller.resource.vo.EnableSwapReqVO;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
 import com.nook.biz.node.framework.server.script.config.ServerOsOp;

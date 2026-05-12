@@ -75,18 +75,7 @@ export const OP_STATUS_META: Record<
   TIMED_OUT: { label: '超时', tagType: 'error' }
 }
 
-/** opType → 中文显示 (用户视角). */
-export const OP_TYPE_LABELS: Record<OpType, string> = {
-  XRAY_RESTART: '重启 Xray',
-  SERVER_PROVISION: '部署 Xray',
-  SERVER_AUTOSTART: '切换开机自启',
-  CLIENT_PROVISION: '开通客户端',
-  CLIENT_REVOKE: '吊销客户端',
-  CLIENT_ROTATE: '轮换 UUID',
-  CLIENT_SYNC: '同步客户端',
-  SERVER_REPLAY: '全量重推',
-  SERVER_RECONCILE: '对账'
-}
+// opType 中文显示从 op_config 表拉, 见 stores/opConfig.ts; 旧 OP_TYPE_LABELS 硬编码已移除
 
 /** 分页查询. */
 export function pageOpLog(params: OpLogPageQuery) {

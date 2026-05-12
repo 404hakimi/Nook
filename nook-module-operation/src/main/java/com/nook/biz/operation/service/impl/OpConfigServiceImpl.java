@@ -3,16 +3,14 @@ package com.nook.biz.operation.service.impl;
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.operation.api.event.OpConfigChangedEvent;
-import com.nook.biz.operation.enums.OpErrorCode;
-import com.nook.biz.operation.config.OpTimeoutProperties;
-import com.nook.biz.operation.dal.mysql.mapper.OpConfigMapper;
 import com.nook.biz.operation.dal.dataobject.OpConfigDO;
+import com.nook.biz.operation.dal.mysql.mapper.OpConfigMapper;
+import com.nook.biz.operation.enums.OpErrorCode;
 import com.nook.biz.operation.service.OpConfigService;
 import com.nook.common.web.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +27,6 @@ import java.util.List;
 public class OpConfigServiceImpl implements OpConfigService {
 
     private final OpConfigMapper opConfigMapper;
-    private final OpTimeoutProperties opTimeoutProperties;
     private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
@@ -57,15 +54,54 @@ public class OpConfigServiceImpl implements OpConfigService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public String createOpConfig(String opType,
+                                 String name,
+                                 Integer execTimeoutSeconds,
+                                 Integer waitTimeoutSeconds,
+                                 Integer maxRetry,
+                                 Boolean enabled,
+                                 String description) {
+        // 同 opType 重复拦截 (DB 也有 uk_op_type UNIQUE 双保险)
+        if (opConfigMapper.selectByOpType(opType) != null) {
+            throw new BusinessException(OpErrorCode.OP_CONFIG_DUPLICATE, opType);
+        }
+        OpConfigDO row = OpConfigDO.builder()
+                .opType(opType)
+                .name(name)
+                .execTimeoutSeconds(execTimeoutSeconds)
+                .waitTimeoutSeconds(waitTimeoutSeconds)
+                .maxRetry(maxRetry == null ? 0 : maxRetry)
+                .enabled(enabled == null ? Boolean.TRUE : enabled)
+                .description(description)
+                .build();
+        opConfigMapper.insert(row);
+        applicationEventPublisher.publishEvent(new OpConfigChangedEvent(opType));
+        log.info("[op-config] create opType={} exec={}s wait={}s", opType, execTimeoutSeconds, waitTimeoutSeconds);
+        return row.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteOpConfig(String id) {
+        OpConfigDO row = getOpConfig(id);
+        opConfigMapper.deleteById(id);
+        applicationEventPublisher.publishEvent(new OpConfigChangedEvent(row.getOpType()));
+        log.info("[op-config] delete opType={}, 该 opType 后续 enqueue 将被禁用", row.getOpType());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateOpConfig(String id,
+                               String name,
                                Integer execTimeoutSeconds,
                                Integer waitTimeoutSeconds,
                                Integer maxRetry,
                                Boolean enabled,
                                String description) {
         OpConfigDO row = getOpConfig(id);
-        // op_type / name 由 Bootstrapper 维护, admin 不应改
+        // op_type 不允许改 (由 OpType 枚举绑死); name 允许改
         OpConfigDO update = OpConfigDO.builder()
+                .name(name)
                 .execTimeoutSeconds(execTimeoutSeconds)
                 .waitTimeoutSeconds(waitTimeoutSeconds)
                 .maxRetry(maxRetry)
@@ -75,27 +111,5 @@ public class OpConfigServiceImpl implements OpConfigService {
         opConfigMapper.update(update,
                 Wrappers.<OpConfigDO>lambdaUpdate().eq(OpConfigDO::getId, id));
         applicationEventPublisher.publishEvent(new OpConfigChangedEvent(row.getOpType()));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void resetOpConfig(String id) {
-        OpConfigDO row = getOpConfig(id);
-        int exec = (int) opTimeoutProperties.execOf(row.getOpType()).getSeconds();
-        int wait = (int) opTimeoutProperties.waitOf(row.getOpType()).getSeconds();
-        updateOpConfig(id, exec, wait, 0, Boolean.TRUE, null);
-        log.info("[op-config] reset to yml opType={} exec={}s wait={}s", row.getOpType(), exec, wait);
-    }
-
-    @Override
-    public boolean insertIfAbsent(OpConfigDO opConfig) {
-        try {
-            opConfigMapper.insert(opConfig);
-            log.info("[op-config] insert opType={} exec={}s wait={}s",
-                    opConfig.getOpType(), opConfig.getExecTimeoutSeconds(), opConfig.getWaitTimeoutSeconds());
-            return true;
-        } catch (DuplicateKeyException dke) {
-            return false;
-        }
     }
 }

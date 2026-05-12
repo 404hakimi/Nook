@@ -1,7 +1,7 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.resource.ip.vo.ResourceIpPoolPageReqVO;
-import com.nook.biz.node.controller.resource.ip.vo.ResourceIpPoolSaveReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolPageReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.common.web.response.PageResult;
 

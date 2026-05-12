@@ -1,9 +1,9 @@
 package com.nook.biz.node.convert.server;
 
-import com.nook.biz.node.controller.server.vo.ConnectivityTestRespVO;
-import com.nook.biz.node.controller.server.vo.ServerSystemInfoRespVO;
-import com.nook.biz.node.controller.server.vo.ServiceLogRespVO;
-import com.nook.biz.node.controller.server.vo.SystemdStatusRespVO;
+import com.nook.biz.node.controller.resource.vo.ConnectivityTestRespVO;
+import com.nook.biz.node.controller.resource.vo.ServerSystemInfoRespVO;
+import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.controller.resource.vo.SystemdStatusRespVO;
 import com.nook.biz.node.framework.server.snapshot.ConnectivitySnapshot;
 import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;

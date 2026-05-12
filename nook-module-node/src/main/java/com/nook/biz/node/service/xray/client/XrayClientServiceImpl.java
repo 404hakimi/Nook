@@ -6,13 +6,13 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.nook.biz.node.controller.xray.client.vo.ClientCredentialRespVO;
-import com.nook.biz.node.controller.xray.client.vo.ClientPageReqVO;
-import com.nook.biz.node.controller.xray.client.vo.ClientProvisionReqVO;
-import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
-import com.nook.biz.node.controller.xray.client.vo.ClientUpdateReqVO;
-import com.nook.biz.node.controller.xray.client.vo.ReplayReportRespVO;
-import com.nook.biz.node.controller.xray.client.vo.SyncStatusRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientTrafficRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientUpdateReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
 import com.nook.biz.node.convert.xray.XrayClientConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
@@ -49,7 +49,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -112,14 +111,14 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public PageResult<XrayClientDO> getXrayClientPage(ClientPageReqVO pageReqVO) {
+    public PageResult<XrayClientDO> getXrayClientPage(XrayClientPageReqVO pageReqVO) {
         IPage<XrayClientDO> result = xrayClientMapper.selectPageByQuery(
                 Page.of(pageReqVO.getPageNo(), pageReqVO.getPageSize()), pageReqVO);
         return PageResult.of(result.getTotal(), result.getRecords());
     }
 
     @Override
-    public XrayClientDO provisionXrayClient(ClientProvisionReqVO reqVO) {
+    public XrayClientDO provisionXrayClient(XrayClientProvisionReqVO reqVO) {
         EnqueueRequest req = EnqueueRequest.builder()
                 .serverId(reqVO.getServerId())
                 .opType(OpType.CLIENT_PROVISION.name())
@@ -132,7 +131,7 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     /** CLIENT_PROVISION handler 调本方法; package-private 防止业务代码绕过队列. */
     @Transactional(rollbackFor = Exception.class)
-    XrayClientDO doProvision(ClientProvisionReqVO reqVO, ProgressSink progress) {
+    XrayClientDO doProvision(XrayClientProvisionReqVO reqVO, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         // 业务校验
         sink.report("校验业务参数", 15);
@@ -372,7 +371,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public ClientTrafficRespVO getXrayClientTraffic(String inboundEntityId) {
+    public XrayClientTrafficRespVO getXrayClientTraffic(String inboundEntityId) {
         XrayClientDO xrayClient = getXrayClient(inboundEntityId);
         // 走累计快照: DB 累计 + xray in-memory 当前增量 (上次 sample 到现在); 跨 xray 重启不丢
         XrayUserTrafficSnapshot traffic = trafficSampleService.getTotalTraffic(inboundEntityId);
@@ -389,7 +388,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public void updateXrayClient(String inboundEntityId, ClientUpdateReqVO updateReqVO) {
+    public void updateXrayClient(String inboundEntityId, XrayClientUpdateReqVO updateReqVO) {
         // 校验 client 存在
         clientValidator.validateExists(inboundEntityId);
         // 更新本地元数据; null 字段由 MP NOT_NULL 策略跳过, 即"保留原值"
@@ -399,9 +398,9 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public ClientCredentialRespVO getXrayClientCredential(String inboundEntityId) {
+    public XrayClientCredentialRespVO getXrayClientCredential(String inboundEntityId) {
         XrayClientDO e = getXrayClient(inboundEntityId);
-        ClientCredentialRespVO vo = new ClientCredentialRespVO();
+        XrayClientCredentialRespVO vo = new XrayClientCredentialRespVO();
         vo.setId(e.getId());
         vo.setClientUuid(e.getClientUuid());
         vo.setClientEmail(e.getClientEmail());
@@ -414,8 +413,8 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public SyncStatusRespVO getSyncStatus(String serverId) {
-        SyncStatusRespVO vo = new SyncStatusRespVO();
+    public XrayClientSyncStatusRespVO getSyncStatus(String serverId) {
+        XrayClientSyncStatusRespVO vo = new XrayClientSyncStatusRespVO();
         vo.setServerId(serverId);
         vo.setOkTags(Collections.emptyList());
         vo.setStaleDbTags(Collections.emptyList());
@@ -486,17 +485,17 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public ReplayReportRespVO replayServer(String serverId) {
+    public XrayClientReplayReportRespVO replayServer(String serverId) {
         EnqueueRequest req = EnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.SERVER_REPLAY.name())
                 .operator(currentOperator())
                 .build();
-        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_REPLAY.name()), ReplayReportRespVO.class);
+        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_REPLAY.name()), XrayClientReplayReportRespVO.class);
     }
 
     /** SERVER_REPLAY handler 调本方法. */
-    ReplayReportRespVO doReplayServer(String serverId, ProgressSink progress) {
+    XrayClientReplayReportRespVO doReplayServer(String serverId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("加载节点配置", 15);
         XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
@@ -551,7 +550,7 @@ public class XrayClientServiceImpl implements XrayClientService {
      * reconciler 调度 / 手动全量 replay 共用. 一次 acquire 一次拉表, 一次 lsi.
      * progress 在每轮 client 同步前后推百分比, 整体框定在 30-95 区间.
      */
-    private ReplayReportRespVO replayInternal(SshSession session, XrayNodeDO node, ProgressSink progress) {
+    private XrayClientReplayReportRespVO replayInternal(SshSession session, XrayNodeDO node, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         String serverId = node.getServerId();
         int apiPort = node.getXrayApiPort();
@@ -611,7 +610,7 @@ public class XrayClientServiceImpl implements XrayClientService {
         }
 
         int alreadyOk = targets.size() - needSync.size();
-        ReplayReportRespVO report = new ReplayReportRespVO();
+        XrayClientReplayReportRespVO report = new XrayClientReplayReportRespVO();
         report.setServerId(serverId);
         report.setTotalCount(targets.size());
         report.setAlreadyOkCount(alreadyOk);

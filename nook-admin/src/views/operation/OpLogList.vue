@@ -16,7 +16,6 @@ import {
 import { useConfirm } from '@/composables/useConfirm'
 import {
   OP_STATUS_META,
-  OP_TYPE_LABELS,
   cancelOpLog,
   pageOpLog,
   type OpLog,
@@ -25,11 +24,13 @@ import {
   type OpType
 } from '@/api/operation/op-log'
 import { opProgressClient, type OpProgressEvent } from '@/api/operation/op-progress-ws'
+import { useOpConfigStore } from '@/stores/opConfig'
 import { formatDateTime } from '@/utils/date'
 import OpLogDetailDialog from './OpLogDetailDialog.vue'
 
 const message = useMessage()
 const { confirm } = useConfirm()
+const opConfigStore = useOpConfigStore()
 
 const STATUS_OPTIONS: { label: string; value: OpStatus | undefined }[] = [
   { label: '全部', value: undefined },
@@ -41,14 +42,14 @@ const STATUS_OPTIONS: { label: string; value: OpStatus | undefined }[] = [
   { label: '超时', value: 'TIMED_OUT' }
 ]
 
-// 用 OP_TYPE_LABELS 派生下拉选项, 增加 op 时不用改两处
-const OP_TYPE_OPTIONS: { label: string; value: OpType | undefined }[] = [
+// 下拉数据来自 op_config 表 (admin 改名后刷新即生效, 不再前端硬编码)
+const opTypeOptions = computed<{ label: string; value: OpType | undefined }[]>(() => [
   { label: '全部', value: undefined },
-  ...(Object.entries(OP_TYPE_LABELS) as [OpType, string][]).map(([value, label]) => ({
-    label,
-    value
+  ...opConfigStore.list.map((c) => ({
+    label: c.name,
+    value: c.opType as OpType
   }))
-]
+])
 
 const query = reactive<Required<Pick<OpLogPageQuery, 'pageNo' | 'pageSize'>> & OpLogPageQuery>({
   pageNo: 1,
@@ -169,7 +170,7 @@ async function onCancel(row: OpLog) {
   }
   const ok = await confirm({
     title: '取消任务',
-    message: `确定取消任务 ${OP_TYPE_LABELS[row.opType]} (server=${row.serverId})?`,
+    message: `确定取消任务 ${opConfigStore.getLabel(row.opType)} (server=${row.serverId})?`,
     type: 'warning',
     confirmText: '取消任务',
     cancelText: '关闭'
@@ -205,7 +206,7 @@ const columns = computed<DataTableColumns<OpLog>>(() => [
     width: 130,
     render: (row) =>
       h('div', { class: 'whitespace-nowrap' }, [
-        h('span', { class: 'font-medium' }, OP_TYPE_LABELS[row.opType] || row.opType)
+        h('span', { class: 'font-medium' }, opConfigStore.getLabel(row.opType))
       ])
   },
   {
@@ -356,7 +357,11 @@ const pagination = computed(() => ({
   }
 }))
 
-onMounted(loadList)
+// 先把 op_config 拉好再渲染列表, 保证首屏行 label / 下拉都是中文
+onMounted(async () => {
+  await opConfigStore.ensureLoaded()
+  loadList()
+})
 
 onUnmounted(() => {
   for (const un of unsubscribers.values()) un()
@@ -383,7 +388,7 @@ onUnmounted(() => {
           <div class="text-xs text-zinc-500 mb-1">操作类型</div>
           <NSelect
             v-model:value="query.opType"
-            :options="OP_TYPE_OPTIONS"
+            :options="opTypeOptions"
             size="small"
             class="w-36"
           />

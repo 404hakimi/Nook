@@ -5,7 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.node.controller.resource.server.vo.ResourceServerPageReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import org.apache.ibatis.annotations.Mapper;
 

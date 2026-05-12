@@ -19,6 +19,7 @@ public enum OpErrorCode implements ErrorCode {
     OP_TIMED_OUT(8004, "op 执行超时被强切: opId=%s"),
     OP_DISABLED(8005, "该操作已被管理员停用: opType=%s"),
     OP_CONFIG_NOT_FOUND(8006, "未找到 OpType=%s 对应的 op_config 配置"),
+    OP_CONFIG_DUPLICATE(8007, "OpType=%s 的 op_config 已存在"),
     ;
 
     private final int code;

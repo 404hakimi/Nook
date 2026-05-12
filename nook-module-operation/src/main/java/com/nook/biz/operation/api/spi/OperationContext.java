@@ -23,20 +23,6 @@ public interface OperationContext extends ProgressSink {
     /** 入参 JSON (handler 自行反序列化) */
     String paramsJson();
 
-    /**
-     * 报进度; 写 DB 的 current_step / progress_pct / last_message (Stage 2 还会推 WS, 现在仅 DB).
-     *
-     * @param step        当前步骤描述
-     * @param progressPct 进度 0-100
-     */
-    void report(String step, int progressPct);
-
-    /**
-     * 报进度 + 自定义消息.
-     *
-     * @param step        当前步骤描述
-     * @param progressPct 进度 0-100
-     * @param message     用户可见消息
-     */
+    /** 报进度 + 用户可见消息 (无 message 版由 ProgressSink 继承). */
     void report(String step, int progressPct, String message);
 }

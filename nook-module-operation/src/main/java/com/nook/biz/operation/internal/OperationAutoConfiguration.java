@@ -4,7 +4,6 @@ import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.api.spi.OperationHandler;
 import com.nook.biz.operation.api.spi.OperationOrchestrator;
 import com.nook.biz.operation.config.OpOrchestratorProperties;
-import com.nook.biz.operation.config.OpTimeoutProperties;
 import com.nook.biz.operation.dal.mysql.mapper.OpConfigMapper;
 import com.nook.biz.operation.dal.mysql.mapper.OpLogMapper;
 import com.nook.biz.operation.internal.orchestrator.DefaultOperationOrchestrator;
@@ -12,13 +11,10 @@ import com.nook.biz.operation.internal.orchestrator.HandlerRegistry;
 import com.nook.biz.operation.internal.orchestrator.OpWatchdog;
 import com.nook.biz.operation.internal.progress.ws.OpProgressHub;
 import com.nook.biz.operation.internal.resolver.DefaultOpConfigResolver;
-import com.nook.biz.operation.internal.startup.OpConfigBootstrapper;
 import com.nook.biz.operation.internal.startup.OpStartupCleaner;
-import com.nook.biz.operation.service.OpConfigService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 
 import java.util.List;
@@ -34,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author nook
  */
 @AutoConfiguration
-@EnableConfigurationProperties({OpTimeoutProperties.class, OpOrchestratorProperties.class})
+@EnableConfigurationProperties({OpOrchestratorProperties.class})
 public class OperationAutoConfiguration {
 
     @Bean(destroyMethod = "shutdown")
@@ -72,17 +68,8 @@ public class OperationAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public OpConfigResolver opConfigResolver(OpConfigMapper opConfigMapper,
-                                             OpTimeoutProperties opTimeoutProperties) {
-        return new DefaultOpConfigResolver(opConfigMapper, opTimeoutProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public OpConfigBootstrapper opConfigBootstrapper(OpConfigService opConfigService,
-                                                     OpTimeoutProperties opTimeoutProperties,
-                                                     ApplicationEventPublisher publisher) {
-        return new OpConfigBootstrapper(opConfigService, opTimeoutProperties, publisher);
+    public OpConfigResolver opConfigResolver(OpConfigMapper opConfigMapper) {
+        return new DefaultOpConfigResolver(opConfigMapper);
     }
 
     @Bean

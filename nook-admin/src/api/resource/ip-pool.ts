@@ -83,18 +83,49 @@ export function releaseIpPool(id: string) {
   return request.post<unknown, void>(`/admin/resource/ip-pool/${id}/release`)
 }
 
-/** SOCKS5 连通性测试结果 (后端拨号 echo-IP 端点拿到的出网真实 IP)。 */
+/** SOCKS5 测试入参; 全部必填, 后端做非空 + 范围校验, 不再兜底. */
+export interface Socks5TestParams {
+  /** echo-IP 端点; 必须 http/https */
+  echoUrl: string
+  /** TCP 建连超时毫秒; 500-60000 */
+  connectTimeoutMs: number
+  /** HTTP 读响应超时毫秒; 500-60000 */
+  readTimeoutMs: number
+}
+
+/** Socks5TestParams 的前端默认值; 给弹框初始化用, 用户可改. */
+export const SOCKS5_TEST_DEFAULTS: Readonly<Socks5TestParams> = Object.freeze({
+  echoUrl: 'https://api.ipify.org/',
+  connectTimeoutMs: 5000,
+  readTimeoutMs: 10000
+})
+
+/**
+ * SOCKS5 拨号测试结果; 后端不解析响应体, 透传 HTTP status + body 原文给前端控制台.
+ * success 仅表示"拨号 + HTTP 往返完成", 4xx/5xx 也算 success=true.
+ */
 export interface Socks5TestResult {
   success: boolean
   elapsedMs: number
-  /** success=true 时的出网公网 IP; 用来与 ipAddress 比对 */
-  exitIp?: string
+  echoUrl: string
+  connectTimeoutMs: number
+  readTimeoutMs: number
+  /** HTTP 响应状态码; success=true 时有值, 拨号失败时 0 */
+  httpStatus: number
+  /** 响应体原文; success=true 时有值 (可能空串) */
+  rawResponse?: string
+  /** 拨号失败原因; 仅 success=false 时有值 */
   error?: string
 }
 
-/** 通过该 IP 的 SOCKS5 凭据拨号公网 echo-IP 端点, 验证 SOCKS5 是否真的工作 + 出网 IP 是否符合预期. */
-export function testIpPoolSocks5(id: string) {
-  return request.post<unknown, Socks5TestResult>(`/admin/node/socks5/${id}/test`)
+/**
+ * 通过该 IP 的 SOCKS5 凭据拨号公网 echo-IP 端点, 验证 SOCKS5 是否真的工作 + 出网 IP 是否符合预期.
+ *
+ * @param id     resource_ip_pool.id
+ * @param params 全字段必填; 调用方一般 `{ ...SOCKS5_TEST_DEFAULTS, echoUrl: 用户输入 }` 拼造
+ */
+export function testIpPoolSocks5(id: string, params: Socks5TestParams) {
+  return request.post<unknown, Socks5TestResult>(`/admin/node/socks5/${id}/test`, params)
 }
 
 // ===== SOCKS5 独立部署 (走 nook-biz-node Socks5Controller, 流式 HTTP, 不绑定 IP 池条目) =====

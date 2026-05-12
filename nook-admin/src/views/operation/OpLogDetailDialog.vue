@@ -15,11 +15,13 @@ import {
 } from 'naive-ui'
 import {
   OP_STATUS_META,
-  OP_TYPE_LABELS,
   getOpLogDetail,
   type OpLog
 } from '@/api/operation/op-log'
+import { useOpConfigStore } from '@/stores/opConfig'
 import { formatDateTime } from '@/utils/date'
+
+const opConfigStore = useOpConfigStore()
 
 const props = defineProps<{
   modelValue: boolean
@@ -131,7 +133,7 @@ const LABEL_WIDTH = 96
         <div class="flex items-center justify-between px-1">
           <div class="flex items-center gap-2">
             <span class="text-base font-medium">
-              {{ OP_TYPE_LABELS[detail.opType] || detail.opType }}
+              {{ opConfigStore.getLabel(detail.opType) }}
             </span>
             <NTag size="small" :type="OP_STATUS_META[detail.status]?.tagType">
               {{ OP_STATUS_META[detail.status]?.label || detail.status }}

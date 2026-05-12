@@ -1,9 +1,9 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.server.vo.ConnectivityTestRespVO;
-import com.nook.biz.node.controller.server.vo.ServerSystemInfoRespVO;
-import com.nook.biz.node.controller.server.vo.ServiceLogRespVO;
-import com.nook.biz.node.controller.server.vo.SystemdStatusRespVO;
+import com.nook.biz.node.controller.resource.vo.ConnectivityTestRespVO;
+import com.nook.biz.node.controller.resource.vo.ServerSystemInfoRespVO;
+import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.controller.resource.vo.SystemdStatusRespVO;
 
 /**
  * 服务器信息 Service 接口

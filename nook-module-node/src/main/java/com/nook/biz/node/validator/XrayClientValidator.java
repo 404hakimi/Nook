@@ -2,7 +2,7 @@ package com.nook.biz.node.validator;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.node.controller.xray.client.vo.ClientProvisionReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.enums.XrayErrorCode;
@@ -56,7 +56,7 @@ public class XrayClientValidator {
      *
      * @param reqVO provision 入参
      */
-    public void validateForProvision(ClientProvisionReqVO reqVO) {
+    public void validateForProvision(XrayClientProvisionReqVO reqVO) {
         validateFlow(reqVO.getFlow(), reqVO.getProtocol());
         validateExpiry(reqVO.getExpiryEpochMillis());
         validateLimitIp(reqVO.getLimitIp());

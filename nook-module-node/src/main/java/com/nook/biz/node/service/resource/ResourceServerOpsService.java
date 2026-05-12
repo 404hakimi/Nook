@@ -1,6 +1,6 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.resource.server.vo.EnableSwapReqVO;
+import com.nook.biz.node.controller.resource.vo.EnableSwapReqVO;
 
 import java.util.function.Consumer;
 

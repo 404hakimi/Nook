@@ -1,13 +1,12 @@
 package com.nook.biz.node.service.xray.server;
 
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.node.controller.xray.server.vo.LineServerInstallReqVO;
-import com.nook.biz.node.controller.xray.server.vo.ServiceStatusRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
-import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
@@ -65,7 +64,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private OpConfigResolver opConfigResolver;
 
     @Override
-    public void installStreaming(String serverId, LineServerInstallReqVO reqVO, Consumer<String> lineSink) {
+    public void installStreaming(String serverId, XrayServerInstallReqVO reqVO, Consumer<String> lineSink) {
         // 长任务 (1-10 min) 用 INSTALL scope, 跟短任务 SHARED 隔离 cache, 防被 invalidate 半路打断
         SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.INSTALL);
         // logDir 留空时按 <installDir>/logs 派生; vars 与落库都用同一份, 保持一致
@@ -141,14 +140,14 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     }
 
     @Override
-    public ServiceStatusRespVO getXraySystemdStatus(String serverId) {
+    public XrayServerStatusRespVO getXraySystemdStatus(String serverId) {
         SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
         // ServerProbe 只回通用 systemd 状态 (active/uptime/enabled); xray 专属 (version + 监听端口) 走 XrayDaemonProbe
         SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, XrayConstants.SYSTEMD_UNIT);
         int apiPort = xrayNodeService.getXrayNode(serverId).getXrayApiPort();
         XrayDaemonExtraSnapshot extras = xrayDaemonProbe.readExtras(session, apiPort);
 
-        ServiceStatusRespVO vo = new ServiceStatusRespVO();
+        XrayServerStatusRespVO vo = new XrayServerStatusRespVO();
         vo.setUnit(sysd.getUnit());
         vo.setActive(sysd.getActive());
         vo.setUptimeFrom(sysd.getUptimeFrom());
@@ -181,7 +180,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     }
 
     /** 按 reqVO 勾选项把 install 模块拼成完整脚本; 必装 00/50/99, 可选 10-timezone/40-ufw; swap/bbr 不在此链路. */
-    private String assembleInstallScript(LineServerInstallReqVO r, Map<String, String> vars) {
+    private String assembleInstallScript(XrayServerInstallReqVO r, Map<String, String> vars) {
         StringBuilder sb = new StringBuilder(8192);
         // 公共 header: bash + set -euo pipefail (各模块不再重复写)
         sb.append("#!/usr/bin/env bash\n");
@@ -221,7 +220,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     }
 
     /** 部署模板渲染变量表; reqVO 字段已被 jakarta @Valid + @AssertTrue 校验, 这里直接拆箱. */
-    private Map<String, String> buildInstallVars(String serverId, LineServerInstallReqVO r, String effectiveLogDir) {
+    private Map<String, String> buildInstallVars(String serverId, XrayServerInstallReqVO r, String effectiveLogDir) {
         int slotPortEnd = r.getSlotPortBase() + r.getSlotPoolSize();
 
         // 用 LinkedHashMap 保留插入顺序便于 debug

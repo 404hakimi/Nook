@@ -1,7 +1,7 @@
 package com.nook.biz.node.convert.resource;
 
-import com.nook.biz.node.controller.resource.ip.vo.ResourceIpPoolRespVO;
-import com.nook.biz.node.controller.resource.ip.vo.ResourceIpTypeRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpTypeRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpTypeDO;
 import com.nook.common.web.response.PageResult;

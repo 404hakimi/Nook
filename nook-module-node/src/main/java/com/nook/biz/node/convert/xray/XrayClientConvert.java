@@ -1,8 +1,8 @@
 package com.nook.biz.node.convert.xray;
 
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.node.controller.xray.client.vo.ClientRespVO;
-import com.nook.biz.node.controller.xray.client.vo.ClientTrafficRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientTrafficRespVO;
 import com.nook.biz.node.convert.xray.format.BytesFormatter;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
@@ -35,24 +35,24 @@ public interface XrayClientConvert {
     @Mapping(target = "ipAddress", ignore = true)
     @Mapping(target = "serverName", ignore = true)
     @Mapping(target = "serverHost", ignore = true)
-    ClientRespVO convert(XrayClientDO entity);
+    XrayClientRespVO convert(XrayClientDO entity);
 
-    List<ClientRespVO> convertList(List<XrayClientDO> entities);
+    List<XrayClientRespVO> convertList(List<XrayClientDO> entities);
 
-    default ClientRespVO convert(XrayClientDO entity,
-                                 Map<String, String> ipAddressMap,
-                                 Map<String, ResourceServerDO> serverMap) {
-        ClientRespVO vo = convert(entity);
+    default XrayClientRespVO convert(XrayClientDO entity,
+                                     Map<String, String> ipAddressMap,
+                                     Map<String, ResourceServerDO> serverMap) {
+        XrayClientRespVO vo = convert(entity);
         fillIpAddress(vo, ipAddressMap);
         fillServer(vo, serverMap);
         return vo;
     }
 
-    default PageResult<ClientRespVO> convertPage(PageResult<XrayClientDO> page,
-                                                 Map<String, String> ipAddressMap,
-                                                 Map<String, ResourceServerDO> serverMap) {
-        List<ClientRespVO> records = convertList(page.getRecords());
-        for (ClientRespVO v : records) {
+    default PageResult<XrayClientRespVO> convertPage(PageResult<XrayClientDO> page,
+                                                     Map<String, String> ipAddressMap,
+                                                     Map<String, ResourceServerDO> serverMap) {
+        List<XrayClientRespVO> records = convertList(page.getRecords());
+        for (XrayClientRespVO v : records) {
             fillIpAddress(v, ipAddressMap);
             fillServer(v, serverMap);
         }
@@ -78,13 +78,13 @@ public interface XrayClientConvert {
     }
 
     /** 合并 traffic 快照 + 实体到出参 VO; 字节字段同时下发原值 + 人读字符串. */
-    default ClientTrafficRespVO toTrafficVO(XrayClientDO e, XrayUserTrafficSnapshot t) {
+    default XrayClientTrafficRespVO toTrafficVO(XrayClientDO e, XrayUserTrafficSnapshot t) {
         long up = t.getUpBytes();
         long down = t.getDownBytes();
         long total = t.getTotalBytes();
         long used = up + down;
 
-        ClientTrafficRespVO vo = new ClientTrafficRespVO();
+        XrayClientTrafficRespVO vo = new XrayClientTrafficRespVO();
         vo.setInboundEntityId(e.getId());
         vo.setClientEmail(t.getEmail());
         vo.setUpBytes(up);
@@ -104,17 +104,17 @@ public interface XrayClientConvert {
 
     /** list / detail 出参 mask UUID; 留前 8 后 4 让管理员粗略对得上. */
     @AfterMapping
-    default void maskSensitive(XrayClientDO src, @MappingTarget ClientRespVO target) {
+    default void maskSensitive(XrayClientDO src, @MappingTarget XrayClientRespVO target) {
         target.setClientUuid(maskUuid(src.getClientUuid()));
     }
 
-    private static void fillIpAddress(ClientRespVO vo, Map<String, String> ipAddressMap) {
+    private static void fillIpAddress(XrayClientRespVO vo, Map<String, String> ipAddressMap) {
         if (vo == null || ipAddressMap == null) return;
         String addr = ipAddressMap.get(vo.getIpId());
         if (addr != null) vo.setIpAddress(addr);
     }
 
-    private static void fillServer(ClientRespVO vo, Map<String, ResourceServerDO> serverMap) {
+    private static void fillServer(XrayClientRespVO vo, Map<String, ResourceServerDO> serverMap) {
         if (vo == null || serverMap == null) return;
         ResourceServerDO s = serverMap.get(vo.getServerId());
         if (s != null) {

@@ -50,16 +50,28 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'IP代理池' }
       },
       {
+        path: 'xray/nodes',
+        name: 'xray-nodes',
+        component: () => import('@/views/xray/XrayNodeList.vue'),
+        meta: { title: 'Xray 节点' }
+      },
+      {
         path: 'xray/clients',
         name: 'xray-clients',
         component: () => import('@/views/xray/ClientList.vue'),
-        meta: { title: '客户端管理' }
+        meta: { title: 'Xray 客户端' }
       },
       {
         path: 'operation/op-log',
         name: 'operation-op-log',
         component: () => import('@/views/operation/OpLogList.vue'),
         meta: { title: '操作流水' }
+      },
+      {
+        path: 'operation/op-config',
+        name: 'operation-op-config',
+        component: () => import('@/views/operation/OpConfigList.vue'),
+        meta: { title: 'Op 调度配置' }
       }
     ]
   },

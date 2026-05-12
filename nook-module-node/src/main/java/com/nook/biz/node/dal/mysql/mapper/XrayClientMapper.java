@@ -5,7 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.node.controller.xray.client.vo.ClientPageReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import org.apache.ibatis.annotations.Mapper;
 
@@ -66,7 +66,7 @@ public interface XrayClientMapper extends BaseMapper<XrayClientDO> {
     }
 
     /** 列表分页, 多条件过滤. */
-    default IPage<XrayClientDO> selectPageByQuery(IPage<XrayClientDO> page, ClientPageReqVO reqVO) {
+    default IPage<XrayClientDO> selectPageByQuery(IPage<XrayClientDO> page, XrayClientPageReqVO reqVO) {
         return selectPage(page, Wrappers.<XrayClientDO>lambdaQuery()
                 .eq(StrUtil.isNotBlank(reqVO.getServerId()), XrayClientDO::getServerId, reqVO.getServerId())
                 .eq(StrUtil.isNotBlank(reqVO.getMemberUserId()), XrayClientDO::getMemberUserId, reqVO.getMemberUserId())

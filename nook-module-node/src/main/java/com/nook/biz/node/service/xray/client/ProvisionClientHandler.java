@@ -1,7 +1,7 @@
 package com.nook.biz.node.service.xray.client;
 
 import com.alibaba.fastjson2.JSON;
-import com.nook.biz.node.controller.xray.client.vo.ClientProvisionReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OperationContext;
 import com.nook.biz.operation.api.spi.OperationHandler;
@@ -26,7 +26,7 @@ public class ProvisionClientHandler implements OperationHandler {
 
     @Override
     public Object execute(OperationContext ctx) {
-        ClientProvisionReqVO reqVO = JSON.parseObject(ctx.paramsJson(), ClientProvisionReqVO.class);
+        XrayClientProvisionReqVO reqVO = JSON.parseObject(ctx.paramsJson(), XrayClientProvisionReqVO.class);
         ctx.report("入参校验", 10);
         return serviceImpl.doProvision(reqVO, ctx);
     }

@@ -18,7 +18,8 @@ import {
   Moon,
   LogOut,
   ScrollText,
-  History
+  History,
+  SlidersHorizontal
 } from 'lucide-vue-next'
 import {
   NAvatar,
@@ -81,8 +82,24 @@ const menuOptions: MenuOption[] = [
       { key: '/resource/ip-pool', label: routerLabel('/resource/ip-pool', 'IP代理池'), icon: icon(Globe2) }
     ]
   },
-  { key: '/xray/clients', label: routerLabel('/xray/clients', '客户端管理'), icon: icon(Cable) },
-  { key: '/operation/op-log', label: routerLabel('/operation/op-log', '操作流水'), icon: icon(History) },
+  {
+    key: 'xray-group',
+    label: 'Xray 管理',
+    icon: icon(Cable),
+    children: [
+      { key: '/xray/nodes', label: routerLabel('/xray/nodes', 'Xray 节点'), icon: icon(Server) },
+      { key: '/xray/clients', label: routerLabel('/xray/clients', 'Xray 客户端'), icon: icon(Cable) }
+    ]
+  },
+  {
+    key: 'operation-group',
+    label: '运维管理',
+    icon: icon(History),
+    children: [
+      { key: '/operation/op-log', label: routerLabel('/operation/op-log', '操作流水'), icon: icon(History) },
+      { key: '/operation/op-config', label: routerLabel('/operation/op-config', 'Op 调度配置'), icon: icon(SlidersHorizontal) }
+    ]
+  },
   { key: '/monitor/alerts', label: routerLabel('/monitor/alerts', '监控告警'), icon: icon(Bell) }
 ]
 

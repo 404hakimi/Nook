@@ -2,7 +2,6 @@
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
   Globe2,
-  MoreVertical,
   Pencil,
   Plus,
   RefreshCcw,
@@ -16,14 +15,12 @@ import {
   NButton,
   NCard,
   NDataTable,
-  NDropdown,
   NIcon,
   NInput,
   NSelect,
   NTag,
   useMessage,
-  type DataTableColumns,
-  type DropdownOption
+  type DataTableColumns
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import {
@@ -31,7 +28,6 @@ import {
   deleteIpPool,
   pageIpPool,
   releaseIpPool,
-  testIpPoolSocks5,
   type ResourceIpPool,
   type ResourceIpPoolQuery
 } from '@/api/resource/ip-pool'
@@ -39,6 +35,7 @@ import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/res
 import { formatDateTime } from '@/utils/date'
 import IpPoolFormDialog from './IpPoolFormDialog.vue'
 import IpPoolDeployDialog from './IpPoolDeployDialog.vue'
+import IpPoolTestDialog from './IpPoolTestDialog.vue'
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -238,67 +235,16 @@ function canTest(ip: ResourceIpPool): boolean {
       && !!ip.socks5Password
 }
 
-// ===== SOCKS5 连通性测试 =====
-const testing = ref<Record<string, boolean>>({})
+// ===== SOCKS5 连通性测试 (走弹框, 让用户自选 echo-IP 端点 + 看完整请求结果) =====
+const testOpen = ref(false)
+const testTarget = ref<ResourceIpPool | null>(null)
 
-async function onTest(ip: ResourceIpPool) {
-  if (testing.value[ip.id]) return
-  testing.value[ip.id] = true
-  try {
-    const res = await testIpPoolSocks5(ip.id)
-    if (res.success) {
-      const matched = res.exitIp === ip.ipAddress
-      const tip = matched
-        ? `✔ 出网 IP=${res.exitIp} (${res.elapsedMs}ms)`
-        : `⚠ 出网 IP=${res.exitIp} 与登记 ${ip.ipAddress} 不一致 (${res.elapsedMs}ms)`
-      matched ? message.success(tip) : message.warning(tip)
-    } else {
-      message.error(`✘ ${res.error || 'SOCKS5 不通'} (${res.elapsedMs}ms)`)
-    }
-  } finally {
-    testing.value[ip.id] = false
-  }
+function openTest(ip: ResourceIpPool) {
+  testTarget.value = ip
+  testOpen.value = true
 }
 
-// ===== 行操作菜单 =====
-function buildRowActions(ip: ResourceIpPool): DropdownOption[] {
-  const opts: DropdownOption[] = []
-  if (canTest(ip)) {
-    opts.push({
-      label: '测试',
-      key: 'test',
-      icon: () =>
-        h(NIcon, { color: 'var(--n-warning-color)' }, { default: () => h(Zap) })
-    })
-  }
-  opts.push({
-    label: '编辑',
-    key: 'edit',
-    icon: () => h(NIcon, null, { default: () => h(Pencil) })
-  })
-  if (ip.status === 2) {
-    opts.push({
-      label: '退订',
-      key: 'release',
-      icon: () => h(NIcon, null, { default: () => h(Undo2) })
-    })
-  }
-  opts.push({ type: 'divider', key: 'd1' })
-  opts.push({
-    label: '删除',
-    key: 'delete',
-    props: { style: 'color: var(--n-error-color)' },
-    icon: () => h(NIcon, { color: 'var(--n-error-color)' }, { default: () => h(Trash2) })
-  })
-  return opts
-}
-
-function onRowAction(key: string | number, ip: ResourceIpPool) {
-  if (key === 'test') onTest(ip)
-  else if (key === 'edit') openEdit(ip)
-  else if (key === 'release') onRelease(ip)
-  else if (key === 'delete') onDelete(ip)
-}
+// 行操作直接平铺为一行小按钮; 不再折叠到 dropdown
 
 // ===== 表格列定义 =====
 const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
@@ -366,24 +312,58 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
     title: '操作',
     key: 'actions',
     align: 'right',
-    width: 80,
+    // 4 个按钮按需展示, 宽度按"测试 + 编辑 + 退订 + 删除"取上限
+    width: 220,
     render: (row) =>
-      h(
-        NDropdown,
-        {
-          options: buildRowActions(row),
-          trigger: 'click',
-          onSelect: (key: string | number) => onRowAction(key, row)
-        },
-        {
-          default: () =>
-            h(
+      h('div', { class: 'flex gap-1 justify-end' }, [
+        // 测试: 仅 SOCKS5 凭据齐全时露出, 否则该 IP 无法发起拨号
+        canTest(row)
+          ? h(
               NButton,
-              { circle: true, quaternary: true, size: 'small' },
-              { default: () => h(NIcon, null, { default: () => h(MoreVertical) }) }
+              {
+                size: 'tiny',
+                quaternary: true,
+                type: 'warning',
+                onClick: () => openTest(row)
+              },
+              {
+                icon: () => h(NIcon, null, { default: () => h(Zap) }),
+                default: () => '测试'
+              }
             )
-        }
-      )
+          : null,
+        h(
+          NButton,
+          { size: 'tiny', quaternary: true, onClick: () => openEdit(row) },
+          {
+            icon: () => h(NIcon, null, { default: () => h(Pencil) }),
+            default: () => '编辑'
+          }
+        ),
+        // 退订: 仅"已占用"(status=2) 才有意义, 其它状态隐藏
+        row.status === 2
+          ? h(
+              NButton,
+              {
+                size: 'tiny',
+                quaternary: true,
+                onClick: () => onRelease(row)
+              },
+              {
+                icon: () => h(NIcon, null, { default: () => h(Undo2) }),
+                default: () => '退订'
+              }
+            )
+          : null,
+        h(
+          NButton,
+          { size: 'tiny', quaternary: true, type: 'error', onClick: () => onDelete(row) },
+          {
+            icon: () => h(NIcon, null, { default: () => h(Trash2) }),
+            default: () => '删除'
+          }
+        )
+      ])
   }
 ])
 
@@ -506,5 +486,8 @@ onMounted(async () => {
 
     <!-- 独立部署 SOCKS5 弹框: 不绑定 IP 行; 成功后 "添加到 IP 池" 走 onAddToPoolFromDeploy 接力 -->
     <IpPoolDeployDialog v-model="deployOpen" @add-to-pool="onAddToPoolFromDeploy" />
+
+    <!-- SOCKS5 测试弹框: 让用户选 echo-IP 端点 + 看完整请求结果 -->
+    <IpPoolTestDialog v-model="testOpen" :ip="testTarget" />
   </div>
 </template>
