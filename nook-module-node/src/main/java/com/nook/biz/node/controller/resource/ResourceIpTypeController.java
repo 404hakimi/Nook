@@ -19,14 +19,14 @@ import java.util.List;
  * @author nook
  */
 @RestController
-@RequestMapping("/admin/resource/ip-types")
+@RequestMapping("/admin/resource/ip-type")
 @Validated
 public class ResourceIpTypeController {
 
     @Resource
     private ResourceIpTypeService resourceIpTypeService;
 
-    @GetMapping
+    @GetMapping("/list")
     public Result<List<ResourceIpTypeRespVO>> getIpTypeList() {
         List<ResourceIpTypeDO> list = resourceIpTypeService.getIpTypeList();
         return Result.ok(ResourceIpPoolConvert.INSTANCE.convertTypeList(list));

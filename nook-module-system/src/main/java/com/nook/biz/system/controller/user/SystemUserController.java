@@ -12,60 +12,62 @@ import com.nook.common.web.response.Result;
 import com.nook.framework.security.stp.StpSystemUtil;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 后台用户管理接口; controller 仅做参数绑定 + 调 service, 校验由 service 注入的 Validator 在内部完成.
+ * 管理后台 - 系统用户
  *
  * @author nook
  */
 @RestController
-@RequestMapping("/admin/system/users")
+@RequestMapping("/admin/system/user")
+@Validated
 public class SystemUserController {
 
     @Resource
     private SystemUserService systemUserService;
 
-    @GetMapping
-    public Result<PageResult<SystemUserRespVO>> page(@ModelAttribute SystemUserPageReqVO reqVO) {
-        return Result.ok(SystemUserConvert.INSTANCE.convertPage(systemUserService.page(reqVO)));
+    @GetMapping("/page")
+    public Result<PageResult<SystemUserRespVO>> getUserPage(@ModelAttribute SystemUserPageReqVO pageReqVO) {
+        return Result.ok(SystemUserConvert.INSTANCE.convertPage(systemUserService.page(pageReqVO)));
     }
 
-    @GetMapping("/{id}")
-    public Result<SystemUserRespVO> detail(@PathVariable String id) {
+    @GetMapping("/get")
+    public Result<SystemUserRespVO> getUser(@RequestParam("id") String id) {
         return Result.ok(SystemUserConvert.INSTANCE.convert(systemUserService.findById(id)));
     }
 
-    @PostMapping
-    public Result<SystemUserRespVO> create(@RequestBody @Valid SystemUserCreateReqVO reqVO) {
-        return Result.ok(SystemUserConvert.INSTANCE.convert(systemUserService.create(reqVO)));
+    @PostMapping("/create")
+    public Result<SystemUserRespVO> createUser(@Valid @RequestBody SystemUserCreateReqVO createReqVO) {
+        return Result.ok(SystemUserConvert.INSTANCE.convert(systemUserService.create(createReqVO)));
     }
 
-    @PutMapping("/{id}")
-    public Result<Void> update(@PathVariable String id,
-                               @RequestBody @Valid SystemUserUpdateReqVO reqVO) {
-        systemUserService.update(id, reqVO);
-        return Result.ok();
+    @PutMapping("/update")
+    public Result<Boolean> updateUser(@RequestParam("id") String id,
+                                      @Valid @RequestBody SystemUserUpdateReqVO updateReqVO) {
+        systemUserService.update(id, updateReqVO);
+        return Result.ok(true);
     }
 
-    @DeleteMapping("/{id}")
-    public Result<Void> delete(@PathVariable String id) {
+    @DeleteMapping("/delete")
+    public Result<Boolean> deleteUser(@RequestParam("id") String id) {
         systemUserService.delete(id, StpSystemUtil.getLoginIdAsString());
-        return Result.ok();
+        return Result.ok(true);
     }
 
-    @PutMapping("/{id}/password")
-    public Result<Void> updatePassword(@PathVariable String id,
-                                       @RequestBody @Valid SystemUserUpdatePasswordReqVO reqVO) {
-        systemUserService.resetPassword(id, reqVO.getNewPassword());
-        return Result.ok();
+    @PutMapping("/reset-password")
+    public Result<Boolean> resetPassword(@RequestParam("id") String id,
+                                         @Valid @RequestBody SystemUserUpdatePasswordReqVO updateReqVO) {
+        systemUserService.resetPassword(id, updateReqVO.getNewPassword());
+        return Result.ok(true);
     }
 }

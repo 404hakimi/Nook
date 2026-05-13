@@ -22,11 +22,11 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
@@ -40,7 +40,7 @@ import java.util.Set;
  * @author nook
  */
 @RestController
-@RequestMapping("/admin/node/xray/client")
+@RequestMapping("/admin/xray/client")
 @Validated
 public class XrayClientController {
 
@@ -51,7 +51,7 @@ public class XrayClientController {
     @Resource
     private ResourceServerService resourceServerService;
 
-    @GetMapping
+    @GetMapping("/page")
     public Result<PageResult<XrayClientRespVO>> getXrayClientPage(@ModelAttribute XrayClientPageReqVO pageReqVO) {
         PageResult<XrayClientDO> pageResult = xrayClientService.getXrayClientPage(pageReqVO);
         Map<String, String> ipMap = loadIpAddressMap(XrayClientConvert.collectIpIds(pageResult.getRecords()));
@@ -59,74 +59,74 @@ public class XrayClientController {
         return Result.ok(XrayClientConvert.INSTANCE.convertPage(pageResult, ipMap, serverMap));
     }
 
-    @GetMapping("/{id}")
-    public Result<XrayClientRespVO> getXrayClient(@PathVariable("id") String id) {
+    @GetMapping("/get")
+    public Result<XrayClientRespVO> getXrayClient(@RequestParam("id") String id) {
         XrayClientDO entity = xrayClientService.getXrayClient(id);
         return Result.ok(convertOne(entity));
     }
 
-    @PostMapping("/provision")
-    public Result<XrayClientRespVO> provisionXrayClient(@RequestBody @Valid XrayClientProvisionReqVO createReqVO) {
+    @PostMapping("/create")
+    public Result<XrayClientRespVO> createXrayClient(@Valid @RequestBody XrayClientProvisionReqVO createReqVO) {
         XrayClientDO client = xrayClientService.provisionXrayClient(createReqVO);
         return Result.ok(convertOne(client));
     }
 
-    @PutMapping("/{id}")
-    public Result<Boolean> updateXrayClient(@PathVariable("id") String id,
-                                            @RequestBody @Valid XrayClientUpdateReqVO updateReqVO) {
+    @PutMapping("/update")
+    public Result<Boolean> updateXrayClient(@RequestParam("id") String id,
+                                            @Valid @RequestBody XrayClientUpdateReqVO updateReqVO) {
         xrayClientService.updateXrayClient(id, updateReqVO);
         return Result.ok(true);
     }
 
-    @DeleteMapping("/{id}")
-    public Result<Boolean> revokeXrayClient(@PathVariable("id") String id) {
+    @DeleteMapping("/delete")
+    public Result<Boolean> deleteXrayClient(@RequestParam("id") String id) {
         xrayClientService.revokeXrayClient(id);
         return Result.ok(true);
     }
 
-    @PostMapping("/{id}/rotate")
-    public Result<XrayClientRespVO> rotateXrayClient(@PathVariable("id") String id) {
+    @PostMapping("/rotate")
+    public Result<XrayClientRespVO> rotateXrayClient(@RequestParam("id") String id) {
         XrayClientDO entity = xrayClientService.rotateXrayClient(id);
         return Result.ok(convertOne(entity));
     }
 
-    @GetMapping("/{id}/traffic")
-    public Result<XrayClientTrafficRespVO> getXrayClientTraffic(@PathVariable("id") String id) {
+    @GetMapping("/traffic")
+    public Result<XrayClientTrafficRespVO> getXrayClientTraffic(@RequestParam("id") String id) {
         XrayClientTrafficRespVO traffic = xrayClientService.getXrayClientTraffic(id);
         return Result.ok(traffic);
     }
 
-    @PostMapping("/{id}/reset-traffic")
-    public Result<Boolean> resetXrayClientTraffic(@PathVariable("id") String id) {
+    @PostMapping("/reset-traffic")
+    public Result<Boolean> resetXrayClientTraffic(@RequestParam("id") String id) {
         xrayClientService.resetXrayClientTraffic(id);
         return Result.ok(true);
     }
 
-    @GetMapping("/{id}/credential")
-    public Result<XrayClientCredentialRespVO> getXrayClientCredential(@PathVariable("id") String id) {
+    @GetMapping("/credential")
+    public Result<XrayClientCredentialRespVO> getXrayClientCredential(@RequestParam("id") String id) {
         XrayClientCredentialRespVO credential = xrayClientService.getXrayClientCredential(id);
         return Result.ok(credential);
     }
 
-    @GetMapping("/server/{serverId}/sync-status")
-    public Result<XrayClientSyncStatusRespVO> getSyncStatus(@PathVariable("serverId") String serverId) {
+    @GetMapping("/sync-status")
+    public Result<XrayClientSyncStatusRespVO> getSyncStatus(@RequestParam("serverId") String serverId) {
         XrayClientSyncStatusRespVO status = xrayClientService.getSyncStatus(serverId);
         return Result.ok(status);
     }
 
-    @PostMapping("/{id}/sync")
-    public Result<Boolean> syncXrayClient(@PathVariable("id") String id) {
+    @PostMapping("/sync")
+    public Result<Boolean> syncXrayClient(@RequestParam("id") String id) {
         xrayClientService.syncXrayClient(id);
         return Result.ok(true);
     }
 
-    @PostMapping("/server/{serverId}/replay")
-    public Result<XrayClientReplayReportRespVO> replayServer(@PathVariable("serverId") String serverId) {
+    @PostMapping("/replay-server")
+    public Result<XrayClientReplayReportRespVO> replayServer(@RequestParam("serverId") String serverId) {
         XrayClientReplayReportRespVO report = xrayClientService.replayServer(serverId);
         return Result.ok(report);
     }
 
-    /** 单条 detail / provision / rotate 共用的 enrich 路径. */
+    /** 单条 detail / create / rotate 共用的 enrich 路径 */
     private XrayClientRespVO convertOne(XrayClientDO entity) {
         List<XrayClientDO> single = Collections.singletonList(entity);
         Map<String, String> ipMap = loadIpAddressMap(XrayClientConvert.collectIpIds(single));

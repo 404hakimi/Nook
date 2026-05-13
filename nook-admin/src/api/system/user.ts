@@ -52,25 +52,25 @@ export const ROLE_LABELS: Record<string, string> = {
 }
 
 export function pageSystemUsers(params: SystemUserQuery) {
-  return request.get<unknown, PageResult<SystemUser>>('/admin/system/users', { params })
+  return request.get<unknown, PageResult<SystemUser>>('/admin/system/user/page', { params })
 }
 
 export function getSystemUserDetail(id: string) {
-  return request.get<unknown, SystemUser>(`/admin/system/users/${id}`)
+  return request.get<unknown, SystemUser>('/admin/system/user/get', { params: { id } })
 }
 
 export function createSystemUser(dto: SystemUserSaveDTO) {
-  return request.post<unknown, SystemUser>('/admin/system/users', dto)
+  return request.post<unknown, SystemUser>('/admin/system/user/create', dto)
 }
 
 export function updateSystemUser(id: string, dto: SystemUserSaveDTO) {
-  return request.put<unknown, SystemUser>(`/admin/system/users/${id}`, dto)
+  return request.put<unknown, SystemUser>('/admin/system/user/update', dto, { params: { id } })
 }
 
 export function deleteSystemUser(id: string) {
-  return request.delete<unknown, void>(`/admin/system/users/${id}`)
+  return request.delete<unknown, void>('/admin/system/user/delete', { params: { id } })
 }
 
 export function resetSystemUserPassword(id: string, newPassword: string) {
-  return request.put<unknown, void>(`/admin/system/users/${id}/password`, { newPassword })
+  return request.put<unknown, void>('/admin/system/user/reset-password', { newPassword }, { params: { id } })
 }

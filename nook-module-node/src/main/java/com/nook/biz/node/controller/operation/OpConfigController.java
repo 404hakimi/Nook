@@ -15,11 +15,11 @@ import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashSet;
@@ -40,7 +40,7 @@ public class OpConfigController {
     @Resource
     private OpConfigService opConfigService;
 
-    @GetMapping
+    @GetMapping("/list")
     public Result<List<OpConfigRespVO>> getOpConfigList() {
         List<OpConfigDO> list = opConfigService.getOpConfigList();
         return Result.ok(OpConfigConvert.INSTANCE.convertList(list));
@@ -53,8 +53,8 @@ public class OpConfigController {
         return Result.ok(OpConfigConvert.INSTANCE.convertSimpleList(list));
     }
 
-    @GetMapping("/op-types")
-    public Result<List<OpTypeOptionRespVO>> getOpTypeOptions() {
+    @GetMapping("/op-type-list")
+    public Result<List<OpTypeOptionRespVO>> getOpTypeOptionList() {
         // 给前端 Create 弹框提供 OpType 下拉 + 是否已配置标记
         Set<String> configured = new HashSet<>();
         for (OpConfigDO row : opConfigService.getOpConfigList()) {
@@ -66,13 +66,13 @@ public class OpConfigController {
         return Result.ok(options);
     }
 
-    @GetMapping("/{id}")
-    public Result<OpConfigRespVO> getOpConfig(@PathVariable("id") String id) {
+    @GetMapping("/get")
+    public Result<OpConfigRespVO> getOpConfig(@RequestParam("id") String id) {
         OpConfigDO entity = opConfigService.getOpConfig(id);
         return Result.ok(OpConfigConvert.INSTANCE.convert(entity));
     }
 
-    @PostMapping
+    @PostMapping("/create")
     public Result<String> createOpConfig(@Valid @RequestBody OpConfigCreateReqVO createReqVO) {
         String id = opConfigService.createOpConfig(
                 createReqVO.getOpType(),
@@ -85,8 +85,8 @@ public class OpConfigController {
         return Result.ok(id);
     }
 
-    @PutMapping("/{id}")
-    public Result<Boolean> updateOpConfig(@PathVariable("id") String id,
+    @PutMapping("/update")
+    public Result<Boolean> updateOpConfig(@RequestParam("id") String id,
                                           @Valid @RequestBody OpConfigSaveReqVO updateReqVO) {
         opConfigService.updateOpConfig(id,
                 updateReqVO.getName(),
@@ -98,8 +98,8 @@ public class OpConfigController {
         return Result.ok(true);
     }
 
-    @DeleteMapping("/{id}")
-    public Result<Boolean> deleteOpConfig(@PathVariable("id") String id) {
+    @DeleteMapping("/delete")
+    public Result<Boolean> deleteOpConfig(@RequestParam("id") String id) {
         opConfigService.deleteOpConfig(id);
         return Result.ok(true);
     }

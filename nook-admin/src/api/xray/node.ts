@@ -30,11 +30,11 @@ export interface XrayNodePageQuery {
 }
 
 export function pageXrayNode(params: XrayNodePageQuery) {
-  return request.get<unknown, PageResult<XrayNode>>('/admin/node/xray-nodes', { params })
+  return request.get<unknown, PageResult<XrayNode>>('/admin/xray/node/page', { params })
 }
 
 export function getXrayNodeDetail(serverId: string) {
-  return request.get<unknown, XrayNode>(`/admin/node/xray-nodes/${serverId}`)
+  return request.get<unknown, XrayNode>('/admin/xray/node/get', { params: { serverId } })
 }
 
 /** Slot 占用视图项 (后端 XraySlotItemRespVO); slot_pool + xray_node + xray_client 三表派生 */
@@ -52,5 +52,5 @@ export interface XraySlotItem {
 }
 
 export function getSlotPoolView(serverId: string) {
-  return request.get<unknown, XraySlotItem[]>(`/admin/node/xray-nodes/${serverId}/slots`)
+  return request.get<unknown, XraySlotItem[]>('/admin/xray/node/slot-list', { params: { serverId } })
 }

@@ -19,8 +19,8 @@ import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
@@ -33,7 +33,7 @@ import java.util.Map;
  * @author nook
  */
 @RestController
-@RequestMapping("/admin/node/xray-nodes")
+@RequestMapping("/admin/xray/node")
 @Validated
 public class XrayNodeController {
 
@@ -46,8 +46,8 @@ public class XrayNodeController {
     @Resource
     private ResourceServerService resourceServerService;
 
-    @GetMapping("/{serverId}")
-    public Result<XrayNodeRespVO> getXrayNode(@PathVariable("serverId") String serverId) {
+    @GetMapping("/get")
+    public Result<XrayNodeRespVO> getXrayNode(@RequestParam("serverId") String serverId) {
         XrayNodeDO entity = xrayNodeService.getXrayNode(serverId);
         XrayNodeRespVO vo = XrayNodeConvert.INSTANCE.convert(entity);
         Map<String, ResourceServerDO> serverMap = resourceServerService.getServerMap(Collections.singleton(serverId));
@@ -59,7 +59,7 @@ public class XrayNodeController {
         return Result.ok(vo);
     }
 
-    @GetMapping
+    @GetMapping("/page")
     public Result<PageResult<XrayNodeRespVO>> getXrayNodePage(@ModelAttribute XrayNodePageReqVO pageReqVO) {
         PageResult<XrayNodeDO> pageResult = xrayNodeService.getXrayNodePage(pageReqVO);
         Map<String, ResourceServerDO> serverMap = resourceServerService.getServerMap(
@@ -72,8 +72,8 @@ public class XrayNodeController {
      *
      * <p>Controller 只负责拉数据 + 调 convert; 派生 / 拼装逻辑都在 {@link XraySlotPoolConvert}.
      */
-    @GetMapping("/{serverId}/slots")
-    public Result<List<XraySlotItemRespVO>> getSlotPoolView(@PathVariable("serverId") String serverId) {
+    @GetMapping("/slot-list")
+    public Result<List<XraySlotItemRespVO>> getSlotList(@RequestParam("serverId") String serverId) {
         // node 必须先存在 (无则抛 SERVER_STATE_NOT_FOUND); 拿 slot_port_base 派生 listen_port
         XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
         int portBase = node.getSlotPortBase() == null ? 0 : node.getSlotPortBase();

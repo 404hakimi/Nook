@@ -79,17 +79,15 @@ export const OP_STATUS_META: Record<
 
 /** 分页查询. */
 export function pageOpLog(params: OpLogPageQuery) {
-  return request.get<unknown, PageResult<OpLog>>('/admin/operation/op-log', {
-    params
-  })
+  return request.get<unknown, PageResult<OpLog>>('/admin/operation/op-log/page', { params })
 }
 
 /** 单条详情, 含 paramsJson / errorMsg. */
 export function getOpLogDetail(id: string) {
-  return request.get<unknown, OpLog>(`/admin/operation/op-log/${id}`)
+  return request.get<unknown, OpLog>('/admin/operation/op-log/get', { params: { id } })
 }
 
 /** 取消 QUEUED; 返 true=成功取消, false=已非 QUEUED (前端可刷新). */
 export function cancelOpLog(id: string) {
-  return request.delete<unknown, boolean>(`/admin/operation/op-log/${id}`)
+  return request.post<unknown, boolean>('/admin/operation/op-log/cancel', null, { params: { id } })
 }

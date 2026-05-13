@@ -48,7 +48,7 @@ export interface OpConfigSaveReq {
 }
 
 export function listOpConfig() {
-  return request.get<unknown, OpConfig[]>('/admin/operation/op-config')
+  return request.get<unknown, OpConfig[]>('/admin/operation/op-config/list')
 }
 
 /** 精简下拉: 仅 opType + name, 给 OpLog / OpLogDetailDialog 等下游用 */
@@ -57,23 +57,23 @@ export function simpleListOpConfig() {
 }
 
 export function listOpTypeOptions() {
-  return request.get<unknown, OpTypeOption[]>('/admin/operation/op-config/op-types')
+  return request.get<unknown, OpTypeOption[]>('/admin/operation/op-config/op-type-list')
 }
 
 export function getOpConfigDetail(id: string) {
-  return request.get<unknown, OpConfig>(`/admin/operation/op-config/${id}`)
+  return request.get<unknown, OpConfig>('/admin/operation/op-config/get', { params: { id } })
 }
 
 /** 新建; 同 opType 重复后端会抛 OP_CONFIG_DUPLICATE */
 export function createOpConfig(body: OpConfigCreateReq) {
-  return request.post<unknown, string>('/admin/operation/op-config', body)
+  return request.post<unknown, string>('/admin/operation/op-config/create', body)
 }
 
 export function updateOpConfig(id: string, body: OpConfigSaveReq) {
-  return request.put<unknown, boolean>(`/admin/operation/op-config/${id}`, body)
+  return request.put<unknown, boolean>('/admin/operation/op-config/update', body, { params: { id } })
 }
 
 /** 删除 → 该 opType 失去配置, 后续 enqueue 会被 isEnabled=false 拒绝 */
 export function deleteOpConfig(id: string) {
-  return request.delete<unknown, boolean>(`/admin/operation/op-config/${id}`)
+  return request.delete<unknown, boolean>('/admin/operation/op-config/delete', { params: { id } })
 }

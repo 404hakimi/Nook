@@ -12,7 +12,6 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,12 +22,12 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 import java.time.Duration;
 
 /**
- * 管理后台 - Xray 线路服务器
+ * 管理后台 - Xray 线路服务器运维 (server 上的 xray 实例 status / restart / autostart / install)
  *
  * @author nook
  */
 @RestController
-@RequestMapping("/admin/node/xray/server")
+@RequestMapping("/admin/xray/server")
 @Validated
 public class XrayServerManageController {
 
@@ -41,28 +40,28 @@ public class XrayServerManageController {
     @Resource
     private WebStreamingProperties webStreamingProperties;
 
-    @GetMapping("/{id}/status")
-    public Result<XrayServerStatusRespVO> getXrayStatus(@PathVariable("id") String id) {
+    @GetMapping("/status")
+    public Result<XrayServerStatusRespVO> getXrayStatus(@RequestParam("id") String id) {
         XrayServerStatusRespVO status = xrayServerManageService.getXraySystemdStatus(id);
         return Result.ok(status);
     }
 
-    @PostMapping("/{id}/restart")
-    public Result<String> restartXray(@PathVariable("id") String id) {
+    @PostMapping("/restart")
+    public Result<String> restartXray(@RequestParam("id") String id) {
         String out = xrayServerManageService.restart(id);
         return Result.ok(out);
     }
 
-    @PostMapping("/{id}/autostart")
-    public Result<String> setAutostart(@PathVariable("id") String id,
+    @PostMapping("/autostart")
+    public Result<String> setAutostart(@RequestParam("id") String id,
                                        @RequestParam("enabled") boolean enabled) {
         String out = xrayServerManageService.setAutostart(id, enabled);
         return Result.ok(out);
     }
 
-    @PostMapping(value = "/{id}/install", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
-    public ResponseBodyEmitter installXray(@PathVariable("id") String id,
-                                           @RequestBody @Valid XrayServerInstallReqVO reqVO) {
+    @PostMapping(value = "/install", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
+    public ResponseBodyEmitter installXray(@RequestParam("id") String id,
+                                           @Valid @RequestBody XrayServerInstallReqVO reqVO) {
         // Emitter 端比 install 端略宽, 保证 Service 自己 timeout 时还能把错误吐回前端
         int installTimeout = resourceServerService.getServer(id).getInstallTimeoutSeconds();
         Duration emitterTimeout = Duration.ofSeconds(installTimeout).plus(webStreamingProperties.getEmitterBuffer());

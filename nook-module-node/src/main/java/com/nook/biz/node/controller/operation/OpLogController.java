@@ -12,11 +12,11 @@ import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
@@ -43,7 +43,7 @@ public class OpLogController {
     @Resource
     private XrayClientService xrayClientService;
 
-    @GetMapping
+    @GetMapping("/page")
     public Result<PageResult<OpLogRespVO>> getOpLogPage(@ModelAttribute OpLogPageReqVO pageReqVO) {
         PageResult<OpLogDO> pageResult = opLogService.page(pageReqVO.getPageNo(), pageReqVO.getPageSize(),
                 pageReqVO.getStatus(), pageReqVO.getServerId(), pageReqVO.getOpType());
@@ -61,8 +61,8 @@ public class OpLogController {
                 serverNames, operatorNames, targetNames));
     }
 
-    @GetMapping("/{id}")
-    public Result<OpLogRespVO> getOpLog(@PathVariable("id") String id) {
+    @GetMapping("/get")
+    public Result<OpLogRespVO> getOpLog(@RequestParam("id") String id) {
         OpLogDO entity = opLogService.findById(id);
         List<OpLogDO> single = Collections.singletonList(entity);
         Map<String, String> serverNames = resourceServerService.getServerNameMap(OpLogConvert.extractServerIds(single));
@@ -72,8 +72,8 @@ public class OpLogController {
                 serverNames, operatorNames, targetNames));
     }
 
-    @DeleteMapping("/{id}")
-    public Result<Boolean> cancelOpLog(@PathVariable("id") String id) {
+    @PostMapping("/cancel")
+    public Result<Boolean> cancelOpLog(@RequestParam("id") String id) {
         boolean cancelled = opLogService.cancelQueued(id);
         return Result.ok(cancelled);
     }

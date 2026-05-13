@@ -59,28 +59,28 @@ export const IP_POOL_STATUS_LABELS: Record<number, string> = {
 }
 
 export function pageIpPool(params: ResourceIpPoolQuery) {
-  return request.get<unknown, PageResult<ResourceIpPool>>('/admin/resource/ip-pool', { params })
+  return request.get<unknown, PageResult<ResourceIpPool>>('/admin/resource/ip-pool/page', { params })
 }
 
 export function getIpPoolDetail(id: string) {
-  return request.get<unknown, ResourceIpPool>(`/admin/resource/ip-pool/${id}`)
+  return request.get<unknown, ResourceIpPool>('/admin/resource/ip-pool/get', { params: { id } })
 }
 
 export function createIpPool(dto: ResourceIpPoolSaveDTO) {
-  return request.post<unknown, ResourceIpPool>('/admin/resource/ip-pool', dto)
+  return request.post<unknown, ResourceIpPool>('/admin/resource/ip-pool/create', dto)
 }
 
 export function updateIpPool(id: string, dto: ResourceIpPoolSaveDTO) {
-  return request.put<unknown, ResourceIpPool>(`/admin/resource/ip-pool/${id}`, dto)
+  return request.put<unknown, ResourceIpPool>('/admin/resource/ip-pool/update', dto, { params: { id } })
 }
 
 export function deleteIpPool(id: string) {
-  return request.delete<unknown, void>(`/admin/resource/ip-pool/${id}`)
+  return request.delete<unknown, void>('/admin/resource/ip-pool/delete', { params: { id } })
 }
 
 /** 退订: occupied → cooling, 一段时间后由调度器扫回 available. */
 export function releaseIpPool(id: string) {
-  return request.post<unknown, void>(`/admin/resource/ip-pool/${id}/release`)
+  return request.post<unknown, void>('/admin/resource/ip-pool/release', null, { params: { id } })
 }
 
 /** SOCKS5 测试入参; 全部必填, 后端做非空 + 范围校验, 不再兜底. */
@@ -125,7 +125,7 @@ export interface Socks5TestResult {
  * @param params 全字段必填; 调用方一般 `{ ...SOCKS5_TEST_DEFAULTS, echoUrl: 用户输入 }` 拼造
  */
 export function testIpPoolSocks5(id: string, params: Socks5TestParams) {
-  return request.post<unknown, Socks5TestResult>(`/admin/node/socks5/${id}/test`, params)
+  return request.post<unknown, Socks5TestResult>('/admin/resource/ip-pool/test-socks5', params, { params: { id } })
 }
 
 // ===== SOCKS5 独立部署 (走 nook-biz-node Socks5Controller, 流式 HTTP, 不绑定 IP 池条目) =====
@@ -165,7 +165,7 @@ export async function installSocks5Stream(
   signal?: AbortSignal
 ): Promise<void> {
   const userStore = useUserStore()
-  const res = await fetch('/api/admin/node/socks5/install', {
+  const res = await fetch('/api/admin/resource/ip-pool/install-socks5', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

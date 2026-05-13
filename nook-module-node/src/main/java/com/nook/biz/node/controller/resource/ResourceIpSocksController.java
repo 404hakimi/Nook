@@ -12,22 +12,22 @@ import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.time.Duration;
 
 /**
- * 管理后台 - SOCKS5 落地节点
+ * 管理后台 - SOCKS5 落地节点; 跟 ResourceIpPoolController 共用 /admin/resource/ip-pool 前缀
  *
  * @author nook
  */
 @RestController
-@RequestMapping("/admin/node/socks5")
+@RequestMapping("/admin/resource/ip-pool")
 @Validated
 public class ResourceIpSocksController {
 
@@ -40,8 +40,8 @@ public class ResourceIpSocksController {
     @Resource
     private Socks5Properties socks5Properties;
 
-    @PostMapping(value = "/install", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
-    public ResponseBodyEmitter installSocks5(@RequestBody @Valid ResourceIpSocksInstallReqVO reqVO) {
+    @PostMapping(value = "/install-socks5", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
+    public ResponseBodyEmitter installSocks5(@Valid @RequestBody ResourceIpSocksInstallReqVO reqVO) {
         // 缺 installTimeoutSeconds 走兜底, service validator 仍会拒空请求
         long secs = reqVO != null && reqVO.getInstallTimeoutSeconds() != null
                 ? reqVO.getInstallTimeoutSeconds() : socks5Properties.getDefaultInstallTimeoutSeconds();
@@ -51,10 +51,10 @@ public class ResourceIpSocksController {
                 lineSink -> resourceIpSocksService.installSocks5(reqVO, lineSink));
     }
 
-    @PostMapping("/{ipId}/test")
-    public Result<ResourceIpSocksTestRespVO> testSocks5(@PathVariable("ipId") String ipId,
-                                                        @RequestBody @Valid ResourceIpSocksTestReqVO reqVO) {
-        ResourceIpSocksTestRespVO result = resourceIpSocksService.testSocks5(ipId, reqVO);
+    @PostMapping("/test-socks5")
+    public Result<ResourceIpSocksTestRespVO> testSocks5(@RequestParam("id") String id,
+                                                        @Valid @RequestBody ResourceIpSocksTestReqVO reqVO) {
+        ResourceIpSocksTestRespVO result = resourceIpSocksService.testSocks5(id, reqVO);
         return Result.ok(result);
     }
 }

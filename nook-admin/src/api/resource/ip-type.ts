@@ -20,5 +20,5 @@ export const IP_TYPE_CODE_LABELS: Record<string, string> = {
 
 /** 全量列出, 已按 sortOrder 升序; 用于 IP 池录入 / 套餐配置下拉. */
 export function listIpTypes() {
-  return request.get<unknown, ResourceIpType[]>('/admin/resource/ip-types')
+  return request.get<unknown, ResourceIpType[]>('/admin/resource/ip-type/list')
 }

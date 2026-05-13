@@ -73,21 +73,21 @@ export const SERVER_STATUS_LABELS: Record<number, string> = {
 }
 
 export function pageServers(params: ResourceServerQuery) {
-  return request.get<unknown, PageResult<ResourceServer>>('/admin/resource/servers', { params })
+  return request.get<unknown, PageResult<ResourceServer>>('/admin/resource/server/page', { params })
 }
 
 export function getServerDetail(id: string) {
-  return request.get<unknown, ResourceServer>(`/admin/resource/servers/${id}`)
+  return request.get<unknown, ResourceServer>('/admin/resource/server/get', { params: { id } })
 }
 
 export function createServer(dto: ResourceServerSaveDTO) {
-  return request.post<unknown, ResourceServer>('/admin/resource/servers', dto)
+  return request.post<unknown, ResourceServer>('/admin/resource/server/create', dto)
 }
 
 export function updateServer(id: string, dto: ResourceServerSaveDTO) {
-  return request.put<unknown, ResourceServer>(`/admin/resource/servers/${id}`, dto)
+  return request.put<unknown, ResourceServer>('/admin/resource/server/update', dto, { params: { id } })
 }
 
 export function deleteServer(id: string) {
-  return request.delete<unknown, void>(`/admin/resource/servers/${id}`)
+  return request.delete<unknown, void>('/admin/resource/server/delete', { params: { id } })
 }

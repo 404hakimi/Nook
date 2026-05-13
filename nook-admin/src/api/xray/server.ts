@@ -52,24 +52,22 @@ export interface XrayLog {
   log?: string
 }
 
-// ===== 后端 ServerInspectorController @ /admin/node/server (通用, 不绑 xray) =====
+// ===== 后端 ResourceServerInfoController @ /admin/resource/server (通用, 不绑 xray) =====
 
 /** 探活: SSH 跑 'true' 验证可达性; 失败已包成 success=false 不抛错. */
 export function testServerConnectivity(serverId: string) {
-  return request.post<unknown, ConnectivityTestResult>(`/admin/node/server/${serverId}/test`)
+  return request.post<unknown, ConnectivityTestResult>('/admin/resource/server/connectivity-test', null, { params: { id: serverId } })
 }
 
 /** 拉服务器系统基本信息 (hostname / 内存 / 磁盘 / 时区 等). */
 export function getServerSystemInfo(serverId: string) {
-  return request.get<unknown, ServerSystemInfo>(`/admin/node/server/${serverId}/system-info`)
+  return request.get<unknown, ServerSystemInfo>('/admin/resource/server/system-info', { params: { id: serverId } })
 }
 
 /** 拉指定 systemd unit 的通用运行状态 (不含 service 专属字段如 version/listening). */
 export function getSystemdStatus(serverId: string, unit: string) {
-  return request.get<unknown, SystemdStatus>(
-    `/admin/node/server/${serverId}/systemd-status`,
-    { params: { unit } }
-  )
+  return request.get<unknown, SystemdStatus>('/admin/resource/server/systemd-status',
+    { params: { id: serverId, unit } })
 }
 
 /** 拉指定 systemd unit 的 journalctl 日志, 按行数 + 级别过滤. */
@@ -78,8 +76,9 @@ export function getServiceLog(
   unit: string,
   opts?: { lines?: number; level?: XrayLogLevel }
 ) {
-  return request.get<unknown, XrayLog>(`/admin/node/server/${serverId}/log`, {
+  return request.get<unknown, XrayLog>('/admin/resource/server/service-log', {
     params: {
+      id: serverId,
       unit,
       lines: opts?.lines,
       level: opts?.level === 'all' ? undefined : opts?.level
@@ -95,25 +94,21 @@ export function getXrayLog(
   return getServiceLog(serverId, 'xray', opts)
 }
 
-// ===== 后端 XrayServerManageController @ /admin/node/xray/server =====
+// ===== 后端 XrayServerManageController @ /admin/xray/server =====
 
 /** 拉 Xray 服务运行状态 (active / version / 启动时间 / 监听端口 / 开机自启). */
 export function getXrayServiceStatus(serverId: string) {
-  return request.get<unknown, XrayServiceStatus>(`/admin/node/xray/server/${serverId}/status`)
+  return request.get<unknown, XrayServiceStatus>('/admin/xray/server/status', { params: { id: serverId } })
 }
 
 /** 重启 Xray 服务; 客户连接会断 1-2 秒. */
 export function xrayRestart(serverId: string) {
-  return request.post<unknown, string>(`/admin/node/xray/server/${serverId}/restart`)
+  return request.post<unknown, string>('/admin/xray/server/restart', null, { params: { id: serverId } })
 }
 
 /** 开/关 Xray 开机自启 (systemctl enable/disable); 末尾返回 is-enabled 结果给前端确认. */
 export function xrayAutostart(serverId: string, enabled: boolean) {
-  return request.post<unknown, string>(
-    `/admin/node/xray/server/${serverId}/autostart`,
-    null,
-    { params: { enabled } }
-  )
+  return request.post<unknown, string>('/admin/xray/server/autostart', null, { params: { id: serverId, enabled } })
 }
 
 /**
@@ -213,10 +208,10 @@ export function xrayInstallStream(
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  return streamPost(`/api/admin/node/xray/server/${serverId}/install`, dto, onChunk, signal)
+  return streamPost(`/api/admin/xray/server/install?id=${encodeURIComponent(serverId)}`, dto, onChunk, signal)
 }
 
-// ===== 后端 ServerOpsController @ /admin/node/server/{id}/ops =====
+// ===== 后端 ResourceServerOpsController @ /admin/resource/server =====
 
 /** 启用 swap (流式 stdout); 已有 swap 跳过, 不影响业务. */
 export function enableSwapStream(
@@ -225,7 +220,7 @@ export function enableSwapStream(
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  return streamPost(`/api/admin/node/server/${serverId}/ops/swap`, dto, onChunk, signal)
+  return streamPost(`/api/admin/resource/server/enable-swap?id=${encodeURIComponent(serverId)}`, dto, onChunk, signal)
 }
 
 /** 启用 BBR (流式 stdout); 内核不支持时跳过, 不影响业务. */
@@ -234,5 +229,5 @@ export function enableBbrStream(
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  return streamPost(`/api/admin/node/server/${serverId}/ops/bbr`, undefined, onChunk, signal)
+  return streamPost(`/api/admin/resource/server/enable-bbr?id=${encodeURIComponent(serverId)}`, undefined, onChunk, signal)
 }
