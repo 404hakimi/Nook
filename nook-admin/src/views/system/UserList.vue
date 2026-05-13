@@ -241,7 +241,7 @@ async function onDelete(u: SystemUser) {
   }
   const ok = await confirm({
     title: '删除用户',
-    message: `确定删除用户 "${u.username}" 吗？该操作可被超管恢复。`,
+    message: `删除用户 "${u.username}"?`,
     type: 'danger',
     confirmText: '删除'
   })

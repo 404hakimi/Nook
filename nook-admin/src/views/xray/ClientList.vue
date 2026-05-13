@@ -134,7 +134,7 @@ async function onRevoke(e: XrayClient) {
   if (busy.value[e.id]) return
   const ok = await confirm({
     title: '吊销客户端',
-    message: `确定吊销 ${e.clientEmail}？\n远端 client 会被删除，DB 软删，会员将立即断开。`,
+    message: `吊销客户端 ${e.clientEmail}?`,
     type: 'danger',
     confirmText: '吊销'
   })
@@ -154,7 +154,7 @@ async function onRotate(e: XrayClient) {
   if (busy.value[e.id]) return
   const ok = await confirm({
     title: '轮换密钥',
-    message: `重新生成 ${e.clientEmail} 的 UUID/密钥；旧客户端配置立即失效需要更新。`,
+    message: `轮换 ${e.clientEmail} 的 UUID?`,
     type: 'warning',
     confirmText: '轮换'
   })
@@ -174,7 +174,7 @@ async function onResetTraffic(e: XrayClient) {
   if (busy.value[e.id]) return
   const ok = await confirm({
     title: '清零流量',
-    message: `清零 ${e.clientEmail} 的累计上下行计数？`,
+    message: `清零 ${e.clientEmail} 的流量计数?`,
     type: 'warning',
     confirmText: '清零'
   })
@@ -193,7 +193,7 @@ async function onSync(e: XrayClient) {
   if (busy.value[e.id]) return
   const ok = await confirm({
     title: '同步到远端',
-    message: `把 ${e.clientEmail} 按 DB 状态推到远端 xray? 客户连接会断 1-2 秒重连.`,
+    message: `把 ${e.clientEmail} 同步到远端?`,
     type: 'warning',
     confirmText: '同步'
   })

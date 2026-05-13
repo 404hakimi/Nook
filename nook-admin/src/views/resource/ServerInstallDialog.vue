@@ -17,7 +17,7 @@ import {
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { xrayInstallStream, type LineServerInstallDTO } from '@/api/xray/server'
-import type { ResourceServer } from '@/api/resource/server'
+import { pageServers, type ResourceServer } from '@/api/resource/server'
 
 interface Props {
   modelValue: boolean
@@ -37,6 +37,42 @@ const output = ref('')
 const errors = reactive<Record<string, string>>({})
 const outputRef = ref<HTMLPreElement | null>(null)
 let abortCtrl: AbortController | null = null
+
+// server 没传时弹框内自带选择器 (Xray 节点页顶部"部署/重装"入口走这条路径);
+// server 传了直接锁定 (服务器列表行操作进来走这条路径, 当前已搬走)
+const pickedServer = ref<ResourceServer | null>(null)
+const serverOptions = ref<{ label: string; value: string; raw: ResourceServer }[]>([])
+const serversLoading = ref(false)
+const effectiveServer = computed<ResourceServer | null>(
+  () => props.server ?? pickedServer.value
+)
+
+async function loadServerOptions() {
+  if (serversLoading.value) return
+  serversLoading.value = true
+  try {
+    // 上限 200 个; 真有这么多 server 时再加分页选择器
+    const res = await pageServers({ pageNo: 1, pageSize: 200 })
+    serverOptions.value = res.records.map((s) => ({
+      label: `${s.name} (${s.host})`,
+      value: s.id,
+      raw: s
+    }))
+  } catch {
+    serverOptions.value = []
+  } finally {
+    serversLoading.value = false
+  }
+}
+
+function onPickServer(serverId: string | null) {
+  if (!serverId) {
+    pickedServer.value = null
+    return
+  }
+  const opt = serverOptions.value.find((o) => o.value === serverId)
+  pickedServer.value = opt ? opt.raw : null
+}
 
 const TIMEZONE_OPTIONS = [
   { label: '不修改 (skip)', value: 'skip' },
@@ -119,7 +155,11 @@ watch(
     Object.keys(errors).forEach((k) => delete errors[k])
     output.value = ''
     advancedOpen.value = false
-    // xray 配置默认值不再从 resource_server 取 (那里没了); 如需读已部署节点的端口, 后续可调 xray_node 接口
+    pickedServer.value = null
+    // server 没传时, 进弹框先拉一次列表给 NSelect 用
+    if (!props.server) {
+      loadServerOptions()
+    }
   }
 )
 
@@ -145,11 +185,15 @@ function validate() {
 }
 
 async function onSubmit() {
-  if (!validate() || !props.server) return
-  const slotEnd = form.slotPortBase + form.slotPoolSize
+  if (!validate()) return
+  const target = effectiveServer.value
+  if (!target) {
+    message.warning('请先选择目标服务器')
+    return
+  }
   const ok = await confirm({
     title: '部署 Xray',
-    message: `在 ${props.server.name} 部署 Xray ${form.xrayVersion}, slot ${form.slotPortBase}-${slotEnd} (${form.slotPoolSize} 个)?`,
+    message: `在 ${target.name} 部署 Xray ${form.xrayVersion}?`,
     type: 'warning',
     confirmText: '开始部署'
   })
@@ -173,7 +217,7 @@ async function onSubmit() {
       installUfw: form.installUfw,
       timezone: form.timezone || 'skip'
     }
-    await xrayInstallStream(props.server.id, dto, appendOutput, abortCtrl.signal)
+    await xrayInstallStream(target.id, dto, appendOutput, abortCtrl.signal)
     message.success('部署完成')
     emit('installed')
   } catch (e) {
@@ -229,8 +273,8 @@ function close() {
       </div>
     </template>
     <template #header-extra>
-      <span v-if="server" class="text-xs text-zinc-500">
-        {{ server.name }} ({{ server.host }})
+      <span v-if="effectiveServer" class="text-xs text-zinc-500">
+        {{ effectiveServer.name }} ({{ effectiveServer.host }})
       </span>
     </template>
 
@@ -240,6 +284,23 @@ function close() {
       require-mark-placement="right-hanging"
       size="small"
     >
+      <!-- ===== 目标服务器 (没传 server prop 时显示选择器) ===== -->
+      <NFormItem v-if="!server" required>
+        <template #label>
+          <span>目标服务器</span>
+          <span class="text-xs text-zinc-400 ml-2">从已登记的服务器中选择</span>
+        </template>
+        <NSelect
+          :value="pickedServer?.id ?? null"
+          :options="serverOptions"
+          :loading="serversLoading"
+          :disabled="installing"
+          filterable
+          placeholder="选择要部署/重装 Xray 的服务器"
+          @update:value="onPickServer"
+        />
+      </NFormItem>
+
       <!-- ===== 基础参数 ===== -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         <NFormItem required>

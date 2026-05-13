@@ -38,16 +38,14 @@ public class XrayClientValidator {
     }
 
     /**
-     * 校验同 (memberUserId, ipId) 当前没有 client 行.
+     * 校验该 IP 当前未被任何 client 占用; 跟 xray_client.uk_ip_id UNIQUE 约束对齐
      *
-     * @param memberUserId 会员 id
-     * @param ipId         IP 池条目 id
+     * @param ipId IP 池条目 id
      */
-    public void validateNotDuplicate(String memberUserId, String ipId) {
-        XrayClientDO dup = xrayClientMapper.selectByMemberAndIp(memberUserId, ipId);
+    public void validateIpNotInUse(String ipId) {
+        XrayClientDO dup = xrayClientMapper.selectByIpId(ipId);
         if (ObjectUtil.isNotNull(dup)) {
-            throw new BusinessException(XrayErrorCode.CLIENT_DUPLICATE,
-                    "memberUserId=" + memberUserId + " ipId=" + ipId);
+            throw new BusinessException(XrayErrorCode.CLIENT_IP_ALREADY_USED, ipId);
         }
     }
 

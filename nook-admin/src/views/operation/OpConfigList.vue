@@ -13,6 +13,7 @@ import {
 import { useConfirm } from '@/composables/useConfirm'
 import {
   deleteOpConfig,
+  listOpConfig,
   type OpConfig
 } from '@/api/operation/op-config'
 import { useOpConfigStore } from '@/stores/opConfig'
@@ -23,13 +24,15 @@ const message = useMessage()
 const { confirm } = useConfirm()
 const opConfigStore = useOpConfigStore()
 
-// 直接消费 store, 不再独立拉一份 — 一次刷新只发一次请求
-const list = computed<OpConfig[]>(() => opConfigStore.list)
+// 本页用全字段, 自己拉; 跨页面共享的 label 走 store (精简数据)
+const list = ref<OpConfig[]>([])
 const loading = ref(false)
 
 async function loadList() {
   loading.value = true
   try {
+    list.value = await listOpConfig()
+    // 同时通知 store 重拉, 让 OpLog 等共享 label 的页面拿到最新中文名
     await opConfigStore.reload()
   } catch {
     /* request 拦截器已 toast */
@@ -56,7 +59,7 @@ function openEdit(row: OpConfig) {
 async function onDelete(row: OpConfig) {
   const ok = await confirm({
     title: '删除配置',
-    message: `确定删除 ${row.name} 的 op_config 行? 删除后该 opType 将无配置, 后续无法入队.`,
+    message: `删除 ${row.name} 的配置?`,
     type: 'danger',
     confirmText: '删除',
     cancelText: '取消'
@@ -162,15 +165,7 @@ const columns = computed<DataTableColumns<OpConfig>>(() => [
   }
 ])
 
-// 首次进页用 ensureLoaded (已有缓存不重拉); 刷新按钮才走 reload 强刷
-onMounted(async () => {
-  loading.value = true
-  try {
-    await opConfigStore.ensureLoaded()
-  } finally {
-    loading.value = false
-  }
-})
+onMounted(loadList)
 </script>
 
 <template>

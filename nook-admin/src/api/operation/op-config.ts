@@ -20,6 +20,12 @@ export interface OpTypeOption {
   configured: boolean
 }
 
+/** 精简下拉项 (仅 opType + 中文名), 给 OpLog 等页面做名称回填 / 筛选下拉 */
+export interface OpConfigSimple {
+  opType: OpType | string
+  name: string
+}
+
 /** 创建入参; opType + name 必填 */
 export interface OpConfigCreateReq {
   opType: string
@@ -43,6 +49,11 @@ export interface OpConfigSaveReq {
 
 export function listOpConfig() {
   return request.get<unknown, OpConfig[]>('/admin/operation/op-config')
+}
+
+/** 精简下拉: 仅 opType + name, 给 OpLog / OpLogDetailDialog 等下游用 */
+export function simpleListOpConfig() {
+  return request.get<unknown, OpConfigSimple[]>('/admin/operation/op-config/simple-list')
 }
 
 export function listOpTypeOptions() {

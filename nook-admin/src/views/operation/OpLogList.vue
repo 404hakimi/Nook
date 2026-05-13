@@ -170,7 +170,7 @@ async function onCancel(row: OpLog) {
   }
   const ok = await confirm({
     title: '取消任务',
-    message: `确定取消任务 ${opConfigStore.getLabel(row.opType)} (server=${row.serverId})?`,
+    message: `取消任务「${opConfigStore.getLabel(row.opType)}」?`,
     type: 'warning',
     confirmText: '取消任务',
     cancelText: '关闭'

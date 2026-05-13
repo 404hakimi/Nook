@@ -6,6 +6,7 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientTrafficDO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper.TrafficDeltaRow;
 import com.nook.biz.node.framework.xray.cli.XrayStatsCli;
 import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
 import com.nook.biz.node.service.support.SessionCredentialMapper;
@@ -19,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -31,8 +33,6 @@ import java.util.UUID;
 @Slf4j
 @Service
 public class XrayTrafficSampleServiceImpl implements XrayTrafficSampleService {
-
-    private static final String STATS_USER_PATTERN = "user>>>";
 
     @Resource
     private XrayClientMapper xrayClientMapper;
@@ -48,21 +48,69 @@ public class XrayTrafficSampleServiceImpl implements XrayTrafficSampleService {
     private XrayClientValidator xrayClientValidator;
 
     @Override
-    public void sampleServerTraffic(String serverId) {
-        if (StrUtil.isBlank(serverId)) {
-            return;
+    public SampleStat sampleServerTraffic(String serverId) {
+        if (StrUtil.isBlank(serverId)) return SampleStat.EMPTY;
+        try {
+            return sampleServerTraffic(xrayNodeService.getXrayNode(serverId));
+        } catch (RuntimeException e) {
+            // server 尚未装 xray (无 xray_node 行), 不算 sample 失败
+            log.debug("[traffic-sample] server={} 无 xray_node 记录, 跳过", serverId);
+            return SampleStat.EMPTY;
         }
-        XrayNodeDO node = loadNodeOrNull(serverId);
-        if (node == null) {
-            return;
+    }
+
+    @Override
+    public SampleStat sampleServerTraffic(XrayNodeDO node) {
+        if (node == null || StrUtil.isBlank(node.getServerId())) return SampleStat.EMPTY;
+        String serverId = node.getServerId();
+
+        // ① 拉远端 in-memory counter; reset=true 清零让下一周期重新累加
+        Map<String, XrayUserTrafficSnapshot> counters;
+        try {
+            SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.RECONCILE);
+            counters = xrayStatsCli.readAllUserTraffics(session, node.getXrayApiPort(), true);
+        } catch (RuntimeException e) {
+            log.warn("[traffic-sample] server={} SSH 取 counter 失败, 跳过本轮: {}", serverId, e.getMessage());
+            return SampleStat.EMPTY;
         }
-        // reset=true 把 counter 清零, 增量落到 DB 后下一周期重新从 0 累加
-        Map<String, XrayUserTrafficSnapshot> remoteCounters = readRemoteCounters(serverId, node.getXrayApiPort());
-        if (remoteCounters == null || remoteCounters.isEmpty()) {
-            return;
+        if (counters == null || counters.isEmpty()) return SampleStat.EMPTY;
+
+        // ② email → clientId 映射 (含已停用 client, 防 email 匹配漏掉残留 counter)
+        Map<String, String> emailToClientId = CollectionUtils.convertMap(
+                CollectionUtils.filterList(
+                        xrayClientMapper.selectByServerId(serverId),
+                        c -> StrUtil.isNotBlank(c.getClientEmail())),
+                XrayClientDO::getClientEmail,
+                XrayClientDO::getId);
+
+        // ③ 把增量打包成一批 row, 1 条 SQL upsert (N 客户从 N 次 round-trip 降到 1)
+        LocalDateTime now = LocalDateTime.now();
+        List<TrafficDeltaRow> rows = new ArrayList<>(counters.size());
+        int skipped = 0;
+        for (XrayUserTrafficSnapshot snap : counters.values()) {
+            String clientId = emailToClientId.get(snap.getEmail());
+            if (clientId == null) {
+                // 远端有 DB 无 → 孤儿 inbound / DB 被直删, 留给 reconciler 处理
+                skipped++;
+                continue;
+            }
+            long deltaUp = Math.max(0L, snap.getUpBytes());
+            long deltaDown = Math.max(0L, snap.getDownBytes());
+            if (deltaUp == 0 && deltaDown == 0) continue;
+            rows.add(new TrafficDeltaRow(
+                    UUID.randomUUID().toString().replace("-", ""),
+                    clientId, serverId, deltaUp, deltaDown, now));
         }
-        Map<String, String> emailToClientId = buildEmailToClientIdMap(serverId);
-        upsertTrafficDeltas(serverId, remoteCounters, emailToClientId);
+        if (rows.isEmpty()) return new SampleStat(0, skipped);
+        try {
+            xrayClientTrafficMapper.batchUpsertDelta(rows);
+        } catch (Exception e) {
+            // 整批失败丢一轮, 等下一周期重试; 不做单条降级 (并发安全 + 简化)
+            log.warn("[traffic-sample] batch upsert 失败 server={} rows={}: {}",
+                    serverId, rows.size(), e.getMessage());
+            return new SampleStat(0, skipped);
+        }
+        return new SampleStat(rows.size(), skipped);
     }
 
     @Override
@@ -96,68 +144,5 @@ public class XrayTrafficSampleServiceImpl implements XrayTrafficSampleService {
                 0L,
                 0L,
                 live);
-    }
-
-    private XrayNodeDO loadNodeOrNull(String serverId) {
-        try {
-            return xrayNodeService.getXrayNode(serverId);
-        } catch (RuntimeException e) {
-            // server 尚未装 xray, 不算 sample 失败
-            log.debug("[traffic-sample] server={} 无 xray_node 记录, 跳过", serverId);
-            return null;
-        }
-    }
-
-    private Map<String, XrayUserTrafficSnapshot> readRemoteCounters(String serverId, int xrayApiPort) {
-        try {
-            SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.RECONCILE);
-            return xrayStatsCli.readUserTraffics(session, xrayApiPort, STATS_USER_PATTERN, true);
-        } catch (RuntimeException e) {
-            log.warn("[traffic-sample] server={} SSH 取 counter 失败, 跳过本轮: {}", serverId, e.getMessage());
-            return null;
-        }
-    }
-
-    private Map<String, String> buildEmailToClientIdMap(String serverId) {
-        // 含已停用 client, 防 email 匹配漏掉残留 counter
-        List<XrayClientDO> clients = xrayClientMapper.selectByServerId(serverId);
-        List<XrayClientDO> withEmail = CollectionUtils.filterList(clients,
-                c -> StrUtil.isNotBlank(c.getClientEmail()));
-        return CollectionUtils.convertMap(withEmail,
-                XrayClientDO::getClientEmail,
-                XrayClientDO::getId);
-    }
-
-    private void upsertTrafficDeltas(String serverId,
-                                     Map<String, XrayUserTrafficSnapshot> remoteCounters,
-                                     Map<String, String> emailToClientId) {
-        LocalDateTime now = LocalDateTime.now();
-        int upserted = 0;
-        int skipped = 0;
-        for (Map.Entry<String, XrayUserTrafficSnapshot> entry : remoteCounters.entrySet()) {
-            XrayUserTrafficSnapshot snap = entry.getValue();
-            String clientId = emailToClientId.get(snap.getEmail());
-            if (clientId == null) {
-                // 远端有 DB 无 → 孤儿 inbound / DB 被直删, 留给 reconciler 处理
-                skipped++;
-                continue;
-            }
-            long deltaUp = Math.max(0L, snap.getUpBytes());
-            long deltaDown = Math.max(0L, snap.getDownBytes());
-            if (deltaUp == 0 && deltaDown == 0) {
-                continue;
-            }
-            try {
-                // id 走 UUID, ON DUPLICATE 走 UPDATE 时不覆盖原 id
-                xrayClientTrafficMapper.upsertDelta(
-                        UUID.randomUUID().toString().replace("-", ""),
-                        clientId, serverId, deltaUp, deltaDown, now);
-                upserted++;
-            } catch (Exception ex) {
-                log.warn("[traffic-sample] upsert 失败 server={} client={} email={}: {}",
-                        serverId, clientId, snap.getEmail(), ex.getMessage());
-            }
-        }
-        log.debug("[traffic-sample] server={} 已采样 upserted={} skipped={}", serverId, upserted, skipped);
     }
 }

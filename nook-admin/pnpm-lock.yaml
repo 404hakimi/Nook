@@ -20,6 +20,9 @@ importers:
       pinia:
         specifier: ^2.2.6
         version: 2.3.1(typescript@5.6.3)(vue@3.5.34(typescript@5.6.3))
+      qrcode.vue:
+        specifier: 3.9.0
+        version: 3.9.0(vue@3.5.34(typescript@5.6.3))
       vfonts:
         specifier: ^0.0.3
         version: 0.0.3
@@ -994,6 +997,11 @@ packages:
     resolution: {integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==}
     engines: {node: '>=10'}
 
+  qrcode.vue@3.9.0:
+    resolution: {integrity: sha512-AxkgdNXd6R6N1rJcSKna3GfMz3cMpLZo95CLuF/3227nNY32iACBtyqRr6mJc3SW7w628Iy0vgnLWYqxHqgRLw==}
+    peerDependencies:
+      vue: ^3.0.0
+
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
 
@@ -1943,6 +1951,10 @@ snapshots:
       source-map-js: 1.2.1
 
   proxy-from-env@2.1.0: {}
+
+  qrcode.vue@3.9.0(vue@3.5.34(typescript@5.6.3)):
+    dependencies:
+      vue: 3.5.34(typescript@5.6.3)
 
   queue-microtask@1.2.3: {}
 

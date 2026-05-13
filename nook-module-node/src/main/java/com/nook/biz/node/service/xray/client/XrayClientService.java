@@ -131,4 +131,12 @@ public interface XrayClientService {
      * @return Map of clientId → clientEmail
      */
     Map<String, String> getEmailMap(Collection<String> clientIds);
+
+    /**
+     * 批量取 Client DO map; 给跨域视图 (如 slot 占用 view) 一次性补全多字段用
+     *
+     * @param clientIds id 集合; null / 空返空 map
+     * @return Map of clientId → XrayClientDO
+     */
+    Map<String, XrayClientDO> getXrayClientMap(Collection<String> clientIds);
 }

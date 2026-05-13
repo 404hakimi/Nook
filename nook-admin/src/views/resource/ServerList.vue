@@ -129,7 +129,7 @@ async function onFormSaved() {
 async function onDelete(s: ResourceServer) {
   const ok = await confirm({
     title: '删除服务器',
-    message: `确定删除服务器 "${s.name}" 吗？已关联的 IP / inbound 不会自动清理，请先妥善处理。`,
+    message: `删除服务器 "${s.name}"?`,
     type: 'danger',
     confirmText: '删除'
   })
@@ -162,7 +162,8 @@ async function onTest(s: ResourceServer) {
   }
 }
 
-// ===== Xray 管理 (状态 / 日志 / 重启 / 部署) =====
+// ===== 服务器信息 (系统级 hostname / 内存 / 磁盘 等) =====
+// Xray 相关操作 (部署 / 重启 / Replay / 对账 / 日志) 已搬到「Xray 节点」菜单
 const opsOpen = ref(false)
 const opsTarget = ref<ResourceServer | null>(null)
 
@@ -171,7 +172,7 @@ function openOps(s: ResourceServer) {
   opsOpen.value = true
 }
 
-// ===== OS 调优 (BBR / swap) - 与 Xray 管理拆开, 独立行操作入口 =====
+// ===== OS 调优 (BBR / swap) - 独立行操作入口 =====
 const osTuneOpen = ref(false)
 const osTuneTarget = ref<ResourceServer | null>(null)
 
@@ -181,7 +182,7 @@ function openOsTune(s: ResourceServer) {
 }
 
 // ===== 行操作菜单（NDropdown 选项 + 分发） =====
-// "Xray 管理" 与 "OS 调优" 是两件事 (前者管 xray 服务/部署, 后者管内核 BBR/swap), 拆成独立入口避免概念混合.
+// "服务器信息" 只看 OS 层 (hostname / 内存 / 磁盘); Xray 相关都在「Xray 节点」菜单. "OS 调优" 管内核 BBR / swap.
 const ROW_ACTIONS: DropdownOption[] = [
   {
     label: '测速',
@@ -194,7 +195,7 @@ const ROW_ACTIONS: DropdownOption[] = [
     icon: () => h(NIcon, null, { default: () => h(Pencil) })
   },
   {
-    label: 'Xray 管理',
+    label: '服务器信息',
     key: 'ops',
     icon: () => h(NIcon, null, { default: () => h(Terminal) })
   },
@@ -405,10 +406,10 @@ onMounted(loadList)
       @saved="onFormSaved"
     />
 
-    <!-- Xray 管理: 状态 / 日志 / 重启 / 部署 -->
+    <!-- 服务器信息: 系统级 hostname / 内存 / 磁盘 等 (Xray 操作走「Xray 节点」菜单) -->
     <ServerOpsDialog v-model="opsOpen" :server="opsTarget" />
 
-    <!-- OS 调优: BBR / swap, 与 Xray 管理独立 -->
+    <!-- OS 调优: BBR / swap, 独立入口 -->
     <ServerOsTuneDialog v-model="osTuneOpen" :server="osTuneTarget" />
   </div>
 </template>

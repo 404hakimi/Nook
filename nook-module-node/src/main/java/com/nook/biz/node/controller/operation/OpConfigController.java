@@ -3,6 +3,7 @@ package com.nook.biz.node.controller.operation;
 import com.nook.biz.node.controller.operation.vo.OpConfigCreateReqVO;
 import com.nook.biz.node.controller.operation.vo.OpConfigRespVO;
 import com.nook.biz.node.controller.operation.vo.OpConfigSaveReqVO;
+import com.nook.biz.node.controller.operation.vo.OpConfigSimpleRespVO;
 import com.nook.biz.node.controller.operation.vo.OpTypeOptionRespVO;
 import com.nook.biz.node.convert.operation.OpConfigConvert;
 import com.nook.biz.operation.api.OpType;
@@ -43,6 +44,13 @@ public class OpConfigController {
     public Result<List<OpConfigRespVO>> getOpConfigList() {
         List<OpConfigDO> list = opConfigService.getOpConfigList();
         return Result.ok(OpConfigConvert.INSTANCE.convertList(list));
+    }
+
+    /** 精简列表: 仅 opType + name; 给 OpLog 等页面做下拉 / 名称回填用 */
+    @GetMapping("/simple-list")
+    public Result<List<OpConfigSimpleRespVO>> getSimpleOpConfigList() {
+        List<OpConfigDO> list = opConfigService.getOpConfigList();
+        return Result.ok(OpConfigConvert.INSTANCE.convertSimpleList(list));
     }
 
     @GetMapping("/op-types")

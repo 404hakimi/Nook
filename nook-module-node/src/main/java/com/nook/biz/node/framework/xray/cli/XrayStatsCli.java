@@ -14,9 +14,10 @@ import org.springframework.stereotype.Component;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
- * Xray Stats CLI 客户端 (走 SSH + xray api stats / statsquery); 由 caller 传入已 acquire 的 session.
+ * Xray Stats CLI 客户端 (走 SSH + xray api stats / statsquery); 由 caller 传入已 acquire 的 session
  *
  * @author nook
  */
@@ -24,8 +25,23 @@ import java.util.Map;
 @Component
 public class XrayStatsCli {
 
+    /** xray stats 命名前缀: user 维度 counter 都以此开头, 与 inbound>>> / outbound>>> 区分 */
+    private static final String USER_STAT_PREFIX = "user>>>";
+
+    /** xray stats 命名段分隔符 (user>>>EMAIL>>>traffic>>>uplink) */
+    private static final String STAT_SEPARATOR = ">>>";
+
+    /** 预编译分隔符正则; Pattern.quote 防分隔符未来含正则元字符时静默错乱 */
+    private static final Pattern SEPARATOR_PATTERN = Pattern.compile(Pattern.quote(STAT_SEPARATOR));
+
+    // stat name 四段分量值, 跟 xray protobuf stats schema 对齐
+    private static final String STAT_TYPE_USER = "user";
+    private static final String STAT_KIND_TRAFFIC = "traffic";
+    private static final String STAT_DIRECTION_UPLINK = "uplink";
+    private static final String STAT_DIRECTION_DOWNLINK = "downlink";
+
     /**
-     * 读单个 stat 字节数; 不存在 / SSH 抖动 / xray 没起 都视为 0, 不让 stats 失败影响业务.
+     * 读单个 stat 字节数; 不存在 / SSH 抖动 / xray 没起 都视为 0, 静默兜底无 warn
      *
      * @param session  caller 已 acquire 的 SSH 会话
      * @param apiPort  xray 内置 api server 端口
@@ -35,8 +51,8 @@ public class XrayStatsCli {
      */
     public long readStat(SshSession session, int apiPort, String statName, boolean reset) {
         // 远端用 grep 把 protobuf text 输出 "value: 12345" 提成纯数字, || echo 0 兜底未找到 stat
-        // --reset 是 go flag boolean: 只接受 "-reset" (true) 或 "-reset=false"; "-reset false" (空格) 会被当成
-        // "-reset" + 位置参数 "false", 实际 reset=true 每次清零! 所以 reset=false 时干脆不传 flag, 走默认.
+        // --reset 是 pflag boolean: 只接受 "--reset" (true) 或 "--reset=false"; "--reset false" (空格) 会被当成
+        // "--reset" + 位置参数 "false", 实际 reset=true 每次清零! 所以 reset=false 时干脆不传 flag, 走默认
         String cmd = "xray api stats --server=127.0.0.1:" + apiPort
                 + " --name " + ShellEscapeUtils.shellArg(statName)
                 + (reset ? " --reset" : "")
@@ -49,13 +65,14 @@ public class XrayStatsCli {
                     session.serverId(), statName, e.getMessage());
             return 0L;
         }
-        // 远端 grep 已剥成纯数字, 但 SSH 抖动可能多带回车 / 空白; NumberUtil.isLong 兜底
         return NumberUtil.isLong(stdout) ? Long.parseLong(stdout) : 0L;
     }
 
     /**
-     * 读单个 user 的上下行 + 可选清零, 拼成 XrayUserTrafficSnapshot;
-     * 内部走批量 statsquery 一次拿到 (上下行两条 stat) 而不是两次 stats CLI, 省一次 SSH 往返.
+     * 读单个 user 的上下行 + 可选清零; 走 statsquery 一次拿上下行两条 stat, 省一次 SSH 往返
+     *
+     * <p><b>注意</b>: reset=true 时若 SSH 中断, xray 可能已 reset 但增量未返回, 该周期数据丢失;
+     * 30 min 一周期可接受, 极端环境调用方需自行权衡.
      *
      * @param session caller 已 acquire 的 SSH 会话
      * @param apiPort xray 内置 api server 端口
@@ -64,28 +81,32 @@ public class XrayStatsCli {
      * @return XrayUserTrafficSnapshot (counter 不存在 / SSH 抖动均返 (0, 0) 占位)
      */
     public XrayUserTrafficSnapshot readUserTraffic(SshSession session, int apiPort, String email, boolean reset) {
-        // pattern 限定到这一个 user 的两条 stat, 不会把别人的也带回来
-        String pattern = "user>>>" + email + ">>>";
-        Map<String, XrayUserTrafficSnapshot> all = readUserTraffics(session, apiPort, pattern, reset);
+        // pattern 末尾 STAT_SEPARATOR 保证 email 字段完整匹配, 不被前缀同名 email 误命中
+        String pattern = USER_STAT_PREFIX + email + STAT_SEPARATOR;
+        Map<String, XrayUserTrafficSnapshot> all = queryByPattern(session, apiPort, pattern, reset);
         XrayUserTrafficSnapshot s = all.get(email);
-        // counter 没注册 (新 client 还没流量) 或 statsquery 失败时, 仍按老行为返 (0, 0) 占位
+        // counter 没注册 (新 client 还没流量) 或 statsquery 失败时, 返 (0, 0) 占位
         return s != null ? s : new XrayUserTrafficSnapshot(email, 0L, 0L, 0L, 0L, true);
     }
 
     /**
-     * 批量按 pattern 读所有匹配的 user-level 流量 counter (statsquery), 一次 SSH 拿全;
-     * 列表 dashboard / 全量对账场景比逐个 readStat 快 N 倍, 也支持 -reset 一并清零.
+     * 读该 server 上**全部 user** 的上下行 + 可选清零; 定时 sweep / 全量对账场景用
+     *
+     * <p><b>注意</b>: reset=true 时若 SSH 中断, 同 {@link #readUserTraffic} 警告.
      *
      * @param session caller 已 acquire 的 SSH 会话
      * @param apiPort xray 内置 api server 端口
-     * @param pattern statsquery -pattern 参数, 如 "user>>>" 拿所有 user / "user>>>member_xxx_" 按前缀过滤
-     * @param reset   读后是否清零所有匹配 counter
+     * @param reset   读后是否清零所有 user counter
      * @return Map&lt;email, snapshot&gt;; 没匹配 / SSH 抖动均返空 map (不抛错)
      */
-    public Map<String, XrayUserTrafficSnapshot> readUserTraffics(SshSession session, int apiPort,
-                                                                 String pattern, boolean reset) {
-        // 不带 grep 兜底: statsquery 没匹配也返 exit 0 + stdout 空对象 / 空数组, exit !=0 才是真异常.
-        // --reset 同 readStat: go flag boolean 只能 "-reset" 或 "-reset=false" 等号写法; reset=false 不传 flag.
+    public Map<String, XrayUserTrafficSnapshot> readAllUserTraffics(SshSession session, int apiPort, boolean reset) {
+        return queryByPattern(session, apiPort, USER_STAT_PREFIX, reset);
+    }
+
+    /** 内部统一查询: xray api statsquery --pattern; 失败返空 map 不抛错 */
+    private Map<String, XrayUserTrafficSnapshot> queryByPattern(SshSession session, int apiPort,
+                                                                String pattern, boolean reset) {
+        // statsquery 没匹配也返 exit 0 + 空对象, 不需要 grep 兜底
         String cmd = "xray api statsquery --server=127.0.0.1:" + apiPort
                 + " --pattern " + ShellEscapeUtils.shellArg(pattern)
                 + (reset ? " --reset" : "");
@@ -93,65 +114,60 @@ public class XrayStatsCli {
         try {
             stdout = session.ssh().exec(cmd).getStdout();
         } catch (RuntimeException e) {
-            log.warn("[xray-cli] readUserTraffics 失败 server={} pattern={}: {}",
+            log.warn("[xray-cli] statsquery 失败 server={} pattern={}: {}",
                     session.serverId(), pattern, e.getMessage());
             return Collections.emptyMap();
         }
         return parseUserStatsArray(stdout);
     }
 
-    /**
-     * 解析 statsquery 输出 JSON 成 email→snapshot map; 输出形态:
-     * <pre>
-     * { "stat": [
-     *     {"name":"user&gt;&gt;&gt;EMAIL&gt;&gt;&gt;traffic&gt;&gt;&gt;uplink","value":"123"},
-     *     {"name":"user&gt;&gt;&gt;EMAIL&gt;&gt;&gt;traffic&gt;&gt;&gt;downlink"}    // value 缺失 = 0 (protobuf JSON 默认值省略)
-     * ]}
-     * </pre>
-     * 非 user&gt;&gt;&gt;X&gt;&gt;&gt;traffic&gt;&gt;&gt;{up,down}link 形态的 stat (如 inbound&gt;&gt;&gt;...) 直接跳过, 调用方按 pattern 收口.
-     *
-     * @param stdout statsquery 远端输出
-     * @return Map&lt;email, snapshot&gt;
-     */
+    /** 解析 statsquery 输出: stat[].name 形如 user&gt;&gt;&gt;EMAIL&gt;&gt;&gt;traffic&gt;&gt;&gt;{uplink|downlink} */
     private Map<String, XrayUserTrafficSnapshot> parseUserStatsArray(String stdout) {
         if (StrUtil.isBlank(stdout)) return Collections.emptyMap();
         JSONObject root;
         try {
             root = JSON.parseObject(stdout);
         } catch (RuntimeException e) {
-            // 远端输出不是合法 JSON, 视为没数据返空; 真出问题 SSH 层早就抛了
-            log.warn("[xray-cli] statsquery 输出非 JSON, 截断 200 字: {}",
-                    StrUtil.maxLength(stdout, 200));
+            log.warn("[xray-cli] statsquery 输出非 JSON: {}", StrUtil.maxLength(stdout, 200));
             return Collections.emptyMap();
         }
         if (root == null) return Collections.emptyMap();
         JSONArray stats = root.getJSONArray("stat");
         if (stats == null || stats.isEmpty()) return Collections.emptyMap();
 
-        // 第一遍按 email 把上下行收齐 (一条 stat 只带其中一个方向, 必须二次合并)
+        // 一条 stat 只带其中一个方向, 按 email 二次聚合上下行
         Map<String, long[]> agg = new HashMap<>();
         for (int i = 0; i < stats.size(); i++) {
             JSONObject s = stats.getJSONObject(i);
             String name = s.getString("name");
             if (StrUtil.isBlank(name)) continue;
-            // value 字段在 counter 为 0 时被 protobuf JSON 省略, getLongValue 默认就 0
-            long value = s.getLongValue("value", 0L);
-            String[] parts = name.split(">>>");
-            // 严格匹配 user>>>EMAIL>>>traffic>>>{uplink|downlink}; 不符合不进 map
-            if (parts.length != 4 || !"user".equals(parts[0]) || !"traffic".equals(parts[2])) continue;
+            // protobuf JSON 把 int64 编码为字符串 ("12345"); 显式解析锁死契约, 不依赖 fastjson 隐式类型转换
+            long value = parseLongLoose(s.get("value"));
+            // limit=-1 保留尾部空串以便严格判定段数; SEPARATOR_PATTERN 已 Pattern.quote 防元字符歧义
+            String[] parts = SEPARATOR_PATTERN.split(name, -1);
+            // 严格匹配 user>>>EMAIL>>>traffic>>>{uplink|downlink}
+            if (parts.length != 4 || !STAT_TYPE_USER.equals(parts[0]) || !STAT_KIND_TRAFFIC.equals(parts[2])) continue;
             String email = parts[1];
             if (StrUtil.isBlank(email)) continue;
             long[] c = agg.computeIfAbsent(email, k -> new long[2]);
-            if ("uplink".equals(parts[3])) c[0] = value;
-            else if ("downlink".equals(parts[3])) c[1] = value;
+            if (STAT_DIRECTION_UPLINK.equals(parts[3])) c[0] = value;
+            else if (STAT_DIRECTION_DOWNLINK.equals(parts[3])) c[1] = value;
         }
 
-        Map<String, XrayUserTrafficSnapshot> out = new HashMap<>(agg.size() * 2);
+        Map<String, XrayUserTrafficSnapshot> out = new HashMap<>(agg.size());
         for (Map.Entry<String, long[]> e : agg.entrySet()) {
             long[] c = e.getValue();
-            // totalBytes / expiry / enabled 在 nook 模式下由业务侧维护, 远端不维护 (传 0 / true 占位)
+            // totalBytes / expiry / enabled 由业务侧维护, 远端不维护 (传 0 / true 占位)
             out.put(e.getKey(), new XrayUserTrafficSnapshot(e.getKey(), c[0], c[1], 0L, 0L, true));
         }
         return out;
+    }
+
+    /** 把 protobuf JSON 的 value 字段 (Number / String / null) 显式解析为 long; 解析失败返 0 */
+    private static long parseLongLoose(Object raw) {
+        if (raw == null) return 0L;
+        if (raw instanceof Number n) return n.longValue();
+        String s = raw.toString().trim();
+        return s.isEmpty() || !NumberUtil.isLong(s) ? 0L : Long.parseLong(s);
     }
 }

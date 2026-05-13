@@ -136,7 +136,8 @@ public class XrayClientServiceImpl implements XrayClientService {
         // 业务校验
         sink.report("校验业务参数", 15);
         clientValidator.validateForProvision(reqVO);
-        clientValidator.validateNotDuplicate(reqVO.getMemberUserId(), reqVO.getIpId());
+        // IP 唯一约束:
+        clientValidator.validateIpNotInUse(reqVO.getIpId());
 
         // 加载 server xray 节点配置
         sink.report("加载节点信息", 25);
@@ -233,7 +234,12 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .clientEmail(clientEmail)
                 .status(1)
                 .build();
-        xrayClientMapper.insert(entity);
+        // 兜底并发: validator 通过后到这里之间, 另一并发 provision 也可能同 IP 落库; DB UNIQUE 抛 DuplicateKey, 转成清晰业务异常
+        try {
+            xrayClientMapper.insert(entity);
+        } catch (org.springframework.dao.DuplicateKeyException dke) {
+            throw new BusinessException(XrayErrorCode.CLIENT_IP_ALREADY_USED, reqVO.getIpId());
+        }
         log.info("[provision] OK server={} slot={} port={} email={} ip={}",
                 reqVO.getServerId(), slotIndex, listenPort, clientEmail, ipEntry.getIpAddress());
         return entity;
@@ -704,5 +710,12 @@ public class XrayClientServiceImpl implements XrayClientService {
                 xrayClientMapper.selectBatchIds(clientIds),
                 XrayClientDO::getId,
                 c -> c.getClientEmail() != null ? c.getClientEmail() : c.getId());
+    }
+
+    @Override
+    public Map<String, XrayClientDO> getXrayClientMap(Collection<String> clientIds) {
+        if (com.nook.common.utils.collection.CollectionUtils.isAnyEmpty(clientIds)) return Collections.emptyMap();
+        return com.nook.common.utils.collection.CollectionUtils.convertMap(
+                xrayClientMapper.selectBatchIds(clientIds), XrayClientDO::getId);
     }
 }

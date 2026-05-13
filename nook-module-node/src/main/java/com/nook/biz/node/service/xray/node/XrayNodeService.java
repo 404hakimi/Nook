@@ -1,6 +1,8 @@
 package com.nook.biz.node.service.xray.node;
 
+import com.nook.biz.node.controller.xray.vo.XrayNodePageReqVO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
+import com.nook.common.web.response.PageResult;
 
 import java.time.LocalDateTime;
 
@@ -58,4 +60,12 @@ public interface XrayNodeService {
      * @param xrayUptime 当前探测到的 xray 启动时间
      */
     void markReplayDone(String serverId, LocalDateTime xrayUptime);
+
+    /**
+     * 分页查询 Xray 节点
+     *
+     * @param pageReqVO 分页条件
+     * @return 分页结果
+     */
+    PageResult<XrayNodeDO> getXrayNodePage(XrayNodePageReqVO pageReqVO);
 }

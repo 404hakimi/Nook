@@ -2,6 +2,7 @@ package com.nook.biz.node.job;
 
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayNodeMapper;
+import com.nook.biz.node.service.xray.client.SampleStat;
 import com.nook.biz.node.service.xray.client.XrayTrafficSampleService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -32,17 +33,28 @@ public class XrayTrafficSampleJob {
             initialDelayString = "${nook.traffic.initial-delay-ms:60000}")
     public void sweepAllServers() {
         List<XrayNodeDO> nodes = xrayNodeMapper.selectList(null);
-        if (nodes == null || nodes.isEmpty()) {
-            return;
-        }
-        log.debug("[traffic-sample] sweep 启动 size={}", nodes.size());
+        if (nodes == null || nodes.isEmpty()) return;
+
+        long t0 = System.currentTimeMillis();
+        int okServers = 0;
+        int failedServers = 0;
+        int totalUpserted = 0;
+        int totalSkipped = 0;
         for (XrayNodeDO node : nodes) {
             try {
-                xrayTrafficSampleService.sampleServerTraffic(node.getServerId());
+                // 直接传 node, 服务侧不再按 serverId 重查; 节省 N 次 selectById
+                SampleStat stat = xrayTrafficSampleService.sampleServerTraffic(node);
+                okServers++;
+                totalUpserted += stat.upserted();
+                totalSkipped += stat.skipped();
             } catch (Exception e) {
-                // 单 server 失败不阻塞其他
+                // 单 server 异常不阻塞其他
+                failedServers++;
                 log.warn("[traffic-sample] server={} 采样异常: {}", node.getServerId(), e.getMessage());
             }
         }
+        log.info("[traffic-sample] sweep 完成 nodes={} ok={} failed={} upserted={} skipped={} 耗时={}ms",
+                nodes.size(), okServers, failedServers, totalUpserted, totalSkipped,
+                System.currentTimeMillis() - t0);
     }
 }

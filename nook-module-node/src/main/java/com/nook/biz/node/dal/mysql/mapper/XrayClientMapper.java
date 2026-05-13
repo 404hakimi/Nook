@@ -20,10 +20,9 @@ import java.util.List;
 @Mapper
 public interface XrayClientMapper extends BaseMapper<XrayClientDO> {
 
-    /** 按 (memberUserId, ipId) 查现有记录; 同一会员同一 IP 唯一映射, 存在表示已 provision. */
-    default XrayClientDO selectByMemberAndIp(String memberUserId, String ipId) {
+    /** 按 ipId 查现有占用记录; 跟 DB UNIQUE uk_ip_id 对齐, 一个 IP 至多一个 client. */
+    default XrayClientDO selectByIpId(String ipId) {
         return selectOne(Wrappers.<XrayClientDO>lambdaQuery()
-                .eq(XrayClientDO::getMemberUserId, memberUserId)
                 .eq(XrayClientDO::getIpId, ipId)
                 .last("LIMIT 1"));
     }

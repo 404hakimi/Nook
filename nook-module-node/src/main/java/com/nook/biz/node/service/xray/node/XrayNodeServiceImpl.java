@@ -1,11 +1,15 @@
 package com.nook.biz.node.service.xray.node;
 
 import cn.hutool.core.util.ObjectUtil;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nook.biz.node.controller.xray.vo.XrayNodePageReqVO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayNodeMapper;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
 import com.nook.common.web.exception.BusinessException;
+import com.nook.common.web.response.PageResult;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -87,5 +91,12 @@ public class XrayNodeServiceImpl implements XrayNodeService {
         if (affected == 0) {
             log.warn("[xray-node] markReplayDone 没匹配到行 server={} (xray_node 缺失?)", serverId);
         }
+    }
+
+    @Override
+    public PageResult<XrayNodeDO> getXrayNodePage(XrayNodePageReqVO pageReqVO) {
+        IPage<XrayNodeDO> result = xrayNodeMapper.selectPageByQuery(
+                Page.of(pageReqVO.getPageNo(), pageReqVO.getPageSize()), pageReqVO);
+        return PageResult.of(result.getTotal(), result.getRecords());
     }
 }

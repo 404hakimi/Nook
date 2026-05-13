@@ -66,6 +66,41 @@ public interface XrayClientTrafficMapper extends BaseMapper<XrayClientTrafficDO>
                     @Param("sampledAt") LocalDateTime sampledAt);
 
     /**
+     * 批量 upsert: 同 {@link #upsertDelta} 但一条多 VALUES SQL, 把 N 次 round-trip 压成 1 次.
+     *
+     * <p>定时采样路径用; N 个 client 一次落库, 大幅降低 SQL 往返延迟.
+     *
+     * @param rows 多条 delta; 空集合返 0 不发 SQL
+     * @return 影响行数 (ON DUPLICATE 各 update 计 2, MySQL 文档)
+     */
+    @Update("""
+            <script>
+            INSERT INTO xray_client_traffic
+                (id, client_id, server_id, uplink_bytes, downlink_bytes, last_sampled_at, created_at, updated_at)
+            VALUES
+                <foreach collection='rows' item='r' separator=','>
+                (#{r.id}, #{r.clientId}, #{r.serverId}, #{r.deltaUp}, #{r.deltaDown}, #{r.sampledAt}, NOW(), NOW())
+                </foreach>
+            ON DUPLICATE KEY UPDATE
+                uplink_bytes    = uplink_bytes   + VALUES(uplink_bytes),
+                downlink_bytes  = downlink_bytes + VALUES(downlink_bytes),
+                last_sampled_at = VALUES(last_sampled_at),
+                server_id       = VALUES(server_id)
+            </script>
+            """)
+    int batchUpsertDelta(@Param("rows") List<TrafficDeltaRow> rows);
+
+    /** 批量 upsert 入参; 字段名跟 mapper foreach 引用对应 */
+    record TrafficDeltaRow(
+            String id,
+            String clientId,
+            String serverId,
+            long deltaUp,
+            long deltaDown,
+            LocalDateTime sampledAt
+    ) {}
+
+    /**
      * 按 client_id 删累计行; revoke 客户时调用清孤儿;
      * xray_client 是物理删, 这里跟着物理删保持一致.
      */

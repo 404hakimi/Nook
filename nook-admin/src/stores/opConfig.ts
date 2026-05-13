@@ -1,19 +1,19 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { listOpConfig, type OpConfig } from '@/api/operation/op-config'
+import { simpleListOpConfig, type OpConfigSimple } from '@/api/operation/op-config'
 
 /**
- * Op 配置全局共享 store
+ * Op 配置精简数据 store (仅 opType + name)
  *
- * 一次拉取 op_config 全表, 给 OpLogList 下拉 / OpConfigList 表格 / Dialog 显示统一用.
- * label = op_config.name (admin 改完立刻在 reload 后生效); 缺失时 fallback 到 opType 字面值.
+ * 给跨页面共用的"opType → 中文名"需求服务: OpLog 下拉 / OpLog 行 label / OpLogDetailDialog / OpConfigEditDialog.
+ * 全字段编辑列表在 OpConfigList 自己拉, 不走这个 store.
  */
 export const useOpConfigStore = defineStore('opConfig', () => {
-  const list = ref<OpConfig[]>([])
+  const list = ref<OpConfigSimple[]>([])
   const loaded = ref(false)
   let inflight: Promise<void> | null = null
 
-  /** opType → name 映射, 给行渲染 / dropdown label 用 */
+  /** opType → name 映射 */
   const labelMap = computed(() => {
     const m = new Map<string, string>()
     for (const row of list.value) m.set(row.opType, row.name)
@@ -30,7 +30,7 @@ export const useOpConfigStore = defineStore('opConfig', () => {
     if (inflight) return inflight
     inflight = (async () => {
       try {
-        list.value = await listOpConfig()
+        list.value = await simpleListOpConfig()
         loaded.value = true
       } finally {
         inflight = null

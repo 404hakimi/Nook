@@ -175,7 +175,7 @@ function onFormSaved() {
 async function onDelete(ip: ResourceIpPool) {
   const ok = await confirm({
     title: '删除 IP',
-    message: `确定从池中删除 ${ip.ipAddress} 吗？该 IP 当前状态为 "${IP_POOL_STATUS_LABELS[ip.status] ?? ip.status}"。`,
+    message: `从池中删除 ${ip.ipAddress}?`,
     type: 'danger',
     confirmText: '删除'
   })
@@ -193,7 +193,7 @@ async function onDelete(ip: ResourceIpPool) {
 async function onRelease(ip: ResourceIpPool) {
   const ok = await confirm({
     title: '退订 IP',
-    message: `把 ${ip.ipAddress} 从已占用置为冷却中？冷却到期后会自动回到可分配。`,
+    message: `把 ${ip.ipAddress} 置为冷却中?`,
     type: 'warning',
     confirmText: '退订'
   })
