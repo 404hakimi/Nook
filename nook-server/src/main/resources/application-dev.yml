@@ -11,12 +11,21 @@ spring:
     url: jdbc:mysql://36.111.148.126:13306/nook?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: nook
     password: nWSDjJWE2r3fH8f7!ly8@21
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 60000        # 借连接最长等 60s
+      idle-timeout: 600000             # idle 10min 主动关 (在 minimum-idle 之上的)
+      max-lifetime: 1800000            # 单连接最长寿命 30min, 比 MySQL wait_timeout (默认 8h) 短即可
+      keepalive-time: 60000            # 每 60s ping 一次 idle 连接, 关键: 阻止 NAT 切 TCP
+      validation-timeout: 5000
+      connection-test-query: SELECT 1
   data:
     redis:
-      host: 101.200.85.122
-      port: 6379
-      password: zqwl2024
+      host: 36.111.148.126
+      port: 26391
       database: 15
+      password: zqwl2024
 
 sa-token:
   timeout: 28800

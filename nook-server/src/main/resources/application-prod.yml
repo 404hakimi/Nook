@@ -11,6 +11,16 @@ spring:
     url: jdbc:mysql://${NOOK_DB_HOST:127.0.0.1}:${NOOK_DB_PORT:3306}/${NOOK_DB_NAME:nook}?useUnicode=true&characterEncoding=utf8&useSSL=true&serverTimezone=Asia/Shanghai
     username: ${NOOK_DB_USER}
     password: ${NOOK_DB_PASSWORD}
+    hikari:
+      # 抢在 MySQL wait_timeout / 链路 NAT 切 TCP 之前主动回收, keepalive 防 idle 死连接.
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 60000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      keepalive-time: 60000
+      validation-timeout: 5000
+      connection-test-query: SELECT 1
   data:
     redis:
       host: ${NOOK_REDIS_HOST}
