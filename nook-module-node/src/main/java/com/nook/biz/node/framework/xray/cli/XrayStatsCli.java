@@ -41,34 +41,6 @@ public class XrayStatsCli {
     private static final String STAT_DIRECTION_DOWNLINK = "downlink";
 
     /**
-     * 读单个 stat 字节数; 不存在 / SSH 抖动 / xray 没起 都视为 0, 静默兜底无 warn
-     *
-     * @param session  caller 已 acquire 的 SSH 会话
-     * @param apiPort  xray 内置 api server 端口
-     * @param statName Xray stat key
-     * @param reset    读后是否清零
-     * @return stat 字节数 (不存在 / 出错均返 0)
-     */
-    public long readStat(SshSession session, int apiPort, String statName, boolean reset) {
-        // 远端用 grep 把 protobuf text 输出 "value: 12345" 提成纯数字, || echo 0 兜底未找到 stat
-        // --reset 是 pflag boolean: 只接受 "--reset" (true) 或 "--reset=false"; "--reset false" (空格) 会被当成
-        // "--reset" + 位置参数 "false", 实际 reset=true 每次清零! 所以 reset=false 时干脆不传 flag, 走默认
-        String cmd = "xray api stats --server=127.0.0.1:" + apiPort
-                + " --name " + ShellEscapeUtils.shellArg(statName)
-                + (reset ? " --reset" : "")
-                + " 2>/dev/null | grep -oP 'value: \\K[0-9]+' || echo 0";
-        String stdout;
-        try {
-            stdout = session.ssh().exec(cmd).getStdout().trim();
-        } catch (RuntimeException e) {
-            log.warn("[xray-cli] readStat 失败 server={} stat={}: {}",
-                    session.serverId(), statName, e.getMessage());
-            return 0L;
-        }
-        return NumberUtil.isLong(stdout) ? Long.parseLong(stdout) : 0L;
-    }
-
-    /**
      * 读单个 user 的上下行 + 可选清零; 走 statsquery 一次拿上下行两条 stat, 省一次 SSH 往返
      *
      * <p><b>注意</b>: reset=true 时若 SSH 中断, xray 可能已 reset 但增量未返回, 该周期数据丢失;
@@ -176,6 +148,6 @@ public class XrayStatsCli {
         if (raw == null) return 0L;
         if (raw instanceof Number n) return n.longValue();
         String s = raw.toString().trim();
-        return s.isEmpty() || !NumberUtil.isLong(s) ? 0L : Long.parseLong(s);
+        return NumberUtil.isLong(s) ? Long.parseLong(s) : 0L;
     }
 }
