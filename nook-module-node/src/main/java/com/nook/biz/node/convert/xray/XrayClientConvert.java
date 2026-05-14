@@ -2,11 +2,8 @@ package com.nook.biz.node.convert.xray;
 
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.controller.xray.vo.XrayClientRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientTrafficRespVO;
-import com.nook.biz.node.convert.xray.format.BytesFormatter;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
@@ -75,31 +72,6 @@ public interface XrayClientConvert {
                 .map(XrayClientDO::getServerId)
                 .filter(StrUtil::isNotBlank)
                 .collect(Collectors.toSet());
-    }
-
-    /** 合并 traffic 快照 + 实体到出参 VO; 字节字段同时下发原值 + 人读字符串. */
-    default XrayClientTrafficRespVO toTrafficVO(XrayClientDO e, XrayUserTrafficSnapshot t) {
-        long up = t.getUpBytes();
-        long down = t.getDownBytes();
-        long total = t.getTotalBytes();
-        long used = up + down;
-
-        XrayClientTrafficRespVO vo = new XrayClientTrafficRespVO();
-        vo.setInboundEntityId(e.getId());
-        vo.setClientEmail(t.getEmail());
-        vo.setUpBytes(up);
-        vo.setUpBytesText(BytesFormatter.human(up));
-        vo.setDownBytes(down);
-        vo.setDownBytesText(BytesFormatter.human(down));
-        vo.setUsedBytes(used);
-        vo.setUsedBytesText(BytesFormatter.human(used));
-        vo.setTotalBytes(total);
-        vo.setTotalBytesText(total > 0 ? BytesFormatter.human(total) : "无限制");
-        // total=0 表示不限, 百分比无意义返 null; total>0 时 cap 100 防超额显示 120%
-        vo.setUsagePct(total > 0 ? (int) Math.min(100L, Math.round(used * 100.0 / total)) : null);
-        vo.setExpiryEpochMillis(t.getExpiryEpochMillis());
-        vo.setEnabled(t.isEnabled());
-        return vo;
     }
 
     /** list / detail 出参 mask UUID; 留前 8 后 4 让管理员粗略对得上. */

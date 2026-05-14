@@ -1,14 +1,15 @@
 package com.nook.biz.node.service.xray.client;
 
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
-import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
 
 /**
- * Xray 用户流量采样 Service 接口
+ * Xray 客户端流量采样 Service: 仅定时 sample job 触发, 不对外暴露查询/重置.
+ *
+ * <p>对外的流量查询 / 重置在 {@link XrayClientTrafficService}, 由 controller 直调.
  *
  * @author nook
  */
-public interface XrayTrafficSampleService {
+public interface XrayClientTrafficSampleService {
 
     /**
      * 采样指定 server 上所有 client 的流量增量入库; 内部按 serverId 自查 xray_node
@@ -25,12 +26,4 @@ public interface XrayTrafficSampleService {
      * @return 采样统计
      */
     SampleStat sampleServerTraffic(XrayNodeDO node);
-
-    /**
-     * 获得单个 client 的总流量 (DB 累计 + xray 当前增量)
-     *
-     * @param clientId xray_client.id
-     * @return 合并后的流量快照
-     */
-    XrayUserTrafficSnapshot getTotalTraffic(String clientId);
 }

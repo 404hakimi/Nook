@@ -3,7 +3,7 @@ package com.nook.biz.node.job;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayNodeMapper;
 import com.nook.biz.node.service.xray.client.SampleStat;
-import com.nook.biz.node.service.xray.client.XrayTrafficSampleService;
+import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -25,7 +25,7 @@ public class XrayTrafficSampleJob {
     @Resource
     private XrayNodeMapper xrayNodeMapper;
     @Resource
-    private XrayTrafficSampleService xrayTrafficSampleService;
+    private XrayClientTrafficSampleService xrayClientTrafficSampleService;
 
     // fixedDelay: 上一轮跑完后再等下一轮, 避免重叠堆积; initialDelay 给 xray_node 缓存 / SSH manager 留启动时间
     @Scheduled(
@@ -43,7 +43,7 @@ public class XrayTrafficSampleJob {
         for (XrayNodeDO node : nodes) {
             try {
                 // 直接传 node, 服务侧不再按 serverId 重查; 节省 N 次 selectById
-                SampleStat stat = xrayTrafficSampleService.sampleServerTraffic(node);
+                SampleStat stat = xrayClientTrafficSampleService.sampleServerTraffic(node);
                 okServers++;
                 totalUpserted += stat.upserted();
                 totalSkipped += stat.skipped();

@@ -9,22 +9,20 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientTrafficRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientUpdateReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
-import com.nook.biz.node.convert.xray.XrayClientConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
 import com.nook.biz.node.enums.XrayErrorCode;
+import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayStatsCli;
-import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
 import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.service.support.SessionCredentialMapper;
@@ -96,8 +94,6 @@ public class XrayClientServiceImpl implements XrayClientService {
     private XrayDaemonProbe xrayDaemonProbe;
     @Resource
     private SessionCredentialMapper sessionCredentialMapper;
-    @Resource
-    private XrayTrafficSampleService trafficSampleService;
     @Resource
     private OpConfigResolver opConfigResolver;
     /** @Lazy 破除循环依赖: service → orchestrator → handlerRegistry → handler → service */
@@ -374,28 +370,6 @@ public class XrayClientServiceImpl implements XrayClientService {
         log.info("[rotate] OK server={} slot={} email={} 新 UUID 已生效",
                 e.getServerId(), e.getSlotIndex(), e.getClientEmail());
         return e;
-    }
-
-    @Override
-    public XrayClientTrafficRespVO getXrayClientTraffic(String inboundEntityId) {
-        XrayClientDO xrayClient = getXrayClient(inboundEntityId);
-        // 走累计快照: DB 累计 + xray in-memory 当前增量 (上次 sample 到现在); 跨 xray 重启不丢
-        XrayUserTrafficSnapshot traffic = trafficSampleService.getTotalTraffic(inboundEntityId);
-        return XrayClientConvert.INSTANCE.toTrafficVO(xrayClient, traffic);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void resetXrayClientTraffic(String inboundEntityId) {
-        XrayClientDO e = getXrayClient(inboundEntityId);
-        // DB 是流量权威源 (累计行); 先清 DB, 失败回滚不动远端;
-        // 仅清远端不清 DB 会导致 getTotalTraffic = dbAcc + 0, 用户看到"重置无效"
-        xrayClientTrafficMapper.deleteByClientId(inboundEntityId);
-
-        int apiPort = xrayNodeService.getXrayNode(e.getServerId()).getXrayApiPort();
-        SshSession session = sessionCredentialMapper.acquire(e.getServerId(), SshSessionScope.SHARED);
-        // reset=true 原子返回旧值并清零; DB 已删, 内存清零失败下轮 sample 仍会对齐
-        statsCli.readUserTraffic(session, apiPort, e.getClientEmail(), true);
     }
 
     @Override
@@ -730,8 +704,8 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     @Override
     public Map<String, XrayClientDO> getXrayClientMap(Collection<String> clientIds) {
-        if (com.nook.common.utils.collection.CollectionUtils.isAnyEmpty(clientIds)) return Collections.emptyMap();
-        return com.nook.common.utils.collection.CollectionUtils.convertMap(
+        if (CollectionUtils.isAnyEmpty(clientIds)) return Collections.emptyMap();
+        return CollectionUtils.convertMap(
                 xrayClientMapper.selectBatchIds(clientIds), XrayClientDO::getId);
     }
 }

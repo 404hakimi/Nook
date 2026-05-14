@@ -13,7 +13,7 @@ import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
 import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
-import com.nook.biz.node.service.xray.client.XrayTrafficSampleService;
+import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService;
 import com.nook.biz.operation.api.dto.EnqueueRequest;
 import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.api.OpType;
@@ -55,7 +55,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private SessionCredentialMapper sessionCredentialMapper;
     /** restart 前置 sample 让流量数据不丢; 失败仅 warn, 不阻塞 restart 主流程 */
     @Resource
-    private XrayTrafficSampleService trafficSampleService;
+    private XrayClientTrafficSampleService trafficSampleService;
     /** @Lazy 破除循环依赖: service → orchestrator → handlerRegistry → handler → service */
     @Lazy
     @Resource

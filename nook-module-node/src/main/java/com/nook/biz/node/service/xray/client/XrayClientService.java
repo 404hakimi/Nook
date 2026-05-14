@@ -3,7 +3,6 @@ package com.nook.biz.node.service.xray.client;
 import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientTrafficRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientUpdateReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
@@ -60,21 +59,6 @@ public interface XrayClientService {
      * @return 轮换后的 Client
      */
     XrayClientDO rotateXrayClient(String id);
-
-    /**
-     * 获得 Xray Client 实时流量与配额, 内部读 framework stats 后 convert 成 VO
-     *
-     * @param id xray_client.id
-     * @return 流量信息
-     */
-    XrayClientTrafficRespVO getXrayClientTraffic(String id);
-
-    /**
-     * 累计上下行计数清零, 不影响 client 本身
-     *
-     * @param id xray_client.id
-     */
-    void resetXrayClientTraffic(String id);
 
     /**
      * 编辑本地元数据 (listenIp / listenPort / transport / status), 不触达远端

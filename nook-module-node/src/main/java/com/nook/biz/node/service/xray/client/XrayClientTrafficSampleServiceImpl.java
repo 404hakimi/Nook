@@ -2,7 +2,6 @@ package com.nook.biz.node.service.xray.client;
 
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.dal.dataobject.client.XrayClientTrafficDO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
@@ -11,7 +10,6 @@ import com.nook.biz.node.framework.xray.cli.XrayStatsCli;
 import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
 import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
-import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
@@ -26,13 +24,13 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Xray 用户流量采样 Service 实现类
+ * Xray 客户端流量采样 Service 实现类.
  *
  * @author nook
  */
 @Slf4j
 @Service
-public class XrayTrafficSampleServiceImpl implements XrayTrafficSampleService {
+public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSampleService {
 
     @Resource
     private XrayClientMapper xrayClientMapper;
@@ -44,8 +42,6 @@ public class XrayTrafficSampleServiceImpl implements XrayTrafficSampleService {
     private XrayStatsCli xrayStatsCli;
     @Resource
     private SessionCredentialMapper sessionCredentialMapper;
-    @Resource
-    private XrayClientValidator xrayClientValidator;
 
     @Override
     public SampleStat sampleServerTraffic(String serverId) {
@@ -113,17 +109,4 @@ public class XrayTrafficSampleServiceImpl implements XrayTrafficSampleService {
         return new SampleStat(rows.size(), skipped);
     }
 
-    @Override
-    public XrayUserTrafficSnapshot getTotalTraffic(String clientId) {
-        XrayClientDO client = xrayClientValidator.validateExists(clientId);
-        XrayClientTrafficDO row = xrayClientTrafficMapper.selectByClientId(clientId);
-        long dbUp = row == null || row.getUplinkBytes() == null ? 0L : row.getUplinkBytes();
-        long dbDown = row == null || row.getDownlinkBytes() == null ? 0L : row.getDownlinkBytes();
-        return XrayUserTrafficSnapshot.builder()
-                .email(client.getClientEmail())
-                .upBytes(dbUp)
-                .downBytes(dbDown)
-                .enabled(true)
-                .build();
-    }
 }

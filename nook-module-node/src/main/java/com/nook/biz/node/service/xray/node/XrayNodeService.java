@@ -46,14 +46,6 @@ public interface XrayNodeService {
     XrayNodeDO getXrayNode(String serverId);
 
     /**
-     * 获得 Xray 节点, 不存在返回 null (用于判断 server 是否已装 xray)
-     *
-     * @param serverId resource_server.id
-     * @return Xray 节点 或 null
-     */
-    XrayNodeDO getXrayNodeOrNull(String serverId);
-
-    /**
      * 标记 replay 已完成, 更新 last_xray_uptime + updated_at
      *
      * @param serverId   resource_server.id

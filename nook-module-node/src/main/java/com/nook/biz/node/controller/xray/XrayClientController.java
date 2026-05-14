@@ -14,6 +14,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.client.XrayClientService;
+import com.nook.biz.node.service.xray.client.XrayClientTrafficService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
@@ -46,6 +47,8 @@ public class XrayClientController {
 
     @Resource
     private XrayClientService xrayClientService;
+    @Resource
+    private XrayClientTrafficService xrayClientTrafficService;
     @Resource
     private ResourceIpPoolService resourceIpPoolService;
     @Resource
@@ -92,13 +95,13 @@ public class XrayClientController {
 
     @GetMapping("/traffic")
     public Result<XrayClientTrafficRespVO> getXrayClientTraffic(@RequestParam("id") String id) {
-        XrayClientTrafficRespVO traffic = xrayClientService.getXrayClientTraffic(id);
+        XrayClientTrafficRespVO traffic = xrayClientTrafficService.getXrayClientTraffic(id);
         return Result.ok(traffic);
     }
 
     @PostMapping("/reset-traffic")
     public Result<Boolean> resetXrayClientTraffic(@RequestParam("id") String id) {
-        xrayClientService.resetXrayClientTraffic(id);
+        xrayClientTrafficService.resetXrayClientTraffic(id);
         return Result.ok(true);
     }
 

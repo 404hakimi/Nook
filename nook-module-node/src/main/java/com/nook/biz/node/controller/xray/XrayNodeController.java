@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 管理后台 - Xray 节点
@@ -79,8 +80,10 @@ public class XrayNodeController {
         int portBase = node.getSlotPortBase() == null ? 0 : node.getSlotPortBase();
 
         List<XraySlotPoolDO> slots = xraySlotPoolService.getSlotPoolList(serverId);
-        Map<String, XrayClientDO> clientMap = xrayClientService.getXrayClientMap(
-                XraySlotPoolConvert.collectUsedByIds(slots));
+
+        Set<String> usedByIds = XraySlotPoolConvert.collectUsedByIds(slots);
+
+        Map<String, XrayClientDO> clientMap = xrayClientService.getXrayClientMap(usedByIds);
 
         return Result.ok(XraySlotPoolConvert.INSTANCE.convertSlotView(slots, portBase, clientMap));
     }

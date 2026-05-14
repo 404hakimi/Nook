@@ -33,13 +33,8 @@ public class XrayNodeServiceImpl implements XrayNodeService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void upsertXrayNode(String serverId,
-                               String xrayVersion,
-                               int xrayApiPort,
-                               String xrayInstallDir,
-                               String xrayLogDir,
-                               int slotPoolSize,
-                               int slotPortBase) {
+    public void upsertXrayNode(String serverId, String xrayVersion, int xrayApiPort, String xrayInstallDir, String xrayLogDir,
+                               int slotPoolSize, int slotPortBase) {
         // installedAt 每次部署覆写 (语义=最近一次部署完成时间); lastXrayUptime 重装清空, 等 reconciler 重新探测.
         XrayNodeDO existing = xrayNodeMapper.selectById(serverId);
         boolean isInsert = ObjectUtil.isNull(existing);
@@ -78,11 +73,6 @@ public class XrayNodeServiceImpl implements XrayNodeService {
             throw new BusinessException(XrayErrorCode.SERVER_STATE_NOT_FOUND, serverId);
         }
         return row;
-    }
-
-    @Override
-    public XrayNodeDO getXrayNodeOrNull(String serverId) {
-        return xrayNodeMapper.selectById(serverId);
     }
 
     @Override
