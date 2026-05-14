@@ -1,4 +1,4 @@
-package com.nook.biz.node.service.support;
+package com.nook.biz.node.framework.ssh;
 
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.validator.ResourceServerValidator;
@@ -8,10 +8,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * {@link SshCredentialApi} 业务侧实现: 把 serverId 解析为 {@link ResourceServerDO} 再转 framework 凭据.
- *
- * <p>由 nook-spring-boot-starter-ssh 的 {@code SshAutoConfiguration} 通过 @Autowired 注入到
- * {@link com.nook.framework.ssh.core.SshSessions} 静态 facade.
+ * SSH 凭据 SPI 业务侧实现: 用 serverId 查 resource_server 后转 framework 凭据.
  *
  * @author nook
  */
