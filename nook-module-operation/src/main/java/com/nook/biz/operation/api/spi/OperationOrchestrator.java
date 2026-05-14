@@ -2,6 +2,8 @@ package com.nook.biz.operation.api.spi;
 
 import com.nook.biz.operation.api.dto.EnqueueRequest;
 
+import java.time.Duration;
+
 /**
  * 危险操作排队公共入口; 业务模块 (controller / 定时器 / 事件 listener) 只通过这个接口入队.
  *
@@ -37,7 +39,7 @@ public interface OperationOrchestrator {
      * @param <T>           返回类型
      * @return handler 结果
      */
-    <T> T submitAndWait(EnqueueRequest req, java.time.Duration waitTimeout, Class<T> resultType);
+    <T> T submitAndWait(EnqueueRequest req, Duration waitTimeout, Class<T> resultType);
 
     /**
      * 取消队列中等待执行的 op; RUNNING / DONE / FAILED 全部静默 no-op 返 false.
