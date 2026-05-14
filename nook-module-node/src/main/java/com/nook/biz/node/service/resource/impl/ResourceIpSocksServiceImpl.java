@@ -14,7 +14,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
 import com.nook.biz.node.service.resource.ResourceIpSocksService;
 import com.nook.framework.ssh.core.SessionCredential;
-import com.nook.framework.ssh.core.SshSessionManager;
+import com.nook.framework.ssh.core.SshSessions;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,8 +35,6 @@ import java.util.function.Consumer;
 public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
 
     @Resource
-    private SshSessionManager sessionManager;
-    @Resource
     private RemoteScriptRunner scriptRunner;
     @Resource
     private Socks5Prober socks5Prober;
@@ -49,7 +47,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         SessionCredential cred = buildAdHocCred(reqVO);
         Map<String, String> vars = buildVars(reqVO);
         Duration installTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
-        sessionManager.runAdHocVoid(cred, session ->
+        SshSessions.runAdHocVoid(cred, session ->
                 scriptRunner.runFromTemplateStreaming(
                         session, RemoteScriptPaths.SOCKS5_INSTALL_TMPL, vars,
                         RemoteScriptPaths.INSTALL_SOCKS5_TMP, installTimeout, lineSink));

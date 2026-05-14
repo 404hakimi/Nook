@@ -10,7 +10,7 @@ import com.nook.biz.node.framework.server.snapshot.ConnectivitySnapshot;
 import com.nook.biz.node.service.resource.ResourceServerInfoService;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
-import com.nook.biz.node.service.support.SessionCredentialMapper;
+import com.nook.framework.ssh.core.SshSessions;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -25,15 +25,13 @@ public class ResourceServerInfoServiceImpl implements ResourceServerInfoService 
 
     @Resource
     private ServerProbe serverProbe;
-    @Resource
-    private SessionCredentialMapper sessionCredentialMapper;
 
     @Override
     public ConnectivityTestRespVO testConnectivity(String serverId) {
         // 跟"已连上之后 shell 通道工作正常"区分: acquire 阶段抛错时直接转结构化失败 (无凭据 / 网络断 / 鉴权失败).
         SshSession session;
         try {
-            session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
+            session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
         } catch (BusinessException be) {
             return ServerInspectorConvert.INSTANCE.convert(
                     new ConnectivitySnapshot(false, 0L, be.getMessage()));
@@ -44,18 +42,18 @@ public class ResourceServerInfoServiceImpl implements ResourceServerInfoService 
     @Override
     public ServerSystemInfoRespVO getSystemInfo(String serverId) {
         return ServerInspectorConvert.INSTANCE.convert(
-                serverProbe.readHostInfo(sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED)));
+                serverProbe.readHostInfo(SshSessions.acquire(serverId, SshSessionScope.SHARED)));
     }
 
     @Override
     public SystemdStatusRespVO getSystemdStatus(String serverId, String unit) {
         return ServerInspectorConvert.INSTANCE.convert(serverProbe.readSystemdStatus(
-                sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED), unit));
+                SshSessions.acquire(serverId, SshSessionScope.SHARED), unit));
     }
 
     @Override
     public ServiceLogRespVO getServiceLog(String serverId, String unit, Integer logLines, String logLevel) {
         return ServerInspectorConvert.INSTANCE.convert(serverProbe.readJournalLog(
-                sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED), unit, logLines, logLevel));
+                SshSessions.acquire(serverId, SshSessionScope.SHARED), unit, logLines, logLevel));
     }
 }

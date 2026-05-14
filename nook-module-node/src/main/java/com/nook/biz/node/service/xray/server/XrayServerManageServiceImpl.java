@@ -11,7 +11,6 @@ import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
-import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.operation.api.dto.EnqueueRequest;
 import com.nook.biz.operation.api.spi.OpConfigResolver;
@@ -20,6 +19,7 @@ import com.nook.biz.operation.api.spi.OperationOrchestrator;
 import com.nook.framework.security.stp.StpSystemUtil;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
+import com.nook.framework.ssh.core.SshSessions;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -49,8 +49,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     @Resource
     private XrayNodeService xrayNodeService;
     @Resource
-    private SessionCredentialMapper sessionCredentialMapper;
-    @Resource
     private OperationOrchestrator operationOrchestrator;
     @Resource
     private OpConfigResolver opConfigResolver;
@@ -58,7 +56,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     @Override
     public void installStreaming(String serverId, XrayServerInstallReqVO reqVO, Consumer<String> lineSink) {
         // 长任务 (1-10 min) 用 INSTALL scope, 跟短任务 SHARED 隔离 cache, 防被 invalidate 半路打断
-        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.INSTALL);
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.INSTALL);
         // logDir 留空时按 <installDir>/logs 派生; vars 与落库都用同一份, 保持一致
         String effectiveLogDir = StrUtil.isBlank(reqVO.getLogDir())
                 ? reqVO.getInstallDir() + "/logs"
@@ -114,7 +112,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     @Override
     public XrayServerStatusRespVO getXraySystemdStatus(String serverId) {
-        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
         // ServerProbe 只回通用 systemd 状态 (active/uptime/enabled); xray 专属 (version + 监听端口) 走 XrayDaemonProbe
         SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, XrayConstants.SYSTEMD_UNIT);
         int apiPort = xrayNodeService.getXrayNode(serverId).getXrayApiPort();

@@ -3,32 +3,27 @@ package com.nook.biz.node.service.support;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.framework.ssh.core.SessionCredential;
-import com.nook.framework.ssh.core.SshSession;
-import com.nook.framework.ssh.core.SshSessionManager;
-import com.nook.framework.ssh.core.SshSessionScope;
+import com.nook.framework.ssh.core.SshCredentialApi;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * resource_server 实体 → framework SSH 值对象的边界转换器, 并暴露一站式 acquire(serverId, scope).
+ * {@link SshCredentialApi} 业务侧实现: 把 serverId 解析为 {@link ResourceServerDO} 再转 framework 凭据.
+ *
+ * <p>由 nook-spring-boot-starter-ssh 的 {@code SshAutoConfiguration} 通过 @Autowired 注入到
+ * {@link com.nook.framework.ssh.core.SshSessions} 静态 facade.
  *
  * @author nook
  */
 @Component
-public class SessionCredentialMapper {
+public class ResourceServerSshCredentialApi implements SshCredentialApi {
 
     @Resource
     private ResourceServerService resourceServerService;
-    @Resource
-    private SshSessionManager sessionManager;
 
-    /** 加载 server 实体 → 转 SessionCredential → framework acquire SSH session. */
-    public SshSession acquire(String serverId, SshSessionScope scope) {
-        SessionCredential credential = toCredential(resourceServerService.getServer(serverId));
-        return sessionManager.acquire(credential, scope);
-    }
-
-    private static SessionCredential toCredential(ResourceServerDO e) {
+    @Override
+    public SessionCredential load(String serverId) {
+        ResourceServerDO e = resourceServerService.getServer(serverId);
         return SessionCredential.builder()
                 .serverId(e.getId())
                 .sshHost(e.getHost())

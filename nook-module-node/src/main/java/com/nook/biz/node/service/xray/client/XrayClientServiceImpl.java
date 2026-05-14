@@ -15,7 +15,6 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
 import com.nook.biz.node.service.resource.ResourceServerService;
-import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.biz.operation.api.OpType;
@@ -28,6 +27,7 @@ import com.nook.common.web.response.PageResult;
 import com.nook.framework.security.stp.StpSystemUtil;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
+import com.nook.framework.ssh.core.SshSessions;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -62,8 +62,6 @@ public class XrayClientServiceImpl implements XrayClientService {
     private ResourceServerService resourceServerService;
     @Resource
     private XrayClientValidator clientValidator;
-    @Resource
-    private SessionCredentialMapper sessionCredentialMapper;
     @Resource
     private OpConfigResolver opConfigResolver;
     @Resource
@@ -156,7 +154,7 @@ public class XrayClientServiceImpl implements XrayClientService {
         int apiPort;
         try {
             apiPort = xrayNodeService.getXrayNode(serverId).getXrayApiPort();
-            session = sessionCredentialMapper.acquire(serverId, SshSessionScope.RECONCILE);
+            session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
         } catch (RuntimeException e) {
             vo.setReachable(false);
             log.warn("[reconciler] getSyncStatus 不可达 server={}: {}", serverId, e.getMessage());

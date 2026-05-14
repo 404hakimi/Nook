@@ -1,11 +1,11 @@
 package com.nook.biz.node.handler.xray.server;
 
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
-import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService;
 import com.nook.biz.operation.api.ProgressSink;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
+import com.nook.framework.ssh.core.SshSessions;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -24,8 +24,6 @@ public class ServerOpExecutor {
 
     @Resource
     private XrayDaemonProbe xrayDaemonProbe;
-    @Resource
-    private SessionCredentialMapper sessionCredentialMapper;
     /** restart 前置 sample 让流量数据不丢; 失败仅 warn, 不阻塞 restart 主流程. */
     @Resource
     private XrayClientTrafficSampleService trafficSampleService;
@@ -42,7 +40,7 @@ public class ServerOpExecutor {
             log.warn("[restart] server={} 前置 sample 失败, 仍继续 restart: {}", serverId, e.getMessage());
         }
         sink.report("获取 SSH 会话", 40);
-        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
         sink.report("正在执行 systemctl restart", 60);
         String out = xrayDaemonProbe.restart(session);
         sink.report("等待进程就绪", 90);
@@ -53,7 +51,7 @@ public class ServerOpExecutor {
     String doSetAutostart(String serverId, boolean enabled, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("建立 SSH 会话", 50);
-        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
         sink.report(enabled ? "执行 systemctl enable" : "执行 systemctl disable", 80);
         return xrayDaemonProbe.setAutostart(session, enabled);
     }

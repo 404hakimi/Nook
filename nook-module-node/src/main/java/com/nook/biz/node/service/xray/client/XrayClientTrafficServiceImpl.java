@@ -8,11 +8,11 @@ import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
 import com.nook.biz.node.framework.xray.cli.XrayStatsCli;
 import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
-import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
+import com.nook.framework.ssh.core.SshSessions;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,8 +38,6 @@ public class XrayClientTrafficServiceImpl implements XrayClientTrafficService {
     private XrayNodeService xrayNodeService;
     @Resource
     private XrayStatsCli statsCli;
-    @Resource
-    private SessionCredentialMapper sessionCredentialMapper;
 
     @Override
     public XrayClientTrafficRespVO getXrayClientTraffic(String id) {
@@ -68,7 +66,7 @@ public class XrayClientTrafficServiceImpl implements XrayClientTrafficService {
         xrayClientTrafficMapper.deleteByClientId(id);
 
         XrayNodeDO node = xrayNodeService.getXrayNode(client.getServerId());
-        SshSession session = sessionCredentialMapper.acquire(client.getServerId(), SshSessionScope.SHARED);
+        SshSession session = SshSessions.acquire(client.getServerId(), SshSessionScope.SHARED);
         // reset=true 原子返回旧值并清零; DB 已删, 远端清零失败下一轮 sample 仍会对齐
         statsCli.readUserTraffic(session, node.getXrayApiPort(), client.getClientEmail(), true);
     }

@@ -16,7 +16,6 @@ import com.nook.biz.node.framework.xray.cli.XrayStatsCli;
 import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
-import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
 import com.nook.biz.node.validator.XrayClientValidator;
@@ -24,6 +23,7 @@ import com.nook.biz.operation.api.ProgressSink;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
+import com.nook.framework.ssh.core.SshSessions;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -73,8 +73,6 @@ public class ClientOpExecutor {
     private XrayClientValidator clientValidator;
     @Resource
     private XrayDaemonProbe xrayDaemonProbe;
-    @Resource
-    private SessionCredentialMapper sessionCredentialMapper;
 
     /** CLIENT_PROVISION 实际执行体. */
     @Transactional(rollbackFor = Exception.class)
@@ -146,7 +144,7 @@ public class ClientOpExecutor {
         int apiPort = node.getXrayApiPort();
         // 整个 provision 链路 acquire 一次, 所有 CLI 复用同一 session
         sink.report("建立 SSH 会话", 65);
-        SshSession session = sessionCredentialMapper.acquire(reqVO.getServerId(), SshSessionScope.SHARED);
+        SshSession session = SshSessions.acquire(reqVO.getServerId(), SshSessionScope.SHARED);
         // 防御性清零 stats counter, 让同 email 残留 (吊销失败 / 直删 DB 等) 路径下新 client 也从 0 起算
         try {
             statsCli.readUserTraffic(session, apiPort, clientEmail, true);
@@ -202,7 +200,7 @@ public class ClientOpExecutor {
         String outboundTag = formatSlotTag("out_slot_", e.getSlotIndex());
         int apiPort = xrayNodeService.getXrayNode(e.getServerId()).getXrayApiPort();
         sink.report("建立 SSH 会话", 35);
-        SshSession session = sessionCredentialMapper.acquire(e.getServerId(), SshSessionScope.SHARED);
+        SshSession session = SshSessions.acquire(e.getServerId(), SshSessionScope.SHARED);
 
         // 远端清理: 删 inbound (该客户连接断, 但其他客户不受影响)
         sink.report("删除远端 inbound", 50);
@@ -258,7 +256,7 @@ public class ClientOpExecutor {
         String newUuid = UUID.randomUUID().toString();
         int apiPort = xrayNodeService.getXrayNode(e.getServerId()).getXrayApiPort();
         sink.report("建立 SSH 会话", 35);
-        SshSession session = sessionCredentialMapper.acquire(e.getServerId(), SshSessionScope.SHARED);
+        SshSession session = SshSessions.acquire(e.getServerId(), SshSessionScope.SHARED);
 
         // 删 inbound + 同 tag/port 重建 (1:1 模型每 inbound 1 user, rotate 走 inbound 重建)
         sink.report("删除旧 inbound", 50);
@@ -300,7 +298,7 @@ public class ClientOpExecutor {
         sink.report("加载节点配置", 20);
         XrayNodeDO node = xrayNodeService.getXrayNode(c.getServerId());
         sink.report("建立 SSH 会话", 30);
-        SshSession session = sessionCredentialMapper.acquire(c.getServerId(), SshSessionScope.RECONCILE);
+        SshSession session = SshSessions.acquire(c.getServerId(), SshSessionScope.RECONCILE);
         sink.report("加载落地 IP 凭据", 40);
         ResourceIpPoolDO ipEntry = resourceIpPoolService.getIpPool(c.getIpId());
         syncSingle(session, node.getXrayApiPort(), c, ipEntry, sink);
@@ -312,7 +310,7 @@ public class ClientOpExecutor {
         sink.report("加载节点配置", 15);
         XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
         sink.report("建立 SSH 会话", 25);
-        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.RECONCILE);
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
         return replayInternal(session, node, sink);
     }
 
@@ -324,7 +322,7 @@ public class ClientOpExecutor {
         SshSession session;
         try {
             sink.report("建立 SSH 会话", 35);
-            session = sessionCredentialMapper.acquire(serverId, SshSessionScope.RECONCILE);
+            session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
         } catch (RuntimeException e) {
             log.warn("[reconciler] SSH 不通 server={}, 本轮跳过: {}", serverId, e.getMessage());
             return;

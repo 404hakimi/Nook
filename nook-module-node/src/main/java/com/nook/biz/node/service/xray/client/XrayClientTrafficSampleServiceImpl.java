@@ -8,11 +8,11 @@ import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper.TrafficDeltaRow;
 import com.nook.biz.node.framework.xray.cli.XrayStatsCli;
 import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
-import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
+import com.nook.framework.ssh.core.SshSessions;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,8 +40,6 @@ public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSamp
     private XrayNodeService xrayNodeService;
     @Resource
     private XrayStatsCli xrayStatsCli;
-    @Resource
-    private SessionCredentialMapper sessionCredentialMapper;
 
     @Override
     public SampleStat sampleServerTraffic(String serverId) {
@@ -63,7 +61,7 @@ public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSamp
         // ① 拉远端 in-memory counter; reset=true 清零让下一周期重新累加
         Map<String, XrayUserTrafficSnapshot> counters;
         try {
-            SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.RECONCILE);
+            SshSession session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
             counters = xrayStatsCli.readAllUserTraffics(session, node.getXrayApiPort(), true);
         } catch (RuntimeException e) {
             log.warn("[traffic-sample] server={} SSH 取 counter 失败, 跳过本轮: {}", serverId, e.getMessage());
