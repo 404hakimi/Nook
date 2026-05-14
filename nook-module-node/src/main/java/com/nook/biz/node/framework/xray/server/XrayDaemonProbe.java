@@ -83,7 +83,6 @@ import java.util.regex.Pattern;
      */
     public String resolveActualVersion(SshSession session, String requested) {
         if (!"latest".equalsIgnoreCase(requested)) return requested;
-        // xray version 首行 "Xray 26.3.27 ..."; awk 取第二段; 没装 / 抖动则空, 走 fallback
         String raw;
         try {
             raw = session.ssh().exec("xray version 2>/dev/null | head -1 | awk '{print $2}' || true")
