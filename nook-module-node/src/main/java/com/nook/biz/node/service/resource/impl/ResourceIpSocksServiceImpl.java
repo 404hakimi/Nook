@@ -11,8 +11,8 @@ import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.framework.socks5.probe.Socks5Prober;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
-import com.nook.biz.node.service.resource.ResourceIpPoolService;
 import com.nook.biz.node.service.resource.ResourceIpSocksService;
+import com.nook.biz.node.validator.ResourceIpPoolValidator;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSessions;
 import jakarta.annotation.Resource;
@@ -39,7 +39,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     @Resource
     private Socks5Prober socks5Prober;
     @Resource
-    private ResourceIpPoolService resourceIpPoolService;
+    private ResourceIpPoolValidator ipPoolValidator;
 
     @Override
     public void installSocks5(ResourceIpSocksInstallReqVO reqVO, Consumer<String> lineSink) {
@@ -55,7 +55,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
 
     @Override
     public ResourceIpSocksTestRespVO testSocks5(String ipId, ResourceIpSocksTestReqVO reqVO) {
-        ResourceIpPoolDO ip = resourceIpPoolService.getIpPool(ipId);
+        ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
         if (StrUtil.isBlank(ip.getIpAddress()) || ObjectUtil.isNull(ip.getSocks5Port())) {
             // 凭据未配置时不调 prober, 直接返回结构化失败; echoUrl / 超时回填原值便于前端控制台展示
             ResourceIpSocksTestRespVO vo = new ResourceIpSocksTestRespVO();

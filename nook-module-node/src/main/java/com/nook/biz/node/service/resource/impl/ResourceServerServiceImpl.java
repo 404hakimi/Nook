@@ -81,12 +81,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public ResourceServerDO getServer(String id) {
-        return serverValidator.validateExists(id);
-    }
-
-    @Override
-    public boolean hasServer(String id) {
-        return resourceServerMapper.selectById(id) != null;
+        return resourceServerMapper.selectById(id);
     }
 
     @Override

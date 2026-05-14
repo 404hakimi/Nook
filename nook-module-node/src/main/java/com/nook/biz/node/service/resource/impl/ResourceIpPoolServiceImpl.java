@@ -85,7 +85,7 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     @Override
     public ResourceIpPoolDO getIpPool(String id) {
-        return ipPoolValidator.validateExists(id);
+        return resourceIpPoolMapper.selectById(id);
     }
 
     @Override

@@ -12,6 +12,7 @@ import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
+import com.nook.biz.node.validator.XrayNodeValidator;
 import com.nook.biz.operation.api.dto.OpEnqueueRequest;
 import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.api.OpType;
@@ -48,6 +49,8 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private XrayDaemonProbe xrayDaemonProbe;
     @Resource
     private XrayNodeService xrayNodeService;
+    @Resource
+    private XrayNodeValidator xrayNodeValidator;
     @Resource
     private OpOrchestrator opOrchestrator;
     @Resource
@@ -115,7 +118,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
         // ServerProbe 只回通用 systemd 状态 (active/uptime/enabled); xray 专属 (version + 监听端口) 走 XrayDaemonProbe
         SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, XrayConstants.SYSTEMD_UNIT);
-        int apiPort = xrayNodeService.getXrayNode(serverId).getXrayApiPort();
+        int apiPort = xrayNodeValidator.validateExists(serverId).getXrayApiPort();
         XrayDaemonExtraSnapshot extras = xrayDaemonProbe.readExtras(session, apiPort);
 
         XrayServerStatusRespVO vo = new XrayServerStatusRespVO();

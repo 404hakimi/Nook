@@ -12,9 +12,10 @@ import com.nook.biz.node.controller.xray.vo.XrayClientUpdateReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
+import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
-import com.nook.biz.node.service.resource.ResourceServerService;
+import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.biz.operation.api.OpType;
@@ -59,7 +60,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     @Resource
     private XrayNodeService xrayNodeService;
     @Resource
-    private ResourceServerService resourceServerService;
+    private ResourceServerValidator serverValidator;
     @Resource
     private XrayClientValidator clientValidator;
     @Resource
@@ -136,7 +137,7 @@ public class XrayClientServiceImpl implements XrayClientService {
         vo.setClientEmail(e.getClientEmail());
         vo.setProtocol(e.getProtocol());
         // 客户连接的 host = server 公网 IP (resource_server.host); 拼订阅链接用
-        vo.setServerHost(resourceServerService.getServer(e.getServerId()).getHost());
+        vo.setServerHost(serverValidator.validateExists(e.getServerId()).getHost());
         vo.setListenPort(e.getListenPort());
         vo.setTransport(e.getTransport());
         return vo;
@@ -150,10 +151,16 @@ public class XrayClientServiceImpl implements XrayClientService {
         vo.setStaleDbTags(Collections.emptyList());
         vo.setOrphanRemoteTags(Collections.emptyList());
 
+        // server 未装过 xray (无 xray_node) 或 SSH 不通, 都标 reachable=false 静默返回
+        XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
+        if (node == null) {
+            vo.setReachable(false);
+            log.debug("[reconciler] getSyncStatus 跳过 server={} (无 xray_node)", serverId);
+            return vo;
+        }
+        int apiPort = node.getXrayApiPort();
         SshSession session;
-        int apiPort;
         try {
-            apiPort = xrayNodeService.getXrayNode(serverId).getXrayApiPort();
             session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
         } catch (RuntimeException e) {
             vo.setReachable(false);

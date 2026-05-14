@@ -6,6 +6,7 @@ import com.nook.biz.node.controller.resource.vo.ResourceServerSaveReqVO;
 import com.nook.biz.node.convert.resource.ResourceServerConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceServerService;
+import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
@@ -33,11 +34,13 @@ public class ResourceServerController {
 
     @Resource
     private ResourceServerService resourceServerService;
+    @Resource
+    private ResourceServerValidator serverValidator;
 
     @PostMapping("/create")
     public Result<ResourceServerRespVO> createServer(@Valid @RequestBody ResourceServerSaveReqVO createReqVO) {
         String id = resourceServerService.createServer(createReqVO);
-        ResourceServerDO server = resourceServerService.getServer(id);
+        ResourceServerDO server = serverValidator.validateExists(id);
         return Result.ok(ResourceServerConvert.INSTANCE.convert(server));
     }
 
@@ -56,7 +59,7 @@ public class ResourceServerController {
 
     @GetMapping("/get")
     public Result<ResourceServerRespVO> getServer(@RequestParam("id") String id) {
-        ResourceServerDO server = resourceServerService.getServer(id);
+        ResourceServerDO server = serverValidator.validateExists(id);
         return Result.ok(ResourceServerConvert.INSTANCE.convert(server));
     }
 

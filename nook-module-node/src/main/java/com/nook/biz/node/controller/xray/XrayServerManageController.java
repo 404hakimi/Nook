@@ -3,8 +3,8 @@ package com.nook.biz.node.controller.xray;
 import com.nook.biz.node.config.WebStreamingProperties;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
-import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.server.XrayServerManageService;
+import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.StreamingEndpointSupport;
 import jakarta.annotation.Resource;
@@ -36,7 +36,7 @@ public class XrayServerManageController {
     @Resource
     private StreamingEndpointSupport streamingSupport;
     @Resource
-    private ResourceServerService resourceServerService;
+    private ResourceServerValidator serverValidator;
     @Resource
     private WebStreamingProperties webStreamingProperties;
 
@@ -63,7 +63,7 @@ public class XrayServerManageController {
     public ResponseBodyEmitter installXray(@RequestParam("id") String id,
                                            @Valid @RequestBody XrayServerInstallReqVO reqVO) {
         // Emitter 端比 install 端略宽, 保证 Service 自己 timeout 时还能把错误吐回前端
-        int installTimeout = resourceServerService.getServer(id).getInstallTimeoutSeconds();
+        int installTimeout = serverValidator.validateExists(id).getInstallTimeoutSeconds();
         Duration emitterTimeout = Duration.ofSeconds(installTimeout).plus(webStreamingProperties.getEmitterBuffer());
         return streamingSupport.stream("install:" + id, emitterTimeout,
                 lineSink -> xrayServerManageService.installStreaming(id, reqVO, lineSink));

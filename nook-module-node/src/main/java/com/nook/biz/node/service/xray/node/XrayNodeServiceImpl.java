@@ -6,9 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.controller.xray.vo.XrayNodePageReqVO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayNodeMapper;
-import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
-import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -67,12 +65,7 @@ public class XrayNodeServiceImpl implements XrayNodeService {
 
     @Override
     public XrayNodeDO getXrayNode(String serverId) {
-        XrayNodeDO row = xrayNodeMapper.selectById(serverId);
-        if (ObjectUtil.isNull(row)) {
-            // 复用 SERVER_STATE_NOT_FOUND 错误码 (语义一致: server 没 nook 内部状态记录)
-            throw new BusinessException(XrayErrorCode.SERVER_STATE_NOT_FOUND, serverId);
-        }
-        return row;
+        return xrayNodeMapper.selectById(serverId);
     }
 
     @Override

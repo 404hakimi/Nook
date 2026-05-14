@@ -13,6 +13,7 @@ import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.client.XrayClientService;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
+import com.nook.biz.node.validator.XrayNodeValidator;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
@@ -41,6 +42,8 @@ public class XrayNodeController {
     @Resource
     private XrayNodeService xrayNodeService;
     @Resource
+    private XrayNodeValidator xrayNodeValidator;
+    @Resource
     private XraySlotPoolService xraySlotPoolService;
     @Resource
     private XrayClientService xrayClientService;
@@ -49,7 +52,7 @@ public class XrayNodeController {
 
     @GetMapping("/get")
     public Result<XrayNodeRespVO> getXrayNode(@RequestParam("serverId") String serverId) {
-        XrayNodeDO entity = xrayNodeService.getXrayNode(serverId);
+        XrayNodeDO entity = xrayNodeValidator.validateExists(serverId);
         XrayNodeRespVO vo = XrayNodeConvert.INSTANCE.convert(entity);
         Map<String, ResourceServerDO> serverMap = resourceServerService.getServerMap(Collections.singleton(serverId));
         ResourceServerDO s = serverMap.get(serverId);
@@ -76,7 +79,7 @@ public class XrayNodeController {
     @GetMapping("/slot-list")
     public Result<List<XraySlotItemRespVO>> getSlotList(@RequestParam("serverId") String serverId) {
         // node 必须先存在 (无则抛 SERVER_STATE_NOT_FOUND); 拿 slot_port_base 派生 listen_port
-        XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
+        XrayNodeDO node = xrayNodeValidator.validateExists(serverId);
         int portBase = node.getSlotPortBase() == null ? 0 : node.getSlotPortBase();
 
         List<XraySlotPoolDO> slots = xraySlotPoolService.getSlotPoolList(serverId);

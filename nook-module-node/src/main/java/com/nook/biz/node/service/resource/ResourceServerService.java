@@ -39,20 +39,12 @@ public interface ResourceServerService {
     void deleteServer(String id);
 
     /**
-     * 获得服务器
+     * 按 id 查服务器; 必查到走 {@link com.nook.biz.node.validator.ResourceServerValidator#validateExists}.
      *
      * @param id 服务器编号
-     * @return 服务器信息
+     * @return 服务器; 不存在返 null
      */
     ResourceServerDO getServer(String id);
-
-    /**
-     * 判断服务器是否存在
-     *
-     * @param id 服务器编号
-     * @return 是否存在
-     */
-    boolean hasServer(String id);
 
     /**
      * 获得服务器分页

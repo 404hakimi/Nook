@@ -44,13 +44,13 @@ public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSamp
     @Override
     public SampleStat sampleServerTraffic(String serverId) {
         if (StrUtil.isBlank(serverId)) return SampleStat.EMPTY;
-        try {
-            return sampleServerTraffic(xrayNodeService.getXrayNode(serverId));
-        } catch (RuntimeException e) {
-            // server 尚未装 xray (无 xray_node 行), 不算 sample 失败
+        // server 尚未装 xray (无 xray_node 行) 不算 sample 失败, 静默跳过
+        XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
+        if (node == null) {
             log.debug("[traffic-sample] server={} 无 xray_node 记录, 跳过", serverId);
             return SampleStat.EMPTY;
         }
+        return sampleServerTraffic(node);
     }
 
     @Override

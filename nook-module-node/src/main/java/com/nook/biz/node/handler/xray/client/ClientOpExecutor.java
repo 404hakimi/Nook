@@ -18,7 +18,9 @@ import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
+import com.nook.biz.node.validator.ResourceIpPoolValidator;
 import com.nook.biz.node.validator.XrayClientValidator;
+import com.nook.biz.node.validator.XrayNodeValidator;
 import com.nook.biz.operation.api.OpProgressSink;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.framework.ssh.core.SshSession;
@@ -72,6 +74,10 @@ public class ClientOpExecutor {
     @Resource
     private XrayClientValidator clientValidator;
     @Resource
+    private XrayNodeValidator xrayNodeValidator;
+    @Resource
+    private ResourceIpPoolValidator ipPoolValidator;
+    @Resource
     private XrayDaemonProbe xrayDaemonProbe;
 
     /** CLIENT_PROVISION 实际执行体. */
@@ -86,7 +92,7 @@ public class ClientOpExecutor {
 
         // 加载 server xray 节点配置
         sink.report("加载节点信息", 25);
-        XrayNodeDO node = xrayNodeService.getXrayNode(reqVO.getServerId());
+        XrayNodeDO node = xrayNodeValidator.validateExists(reqVO.getServerId());
 
         // 原子占用落地 IP, 同事务回滚自动归还
         sink.report("占用落地 IP", 35);
@@ -198,7 +204,7 @@ public class ClientOpExecutor {
         XrayClientDO e = clientValidator.validateExists(inboundEntityId);
         String inboundTag = e.getExternalInboundRef();
         String outboundTag = formatSlotTag("out_slot_", e.getSlotIndex());
-        int apiPort = xrayNodeService.getXrayNode(e.getServerId()).getXrayApiPort();
+        int apiPort = xrayNodeValidator.validateExists(e.getServerId()).getXrayApiPort();
         sink.report("建立 SSH 会话", 35);
         SshSession session = SshSessions.acquire(e.getServerId(), SshSessionScope.SHARED);
 
@@ -254,7 +260,7 @@ public class ClientOpExecutor {
         XrayClientDO e = clientValidator.validateExists(inboundEntityId);
         String inboundTag = e.getExternalInboundRef();
         String newUuid = UUID.randomUUID().toString();
-        int apiPort = xrayNodeService.getXrayNode(e.getServerId()).getXrayApiPort();
+        int apiPort = xrayNodeValidator.validateExists(e.getServerId()).getXrayApiPort();
         sink.report("建立 SSH 会话", 35);
         SshSession session = SshSessions.acquire(e.getServerId(), SshSessionScope.SHARED);
 
@@ -296,11 +302,11 @@ public class ClientOpExecutor {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         XrayClientDO c = clientValidator.validateExists(clientId);
         sink.report("加载节点配置", 20);
-        XrayNodeDO node = xrayNodeService.getXrayNode(c.getServerId());
+        XrayNodeDO node = xrayNodeValidator.validateExists(c.getServerId());
         sink.report("建立 SSH 会话", 30);
         SshSession session = SshSessions.acquire(c.getServerId(), SshSessionScope.RECONCILE);
         sink.report("加载落地 IP 凭据", 40);
-        ResourceIpPoolDO ipEntry = resourceIpPoolService.getIpPool(c.getIpId());
+        ResourceIpPoolDO ipEntry = ipPoolValidator.validateExists(c.getIpId());
         syncSingle(session, node.getXrayApiPort(), c, ipEntry, sink);
     }
 
@@ -308,7 +314,7 @@ public class ClientOpExecutor {
     XrayClientReplayReportRespVO doReplayServer(String serverId, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         sink.report("加载节点配置", 15);
-        XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
+        XrayNodeDO node = xrayNodeValidator.validateExists(serverId);
         sink.report("建立 SSH 会话", 25);
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
         return replayInternal(session, node, sink);
@@ -318,7 +324,7 @@ public class ClientOpExecutor {
     void doReplayIfRestarted(String serverId, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         sink.report("加载节点", 20);
-        XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
+        XrayNodeDO node = xrayNodeValidator.validateExists(serverId);
         SshSession session;
         try {
             sink.report("建立 SSH 会话", 35);
@@ -381,11 +387,8 @@ public class ClientOpExecutor {
         for (XrayClientDO c : needSync) {
             String ipId = c.getIpId();
             if (StrUtil.isBlank(ipId) || ipMap.containsKey(ipId)) continue;
-            try {
-                ipMap.put(ipId, resourceIpPoolService.getIpPool(ipId));
-            } catch (Exception ex) {
-                ipMap.put(ipId, null);
-            }
+            // 容错路径: 失败的 ipId 仍 put null 让下游 syncSingle 标 status=3, 不阻断批量
+            ipMap.put(ipId, resourceIpPoolService.getIpPool(ipId));
         }
 
         int success = 0;

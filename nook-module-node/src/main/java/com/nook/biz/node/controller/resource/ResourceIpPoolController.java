@@ -6,6 +6,7 @@ import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.convert.resource.ResourceIpPoolConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
+import com.nook.biz.node.validator.ResourceIpPoolValidator;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
@@ -33,11 +34,13 @@ public class ResourceIpPoolController {
 
     @Resource
     private ResourceIpPoolService resourceIpPoolService;
+    @Resource
+    private ResourceIpPoolValidator ipPoolValidator;
 
     @PostMapping("/create")
     public Result<ResourceIpPoolRespVO> createIpPool(@Valid @RequestBody ResourceIpPoolSaveReqVO createReqVO) {
         String id = resourceIpPoolService.createIpPool(createReqVO);
-        ResourceIpPoolDO ipPool = resourceIpPoolService.getIpPool(id);
+        ResourceIpPoolDO ipPool = ipPoolValidator.validateExists(id);
         return Result.ok(ResourceIpPoolConvert.INSTANCE.convert(ipPool));
     }
 
@@ -56,7 +59,7 @@ public class ResourceIpPoolController {
 
     @GetMapping("/get")
     public Result<ResourceIpPoolRespVO> getIpPool(@RequestParam("id") String id) {
-        ResourceIpPoolDO ipPool = resourceIpPoolService.getIpPool(id);
+        ResourceIpPoolDO ipPool = ipPoolValidator.validateExists(id);
         return Result.ok(ResourceIpPoolConvert.INSTANCE.convert(ipPool));
     }
 

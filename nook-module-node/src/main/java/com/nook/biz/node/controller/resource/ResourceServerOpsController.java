@@ -2,8 +2,8 @@ package com.nook.biz.node.controller.resource;
 
 import com.nook.biz.node.config.WebStreamingProperties;
 import com.nook.biz.node.controller.resource.vo.EnableSwapReqVO;
-import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.resource.ResourceServerOpsService;
+import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.framework.web.StreamingEndpointSupport;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
@@ -33,7 +33,7 @@ public class ResourceServerOpsController {
     @Resource
     private StreamingEndpointSupport streamingSupport;
     @Resource
-    private ResourceServerService resourceServerService;
+    private ResourceServerValidator serverValidator;
     @Resource
     private WebStreamingProperties webStreamingProperties;
 
@@ -51,7 +51,7 @@ public class ResourceServerOpsController {
     }
 
     private Duration emitterTimeout(String id) {
-        int installTimeout = resourceServerService.getServer(id).getInstallTimeoutSeconds();
+        int installTimeout = serverValidator.validateExists(id).getInstallTimeoutSeconds();
         return Duration.ofSeconds(installTimeout).plus(webStreamingProperties.getEmitterBuffer());
     }
 }

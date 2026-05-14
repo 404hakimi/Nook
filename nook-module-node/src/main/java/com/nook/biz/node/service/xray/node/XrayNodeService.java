@@ -38,10 +38,10 @@ public interface XrayNodeService {
                         int slotPortBase);
 
     /**
-     * 获得 Xray 节点, 不存在抛 SERVER_STATE_NOT_FOUND
+     * 按 serverId 查 Xray 节点; 必查到走 {@link com.nook.biz.node.validator.XrayNodeValidator#validateExists}.
      *
      * @param serverId resource_server.id
-     * @return Xray 节点
+     * @return Xray 节点; 不存在返 null
      */
     XrayNodeDO getXrayNode(String serverId);
 

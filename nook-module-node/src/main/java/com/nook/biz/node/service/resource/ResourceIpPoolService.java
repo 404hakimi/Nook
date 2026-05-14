@@ -39,10 +39,10 @@ public interface ResourceIpPoolService {
     void deleteIpPool(String id);
 
     /**
-     * 获得 IP 池条目
+     * 按 id 查 IP 池条目; 必查到走 {@link com.nook.biz.node.validator.ResourceIpPoolValidator#validateExists}.
      *
      * @param id IP 池编号
-     * @return IP 池信息
+     * @return IP 池条目; 不存在返 null
      */
     ResourceIpPoolDO getIpPool(String id);
 
