@@ -1,7 +1,6 @@
-package com.nook.biz.node.service.xray.client;
+package com.nook.biz.node.handler.xray.client;
 
-import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONObject;
+import com.nook.biz.node.service.xray.client.XrayClientServiceImpl;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OperationContext;
 import com.nook.biz.operation.api.spi.OperationHandler;
@@ -9,27 +8,25 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_REVOKE handler.
+ * SERVER_RECONCILE handler; 定时器和手动入口都走这.
  *
  * @author nook
  */
 @Component
-public class RevokeClientHandler implements OperationHandler {
+public class ReconcileServerHandler implements OperationHandler {
 
     @Resource
     private XrayClientServiceImpl serviceImpl;
 
     @Override
     public String type() {
-        return OpType.CLIENT_REVOKE.name();
+        return OpType.SERVER_RECONCILE.name();
     }
 
     @Override
     public Object execute(OperationContext ctx) {
-        JSONObject params = JSON.parseObject(ctx.paramsJson());
-        String clientId = params.getString("clientId");
-        ctx.report("加载客户端记录", 15);
-        serviceImpl.doRevoke(clientId, ctx);
+        ctx.report("准备对账", 15);
+        serviceImpl.doReplayIfRestarted(ctx.serverId(), ctx);
         return null;
     }
 }

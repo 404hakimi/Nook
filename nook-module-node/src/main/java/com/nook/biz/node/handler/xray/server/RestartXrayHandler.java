@@ -1,5 +1,6 @@
-package com.nook.biz.node.service.xray.server;
+package com.nook.biz.node.handler.xray.server;
 
+import com.nook.biz.node.service.xray.server.XrayServerManageServiceImpl;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OperationContext;
 import com.nook.biz.operation.api.spi.OperationHandler;

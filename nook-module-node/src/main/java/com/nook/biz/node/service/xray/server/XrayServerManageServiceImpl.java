@@ -120,8 +120,8 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.XRAY_RESTART.name()), String.class);
     }
 
-    /** XRAY_RESTART handler 直接调本方法; package-private 防止业务代码绕过队列直接调用. */
-    String doRestart(String serverId, ProgressSink progress) {
+    /** XRAY_RESTART handler 调本方法; 业务侧必须走 {@link #xrayRestart} 经队列, 不要直接调! */
+    public String doRestart(String serverId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         // restart 是可控的"清零事件" — systemctl restart 后 xray in-memory counter 全归零;
         // 先 sample 一次把当前增量入库, 让用户层流量统计跨重启不丢. 失败仅 warn, 不阻塞 restart.
@@ -170,8 +170,8 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_AUTOSTART.name()), String.class);
     }
 
-    /** SERVER_AUTOSTART handler 调本方法. */
-    String doSetAutostart(String serverId, boolean enabled, ProgressSink progress) {
+    /** SERVER_AUTOSTART handler 调本方法; 业务侧必须走 {@link #xrayAutostart} 经队列. */
+    public String doSetAutostart(String serverId, boolean enabled, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("建立 SSH 会话", 50);
         SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);

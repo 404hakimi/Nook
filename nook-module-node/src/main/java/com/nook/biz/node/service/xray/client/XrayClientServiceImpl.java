@@ -125,9 +125,12 @@ public class XrayClientServiceImpl implements XrayClientService {
         return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_PROVISION.name()), XrayClientDO.class);
     }
 
-    /** CLIENT_PROVISION handler 调本方法; package-private 防止业务代码绕过队列. */
+    /**
+     * CLIENT_PROVISION handler 调本方法; 仅 {@link com.nook.biz.node.handler.xray.client.ProvisionClientHandler} 调用,
+     * 业务代码必须走 {@link #provisionXrayClient} 经队列, 不要直接调!
+     */
     @Transactional(rollbackFor = Exception.class)
-    XrayClientDO doProvision(XrayClientProvisionReqVO reqVO, ProgressSink progress) {
+    public XrayClientDO doProvision(XrayClientProvisionReqVO reqVO, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         // 业务校验
         sink.report("校验业务参数", 15);
@@ -254,9 +257,9 @@ public class XrayClientServiceImpl implements XrayClientService {
         operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_REVOKE.name()), Void.class);
     }
 
-    /** CLIENT_REVOKE handler 调本方法. */
+    /** CLIENT_REVOKE handler 调本方法; 业务侧必须走 {@link #revokeXrayClient} 经队列. */
     @Transactional(rollbackFor = Exception.class)
-    void doRevoke(String inboundEntityId, ProgressSink progress) {
+    public void doRevoke(String inboundEntityId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("加载客户端记录", 20);
         XrayClientDO e = getXrayClient(inboundEntityId);
@@ -328,8 +331,8 @@ public class XrayClientServiceImpl implements XrayClientService {
         return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_ROTATE.name()), XrayClientDO.class);
     }
 
-    /** CLIENT_ROTATE handler 调本方法. */
-    XrayClientDO doRotate(String inboundEntityId, ProgressSink progress) {
+    /** CLIENT_ROTATE handler 调本方法; 业务侧必须走 {@link #rotateXrayClient} 经队列. */
+    public XrayClientDO doRotate(String inboundEntityId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("加载客户端记录", 20);
         XrayClientDO e = getXrayClient(inboundEntityId);
@@ -466,7 +469,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     /** CLIENT_SYNC handler 调本方法; progress 让 caller 控, replay 场景循环复用本方法可传 noop. */
-    void doSyncOne(String clientId, ProgressSink progress) {
+    public void doSyncOne(String clientId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         XrayClientDO c = clientValidator.validateExists(clientId);
         sink.report("加载节点配置", 20);
@@ -489,7 +492,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     /** SERVER_REPLAY handler 调本方法. */
-    XrayClientReplayReportRespVO doReplayServer(String serverId, ProgressSink progress) {
+    public XrayClientReplayReportRespVO doReplayServer(String serverId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("加载节点配置", 15);
         XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
@@ -511,7 +514,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     /** SERVER_RECONCILE handler 调本方法. */
-    void doReplayIfRestarted(String serverId, ProgressSink progress) {
+    public void doReplayIfRestarted(String serverId, ProgressSink progress) {
         ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
         sink.report("加载节点", 20);
         XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
