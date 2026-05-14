@@ -31,10 +31,8 @@ public class SshSessionProperties {
     private Duration authTimeout = Duration.ofSeconds(20);
 
     /**
-     * 心跳发送间隔 (应用层); 防 NAT 老化与远端 sshd 主动断连.
-     *
-     * <p>常见 NAT/防火墙超时阈值: 家用 NAT ≈ 30-300s, AWS NLB 350s, Cloudflare Tunnel 300s,
-     * 国内某些云 LB 60s. 设 15s 保险, 比最激进的 NAT 还短 4 倍.
+     * 心跳发送间隔 (应用层); 防 NAT/防火墙 idle 老化与远端 sshd 主动断连.
+     * 跨国链路推荐 ≤ 15s, 内网可放宽到 60s 降低开销.
      */
     private Duration heartbeatInterval = Duration.ofSeconds(15);
 

@@ -17,9 +17,16 @@ public class SessionCredential {
     /** 缓存键 / 日志识别符. */
     private final String serverId;
 
+    /** SSH 主机 (IP 或域名). */
     private final String sshHost;
+
+    /** SSH 端口 (默认 22). */
     private final int sshPort;
+
+    /** SSH 登录用户名. */
     private final String sshUser;
+
+    /** SSH 登录密码; 当前实现仅支持密码鉴权, key 鉴权未启用. */
     private final String sshPassword;
 
     /** SSH 会话握手超时(秒). */

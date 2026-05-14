@@ -11,8 +11,6 @@ import java.util.function.Function;
  * <p>启动期由 {@link com.nook.framework.ssh.internal.SshAutoConfiguration} 通过 {@link #init} 注入依赖.
  * 业务模块禁止直接持有 SshSessionManager / SshCredentialApi, 一律走本 facade.
  *
- * <p>设计选择: 静态 API (无需注入), 跟 yudao 风的 DictFrameworkUtils 同款.
- *
  * @author nook
  */
 @Slf4j

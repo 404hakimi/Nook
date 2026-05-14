@@ -23,17 +23,17 @@ public class ResourceServerSshCredentialApi implements SshCredentialApi {
 
     @Override
     public SessionCredential load(String serverId) {
-        ResourceServerDO e = resourceServerService.getServer(serverId);
+        ResourceServerDO resourceServer = resourceServerService.getServer(serverId);
         return SessionCredential.builder()
-                .serverId(e.getId())
-                .sshHost(e.getHost())
-                .sshPort(e.getSshPort())
-                .sshUser(e.getSshUser())
-                .sshPassword(e.getSshPassword())
-                .sshTimeoutSeconds(e.getSshTimeoutSeconds())
-                .sshOpTimeoutSeconds(e.getSshOpTimeoutSeconds())
-                .sshUploadTimeoutSeconds(e.getSshUploadTimeoutSeconds())
-                .installTimeoutSeconds(e.getInstallTimeoutSeconds())
+                .serverId(resourceServer.getId())
+                .sshHost(resourceServer.getHost())
+                .sshPort(resourceServer.getSshPort())
+                .sshUser(resourceServer.getSshUser())
+                .sshPassword(resourceServer.getSshPassword())
+                .sshTimeoutSeconds(resourceServer.getSshTimeoutSeconds())
+                .sshOpTimeoutSeconds(resourceServer.getSshOpTimeoutSeconds())
+                .sshUploadTimeoutSeconds(resourceServer.getSshUploadTimeoutSeconds())
+                .installTimeoutSeconds(resourceServer.getInstallTimeoutSeconds())
                 .build();
     }
 }
