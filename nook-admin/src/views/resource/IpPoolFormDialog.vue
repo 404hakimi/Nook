@@ -16,6 +16,7 @@ import {
 import {
   createIpPool,
   getIpPoolDetail,
+  IP_POOL_PROVISION_MODE_LABELS,
   updateIpPool,
   type ResourceIpPool,
   type ResourceIpPoolSaveDTO
@@ -57,6 +58,10 @@ const STATUS_OPTIONS = [
   { label: '降级', value: 6 }
 ]
 
+const PROVISION_MODE_OPTIONS = Object.entries(IP_POOL_PROVISION_MODE_LABELS).map(
+  ([value, label]) => ({ label, value: Number(value) })
+)
+
 const ipTypeOptions = computed(() =>
   props.ipTypes.map((t) => ({ label: t.name, value: t.id }))
 )
@@ -70,6 +75,8 @@ const form = reactive({
   socks5Username: '',
   socks5Password: '',
   status: 1,
+  /** 部署模式 1=自部署 2=第三方; 后端必填, 由用户选 (部署接力进入时预填 1). */
+  provisionMode: undefined as number | undefined,
   remark: ''
 })
 
@@ -84,6 +91,7 @@ function fill(ip: ResourceIpPool) {
   // 接口下发明文密码, 直接 fill 进密码框 (UI 自然遮盖); 用户改一字会立即覆盖, 不改就保持
   form.socks5Password = ip.socks5Password ?? ''
   form.status = ip.status
+  form.provisionMode = ip.provisionMode
   form.remark = ip.remark ?? ''
 }
 
@@ -95,6 +103,7 @@ function reset() {
   form.socks5Username = ''
   form.socks5Password = ''
   form.status = 1
+  form.provisionMode = undefined
   form.remark = ''
 }
 
@@ -116,11 +125,13 @@ watch(
     } else {
       reset()
       // create 且父组件传了 socksPrefill (部署成功接力场景), 预填 IP + SOCKS5 端口/账号
+      // 部署接力场景必然是自部署, provisionMode 直接预填 1, 用户无需再选
       if (props.socksPrefill) {
         form.ipAddress = props.socksPrefill.ipAddress
         form.socks5Port = props.socksPrefill.socks5Port
         form.socks5Username = props.socksPrefill.socks5Username
         form.socks5Password = props.socksPrefill.socks5Password
+        form.provisionMode = 1
       }
     }
   }
@@ -131,6 +142,7 @@ function validate(): boolean {
   if (!form.region.trim()) errors.region = '请输入区域'
   if (!form.ipTypeId) errors.ipTypeId = '请选择类型'
   if (!form.ipAddress.trim()) errors.ipAddress = '请输入 IP 地址'
+  if (form.provisionMode == null) errors.provisionMode = '请选择部署模式'
 
   // 创建时 SOCKS5 端口/账号/密码必填; 编辑时未填的密码不会被覆盖
   if (props.mode === 'create') {
@@ -157,6 +169,7 @@ async function onSubmit() {
       socks5Username: form.socks5Username.trim() || undefined,
       socks5Password: form.socks5Password || undefined,
       status: form.status,
+      provisionMode: form.provisionMode,
       remark: form.remark.trim() || undefined
     }
     if (props.mode === 'create') {
@@ -240,6 +253,20 @@ function close() {
 
           <NFormItem label="状态">
             <NSelect v-model:value="form.status" :options="STATUS_OPTIONS" />
+          </NFormItem>
+
+          <NFormItem
+            label="部署模式"
+            required
+            :validation-status="errors.provisionMode ? 'error' : undefined"
+            :feedback="errors.provisionMode || '自部署 = 后台一键装的 SOCKS5; 第三方 = 现成供应商'"
+          >
+            <NSelect
+              v-model:value="form.provisionMode"
+              :options="PROVISION_MODE_OPTIONS"
+              :status="errors.provisionMode ? 'error' : undefined"
+              placeholder="请选择"
+            />
           </NFormItem>
         </div>
 

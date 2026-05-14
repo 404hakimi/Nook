@@ -18,6 +18,8 @@ export interface ResourceIpPool {
   coolingUntil?: string
   assignCount?: number
   lastHealthAt?: string
+  /** 部署模式: 1=自部署 2=第三方; 详情接口下发, 编辑表单 fill 回填. */
+  provisionMode?: number
   remark?: string
   createdAt?: string
   updatedAt?: string
@@ -40,7 +42,15 @@ export interface ResourceIpPoolSaveDTO {
   socks5Username?: string
   socks5Password?: string
   status?: number
+  /** 部署模式: 1=SELF_DEPLOY 自部署, 2=EXTERNAL 第三方; 后端 @NotNull, create/update 都必填. */
+  provisionMode?: number
   remark?: string
+}
+
+/** 部署模式枚举值 → 中文标签; 与后端 ResourceIpPoolProvisionModeEnum 对齐. */
+export const IP_POOL_PROVISION_MODE_LABELS: Record<number, string> = {
+  1: '自部署',
+  2: '第三方'
 }
 
 export interface PageResult<T> {
