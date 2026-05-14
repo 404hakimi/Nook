@@ -86,7 +86,10 @@ public class XrayStatsCli {
         Map<String, XrayUserTrafficSnapshot> all = queryByPattern(session, apiPort, pattern, reset);
         XrayUserTrafficSnapshot s = all.get(email);
         // counter 没注册 (新 client 还没流量) 或 statsquery 失败时, 返 (0, 0) 占位
-        return s != null ? s : new XrayUserTrafficSnapshot(email, 0L, 0L, 0L, 0L, true);
+        return s != null ? s : XrayUserTrafficSnapshot.builder()
+                .email(email)
+                .enabled(true)
+                .build();
     }
 
     /**
@@ -157,8 +160,13 @@ public class XrayStatsCli {
         Map<String, XrayUserTrafficSnapshot> out = new HashMap<>(agg.size());
         for (Map.Entry<String, long[]> e : agg.entrySet()) {
             long[] c = e.getValue();
-            // totalBytes / expiry / enabled 由业务侧维护, 远端不维护 (传 0 / true 占位)
-            out.put(e.getKey(), new XrayUserTrafficSnapshot(e.getKey(), c[0], c[1], 0L, 0L, true));
+            // totalBytes / expiry / enabled 由业务侧维护, 远端不维护 (默认 0 / true 占位)
+            out.put(e.getKey(), XrayUserTrafficSnapshot.builder()
+                    .email(e.getKey())
+                    .upBytes(c[0])
+                    .downBytes(c[1])
+                    .enabled(true)
+                    .build());
         }
         return out;
     }

@@ -172,26 +172,50 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .limitIp(reqVO.getLimitIp() == null ? 0 : reqVO.getLimitIp())
                 .build();
 
+        // DB 先落库: DB 是权威源, 远端 xray 是 DB 的派生; 失败由 @Transactional 回滚 slot/IP/Client 三表;
+        // 并发同 IP 时由 DB UNIQUE 直接拦在调远端之前, 不留远端孤儿 inbound
+        sink.report("DB 落库", 55);
+        XrayClientDO entity = XrayClientDO.builder()
+                .id(clientId)
+                .serverId(reqVO.getServerId())
+                .ipId(reqVO.getIpId())
+                .memberUserId(reqVO.getMemberUserId())
+                .slotIndex(slotIndex)
+                .externalInboundRef(inboundTag)
+                .protocol(reqVO.getProtocol())
+                .transport(reqVO.getTransport())
+                .listenIp(reqVO.getListenIp())
+                .listenPort(listenPort)
+                .clientUuid(clientUuid)
+                .clientEmail(clientEmail)
+                .status(1)
+                .build();
+        try {
+            xrayClientMapper.insert(entity);
+        } catch (org.springframework.dao.DuplicateKeyException dke) {
+            throw new BusinessException(XrayErrorCode.CLIENT_IP_ALREADY_USED, reqVO.getIpId());
+        }
+
         int apiPort = node.getXrayApiPort();
         // 整个 provision 链路 acquire 一次, 所有 CLI 复用同一 session
-        sink.report("建立 SSH 会话", 50);
+        sink.report("建立 SSH 会话", 65);
         SshSession session = sessionCredentialMapper.acquire(reqVO.getServerId(), SshSessionScope.SHARED);
         // 防御性清零 stats counter, 让同 email 残留 (吊销失败 / 直删 DB 等) 路径下新 client 也从 0 起算
         try {
             statsCli.readUserTraffic(session, apiPort, clientEmail, true);
         } catch (Exception ignore) { }
 
-        // 远端非事务, 用旗标精确回滚已完成的步骤
+        // 远端非事务, 用旗标精确回滚已完成的步骤; 抛异常时同事务的 DB 三表会一起回滚
         boolean inboundAdded = false;
         boolean freedomRemoved = false;
         boolean socksAdded = false;
         try {
-            sink.report("注册 inbound", 65);
+            sink.report("注册 inbound", 75);
             inboundCli.addInbound(session, apiPort, inboundTag, listenPort, userSpec);
             inboundAdded = true;
 
             // 替换占位 freedom 为真实 socks; 删-加间隙 < 200ms, 期间漏到默认 outbound
-            sink.report("替换 outbound 占位", 80);
+            sink.report("替换 outbound 占位", 90);
             outboundCli.removeOutbound(session, apiPort, outboundTag);
             freedomRemoved = true;
 
@@ -215,30 +239,6 @@ public class XrayClientServiceImpl implements XrayClientService {
                 catch (Exception ignore) { }
             }
             throw e;
-        }
-        sink.report("DB 落库", 95);
-
-        // DB INSERT
-        XrayClientDO entity = XrayClientDO.builder()
-                .id(clientId)
-                .serverId(reqVO.getServerId())
-                .ipId(reqVO.getIpId())
-                .memberUserId(reqVO.getMemberUserId())
-                .slotIndex(slotIndex)
-                .externalInboundRef(inboundTag)
-                .protocol(reqVO.getProtocol())
-                .transport(reqVO.getTransport())
-                .listenIp(reqVO.getListenIp())
-                .listenPort(listenPort)
-                .clientUuid(clientUuid)
-                .clientEmail(clientEmail)
-                .status(1)
-                .build();
-        // 兜底并发: validator 通过后到这里之间, 另一并发 provision 也可能同 IP 落库; DB UNIQUE 抛 DuplicateKey, 转成清晰业务异常
-        try {
-            xrayClientMapper.insert(entity);
-        } catch (org.springframework.dao.DuplicateKeyException dke) {
-            throw new BusinessException(XrayErrorCode.CLIENT_IP_ALREADY_USED, reqVO.getIpId());
         }
         log.info("[provision] OK server={} slot={} port={} email={} ip={}",
                 reqVO.getServerId(), slotIndex, listenPort, clientEmail, ipEntry.getIpAddress());
@@ -385,11 +385,16 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void resetXrayClientTraffic(String inboundEntityId) {
         XrayClientDO e = getXrayClient(inboundEntityId);
+        // DB 是流量权威源 (累计行); 先清 DB, 失败回滚不动远端;
+        // 仅清远端不清 DB 会导致 getTotalTraffic = dbAcc + 0, 用户看到"重置无效"
+        xrayClientTrafficMapper.deleteByClientId(inboundEntityId);
+
         int apiPort = xrayNodeService.getXrayNode(e.getServerId()).getXrayApiPort();
         SshSession session = sessionCredentialMapper.acquire(e.getServerId(), SshSessionScope.SHARED);
-        // reset=true 原子返回旧值并清零
+        // reset=true 原子返回旧值并清零; DB 已删, 内存清零失败下轮 sample 仍会对齐
         statsCli.readUserTraffic(session, apiPort, e.getClientEmail(), true);
     }
 
@@ -438,8 +443,17 @@ public class XrayClientServiceImpl implements XrayClientService {
         }
         vo.setReachable(true);
 
-        // 远端 inbound list; 过滤掉静态预置 (config.json 里 dokodemo "api" inbound)
-        Set<String> remote = new HashSet<>(inboundCli.listInbounds(session, apiPort));
+        // 远端 inbound list; 过滤掉静态预置 (config.json 里 dokodemo "api" inbound).
+        // lsi 失败现在会抛 BACKEND_OPERATION_FAILED (避免误判空集); 在 sync-status 只读路径里
+        // 等价于"远端不可探测", 标 reachable=false 返回, 不向上 5xx
+        Set<String> remote;
+        try {
+            remote = new HashSet<>(inboundCli.listInbounds(session, apiPort));
+        } catch (RuntimeException e) {
+            vo.setReachable(false);
+            log.warn("[reconciler] getSyncStatus lsi 失败 server={}: {}", serverId, e.getMessage());
+            return vo;
+        }
         remote.remove("api");
 
         // DB 里 server 关联的活动 client (status != 2 已停)
@@ -512,12 +526,14 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     @Override
     public void replayIfRestarted(String serverId) {
+        // 异步入队: reconciler 不关心结果, 让 worker pool 后台跑; 同步 submitAndWait 会让 @Scheduled
+        // 单线程串行扫节点时被慢 server 拖死整轮 (timeout 比 cron 大时根本跑不完一遍)
         EnqueueRequest req = EnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.SERVER_RECONCILE.name())
                 .operator("SCHEDULER")
                 .build();
-        operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_RECONCILE.name()), Void.class);
+        operationOrchestrator.enqueue(req);
     }
 
     /** SERVER_RECONCILE handler 调本方法. */

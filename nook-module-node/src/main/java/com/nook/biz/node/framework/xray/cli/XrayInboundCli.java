@@ -52,22 +52,26 @@ public class XrayInboundCli {
     }
 
     /**
-     * 列远端所有 inbound tag (走 xray api lsi); 用于 reconciler 跟 DB 对账. SSH 抖动 / xray 没起返空集.
+     * 列远端所有 inbound tag (走 xray api lsi); 用于 reconciler 跟 DB 对账.
+     *
+     * <p><b>失败必抛</b>: SSH 抖动 / xray 没起 / jq 缺失 → 上层 (replayInternal) 必须放弃本轮,
+     * 不能拿空集继续 — 空集会被误判成"远端啥都没有", 触发 needSync=全部, 全 server 客户断连重建.
      *
      * @param session caller 已 acquire 的 SSH 会话
      * @param apiPort xray 内置 api server 端口
      * @return tag 列表 (含静态预置如 api, 调用方按需过滤)
+     * @throws BusinessException SSH/xray 不可用; 调用方应放弃本轮 reconcile
      */
     public List<String> listInbounds(SshSession session, int apiPort) {
-        // jq 提取 .inbounds[].tag, 失败兜底空串避免抛错; 远端 jq 在 50-xray 模板里已确认装了
-        String cmd = "xray api lsi --server=127.0.0.1:" + apiPort
-                + " 2>/dev/null | jq -r '.inbounds[].tag' 2>/dev/null || true";
+        // 不再用 "|| true" 兜底; xray lsi 失败 (非 0 exit) 必须传上去
+        String cmd = "xray api lsi --server=127.0.0.1:" + apiPort + " | jq -r '.inbounds[].tag'";
         String stdout;
         try {
             stdout = session.ssh().exec(cmd).getStdout();
         } catch (RuntimeException e) {
             log.warn("[xray-cli] listInbounds 失败 server={}: {}", session.serverId(), e.getMessage());
-            return Collections.emptyList();
+            throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, e,
+                    session.serverId(), "listInbounds: " + StrUtil.maxLength(e.getMessage(), 200));
         }
         if (StrUtil.isBlank(stdout)) return Collections.emptyList();
         return Arrays.stream(stdout.split("\\R"))

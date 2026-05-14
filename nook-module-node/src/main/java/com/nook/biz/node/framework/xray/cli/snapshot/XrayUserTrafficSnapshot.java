@@ -1,6 +1,6 @@
 package com.nook.biz.node.framework.xray.cli.snapshot;
 
-import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 
 /**
@@ -9,7 +9,7 @@ import lombok.Data;
  * @author nook
  */
 @Data
-@AllArgsConstructor
+@Builder
 public class XrayUserTrafficSnapshot {
 
     /** 用户 email. */

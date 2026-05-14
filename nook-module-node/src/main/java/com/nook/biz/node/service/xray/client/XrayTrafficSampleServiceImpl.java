@@ -119,30 +119,11 @@ public class XrayTrafficSampleServiceImpl implements XrayTrafficSampleService {
         XrayClientTrafficDO row = xrayClientTrafficMapper.selectByClientId(clientId);
         long dbUp = row == null || row.getUplinkBytes() == null ? 0L : row.getUplinkBytes();
         long dbDown = row == null || row.getDownlinkBytes() == null ? 0L : row.getDownlinkBytes();
-
-        long liveUp = 0L;
-        long liveDown = 0L;
-        boolean live = true;
-        try {
-            // 不 reset, 留给下一轮定时 sample
-            XrayNodeDO node = xrayNodeService.getXrayNode(client.getServerId());
-            SshSession session = sessionCredentialMapper.acquire(client.getServerId(), SshSessionScope.SHARED);
-            XrayUserTrafficSnapshot snap = xrayStatsCli.readUserTraffic(session, node.getXrayApiPort(),
-                    client.getClientEmail(), false);
-            liveUp = snap.getUpBytes();
-            liveDown = snap.getDownBytes();
-        } catch (RuntimeException ex) {
-            // SSH 不通仅返 DB 部分, enabled=false 让 UI 标"数据不完整"
-            log.warn("[traffic-sample] getTotalTraffic SSH 失败 client={} email={}: {}",
-                    clientId, client.getClientEmail(), ex.getMessage());
-            live = false;
-        }
-        return new XrayUserTrafficSnapshot(
-                client.getClientEmail(),
-                dbUp + liveUp,
-                dbDown + liveDown,
-                0L,
-                0L,
-                live);
+        return XrayUserTrafficSnapshot.builder()
+                .email(client.getClientEmail())
+                .upBytes(dbUp)
+                .downBytes(dbDown)
+                .enabled(true)
+                .build();
     }
 }
