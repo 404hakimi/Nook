@@ -60,12 +60,14 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPoolDO> {
     /**
      * 占用一个 IP(状态机 available → occupied).
      * 用 update 自带的 WHERE status=1 防并发双卖(没抢到 = 0 行受影响).
+     * 显式 set updated_at 因 wrapper 更新不走 MetaObjectHandler 自动 fill.
      */
     default int markOccupied(String id, String memberUserId, LocalDateTime at) {
         return update(null, Wrappers.<ResourceIpPoolDO>lambdaUpdate()
                 .set(ResourceIpPoolDO::getStatus, 2)
                 .set(ResourceIpPoolDO::getAssignedMemberId, memberUserId)
                 .set(ResourceIpPoolDO::getAssignedAt, at)
+                .set(ResourceIpPoolDO::getUpdatedAt, LocalDateTime.now())
                 .setSql("assign_count = assign_count + 1")
                 .eq(ResourceIpPoolDO::getId, id)
                 .eq(ResourceIpPoolDO::getStatus, 1));
@@ -78,6 +80,7 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPoolDO> {
                 .set(ResourceIpPoolDO::getCoolingUntil, coolingUntil)
                 .set(ResourceIpPoolDO::getAssignedMemberId, null)
                 .set(ResourceIpPoolDO::getAssignedAt, null)
+                .set(ResourceIpPoolDO::getUpdatedAt, LocalDateTime.now())
                 .eq(ResourceIpPoolDO::getId, id));
     }
 
@@ -86,6 +89,7 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPoolDO> {
         return update(null, Wrappers.<ResourceIpPoolDO>lambdaUpdate()
                 .set(ResourceIpPoolDO::getStatus, 1)
                 .set(ResourceIpPoolDO::getCoolingUntil, null)
+                .set(ResourceIpPoolDO::getUpdatedAt, LocalDateTime.now())
                 .eq(ResourceIpPoolDO::getId, id));
     }
 

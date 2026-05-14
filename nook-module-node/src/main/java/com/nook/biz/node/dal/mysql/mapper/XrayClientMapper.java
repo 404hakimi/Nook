@@ -49,18 +49,20 @@ public interface XrayClientMapper extends BaseMapper<XrayClientDO> {
                 .eq(XrayClientDO::getServerId, serverId));
     }
 
-    /** 更新 status + last_synced_at. */
+    /** 更新 status + last_synced_at; 显式 set updated_at 因 wrapper 更新不走 MetaObjectHandler 自动 fill. */
     default int updateStatus(String id, Integer status, LocalDateTime syncedAt) {
         return update(null, Wrappers.<XrayClientDO>lambdaUpdate()
                 .set(XrayClientDO::getStatus, status)
                 .set(ObjectUtil.isNotNull(syncedAt), XrayClientDO::getLastSyncedAt, syncedAt)
+                .set(XrayClientDO::getUpdatedAt, LocalDateTime.now())
                 .eq(XrayClientDO::getId, id));
     }
 
-    /** 更新 client_uuid (轮换密钥). */
+    /** 更新 client_uuid (轮换密钥); 显式 set updated_at 同 updateStatus 原因. */
     default int updateClientUuid(String id, String newUuid) {
         return update(null, Wrappers.<XrayClientDO>lambdaUpdate()
                 .set(XrayClientDO::getClientUuid, newUuid)
+                .set(XrayClientDO::getUpdatedAt, LocalDateTime.now())
                 .eq(XrayClientDO::getId, id));
     }
 

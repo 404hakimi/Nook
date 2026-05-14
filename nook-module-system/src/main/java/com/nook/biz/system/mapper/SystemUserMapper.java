@@ -40,18 +40,20 @@ public interface SystemUserMapper extends BaseMapper<SystemUser> {
                 .ne(SystemUser::getId, excludeId));
     }
 
-    /** 更新登录时间与 IP。 */
+    /** 更新登录时间与 IP；显式 set updated_at 因 wrapper 更新不走 MetaObjectHandler 自动 fill. */
     default int updateLastLogin(String id, String loginIp, LocalDateTime loginAt) {
         return update(null, Wrappers.<SystemUser>lambdaUpdate()
                 .set(SystemUser::getLastLoginAt, loginAt)
                 .set(SystemUser::getLastLoginIp, loginIp)
+                .set(SystemUser::getUpdatedAt, LocalDateTime.now())
                 .eq(SystemUser::getId, id));
     }
 
-    /** 单独更新密码哈希。 */
+    /** 单独更新密码哈希；显式 set updated_at 同 updateLastLogin 原因. */
     default int updatePasswordHash(String id, String passwordHash) {
         return update(null, Wrappers.<SystemUser>lambdaUpdate()
                 .set(SystemUser::getPasswordHash, passwordHash)
+                .set(SystemUser::getUpdatedAt, LocalDateTime.now())
                 .eq(SystemUser::getId, id));
     }
 

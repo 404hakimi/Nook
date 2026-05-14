@@ -18,10 +18,11 @@ import java.time.LocalDateTime;
 @Mapper
 public interface XrayNodeMapper extends BaseMapper<XrayNodeDO> {
 
-    /** 更新 last_xray_uptime, replay 完成后打点. */
+    /** 更新 last_xray_uptime, replay 完成后打点; 显式 set updated_at 因 wrapper 更新不走 MetaObjectHandler 自动 fill. */
     default int updateXrayUptime(String serverId, LocalDateTime uptime) {
         return update(null, Wrappers.<XrayNodeDO>lambdaUpdate()
                 .set(XrayNodeDO::getLastXrayUptime, uptime)
+                .set(XrayNodeDO::getUpdatedAt, LocalDateTime.now())
                 .eq(XrayNodeDO::getServerId, serverId));
     }
 
