@@ -6,7 +6,6 @@ import java.util.function.Function;
 
 /**
  * 远程 SSH 会话注册表 (lazy 创建, 死链被动失效); 不查 DB / 不调业务 API, 凭据由调用方传入.
- * 同一 server 按 {@link SshSessionScope} 隔离 cache, 避免长任务跟短任务互相 invalidate.
  *
  * @author nook
  */

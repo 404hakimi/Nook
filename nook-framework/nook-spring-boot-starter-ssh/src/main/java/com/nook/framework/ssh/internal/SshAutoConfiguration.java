@@ -32,8 +32,18 @@ public class SshAutoConfiguration {
     @ConditionalOnMissingBean
     public SshClient sshClient(SshSessionProperties props) {
         SshClient client = SshClient.setUpDefaultClient();
+        // 应用层 keepalive: 防 NAT/防火墙 idle 老化
         CoreModuleProperties.HEARTBEAT_INTERVAL.set(client, props.getHeartbeatInterval());
         CoreModuleProperties.HEARTBEAT_REPLY_WAIT.set(client, props.getHeartbeatReplyWait());
+        // 鉴权阶段独立超时, 跟 TCP+KEX 建链拆开
+        CoreModuleProperties.AUTH_TIMEOUT.set(client, props.getAuthTimeout());
+        // TCP 内核层: keepalive (双保险) + NoDelay (低延迟)
+        CoreModuleProperties.SOCKET_KEEPALIVE.set(client, props.isTcpKeepAlive());
+        CoreModuleProperties.TCP_NODELAY.set(client, props.isTcpNoDelay());
+        // 空闲超时: 业务侧不用的 session 自动释放, 减轻远端 sshd 连接表; 0 表示禁用
+        if (props.getIdleTimeout() != null && !props.getIdleTimeout().isZero()) {
+            CoreModuleProperties.IDLE_TIMEOUT.set(client, props.getIdleTimeout());
+        }
         // 接受任何 host key; 生产化前迁到 KnownHostsServerKeyVerifier.
         client.setServerKeyVerifier(AcceptAllServerKeyVerifier.INSTANCE);
         client.start();

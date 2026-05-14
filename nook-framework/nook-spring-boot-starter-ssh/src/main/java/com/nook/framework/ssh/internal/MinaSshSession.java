@@ -55,7 +55,7 @@ class MinaSshSession implements SshSession {
         validateCred(cred);
         ClientSession session = null;
         try {
-            session = openAndAuth(sshClient, cred, props.getConnectTimeout());
+            session = openAndAuth(sshClient, cred, props.getConnectTimeout(), props.getAuthTimeout());
             log.info("[ssh-session] 建立成功 server={} {}@{}:{}",
                     cred.getServerId(), cred.getSshUser(), cred.getSshHost(), cred.getSshPort());
             MinaSshSession instance = new MinaSshSession(cred, session);
@@ -133,14 +133,18 @@ class MinaSshSession implements SshSession {
         }
     }
 
-    /** TCP 连接 + 鉴权; 鉴权失败关掉 session 再向上抛, 防资源泄漏. */
-    private static ClientSession openAndAuth(SshClient client, SessionCredential cred, Duration connectTimeout) throws IOException {
+    /**
+     * TCP 连接 + 鉴权; connect/auth 用拆开的超时, 鉴权该秒级失败而不是拖 connectTimeout.
+     * 鉴权阶段失败关掉 session 再向上抛, 防资源泄漏.
+     */
+    private static ClientSession openAndAuth(SshClient client, SessionCredential cred,
+                                             Duration connectTimeout, Duration authTimeout) throws IOException {
         ConnectFuture cf = client.connect(cred.getSshUser(), cred.getSshHost(), cred.getSshPort());
         cf.verify(connectTimeout.toMillis());
         ClientSession session = cf.getSession();
         try {
             session.addPasswordIdentity(cred.getSshPassword());
-            session.auth().verify(connectTimeout.toMillis());
+            session.auth().verify(authTimeout.toMillis());
             return session;
         } catch (Exception e) {
             try { session.close(); } catch (IOException ignored) { }
