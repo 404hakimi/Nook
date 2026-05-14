@@ -1,0 +1,12 @@
+{
+  "enabledMcpjsonServers": [
+    "ssh-server",
+    "my-database",
+    "intellij-idea"
+  ],
+  "permissions": {
+    "allow": [
+      "mcp__ssh-server__execute-command"
+    ]
+  }
+}
