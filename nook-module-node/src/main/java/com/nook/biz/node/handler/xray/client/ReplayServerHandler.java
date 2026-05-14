@@ -1,6 +1,5 @@
 package com.nook.biz.node.handler.xray.client;
 
-import com.nook.biz.node.service.xray.client.XrayClientServiceImpl;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OperationContext;
 import com.nook.biz.operation.api.spi.OperationHandler;
@@ -8,7 +7,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * SERVER_REPLAY handler.
+ * SERVER_REPLAY handler; 业务执行见 ClientOpExecutor.doReplayServer.
  *
  * @author nook
  */
@@ -16,7 +15,7 @@ import org.springframework.stereotype.Component;
 public class ReplayServerHandler implements OperationHandler {
 
     @Resource
-    private XrayClientServiceImpl serviceImpl;
+    private ClientOpExecutor executor;
 
     @Override
     public String type() {
@@ -26,6 +25,6 @@ public class ReplayServerHandler implements OperationHandler {
     @Override
     public Object execute(OperationContext ctx) {
         ctx.report("准备 replay", 10);
-        return serviceImpl.doReplayServer(ctx.serverId(), ctx);
+        return executor.doReplayServer(ctx.serverId(), ctx);
     }
 }

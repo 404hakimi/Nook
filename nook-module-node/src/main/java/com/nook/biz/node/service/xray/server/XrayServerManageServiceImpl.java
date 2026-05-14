@@ -1,26 +1,23 @@
 package com.nook.biz.node.service.xray.server;
 
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
-import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
 import com.nook.biz.node.service.support.SessionCredentialMapper;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
-import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService;
 import com.nook.biz.operation.api.dto.EnqueueRequest;
 import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OperationOrchestrator;
-import com.nook.biz.operation.api.ProgressSink;
 import com.nook.framework.security.stp.StpSystemUtil;
-import org.springframework.context.annotation.Lazy;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import jakarta.annotation.Resource;
@@ -53,11 +50,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private XrayNodeService xrayNodeService;
     @Resource
     private SessionCredentialMapper sessionCredentialMapper;
-    /** restart 前置 sample 让流量数据不丢; 失败仅 warn, 不阻塞 restart 主流程 */
-    @Resource
-    private XrayClientTrafficSampleService trafficSampleService;
-    /** @Lazy 破除循环依赖: service → orchestrator → handlerRegistry → handler → service */
-    @Lazy
     @Resource
     private OperationOrchestrator operationOrchestrator;
     @Resource
@@ -120,25 +112,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.XRAY_RESTART.name()), String.class);
     }
 
-    /** XRAY_RESTART handler 调本方法; 业务侧必须走 {@link #xrayRestart} 经队列, 不要直接调! */
-    public String doRestart(String serverId, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
-        // restart 是可控的"清零事件" — systemctl restart 后 xray in-memory counter 全归零;
-        // 先 sample 一次把当前增量入库, 让用户层流量统计跨重启不丢. 失败仅 warn, 不阻塞 restart.
-        sink.report("采样流量入库", 20);
-        try {
-            trafficSampleService.sampleServerTraffic(serverId);
-        } catch (Exception e) {
-            log.warn("[restart] server={} 前置 sample 失败, 仍继续 restart: {}", serverId, e.getMessage());
-        }
-        sink.report("获取 SSH 会话", 40);
-        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
-        sink.report("正在执行 systemctl restart", 60);
-        String out = xrayDaemonProbe.restart(session);
-        sink.report("等待进程就绪", 90);
-        return out;
-    }
-
     @Override
     public XrayServerStatusRespVO getXraySystemdStatus(String serverId) {
         SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
@@ -168,15 +141,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                 .paramsJson(params.toJSONString())
                 .build();
         return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_AUTOSTART.name()), String.class);
-    }
-
-    /** SERVER_AUTOSTART handler 调本方法; 业务侧必须走 {@link #xrayAutostart} 经队列. */
-    public String doSetAutostart(String serverId, boolean enabled, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
-        sink.report("建立 SSH 会话", 50);
-        SshSession session = sessionCredentialMapper.acquire(serverId, SshSessionScope.SHARED);
-        sink.report(enabled ? "执行 systemctl enable" : "执行 systemctl disable", 80);
-        return xrayDaemonProbe.setAutostart(session, enabled);
     }
 
     /** 按 reqVO 勾选项把 install 模块拼成完整脚本; 必装 00/50/99, 可选 10-timezone/40-ufw; swap/bbr 不在此链路. */

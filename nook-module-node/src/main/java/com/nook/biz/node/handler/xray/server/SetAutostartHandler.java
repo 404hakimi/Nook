@@ -2,7 +2,6 @@ package com.nook.biz.node.handler.xray.server;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.nook.biz.node.service.xray.server.XrayServerManageServiceImpl;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OperationContext;
 import com.nook.biz.operation.api.spi.OperationHandler;
@@ -10,7 +9,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * SERVER_AUTOSTART 的 handler; 入参 JSON 解 enabled flag.
+ * SERVER_AUTOSTART 的 handler; 入参 JSON 解 enabled flag. 业务执行见 ServerOpExecutor.doSetAutostart.
  *
  * @author nook
  */
@@ -18,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class SetAutostartHandler implements OperationHandler {
 
     @Resource
-    private XrayServerManageServiceImpl serviceImpl;
+    private ServerOpExecutor executor;
 
     @Override
     public String type() {
@@ -30,6 +29,6 @@ public class SetAutostartHandler implements OperationHandler {
         JSONObject params = JSON.parseObject(ctx.paramsJson());
         boolean enabled = params.getBooleanValue("enabled");
         ctx.report(enabled ? "开启开机自启" : "关闭开机自启", 30);
-        return serviceImpl.doSetAutostart(ctx.serverId(), enabled, ctx);
+        return executor.doSetAutostart(ctx.serverId(), enabled, ctx);
     }
 }

@@ -1,6 +1,5 @@
 package com.nook.biz.node.handler.xray.server;
 
-import com.nook.biz.node.service.xray.server.XrayServerManageServiceImpl;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OperationContext;
 import com.nook.biz.operation.api.spi.OperationHandler;
@@ -8,7 +7,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * XRAY_RESTART 的 handler 薄包装; 真正 recipe 在 XrayServerManageServiceImpl.doRestart.
+ * XRAY_RESTART 的 handler 薄包装; 业务执行见 ServerOpExecutor.doRestart.
  *
  * @author nook
  */
@@ -16,7 +15,7 @@ import org.springframework.stereotype.Component;
 public class RestartXrayHandler implements OperationHandler {
 
     @Resource
-    private XrayServerManageServiceImpl serviceImpl;
+    private ServerOpExecutor executor;
 
     @Override
     public String type() {
@@ -26,7 +25,7 @@ public class RestartXrayHandler implements OperationHandler {
     @Override
     public Object execute(OperationContext ctx) {
         ctx.report("建立 SSH 会话", 15);
-        // service 内部会用 sink 报 systemctl 状态
-        return serviceImpl.doRestart(ctx.serverId(), ctx);
+        // executor 内部会用 sink 报 systemctl 状态
+        return executor.doRestart(ctx.serverId(), ctx);
     }
 }

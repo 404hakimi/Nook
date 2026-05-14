@@ -2,7 +2,6 @@ package com.nook.biz.node.handler.xray.client;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.nook.biz.node.service.xray.client.XrayClientServiceImpl;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OperationContext;
 import com.nook.biz.operation.api.spi.OperationHandler;
@@ -10,7 +9,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_ROTATE handler.
+ * CLIENT_ROTATE handler; 业务执行见 ClientOpExecutor.doRotate.
  *
  * @author nook
  */
@@ -18,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class RotateClientHandler implements OperationHandler {
 
     @Resource
-    private XrayClientServiceImpl serviceImpl;
+    private ClientOpExecutor executor;
 
     @Override
     public String type() {
@@ -30,6 +29,6 @@ public class RotateClientHandler implements OperationHandler {
         JSONObject params = JSON.parseObject(ctx.paramsJson());
         String clientId = params.getString("clientId");
         ctx.report("加载客户端记录", 15);
-        return serviceImpl.doRotate(clientId, ctx);
+        return executor.doRotate(clientId, ctx);
     }
 }

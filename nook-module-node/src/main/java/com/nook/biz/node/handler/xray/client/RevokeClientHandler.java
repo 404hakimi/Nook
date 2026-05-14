@@ -2,7 +2,6 @@ package com.nook.biz.node.handler.xray.client;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.nook.biz.node.service.xray.client.XrayClientServiceImpl;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OperationContext;
 import com.nook.biz.operation.api.spi.OperationHandler;
@@ -10,7 +9,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_REVOKE handler.
+ * CLIENT_REVOKE handler; 业务执行见 ClientOpExecutor.doRevoke.
  *
  * @author nook
  */
@@ -18,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class RevokeClientHandler implements OperationHandler {
 
     @Resource
-    private XrayClientServiceImpl serviceImpl;
+    private ClientOpExecutor executor;
 
     @Override
     public String type() {
@@ -30,7 +29,7 @@ public class RevokeClientHandler implements OperationHandler {
         JSONObject params = JSON.parseObject(ctx.paramsJson());
         String clientId = params.getString("clientId");
         ctx.report("加载客户端记录", 15);
-        serviceImpl.doRevoke(clientId, ctx);
+        executor.doRevoke(clientId, ctx);
         return null;
     }
 }
