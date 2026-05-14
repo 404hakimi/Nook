@@ -40,19 +40,19 @@ public class XrayClientReconcilerJob {
         List<XrayNodeDO> nodes = xrayNodeMapper.selectList(null);
         if (nodes == null || nodes.isEmpty()) return;
 
-        log.debug("[reconciler] 启动轮询 size={}", nodes.size());
+        log.debug("[reconciler] 启动轮询 xray节点={}", nodes.size());
         for (XrayNodeDO node : nodes) {
             try {
                 xrayClientService.replayIfRestarted(node.getServerId());
             } catch (BusinessException be) {
                 // 上轮 op 还 RUNNING (用户在 provision / 上次 reconcile 没跑完); 正常去重, 不报错
                 if (OpErrorCode.DUPLICATE_OP.getCode() == be.getCode()) {
-                    log.debug("[reconciler] server={} 跳过 (已有 RUNNING op)", node.getServerId());
+                    log.debug("[reconciler] 服务器={} 跳过 (已有运行中的任务)", node.getServerId());
                 } else {
-                    log.error("[reconciler] server={} 业务异常: {}", node.getServerId(), be.getMessage());
+                    log.error("[reconciler] 服务器={} 业务异常: {}", node.getServerId(), be.getMessage());
                 }
             } catch (Exception e) {
-                log.error("[reconciler] server={} 出错: {}", node.getServerId(), e.getMessage());
+                log.error("[reconciler] 服务器={} 出错: {}", node.getServerId(), e.getMessage());
             }
         }
     }

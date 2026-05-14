@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nook.biz.node.dal.mysql.mapper.XraySlotPoolMapper">
+
+    <select id="pickFreeSlotForUpdate"
+            resultType="com.nook.biz.node.dal.dataobject.slot.XraySlotPoolDO">
+        SELECT * FROM xray_slot_pool
+         WHERE server_id = #{serverId} AND used = 0
+         ORDER BY slot_index ASC
+         LIMIT 1
+         FOR UPDATE
+    </select>
+
+    <update id="occupy">
+        UPDATE xray_slot_pool
+           SET used = 1, used_by = #{clientId}, updated_at = NOW()
+         WHERE server_id = #{serverId} AND slot_index = #{slotIndex} AND used = 0
+    </update>
+
+    <update id="release">
+        UPDATE xray_slot_pool
+           SET used = 0, used_by = NULL, updated_at = NOW()
+         WHERE server_id = #{serverId} AND slot_index = #{slotIndex}
+    </update>
+
+</mapper>

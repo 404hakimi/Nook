@@ -330,7 +330,7 @@ public class ClientOpExecutor {
             sink.report("建立 SSH 会话", 35);
             session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
         } catch (RuntimeException e) {
-            log.warn("[reconciler] SSH 不通 server={}, 本轮跳过: {}", serverId, e.getMessage());
+            log.warn("[reconciler] SSH 不通 服务器={}, 本轮跳过: {}", serverId, e.getMessage());
             return;
         }
         sink.report("探测 xray uptime", 50);
@@ -345,7 +345,7 @@ public class ClientOpExecutor {
         // last 为 null (首次) 也视为重启; xray 装好后第一轮自动 replay 一次把 DB 推全
         if (last != null && !cur.isAfter(last)) return;
 
-        log.info("[reconciler] xray 重启检测 server={} prev={} now={}, 触发 replay", serverId, last, cur);
+        log.info("[reconciler] 检测到 xray 重启 服务器={} 上次启动={} 当前启动={}, 触发回放", serverId, last, cur);
         sink.report("xray 重启检测, 触发 replay", 60);
         replayInternal(session, node, sink);
         xrayNodeService.markReplayDone(serverId, LocalDateTime.ofInstant(cur, ZoneOffset.UTC));
@@ -406,7 +406,7 @@ public class ClientOpExecutor {
                 syncSingle(session, apiPort, c, ipMap.get(c.getIpId()), OpProgressSink.noop());
                 success++;
             } catch (Exception ex) {
-                log.error("[reconciler] sync 失败 client={} email={}: {}",
+                log.error("[reconciler] 同步失败 客户端={} 邮箱={}: {}",
                         c.getId(), c.getClientEmail(), ex.getMessage());
                 failed.add(c.getId());
             }
@@ -419,7 +419,7 @@ public class ClientOpExecutor {
         report.setAlreadyOkCount(alreadyOk);
         report.setSuccessCount(success);
         report.setFailedClientIds(failed);
-        log.info("[reconciler] replay server={} total={} alreadyOk={} synced={} failed={}",
+        log.info("[reconciler] 回放完成 服务器={} 总数={} 已对齐={} 同步成功={} 失败={}",
                 serverId, targets.size(), alreadyOk, success, failed.size());
         return report;
     }

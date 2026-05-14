@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nook.biz.operation.dal.mysql.mapper.OpLogMapper">
+
+    <update id="casQueuedToRunning">
+        UPDATE op_log
+           SET status='RUNNING', started_at=#{startedAt}
+         WHERE id=#{id} AND status='QUEUED'
+    </update>
+
+    <update id="casQueuedToCancelled">
+        UPDATE op_log
+           SET status='CANCELLED', active_key=NULL, ended_at=#{endedAt},
+               current_step='已取消'
+         WHERE id=#{id} AND status='QUEUED'
+    </update>
+
+    <update id="casRunningToDone">
+        UPDATE op_log
+           SET status='DONE', active_key=NULL, ended_at=#{endedAt},
+               progress_pct=100, current_step='已完成'
+         WHERE id=#{id} AND status='RUNNING'
+    </update>
+
+    <update id="casRunningToFailed">
+        UPDATE op_log
+           SET status='FAILED', active_key=NULL, ended_at=#{endedAt},
+               current_step='已失败', error_code=#{errorCode}, error_msg=#{errorMsg}
+         WHERE id=#{id} AND status='RUNNING'
+    </update>
+
+    <update id="casRunningToTimedOut">
+        UPDATE op_log
+           SET status='TIMED_OUT', active_key=NULL, ended_at=#{endedAt},
+               current_step='已超时', error_code='TIMED_OUT', error_msg=#{errorMsg}
+         WHERE id=#{id} AND status='RUNNING'
+    </update>
+
+    <update id="updateProgress">
+        UPDATE op_log
+           SET current_step=#{step}, progress_pct=#{pct}, last_message=#{message}
+         WHERE id=#{id} AND status='RUNNING'
+    </update>
+
+    <update id="cleanupZombieRunning">
+        UPDATE op_log
+           SET status='FAILED', active_key=NULL, ended_at=NOW(),
+               current_step='已失败', error_code='WORKER_LOST',
+               error_msg='应用重启时该 op 仍在 RUNNING, 视为僵尸'
+         WHERE status='RUNNING'
+    </update>
+
+    <select id="findActiveIdByKey" resultType="java.lang.String">
+        SELECT id FROM op_log WHERE active_key=#{activeKey} LIMIT 1
+    </select>
+
+</mapper>

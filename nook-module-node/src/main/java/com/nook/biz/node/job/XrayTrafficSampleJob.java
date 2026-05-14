@@ -2,8 +2,8 @@ package com.nook.biz.node.job;
 
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayNodeMapper;
-import com.nook.biz.node.service.xray.client.SampleStat;
 import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService;
+import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService.SampleStat;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -50,10 +50,10 @@ public class XrayTrafficSampleJob {
             } catch (Exception e) {
                 // 单 server 异常不阻塞其他
                 failedServers++;
-                log.warn("[traffic-sample] server={} 采样异常: {}", node.getServerId(), e.getMessage());
+                log.warn("[traffic-sample] 服务器={} 采样异常: {}", node.getServerId(), e.getMessage());
             }
         }
-        log.info("[traffic-sample] sweep 完成 nodes={} ok={} failed={} upserted={} skipped={} 耗时={}ms",
+        log.info("[traffic-sample] 采样完成 xray节点={} 成功={} 失败={} 入库={} 跳过={} 耗时={}ms",
                 nodes.size(), okServers, failedServers, totalUpserted, totalSkipped,
                 System.currentTimeMillis() - t0);
     }

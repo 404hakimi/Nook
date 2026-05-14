@@ -21,9 +21,9 @@ public interface XrayClientTrafficService {
     XrayClientTrafficRespVO getXrayClientTraffic(String id);
 
     /**
-     * 重置Xray客户端-累计上下行计数 (清DB累计+远端 in-memory counter)
+     * 重置 Xray 客户端累计流量: 清 DB 累计, 同时把远端当前累计值设为新的基线.
      *
-     * @param id xray客户端ID
+     * @param id xray 客户端 ID
      */
     void resetXrayClientTraffic(String id);
 }

@@ -155,7 +155,7 @@ public class XrayClientServiceImpl implements XrayClientService {
         XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
         if (node == null) {
             vo.setReachable(false);
-            log.debug("[reconciler] getSyncStatus 跳过 server={} (无 xray_node)", serverId);
+            log.debug("[reconciler] 同步状态查询跳过 服务器={} (无 xray 节点)", serverId);
             return vo;
         }
         int apiPort = node.getXrayApiPort();
@@ -164,7 +164,7 @@ public class XrayClientServiceImpl implements XrayClientService {
             session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
         } catch (RuntimeException e) {
             vo.setReachable(false);
-            log.warn("[reconciler] getSyncStatus 不可达 server={}: {}", serverId, e.getMessage());
+            log.warn("[reconciler] 同步状态查询服务器不可达 服务器={}: {}", serverId, e.getMessage());
             return vo;
         }
         vo.setReachable(true);
@@ -177,7 +177,7 @@ public class XrayClientServiceImpl implements XrayClientService {
             remote = new HashSet<>(inboundCli.listInbounds(session, apiPort));
         } catch (RuntimeException e) {
             vo.setReachable(false);
-            log.warn("[reconciler] getSyncStatus lsi 失败 server={}: {}", serverId, e.getMessage());
+            log.warn("[reconciler] 同步状态查询拉远端 inbound 列表失败 服务器={}: {}", serverId, e.getMessage());
             return vo;
         }
         remote.remove("api");

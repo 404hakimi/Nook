@@ -22,8 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Xray 客户端流量 Service 实现.
  *
- * <p>查询纯 DB (XrayTrafficSampleJob 定时把 xray in-memory 增量 upsert 到 xray_client_traffic);
- * 重置先清 DB 累计再调远端 statsquery --reset, 保证 DB 是权威源.
+ * <p>查询走 DB (定时采样把 xray 端当前累计值入库, DB 用"当前值 - 上次值"算增量累加);
+ * 重置 = 清 DB 累计 + 把当前累计值设为新的基线, 后续采样自然从基线开始算.
  *
  * @author nook
  */
@@ -36,16 +36,13 @@ public class XrayClientTrafficServiceImpl implements XrayClientTrafficService {
     @Resource
     private XrayClientTrafficMapper xrayClientTrafficMapper;
     @Resource
-    private XrayNodeService xrayNodeService;
-    @Resource
     private XrayNodeValidator xrayNodeValidator;
     @Resource
     private XrayStatsCli statsCli;
 
     @Override
     public XrayClientTrafficRespVO getXrayClientTraffic(String id) {
-        // 纯 DB 查询: 流量由 XrayTrafficSampleJob 定时增量 upsert 到 xray_client_traffic;
-        // 新鲜度 ≤ 一个 sample 周期 (默认 30min, 见 nook.traffic.sample-interval-ms).
+        // 新鲜度 ≤ 一个采样周期 (默认 30min, 见 nook.traffic.sample-interval-ms)
         XrayClientDO client = clientValidator.validateExists(id);
         XrayClientTrafficDO row = xrayClientTrafficMapper.selectByClientId(id);
         long dbUp = row == null || row.getUplinkBytes() == null ? 0L : row.getUplinkBytes();
@@ -63,14 +60,19 @@ public class XrayClientTrafficServiceImpl implements XrayClientTrafficService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void resetXrayClientTraffic(String id) {
-        // DB 是流量权威源 (累计行); 先清 DB, 失败回滚不动远端;
-        // 仅清远端不清 DB 会导致下次查询 = dbAcc + 0, 用户看到"重置无效"
+        // 拿当前远端累计值当新基线, 跟 DB 累计清零原子提交; 后续采样自然从这个基线开始算增量.
+        // 不清零远端计数器 (跟采样模型一致, 远端计数器单调递增, 不需要清).
         XrayClientDO client = clientValidator.validateExists(id);
-        xrayClientTrafficMapper.deleteByClientId(id);
-
         XrayNodeDO node = xrayNodeValidator.validateExists(client.getServerId());
         SshSession session = SshSessions.acquire(client.getServerId(), SshSessionScope.SHARED);
-        // reset=true 原子返回旧值并清零; DB 已删, 远端清零失败下一轮 sample 仍会对齐
-        statsCli.readUserTraffic(session, node.getXrayApiPort(), client.getClientEmail(), true);
+        XrayUserTrafficSnapshot snap = statsCli.readUserTraffic(
+                session, node.getXrayApiPort(), client.getClientEmail(), false);
+
+        xrayClientTrafficMapper.resetWithBaseline(
+                java.util.UUID.randomUUID().toString().replace("-", ""),
+                id, client.getServerId(),
+                Math.max(0L, snap.getUpBytes()),
+                Math.max(0L, snap.getDownBytes()),
+                java.time.LocalDateTime.now());
     }
 }

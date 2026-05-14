@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper">
+
+    <update id="batchUpsertCounter">
+        INSERT INTO xray_client_traffic
+            (id, client_id, server_id, uplink_bytes, downlink_bytes,
+             last_counter_uplink, last_counter_downlink, last_sampled_at, created_at, updated_at)
+        VALUES
+        <foreach collection="rows" item="r" separator=",">
+            /* 新行: 累计字段直接放当前值, 同时把当前值记成"上次值" */
+            (#{r.id}, #{r.clientId}, #{r.serverId}, #{r.curUp}, #{r.curDown},
+             #{r.curUp}, #{r.curDown}, #{r.sampledAt}, NOW(), NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            uplink_bytes = uplink_bytes + CASE
+                /* 老库刚加列, "上次值"还没建立基线: 本次不累加, 仅记基线, 防重复记 */
+                WHEN last_counter_uplink IS NULL THEN 0
+                /* 正常累加: 这次增量 = 当前值 - 上次值 */
+                WHEN VALUES(last_counter_uplink) &gt;= last_counter_uplink
+                    THEN VALUES(last_counter_uplink) - last_counter_uplink
+                /* 当前值 &lt; 上次值: xray 进程重启过计数器归零, 当前值就是这一轮的增量 */
+                ELSE VALUES(last_counter_uplink)
+            END,
+            downlink_bytes = downlink_bytes + CASE
+                WHEN last_counter_downlink IS NULL THEN 0
+                WHEN VALUES(last_counter_downlink) &gt;= last_counter_downlink
+                    THEN VALUES(last_counter_downlink) - last_counter_downlink
+                ELSE VALUES(last_counter_downlink)
+            END,
+            last_counter_uplink   = VALUES(last_counter_uplink),
+            last_counter_downlink = VALUES(last_counter_downlink),
+            last_sampled_at       = VALUES(last_sampled_at),
+            server_id             = VALUES(server_id)
+    </update>
+
+    <update id="resetWithBaseline">
+        INSERT INTO xray_client_traffic
+            (id, client_id, server_id, uplink_bytes, downlink_bytes,
+             last_counter_uplink, last_counter_downlink, last_sampled_at, created_at, updated_at)
+        VALUES
+            (#{id}, #{clientId}, #{serverId}, 0, 0, #{curUp}, #{curDown}, #{sampledAt}, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+            uplink_bytes          = 0,
+            downlink_bytes        = 0,
+            /* 新基线设成当前值 (而不是 0), 防下一轮采样把"重置前的余量"误算成新增量 */
+            last_counter_uplink   = VALUES(last_counter_uplink),
+            last_counter_downlink = VALUES(last_counter_downlink),
+            last_sampled_at       = VALUES(last_sampled_at)
+    </update>
+
+</mapper>
