@@ -12,10 +12,10 @@ import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
-import com.nook.biz.operation.api.dto.EnqueueRequest;
+import com.nook.biz.operation.api.dto.OpEnqueueRequest;
 import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.spi.OperationOrchestrator;
+import com.nook.biz.operation.api.spi.OpOrchestrator;
 import com.nook.framework.security.stp.StpSystemUtil;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
@@ -49,7 +49,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     @Resource
     private XrayNodeService xrayNodeService;
     @Resource
-    private OperationOrchestrator operationOrchestrator;
+    private OpOrchestrator opOrchestrator;
     @Resource
     private OpConfigResolver opConfigResolver;
 
@@ -102,12 +102,12 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     @Override
     public String restart(String serverId) {
-        EnqueueRequest req = EnqueueRequest.builder()
+        OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.XRAY_RESTART.name())
                 .operator(currentOperator())
                 .build();
-        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.XRAY_RESTART.name()), String.class);
+        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.XRAY_RESTART.name()), String.class);
     }
 
     @Override
@@ -132,13 +132,13 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     public String setAutostart(String serverId, boolean enabled) {
         JSONObject params = new JSONObject();
         params.put("enabled", enabled);
-        EnqueueRequest req = EnqueueRequest.builder()
+        OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.SERVER_AUTOSTART.name())
                 .operator(currentOperator())
                 .paramsJson(params.toJSONString())
                 .build();
-        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_AUTOSTART.name()), String.class);
+        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_AUTOSTART.name()), String.class);
     }
 
     /** 按 reqVO 勾选项把 install 模块拼成完整脚本; 必装 00/50/99, 可选 10-timezone/40-ufw; swap/bbr 不在此链路. */

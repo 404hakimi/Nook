@@ -1,6 +1,6 @@
 package com.nook.biz.operation.api.spi;
 
-import com.nook.biz.operation.api.dto.EnqueueRequest;
+import com.nook.biz.operation.api.dto.OpEnqueueRequest;
 
 import java.time.Duration;
 
@@ -17,7 +17,7 @@ import java.time.Duration;
  *
  * @author nook
  */
-public interface OperationOrchestrator {
+public interface OpOrchestrator {
 
     /**
      * 入队; 同步返回 opId, 不等待执行完成 (fire-and-forget).
@@ -25,7 +25,7 @@ public interface OperationOrchestrator {
      * @param req 入队入参
      * @return op_log.id (32 位 UUID)
      */
-    String enqueue(EnqueueRequest req);
+    String enqueue(OpEnqueueRequest req);
 
     /**
      * 入队 + 阻塞等到该 op 终态; 用于 controller 同步语义场景.
@@ -39,7 +39,7 @@ public interface OperationOrchestrator {
      * @param <T>           返回类型
      * @return handler 结果
      */
-    <T> T submitAndWait(EnqueueRequest req, Duration waitTimeout, Class<T> resultType);
+    <T> T submitAndWait(OpEnqueueRequest req, Duration waitTimeout, Class<T> resultType);
 
     /**
      * 取消队列中等待执行的 op; RUNNING / DONE / FAILED 全部静默 no-op 返 false.

@@ -18,9 +18,9 @@ import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.dto.EnqueueRequest;
+import com.nook.biz.operation.api.dto.OpEnqueueRequest;
 import com.nook.biz.operation.api.spi.OpConfigResolver;
-import com.nook.biz.operation.api.spi.OperationOrchestrator;
+import com.nook.biz.operation.api.spi.OpOrchestrator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
@@ -44,7 +44,7 @@ import java.util.Set;
  * Xray Client Service 实现类 — 仅 controller-facing 入口.
  *
  * <p>所有写远端的真正业务执行体在 {@link com.nook.biz.node.handler.xray.client.ClientOpExecutor};
- * 本类只做"入队 + DB 查 + convert", 通过 OperationOrchestrator 把 op 投到队列, handler 拉起 executor.
+ * 本类只做"入队 + DB 查 + convert", 通过 OpOrchestrator 把 op 投到队列, handler 拉起 executor.
  *
  * @author nook
  */
@@ -65,7 +65,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     @Resource
     private OpConfigResolver opConfigResolver;
     @Resource
-    private OperationOrchestrator operationOrchestrator;
+    private OpOrchestrator opOrchestrator;
 
     @Override
     public XrayClientDO getXrayClient(String id) {
@@ -81,40 +81,40 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     @Override
     public XrayClientDO provisionXrayClient(XrayClientProvisionReqVO reqVO) {
-        EnqueueRequest req = EnqueueRequest.builder()
+        OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(reqVO.getServerId())
                 .opType(OpType.CLIENT_PROVISION.name())
                 .operator(currentOperator())
                 .paramsJson(JSON.toJSONString(reqVO))
                 .allowDuplicate(true) // 新建资源, 多个并发 provision 应排队 FIFO 跑而非互斥
                 .build();
-        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_PROVISION.name()), XrayClientDO.class);
+        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_PROVISION.name()), XrayClientDO.class);
     }
 
     @Override
     public void revokeXrayClient(String inboundEntityId) {
         XrayClientDO e = getXrayClient(inboundEntityId);
-        EnqueueRequest req = EnqueueRequest.builder()
+        OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(e.getServerId())
                 .opType(OpType.CLIENT_REVOKE.name())
                 .targetId(inboundEntityId)
                 .operator(currentOperator())
                 .paramsJson("{\"clientId\":\"" + inboundEntityId + "\"}")
                 .build();
-        operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_REVOKE.name()), Void.class);
+        opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_REVOKE.name()), Void.class);
     }
 
     @Override
     public XrayClientDO rotateXrayClient(String inboundEntityId) {
         XrayClientDO e = getXrayClient(inboundEntityId);
-        EnqueueRequest req = EnqueueRequest.builder()
+        OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(e.getServerId())
                 .opType(OpType.CLIENT_ROTATE.name())
                 .targetId(inboundEntityId)
                 .operator(currentOperator())
                 .paramsJson("{\"clientId\":\"" + inboundEntityId + "\"}")
                 .build();
-        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_ROTATE.name()), XrayClientDO.class);
+        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_ROTATE.name()), XrayClientDO.class);
     }
 
     @Override
@@ -200,36 +200,36 @@ public class XrayClientServiceImpl implements XrayClientService {
     @Override
     public void syncXrayClient(String clientId) {
         XrayClientDO c = clientValidator.validateExists(clientId);
-        EnqueueRequest req = EnqueueRequest.builder()
+        OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(c.getServerId())
                 .opType(OpType.CLIENT_SYNC.name())
                 .targetId(clientId)
                 .operator(currentOperator())
                 .paramsJson("{\"clientId\":\"" + clientId + "\"}")
                 .build();
-        operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_SYNC.name()), Void.class);
+        opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_SYNC.name()), Void.class);
     }
 
     @Override
     public XrayClientReplayReportRespVO replayServer(String serverId) {
-        EnqueueRequest req = EnqueueRequest.builder()
+        OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.SERVER_REPLAY.name())
                 .operator(currentOperator())
                 .build();
-        return operationOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_REPLAY.name()), XrayClientReplayReportRespVO.class);
+        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_REPLAY.name()), XrayClientReplayReportRespVO.class);
     }
 
     @Override
     public void replayIfRestarted(String serverId) {
         // 异步入队: reconciler 不关心结果, 让 worker pool 后台跑; 同步 submitAndWait 会让 @Scheduled
         // 单线程串行扫节点时被慢 server 拖死整轮 (timeout 比 cron 大时根本跑不完一遍)
-        EnqueueRequest req = EnqueueRequest.builder()
+        OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.SERVER_RECONCILE.name())
                 .operator("SCHEDULER")
                 .build();
-        operationOrchestrator.enqueue(req);
+        opOrchestrator.enqueue(req);
     }
 
     /**

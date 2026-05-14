@@ -19,7 +19,7 @@ import com.nook.biz.node.service.resource.ResourceIpPoolService;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
 import com.nook.biz.node.validator.XrayClientValidator;
-import com.nook.biz.operation.api.ProgressSink;
+import com.nook.biz.operation.api.OpProgressSink;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
@@ -76,8 +76,8 @@ public class ClientOpExecutor {
 
     /** CLIENT_PROVISION 实际执行体. */
     @Transactional(rollbackFor = Exception.class)
-    XrayClientDO doProvision(XrayClientProvisionReqVO reqVO, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+    XrayClientDO doProvision(XrayClientProvisionReqVO reqVO, OpProgressSink progress) {
+        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         // 业务校验
         sink.report("校验业务参数", 15);
         clientValidator.validateForProvision(reqVO);
@@ -192,8 +192,8 @@ public class ClientOpExecutor {
 
     /** CLIENT_REVOKE 实际执行体. */
     @Transactional(rollbackFor = Exception.class)
-    void doRevoke(String inboundEntityId, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+    void doRevoke(String inboundEntityId, OpProgressSink progress) {
+        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         sink.report("加载客户端记录", 20);
         XrayClientDO e = clientValidator.validateExists(inboundEntityId);
         String inboundTag = e.getExternalInboundRef();
@@ -248,8 +248,8 @@ public class ClientOpExecutor {
     }
 
     /** CLIENT_ROTATE 实际执行体: 换 UUID, 端口/tag 不变, 重建 inbound 让新 UUID 生效. */
-    XrayClientDO doRotate(String inboundEntityId, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+    XrayClientDO doRotate(String inboundEntityId, OpProgressSink progress) {
+        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         sink.report("加载客户端记录", 20);
         XrayClientDO e = clientValidator.validateExists(inboundEntityId);
         String inboundTag = e.getExternalInboundRef();
@@ -292,8 +292,8 @@ public class ClientOpExecutor {
     }
 
     /** CLIENT_SYNC 实际执行体. */
-    void doSyncOne(String clientId, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+    void doSyncOne(String clientId, OpProgressSink progress) {
+        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         XrayClientDO c = clientValidator.validateExists(clientId);
         sink.report("加载节点配置", 20);
         XrayNodeDO node = xrayNodeService.getXrayNode(c.getServerId());
@@ -305,8 +305,8 @@ public class ClientOpExecutor {
     }
 
     /** SERVER_REPLAY 实际执行体. */
-    XrayClientReplayReportRespVO doReplayServer(String serverId, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+    XrayClientReplayReportRespVO doReplayServer(String serverId, OpProgressSink progress) {
+        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         sink.report("加载节点配置", 15);
         XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
         sink.report("建立 SSH 会话", 25);
@@ -315,8 +315,8 @@ public class ClientOpExecutor {
     }
 
     /** SERVER_RECONCILE 实际执行体: 探 xray uptime, 重启过才 replay. */
-    void doReplayIfRestarted(String serverId, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+    void doReplayIfRestarted(String serverId, OpProgressSink progress) {
+        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         sink.report("加载节点", 20);
         XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
         SshSession session;
@@ -350,8 +350,8 @@ public class ClientOpExecutor {
      * reconciler 调度 / 手动全量 replay 共用. 一次 acquire 一次拉表, 一次 lsi.
      * progress 在每轮 client 同步前后推百分比, 整体框定在 30-95 区间.
      */
-    private XrayClientReplayReportRespVO replayInternal(SshSession session, XrayNodeDO node, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+    private XrayClientReplayReportRespVO replayInternal(SshSession session, XrayNodeDO node, OpProgressSink progress) {
+        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         String serverId = node.getServerId();
         int apiPort = node.getXrayApiPort();
 
@@ -400,7 +400,7 @@ public class ClientOpExecutor {
                 sink.report("同步 client " + idx + "/" + total, Math.min(95, pct));
             }
             try {
-                syncSingle(session, apiPort, c, ipMap.get(c.getIpId()), ProgressSink.noop());
+                syncSingle(session, apiPort, c, ipMap.get(c.getIpId()), OpProgressSink.noop());
                 success++;
             } catch (Exception ex) {
                 log.error("[reconciler] sync 失败 client={} email={}: {}",
@@ -426,7 +426,7 @@ public class ClientOpExecutor {
      * progress 写中间步骤百分比; replay 循环里传 noop 不打扰 UI.
      */
     private void syncSingle(SshSession session, int apiPort, XrayClientDO c,
-                            ResourceIpPoolDO ipEntry, ProgressSink progress) {
+                            ResourceIpPoolDO ipEntry, OpProgressSink progress) {
         if (ipEntry == null || StrUtil.isBlank(ipEntry.getIpAddress()) || ObjectUtil.isNull(ipEntry.getSocks5Port())) {
             xrayClientMapper.updateStatus(c.getId(), 3, LocalDateTime.now());
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,

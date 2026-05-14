@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.operation.enums.OpErrorCode;
 import com.nook.biz.operation.api.OpStatus;
 import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.spi.OperationOrchestrator;
+import com.nook.biz.operation.api.spi.OpOrchestrator;
 import com.nook.biz.operation.dal.mysql.mapper.OpLogQueryMapper;
 import com.nook.biz.operation.dal.dataobject.OpLogDO;
 import com.nook.biz.operation.service.OpLogService;
@@ -26,7 +26,7 @@ import org.springframework.stereotype.Service;
 public class OpLogServiceImpl implements OpLogService {
 
     private final OpLogQueryMapper opLogQueryMapper;
-    private final OperationOrchestrator operationOrchestrator;
+    private final OpOrchestrator operationOrchestrator;
 
     @Override
     public PageResult<OpLogDO> page(int pageNo, int pageSize, OpStatus status, String serverId, OpType opType) {

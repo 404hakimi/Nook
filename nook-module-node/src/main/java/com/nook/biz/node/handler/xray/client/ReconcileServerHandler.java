@@ -1,8 +1,8 @@
 package com.nook.biz.node.handler.xray.client;
 
 import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.spi.OperationContext;
-import com.nook.biz.operation.api.spi.OperationHandler;
+import com.nook.biz.operation.api.spi.OpContext;
+import com.nook.biz.operation.api.spi.OpHandler;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
-public class ReconcileServerHandler implements OperationHandler {
+public class ReconcileServerHandler implements OpHandler {
 
     @Resource
     private ClientOpExecutor executor;
@@ -23,7 +23,7 @@ public class ReconcileServerHandler implements OperationHandler {
     }
 
     @Override
-    public Object execute(OperationContext ctx) {
+    public Object execute(OpContext ctx) {
         ctx.report("准备对账", 15);
         executor.doReplayIfRestarted(ctx.serverId(), ctx);
         return null;

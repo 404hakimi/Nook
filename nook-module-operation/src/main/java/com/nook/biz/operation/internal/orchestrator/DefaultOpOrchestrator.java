@@ -1,12 +1,12 @@
 package com.nook.biz.operation.internal.orchestrator;
 
-import com.nook.biz.operation.api.dto.EnqueueRequest;
+import com.nook.biz.operation.api.dto.OpEnqueueRequest;
 import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.enums.OpErrorCode;
 import com.nook.biz.operation.api.event.OpProgressEvent;
 import com.nook.biz.operation.api.OpStatus;
-import com.nook.biz.operation.api.spi.OperationHandler;
-import com.nook.biz.operation.api.spi.OperationOrchestrator;
+import com.nook.biz.operation.api.spi.OpHandler;
+import com.nook.biz.operation.api.spi.OpOrchestrator;
 import com.nook.biz.operation.internal.progress.ws.OpProgressHub;
 import com.nook.biz.operation.dal.mysql.mapper.OpLogMapper;
 import com.nook.biz.operation.dal.dataobject.OpLogDO;
@@ -25,26 +25,26 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * OperationOrchestrator 默认实现
+ * OpOrchestrator 默认实现
  *
  * @author nook
  */
 @Slf4j
-public class DefaultOperationOrchestrator implements OperationOrchestrator {
+public class DefaultOpOrchestrator implements OpOrchestrator {
 
     private final OpLogMapper opLogMapper;
-    private final HandlerRegistry handlerRegistry;
+    private final OpHandlerRegistry handlerRegistry;
     private final OpConfigResolver opConfigResolver;
     private final OpWatchdog watchdog;
     private final ExecutorService workerPool;
     private final OpProgressHub hub;
 
-    private final ConcurrentMap<String, ServerSlot> slots = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, OpServerSlot> slots = new ConcurrentHashMap<>();
     /** 同步等待 future: opId → 调用方在等的 future; processOne 完成时 complete 它 */
     private final ConcurrentMap<String, CompletableFuture<Object>> waiters = new ConcurrentHashMap<>();
 
-    public DefaultOperationOrchestrator(OpLogMapper opLogMapper,
-                                 HandlerRegistry handlerRegistry,
+    public DefaultOpOrchestrator(OpLogMapper opLogMapper,
+                                 OpHandlerRegistry handlerRegistry,
                                  OpConfigResolver opConfigResolver,
                                  OpWatchdog watchdog,
                                  ExecutorService workerPool,
@@ -58,12 +58,12 @@ public class DefaultOperationOrchestrator implements OperationOrchestrator {
     }
 
     @Override
-    public String enqueue(EnqueueRequest req) {
+    public String enqueue(OpEnqueueRequest req) {
         return enqueueInternal(req);
     }
 
     @Override
-    public <T> T submitAndWait(EnqueueRequest req, Duration waitTimeout, Class<T> resultType) {
+    public <T> T submitAndWait(OpEnqueueRequest req, Duration waitTimeout, Class<T> resultType) {
         CompletableFuture<Object> future = new CompletableFuture<>();
         // waiter 与 enqueue 必须在同一原子操作内注册, 防 worker 极快完成时 complete 找不到 future
         String opId = enqueueInternal(req, future);
@@ -109,12 +109,12 @@ public class DefaultOperationOrchestrator implements OperationOrchestrator {
         return false;
     }
 
-    private String enqueueInternal(EnqueueRequest req) {
+    private String enqueueInternal(OpEnqueueRequest req) {
         return enqueueInternal(req, null);
     }
 
     /** waiter 非空 = submitAndWait 同步路径, 把 future 注册到 waiters 等待 processOne 完成 */
-    private String enqueueInternal(EnqueueRequest req, CompletableFuture<Object> waiter) {
+    private String enqueueInternal(OpEnqueueRequest req, CompletableFuture<Object> waiter) {
         validate(req);
         // admin 可在 op_config 页停用某 opType, 入队即拒
         if (!opConfigResolver.isEnabled(req.getOpType())) {
@@ -150,7 +150,7 @@ public class DefaultOperationOrchestrator implements OperationOrchestrator {
         log.info("[op] 入队 opId={} server={} type={} target={} operator={}",
                 opId, req.getServerId(), req.getOpType(), req.getTargetId(), req.getOperator());
         broadcast(row, OpStatus.QUEUED, "等待中", 0, null, null);
-        ServerSlot slot = slots.computeIfAbsent(req.getServerId(), k -> new ServerSlot());
+        OpServerSlot slot = slots.computeIfAbsent(req.getServerId(), k -> new OpServerSlot());
         slot.queue.offer(opId);
         tryStartWorker(req.getServerId(), slot);
         return opId;
@@ -159,18 +159,18 @@ public class DefaultOperationOrchestrator implements OperationOrchestrator {
     /**
      * CAS workerActive(false→true) 成功的线程负责起 worker; 其余直接返回, 已有 worker 在跑.
      */
-    private void tryStartWorker(String serverId, ServerSlot slot) {
+    private void tryStartWorker(String serverId, OpServerSlot slot) {
         if (slot.workerActive.compareAndSet(false, true)) {
             workerPool.submit(() -> runLoop(serverId, slot));
         }
     }
 
     /**
-     * 单 server 的 worker 主循环; 不变式见 ServerSlot 文档.
+     * 单 server 的 worker 主循环; 不变式见 OpServerSlot 文档.
      *
      * <p>退出时的"扫一眼 + 抢回来"模式防止 enqueue-vs-exit race 丢任务.
      */
-    private void runLoop(String serverId, ServerSlot slot) {
+    private void runLoop(String serverId, OpServerSlot slot) {
         try {
             String opId;
             while ((opId = slot.queue.poll()) != null) {
@@ -207,14 +207,14 @@ public class DefaultOperationOrchestrator implements OperationOrchestrator {
         Object result = null;
         Throwable error = null;
         try {
-            OperationHandler handler = handlerRegistry.resolve(opType);
+            OpHandler handler = handlerRegistry.resolve(opType);
             for (int attempt = 0; attempt <= maxRetry; attempt++) {
                 if (attempt > 0) {
                     broadcast(op, OpStatus.RUNNING, "重试 " + attempt + "/" + maxRetry, 5, null, null);
                     log.info("[op] retry opId={} attempt={}/{}", opId, attempt, maxRetry);
                 }
                 try {
-                    result = handler.execute(new DefaultOperationContext(op, opLogMapper, hub));
+                    result = handler.execute(new DefaultOpContext(op, opLogMapper, hub));
                     error = null;
                     break;
                 } catch (BusinessException be) {
@@ -287,8 +287,8 @@ public class DefaultOperationOrchestrator implements OperationOrchestrator {
         }
     }
 
-    private static void validate(EnqueueRequest req) {
-        if (req == null) throw new IllegalArgumentException("EnqueueRequest 为 null");
+    private static void validate(OpEnqueueRequest req) {
+        if (req == null) throw new IllegalArgumentException("OpEnqueueRequest 为 null");
         if (req.getServerId() == null || req.getServerId().isBlank())
             throw new IllegalArgumentException("serverId 为空");
         if (req.getOpType() == null || req.getOpType().isBlank())

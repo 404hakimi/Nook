@@ -2,7 +2,7 @@ package com.nook.biz.node.handler.xray.server;
 
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService;
-import com.nook.biz.operation.api.ProgressSink;
+import com.nook.biz.operation.api.OpProgressSink;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
@@ -29,8 +29,8 @@ public class ServerOpExecutor {
     private XrayClientTrafficSampleService trafficSampleService;
 
     /** XRAY_RESTART 实际执行体. */
-    String doRestart(String serverId, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+    String doRestart(String serverId, OpProgressSink progress) {
+        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         // restart 是可控的"清零事件" — systemctl restart 后 xray in-memory counter 全归零;
         // 先 sample 一次把当前增量入库, 让用户层流量统计跨重启不丢. 失败仅 warn, 不阻塞 restart.
         sink.report("采样流量入库", 20);
@@ -48,8 +48,8 @@ public class ServerOpExecutor {
     }
 
     /** SERVER_AUTOSTART 实际执行体. */
-    String doSetAutostart(String serverId, boolean enabled, ProgressSink progress) {
-        ProgressSink sink = progress == null ? ProgressSink.noop() : progress;
+    String doSetAutostart(String serverId, boolean enabled, OpProgressSink progress) {
+        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         sink.report("建立 SSH 会话", 50);
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
         sink.report(enabled ? "执行 systemctl enable" : "执行 systemctl disable", 80);

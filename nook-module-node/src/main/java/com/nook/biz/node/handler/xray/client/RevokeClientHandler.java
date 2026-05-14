@@ -3,8 +3,8 @@ package com.nook.biz.node.handler.xray.client;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.spi.OperationContext;
-import com.nook.biz.operation.api.spi.OperationHandler;
+import com.nook.biz.operation.api.spi.OpContext;
+import com.nook.biz.operation.api.spi.OpHandler;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
-public class RevokeClientHandler implements OperationHandler {
+public class RevokeClientHandler implements OpHandler {
 
     @Resource
     private ClientOpExecutor executor;
@@ -25,7 +25,7 @@ public class RevokeClientHandler implements OperationHandler {
     }
 
     @Override
-    public Object execute(OperationContext ctx) {
+    public Object execute(OpContext ctx) {
         JSONObject params = JSON.parseObject(ctx.paramsJson());
         String clientId = params.getString("clientId");
         ctx.report("加载客户端记录", 15);

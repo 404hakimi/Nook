@@ -1,15 +1,15 @@
 package com.nook.biz.operation.api.spi;
 
-import com.nook.biz.operation.api.ProgressSink;
+import com.nook.biz.operation.api.OpProgressSink;
 
 /**
- * 传给 OperationHandler.execute 的上下文; handler 只通过 ctx 看入参 + 报进度, 不依赖 internal.
+ * 传给 OpHandler.execute 的上下文; handler 只通过 ctx 看入参 + 报进度, 不依赖 internal.
  *
- * <p>继承 ProgressSink 让 service 直接接受 ctx 当 sink 用 — 业务 service 无须 import OperationContext.
+ * <p>继承 OpProgressSink 让 service 直接接受 ctx 当 sink 用 — 业务 service 无须 import OpContext.
  *
  * @author nook
  */
-public interface OperationContext extends ProgressSink {
+public interface OpContext extends OpProgressSink {
 
     /** op_log.id (32 位无连字符 UUID) */
     String opId();
@@ -23,6 +23,6 @@ public interface OperationContext extends ProgressSink {
     /** 入参 JSON (handler 自行反序列化) */
     String paramsJson();
 
-    /** 报进度 + 用户可见消息 (无 message 版由 ProgressSink 继承). */
+    /** 报进度 + 用户可见消息 (无 message 版由 OpProgressSink 继承). */
     void report(String step, int progressPct, String message);
 }

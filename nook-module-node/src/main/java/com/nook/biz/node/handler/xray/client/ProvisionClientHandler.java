@@ -3,8 +3,8 @@ package com.nook.biz.node.handler.xray.client;
 import com.alibaba.fastjson2.JSON;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.spi.OperationContext;
-import com.nook.biz.operation.api.spi.OperationHandler;
+import com.nook.biz.operation.api.spi.OpContext;
+import com.nook.biz.operation.api.spi.OpHandler;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
-public class ProvisionClientHandler implements OperationHandler {
+public class ProvisionClientHandler implements OpHandler {
 
     @Resource
     private ClientOpExecutor executor;
@@ -25,7 +25,7 @@ public class ProvisionClientHandler implements OperationHandler {
     }
 
     @Override
-    public Object execute(OperationContext ctx) {
+    public Object execute(OpContext ctx) {
         XrayClientProvisionReqVO reqVO = JSON.parseObject(ctx.paramsJson(), XrayClientProvisionReqVO.class);
         ctx.report("入参校验", 10);
         return executor.doProvision(reqVO, ctx);

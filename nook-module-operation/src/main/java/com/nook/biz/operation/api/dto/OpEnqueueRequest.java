@@ -13,7 +13,7 @@ import lombok.Getter;
  */
 @Getter
 @Builder
-public class EnqueueRequest {
+public class OpEnqueueRequest {
 
     /** 目标 server id */
     private final String serverId;

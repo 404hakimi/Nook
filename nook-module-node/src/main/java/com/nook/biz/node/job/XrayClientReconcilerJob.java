@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 定时对账: 默认 10 分钟一轮; 通过 OperationOrchestrator 入队, 与用户手动操作自然 FIFO 互斥.
+ * 定时对账: 默认 10 分钟一轮; 通过 OpOrchestrator 入队, 与用户手动操作自然 FIFO 互斥.
  *
  * <p>同 server 上若已有 RUNNING op (包括正在跑的 reconcile), DUPLICATE_OP 直接被吞 (catch 后跳过);
  * 用户操作密集时也不会卡占队列. 高频跑 + 内部只推 diff, 单 server 单轮代价≈1 次 SSH (lsi).

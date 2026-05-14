@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @author nook
  */
-class ServerSlot {
+class OpServerSlot {
 
     final BlockingQueue<String> queue = new LinkedBlockingQueue<>();
 

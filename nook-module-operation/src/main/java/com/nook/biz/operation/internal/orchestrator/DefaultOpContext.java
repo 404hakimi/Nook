@@ -2,25 +2,23 @@ package com.nook.biz.operation.internal.orchestrator;
 
 import com.nook.biz.operation.api.event.OpProgressEvent;
 import com.nook.biz.operation.api.OpStatus;
-import com.nook.biz.operation.api.spi.OperationContext;
+import com.nook.biz.operation.api.spi.OpContext;
 import com.nook.biz.operation.internal.progress.ws.OpProgressHub;
 import com.nook.biz.operation.dal.mysql.mapper.OpLogMapper;
 import com.nook.biz.operation.dal.dataobject.OpLogDO;
 
 /**
- * OperationContext 默认实现; 进度 report 同时写 DB + 推 WS.
- *
- * <p>之前只写 DB, 前端只能轮询; 加 hub.broadcast 后 handler 调一次 ctx.report 立即推到订阅者.
+ * OpContext 默认实现; handler 一次 report 同时写 DB 进度 + 推 WebSocket 给前端订阅者.
  *
  * @author nook
  */
-class DefaultOperationContext implements OperationContext {
+class DefaultOpContext implements OpContext {
 
     private final OpLogDO op;
     private final OpLogMapper opLogMapper;
     private final OpProgressHub hub;
 
-    DefaultOperationContext(OpLogDO op, OpLogMapper opLogMapper, OpProgressHub hub) {
+    DefaultOpContext(OpLogDO op, OpLogMapper opLogMapper, OpProgressHub hub) {
         this.op = op;
         this.opLogMapper = opLogMapper;
         this.hub = hub;
