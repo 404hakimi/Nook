@@ -20,6 +20,7 @@ public enum ResourceErrorCode implements ErrorCode {
     IP_POOL_NOT_AVAILABLE(5104, "IP %s 当前不可分配 (状态: %s)"),
     IP_POOL_EXHAUSTED(5105, "%s 区域 %s 类型暂无可用 IP"),
     IP_POOL_OCCUPY_CONFLICT(5106, "IP %s 抢占失败, 已被其它会员领走"),
+    IP_POOL_HAS_BOUND_CLIENT(5107, "IP %s 仍被客户端 %s 占用, 请先吊销该客户端再退订"),
     ;
 
     private final int code;

@@ -8,10 +8,12 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.config.ResourceIpPoolProperties;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
+import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpTypeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpTypeMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.enums.ResourceErrorCode;
 import com.nook.biz.node.enums.ResourceIpPoolStatusEnum;
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
@@ -42,6 +44,7 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     private final ResourceIpPoolMapper resourceIpPoolMapper;
     private final ResourceIpTypeMapper resourceIpTypeMapper;
+    private final XrayClientMapper xrayClientMapper;
     private final ResourceIpPoolValidator ipPoolValidator;
     private final ResourceIpPoolProperties resourceIpPoolProperties;
 
@@ -137,7 +140,10 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
         exist.setStatus(ResourceIpPoolStatusEnum.OCCUPIED.getStatus());
         exist.setAssignedMemberId(memberUserId);
         exist.setAssignedAt(now);
-        exist.setAssignCount((exist.getAssignCount() == null ? 0 : exist.getAssignCount()) + 1);
+        int newCount = (exist.getAssignCount() == null ? 0 : exist.getAssignCount()) + 1;
+        exist.setAssignCount(newCount);
+        log.info("[ip-pool] OCCUPY ipId={} ip={} member={} count={}",
+                id, exist.getIpAddress(), memberUserId, newCount);
         return exist;
     }
 
@@ -145,6 +151,13 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     @Transactional(rollbackFor = Exception.class)
     public void releaseToCooling(String id) {
         ResourceIpPoolDO exist = ipPoolValidator.validateExists(id);
+        // 守卫: 有 client 还引用此 IP, 拒绝退订 (避免 client status 与 pool status 漂移);
+        // revoke 链路先 deleteById 删 client 行, 再调本方法, 所以不会撞这里.
+        XrayClientDO bound = xrayClientMapper.selectByIpId(id);
+        if (bound != null) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_HAS_BOUND_CLIENT,
+                    exist.getIpAddress(), bound.getMemberUserId());
+        }
         // ip_type.cooling_minutes 是 NOT NULL 列; 家宽 IP 通常需要更久
         ResourceIpTypeDO type = resourceIpTypeMapper.selectById(exist.getIpTypeId());
         if (ObjectUtil.isNull(type) || ObjectUtil.isNull(type.getCoolingMinutes())) {
@@ -152,6 +165,8 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
         }
         resourceIpPoolMapper.markCooling(exist.getId(),
                 LocalDateTime.now().plusMinutes(type.getCoolingMinutes()));
+        log.info("[ip-pool] RELEASE ipId={} ip={} cooling={}min",
+                id, exist.getIpAddress(), type.getCoolingMinutes());
     }
 
     @Override
@@ -159,7 +174,11 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     public int sweepExpiredCooling() {
         int n = 0;
         for (ResourceIpPoolDO ip : resourceIpPoolMapper.selectCoolingExpired(LocalDateTime.now())) {
-            n += resourceIpPoolMapper.markAvailable(ip.getId());
+            int aff = resourceIpPoolMapper.markAvailable(ip.getId());
+            n += aff;
+            if (aff > 0) {
+                log.info("[ip-pool] SWEEP-AVAILABLE ipId={} ip={}", ip.getId(), ip.getIpAddress());
+            }
         }
         return n;
     }

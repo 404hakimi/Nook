@@ -310,6 +310,28 @@ public class ClientOpExecutor {
         syncSingle(session, node.getXrayApiPort(), c, ipEntry, sink);
     }
 
+    /** CLIENT_RESET_TRAFFIC 实际执行体: 拿远端当前累计当新基线, DB 累计清零, 后续采样从基线起算. */
+    @Transactional(rollbackFor = Exception.class)
+    void doResetTraffic(String clientId, OpProgressSink progress) {
+        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
+        sink.report("校验客户端", 20);
+        XrayClientDO client = clientValidator.validateExists(clientId);
+        sink.report("加载节点配置", 40);
+        XrayNodeDO node = xrayNodeValidator.validateExists(client.getServerId());
+        sink.report("读远端累计", 60);
+        SshSession session = SshSessions.acquire(client.getServerId(), SshSessionScope.SHARED);
+        var snap = statsCli.readUserTraffic(session, node.getXrayApiPort(), client.getClientEmail(), false);
+        sink.report("写 DB 新基线", 85);
+        xrayClientTrafficMapper.resetWithBaseline(
+                UUID.randomUUID().toString().replace("-", ""),
+                clientId, client.getServerId(),
+                Math.max(0L, snap.getUpBytes()),
+                Math.max(0L, snap.getDownBytes()),
+                LocalDateTime.now());
+        log.info("[reset-traffic] OK server={} client={} email={} cur=up{}/down{}",
+                client.getServerId(), clientId, client.getClientEmail(), snap.getUpBytes(), snap.getDownBytes());
+    }
+
     /** SERVER_REPLAY 实际执行体. */
     XrayClientReplayReportRespVO doReplayServer(String serverId, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;

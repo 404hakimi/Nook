@@ -20,6 +20,7 @@ public enum OpType {
     CLIENT_REVOKE,
     CLIENT_ROTATE,
     CLIENT_SYNC,
+    CLIENT_RESET_TRAFFIC,
 
     // ===== server-wide 一致性 =====
     SERVER_REPLAY,
