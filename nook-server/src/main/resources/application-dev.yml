@@ -49,3 +49,12 @@ logging:
     com.nook: INFO
     cn.dev33.satoken: INFO
     com.nook.biz: INFO
+  file:
+    name: ${user.home}/${spring.application.name}-logs/${spring.application.name}.log
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+  logback:
+    rollingpolicy:
+      max-file-size: 50MB
+      max-history: 7
+      total-size-cap: 500MB
