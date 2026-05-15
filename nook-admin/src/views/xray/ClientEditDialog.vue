@@ -149,8 +149,11 @@ function close() {
           <NDescriptionsItem label="会员 ID">
             <span class="font-mono text-xs">{{ detail.memberUserId }}</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="IP ID">
-            <span class="font-mono text-xs">{{ detail.ipId }}</span>
+          <NDescriptionsItem label="落地 IP">
+            <span class="font-mono text-xs">
+              {{ detail.ipAddress || '—' }}
+              <span class="text-zinc-400 ml-2 text-[10px]">(ipId: {{ detail.ipId }})</span>
+            </span>
           </NDescriptionsItem>
           <NDescriptionsItem label="协议">{{ detail.protocol }}</NDescriptionsItem>
           <NDescriptionsItem label="Client Email" :span="2">
