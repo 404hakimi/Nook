@@ -21,6 +21,9 @@ public class JournalLogSnapshot {
     /** 归一化后的级别 (all / warning / err). */
     private String level;
 
+    /** 关键词过滤 (子串匹配, 大小写不敏感); 空表示不过滤. */
+    private String keyword;
+
     /** journalctl 输出原文. */
     private String log;
 }

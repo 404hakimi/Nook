@@ -38,13 +38,14 @@ public interface ResourceServerInfoService {
     SystemdStatusRespVO getSystemdStatus(String serverId, String unit);
 
     /**
-     * 获得指定 systemd unit 的 journalctl 日志
+     * 获得指定 systemd unit 的 journalctl 日志, 支持关键词过滤
      *
      * @param serverId resource_server.id
      * @param unit     systemd unit 名
      * @param logLines 行数 (默认 100, 上限 5000)
      * @param logLevel 级别过滤 (all / warning / err)
+     * @param keyword  关键词子串过滤 (大小写不敏感); 空表示不过滤
      * @return 日志结果
      */
-    ServiceLogRespVO getServiceLog(String serverId, String unit, Integer logLines, String logLevel);
+    ServiceLogRespVO getServiceLog(String serverId, String unit, Integer logLines, String logLevel, String keyword);
 }

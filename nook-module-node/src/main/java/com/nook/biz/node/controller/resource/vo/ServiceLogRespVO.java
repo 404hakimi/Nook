@@ -17,6 +17,9 @@ public class ServiceLogRespVO {
     /** all / warning / err 之一 */
     private String level;
 
-    /** journalctl 完整输出 */
+    /** 关键词过滤回显 (子串匹配, 大小写不敏感); 空表示不过滤 */
+    private String keyword;
+
+    /** journalctl 完整输出 (若有 keyword, 仅含命中行) */
     private String log;
 }

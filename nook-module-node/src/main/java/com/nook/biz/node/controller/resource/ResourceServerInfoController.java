@@ -50,8 +50,9 @@ public class ResourceServerInfoController {
     public Result<ServiceLogRespVO> getServiceLog(@RequestParam("id") String id,
                                                   @RequestParam("unit") String unit,
                                                   @RequestParam(value = "lines", required = false) Integer lines,
-                                                  @RequestParam(value = "level", required = false) String level) {
-        ServiceLogRespVO log = resourceServerInfoService.getServiceLog(id, unit, lines, level);
+                                                  @RequestParam(value = "level", required = false) String level,
+                                                  @RequestParam(value = "keyword", required = false) String keyword) {
+        ServiceLogRespVO log = resourceServerInfoService.getServiceLog(id, unit, lines, level, keyword);
         return Result.ok(log);
     }
 }

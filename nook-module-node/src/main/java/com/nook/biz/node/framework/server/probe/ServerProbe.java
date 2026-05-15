@@ -33,6 +33,12 @@ public class ServerProbe {
     /** systemd unit 合法字符 (字母/数字/._-@); 直接拼到 shell 前必须校验防注入. */
     private static final Pattern UNIT_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9._@-]{1,128}$");
 
+    /**
+     * 日志关键词允许字符集: Unicode 字母/数字 + 空格 + 常见无害标点; 严格白名单防 shell 注入.
+     * 禁: '"`\$|&;<>(){}*?[]!#~=^ 等. 够覆盖 IP / email / port / 文件路径 / 类名等典型搜索词.
+     */
+    private static final Pattern LOG_KEYWORD_PATTERN = Pattern.compile("^[\\p{L}\\p{N} ._\\-:/@]{1,128}$");
+
     @Resource
     private ServerOpsProperties serverOpsProperties;
 
@@ -115,7 +121,10 @@ public class ServerProbe {
                 "echo '====[ACTIVE]===='",
                 "systemctl is-active " + unit + " 2>/dev/null || true",
                 "echo '====[UPTIME]===='",
-                "systemctl show " + unit + " -p ActiveEnterTimestamp --value 2>/dev/null || true",
+                // systemctl 原文形如 "Thu 2026-05-14 22:32:47 CST"; CST 缩写有歧义 (国标 vs 美标)
+                // 用 date -d 重格式化为 "2026-05-14 22:32:47 +0800" 这种 ISO-like + 数字时区; 失败兜底原文
+                "v=$(systemctl show " + unit + " -p ActiveEnterTimestamp --value 2>/dev/null);"
+                        + "[ -n \"$v\" ] && (date -d \"$v\" '+%Y-%m-%d %H:%M:%S %z' 2>/dev/null || echo \"$v\")",
                 "echo '====[ENABLED]===='",
                 // is-enabled 在 disabled/static/masked 时退出码非 0, 但 stdout 仍是状态字符串; || true 防 set -e
                 "systemctl is-enabled " + unit + " 2>/dev/null || true"
@@ -129,15 +138,19 @@ public class ServerProbe {
     }
 
    /**
-     * 指定 systemd unit 的 journalctl 日志, 按行数 + 级别过滤; unit 走 UNIT_NAME_PATTERN 防 shell 注入.
+     * 指定 systemd unit 的 journalctl 日志, 按行数 + 级别 + 关键词过滤.
+     * 注意: lines 是 journalctl 拉的原始末尾行数, keyword 在这些行里再做子串过滤;
+     * 不会"再拉到凑够 lines 行命中"。需要更多上下文请加大 lines.
      *
      * @param session  caller 已 acquire 的 SSH 会话
-     * @param unit     systemd unit 名
+     * @param unit     systemd unit 名 (走 UNIT_NAME_PATTERN 防注入)
      * @param logLines 行数 (默认 100, 上限 5000)
      * @param logLevel 级别过滤 (all / warning / err)
+     * @param keyword  关键词子串过滤 (大小写不敏感); 空 / null 表示不过滤; 走 LOG_KEYWORD_PATTERN 防注入
      * @return JournalLogSnapshot
      */
-    public JournalLogSnapshot readJournalLog(SshSession session, String unit, Integer logLines, String logLevel) {
+    public JournalLogSnapshot readJournalLog(SshSession session, String unit,
+                                              Integer logLines, String logLevel, String keyword) {
         if (StrUtil.isBlank(unit) || !UNIT_NAME_PATTERN.matcher(unit).matches()) {
             // 直接拼到 journalctl -u <unit>, 必须严格校验; 非法 unit 抛业务异常而非裸 shell 注入
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
@@ -152,9 +165,22 @@ public class ServerProbe {
             case "err" -> "-p err";
             default -> "";
         };
-        String cmd = "journalctl -u " + unit + " " + priorityFlag + " -n " + lines + " --no-pager 2>/dev/null || true";
+        // keyword: 字符白名单校验 + 单引号包裹; 非法直接拒绝, 不静默忽略以免误以为搜了空字符串
+        String normalizedKeyword = StrUtil.isBlank(keyword) ? null : keyword.trim();
+        String grepClause = "";
+        if (normalizedKeyword != null) {
+            if (!LOG_KEYWORD_PATTERN.matcher(normalizedKeyword).matches()) {
+                throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
+                        session.serverId(), "非法搜索关键词 (仅允许字母/数字/中文/空格/._-:/@): " + keyword);
+            }
+            // grep -F: 固定字符串 (不当正则解析); -i: case-insensitive; --color=never: 防 ANSI 色码污染输出
+            // 单引号包裹 keyword; LOG_KEYWORD_PATTERN 已排除单引号, 不会闭合
+            grepClause = " | grep -i -F --color=never -- '" + normalizedKeyword + "'";
+        }
+        String cmd = "journalctl -u " + unit + " " + priorityFlag + " -n " + lines + " --no-pager"
+                + grepClause + " 2>/dev/null || true";
         String out = session.ssh().exec(cmd).getStdout();
-        return new JournalLogSnapshot(unit, lines, level, out);
+        return new JournalLogSnapshot(unit, lines, level, normalizedKeyword, out);
     }
 
     /**

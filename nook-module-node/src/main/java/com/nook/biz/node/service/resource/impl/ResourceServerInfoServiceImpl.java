@@ -52,8 +52,8 @@ public class ResourceServerInfoServiceImpl implements ResourceServerInfoService 
     }
 
     @Override
-    public ServiceLogRespVO getServiceLog(String serverId, String unit, Integer logLines, String logLevel) {
+    public ServiceLogRespVO getServiceLog(String serverId, String unit, Integer logLines, String logLevel, String keyword) {
         return ServerInspectorConvert.INSTANCE.convert(serverProbe.readJournalLog(
-                SshSessions.acquire(serverId, SshSessionScope.SHARED), unit, logLines, logLevel));
+                SshSessions.acquire(serverId, SshSessionScope.SHARED), unit, logLines, logLevel, keyword));
     }
 }
