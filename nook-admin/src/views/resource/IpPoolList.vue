@@ -418,6 +418,20 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
         { default: () => IP_POOL_STATUS_LABELS[row.status] || row.status }
       )
   },
+  {
+    // 账面采购规格 (Mbps / GB); 不参与运行时分配, 只给运营对账 + 后续套餐组合参考
+    title: '带宽/流量',
+    key: 'spec',
+    width: 130,
+    render: (row) => {
+      const bw = row.bandwidthMbps == null ? '∞' : `${row.bandwidthMbps} Mbps`
+      const tq = row.trafficQuotaGb == null ? '∞' : `${row.trafficQuotaGb} GB`
+      return h('div', { class: 'flex flex-col gap-0.5 font-mono text-xs leading-tight' }, [
+        h('span', { class: 'text-zinc-500', title: '采购带宽 (Mbps); ∞ = 不限/未填' }, bw),
+        h('span', { class: 'text-zinc-500', title: '采购流量 (GB); ∞ = 不限/未填' }, tq)
+      ])
+    }
+  },
   { title: '分配次数', key: 'assignCount', render: (row) => row.assignCount ?? 0 },
   {
     title: '当前会员',

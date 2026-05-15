@@ -40,6 +40,10 @@ export interface ResourceIpPool {
   sshUser?: string
   /** 明文 SSH 密码; 后台受信网络场景下发. */
   sshPassword?: string
+  /** 采购带宽上限 (Mbps); null = 不限/未填; 仅账面记录, 后续套餐侧消费. */
+  bandwidthMbps?: number
+  /** 采购流量上限 (GB); null = 不限/未填; 仅账面记录. */
+  trafficQuotaGb?: number
   remark?: string
   createdAt?: string
   updatedAt?: string
@@ -84,6 +88,10 @@ export interface ResourceIpPoolSaveDTO {
   sshUser?: string
   /** SSH 密码; Update 留空 = 保留原值. */
   sshPassword?: string
+  /** 采购带宽上限 (Mbps); 留空 = 不限/未填. */
+  bandwidthMbps?: number
+  /** 采购流量上限 (GB); 留空 = 不限/未填. */
+  trafficQuotaGb?: number
   remark?: string
 }
 
@@ -92,6 +100,24 @@ export const IP_POOL_PROVISION_MODE_LABELS: Record<number, string> = {
   1: '自部署',
   2: '第三方'
 }
+
+/**
+ * dante 日志级别预设 (实际是 dante log 事件关键字组合, 不是 syslog level).
+ *
+ * - 仅错误: 极简, 只记录失败
+ * - 警告: 连接事件 + 错误 (默认; 既能审计又不淹没日志)
+ * - 详细: 加上 IO 操作 + TCP 信息, 用于排障 / 审计
+ *
+ * 6 种关键字含义 (dante 文档): connect / disconnect / data / error / iooperation / tcpinfo.
+ */
+export const DANTE_LOG_LEVEL_OPTIONS = [
+  { label: '仅错误', value: 'error' },
+  { label: '警告', value: 'connect disconnect error' },
+  { label: '详细', value: 'connect disconnect error iooperation tcpinfo' }
+] as const
+
+/** 新建 IP 池 / 部署 SOCKS5 时的默认级别 ("警告"). */
+export const DANTE_LOG_LEVEL_DEFAULT = 'connect disconnect error'
 
 export interface PageResult<T> {
   total: number

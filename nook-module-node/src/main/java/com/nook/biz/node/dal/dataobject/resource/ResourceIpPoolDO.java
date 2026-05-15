@@ -85,5 +85,17 @@ public class ResourceIpPoolDO extends BaseEntity {
      */
     private String sshPassword;
 
+    /**
+     * 采购带宽上限 (Mbps); NULL = 不限/未填.
+     * 仅账面记录, 不参与运行时分配; 后续套餐侧根据这个匹配用户购买的带宽.
+     */
+    private Integer bandwidthMbps;
+
+    /**
+     * 采购流量上限 (GB); NULL = 不限/未填.
+     * 不区分月/总量周期 — 现阶段仅记录, 后续套餐组合时再补周期字段.
+     */
+    private Integer trafficQuotaGb;
+
     private String remark;
 }

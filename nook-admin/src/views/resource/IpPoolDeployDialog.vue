@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { CheckCircle2, Plus, Rocket } from 'lucide-vue-next'
+import { CheckCircle2, Plus, Rocket, Shuffle } from 'lucide-vue-next'
 import {
   NButton,
   NCheckbox,
@@ -8,14 +8,21 @@ import {
   NFormItem,
   NIcon,
   NInput,
+  NInputGroup,
   NInputNumber,
   NModal,
+  NSelect,
   NSpace,
   NSpin,
   useMessage
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
-import { installSocks5Stream, type Socks5InstallDTO } from '@/api/resource/ip-pool'
+import {
+  DANTE_LOG_LEVEL_DEFAULT,
+  DANTE_LOG_LEVEL_OPTIONS,
+  installSocks5Stream,
+  type Socks5InstallDTO
+} from '@/api/resource/ip-pool'
 
 interface Props {
   modelValue: boolean
@@ -61,6 +68,43 @@ const errors = reactive<Record<string, string>>({})
 const outputRef = ref<HTMLPreElement | null>(null)
 let abortCtrl: AbortController | null = null
 
+/**
+ * 随机 SOCKS5 端口生成; 避开 1024 以下特权端口和常见服务范围, 走 20000-60000 高位段.
+ * 每次打开部署弹框都重新随机一个, 减少用户用同一默认端口导致冲突 / 被扫的概率.
+ */
+function randomSocksPort(): number {
+  return Math.floor(Math.random() * (60000 - 20000 + 1)) + 20000
+}
+
+/**
+ * 加密强度随机字母数字串; 用 crypto.getRandomValues 而非 Math.random, 密码场景不允许伪随机.
+ * 字符集纯字母数字, 避开符号 (URL / shell 不用 encode, 复制粘贴 / curl 全顺畅).
+ */
+function randomAlnum(len: number, mixedCase: boolean): string {
+  const lower = 'abcdefghijklmnopqrstuvwxyz'
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const digit = '0123456789'
+  const charset = (mixedCase ? lower + upper : lower) + digit
+  const buf = new Uint32Array(len)
+  crypto.getRandomValues(buf)
+  let out = ''
+  for (let i = 0; i < len; i++) out += charset[buf[i] % charset.length]
+  return out
+}
+
+/** 随机 SOCKS5 用户名: 头位小写字母 + 7 位 alphanumeric; PAM 友好 (部分实现要求 lowercase 开头). */
+function randomSocksUser(): string {
+  const lower = 'abcdefghijklmnopqrstuvwxyz'
+  const buf = new Uint8Array(1)
+  crypto.getRandomValues(buf)
+  return lower[buf[0] % lower.length] + randomAlnum(7, false)
+}
+
+/** 随机 SOCKS5 密码: 16 字符 mixed-case alphanumeric, ~95 bit 熵, 对得起明文落库的口径. */
+function randomSocksPass(): string {
+  return randomAlnum(16, true)
+}
+
 const form = reactive({
   // SSH 凭据 (一次性, 不入库)
   sshHost: '',
@@ -69,18 +113,20 @@ const form = reactive({
   sshPassword: '',
   sshTimeoutSeconds: 60,
   sshOpTimeoutSeconds: 60,
-  sshUploadTimeoutSeconds: 60,
+  // SCP 上传 dante 安装脚本 (单文件 ~5KB) 走默认 180; 高延迟出海链路够用
+  sshUploadTimeoutSeconds: 180,
   installTimeoutSeconds: 600,
 
   // SOCKS5 服务参数 (部署后用作 IP 池录入凭据)
-  socksPort: 1080,
+  socksPort: randomSocksPort(),
   socksUser: '',
   socksPass: '',
   allowFrom: '',
   installUfw: true,
 
   // dante 高级配置 (有合理默认, 让用户改 log / 自启 / 防火墙时不用改部署脚本)
-  logLevel: 'connect disconnect error',
+  // logLevel 走预设下拉, 默认 "警告"; 自由字符串依然合法但不再开口
+  logLevel: DANTE_LOG_LEVEL_DEFAULT,
   /** 日志路径; 留空走 {installDir}/logs/sockd.log 兜底, placeholder 即兜底值 */
   logPath: '',
   autostartEnabled: true,
@@ -128,14 +174,15 @@ watch(
       sshPassword: '',
       sshTimeoutSeconds: 60,
       sshOpTimeoutSeconds: 60,
-      sshUploadTimeoutSeconds: 60,
+      sshUploadTimeoutSeconds: 180,
       installTimeoutSeconds: 600,
-      socksPort: 1080,
+      // 每次打开都重新随机, 避免用户反复用同一端口
+      socksPort: randomSocksPort(),
       socksUser: '',
       socksPass: '',
       allowFrom: '',
       installUfw: true,
-      logLevel: 'connect disconnect error',
+      logLevel: DANTE_LOG_LEVEL_DEFAULT,
       logPath: '',
       autostartEnabled: true,
       installDir: '/home/socks5'
@@ -411,7 +458,16 @@ function close() {
           :validation-status="errors.socksUser ? 'error' : undefined"
           :feedback="errors.socksUser"
         >
-          <NInput v-model:value="form.socksUser" :disabled="installing" />
+          <NInputGroup>
+            <NInput v-model:value="form.socksUser" :disabled="installing" />
+            <NButton
+              :disabled="installing"
+              title="生成随机用户名"
+              @click="form.socksUser = randomSocksUser()"
+            >
+              <template #icon><NIcon><Shuffle /></NIcon></template>
+            </NButton>
+          </NInputGroup>
         </NFormItem>
 
         <NFormItem
@@ -420,13 +476,22 @@ function close() {
           :validation-status="errors.socksPass ? 'error' : undefined"
           :feedback="errors.socksPass"
         >
-          <NInput
-            v-model:value="form.socksPass"
-            type="password"
-            show-password-on="click"
-            :disabled="installing"
-            :input-props="{ autocomplete: 'new-password' }"
-          />
+          <NInputGroup>
+            <NInput
+              v-model:value="form.socksPass"
+              type="password"
+              show-password-on="click"
+              :disabled="installing"
+              :input-props="{ autocomplete: 'new-password' }"
+            />
+            <NButton
+              :disabled="installing"
+              title="生成随机 16 位密码"
+              @click="form.socksPass = randomSocksPass()"
+            >
+              <template #icon><NIcon><Shuffle /></NIcon></template>
+            </NButton>
+          </NInputGroup>
         </NFormItem>
 
         <div class="sm:col-span-2">
@@ -460,13 +525,12 @@ function close() {
           <NFormItem>
             <template #label>
               <span>日志级别</span>
-              <span class="text-xs text-zinc-400 ml-2">dante log 关键字; 空格分隔</span>
+              <span class="text-xs text-zinc-400 ml-2">仅错误 / 警告 / 详细; 实际是 dante log 事件关键字组合</span>
             </template>
-            <NInput
+            <NSelect
               v-model:value="form.logLevel"
-              placeholder="connect disconnect error"
+              :options="[...DANTE_LOG_LEVEL_OPTIONS]"
               :disabled="installing"
-              :input-props="{ style: 'font-family: monospace' }"
             />
           </NFormItem>
         </div>

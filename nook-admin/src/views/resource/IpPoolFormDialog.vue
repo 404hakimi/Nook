@@ -15,6 +15,8 @@ import {
 } from 'naive-ui'
 import {
   createIpPool,
+  DANTE_LOG_LEVEL_DEFAULT,
+  DANTE_LOG_LEVEL_OPTIONS,
   getIpPoolDetail,
   IP_POOL_PROVISION_MODE_LABELS,
   updateIpPool,
@@ -89,8 +91,8 @@ const form = reactive({
   status: 1,
   /** 部署模式 1=自部署 2=第三方; 后端必填, 由用户选 (部署接力进入时预填 1). */
   provisionMode: undefined as number | undefined,
-  /** dante 日志关键字 (空格分隔). */
-  logLevel: 'connect disconnect error',
+  /** dante 日志级别预设值 (实际是事件关键字组合, 见 DANTE_LOG_LEVEL_OPTIONS). */
+  logLevel: DANTE_LOG_LEVEL_DEFAULT,
   /** dante logoutput 路径. */
   logPath: '/var/log/sockd.log',
   /** systemd 开机自启 (1=enable 0=disable). */
@@ -107,6 +109,10 @@ const form = reactive({
   sshUser: 'root',
   /** SSH 密码; edit 时留空保留原值, create 必填; 跟 SOCKS5 密码同口径明文存储. */
   sshPassword: '',
+  /** 采购带宽上限 (Mbps); undefined = 不限/未填; 仅账面记录, 后续套餐侧消费. */
+  bandwidthMbps: undefined as number | undefined,
+  /** 采购流量上限 (GB); undefined = 不限/未填. */
+  trafficQuotaGb: undefined as number | undefined,
   remark: ''
 })
 
@@ -127,7 +133,7 @@ function fill(ip: ResourceIpPool) {
   form.socks5Password = ip.socks5Password ?? ''
   form.status = ip.status
   form.provisionMode = ip.provisionMode
-  form.logLevel = ip.logLevel ?? 'connect disconnect error'
+  form.logLevel = ip.logLevel ?? DANTE_LOG_LEVEL_DEFAULT
   form.logPath = ip.logPath ?? ''
   form.autostartEnabled = ip.autostartEnabled ?? 1
   form.firewallEnabled = ip.firewallEnabled ?? 1
@@ -137,6 +143,8 @@ function fill(ip: ResourceIpPool) {
   form.sshPort = ip.sshPort ?? 22
   form.sshUser = ip.sshUser ?? 'root'
   form.sshPassword = ip.sshPassword ?? ''
+  form.bandwidthMbps = ip.bandwidthMbps ?? undefined
+  form.trafficQuotaGb = ip.trafficQuotaGb ?? undefined
   form.remark = ip.remark ?? ''
 }
 
@@ -149,7 +157,7 @@ function reset() {
   form.socks5Password = ''
   form.status = 1
   form.provisionMode = undefined
-  form.logLevel = 'connect disconnect error'
+  form.logLevel = DANTE_LOG_LEVEL_DEFAULT
   form.logPath = ''
   form.autostartEnabled = 1
   form.firewallEnabled = 1
@@ -159,6 +167,8 @@ function reset() {
   form.sshPort = 22
   form.sshUser = 'root'
   form.sshPassword = ''
+  form.bandwidthMbps = undefined
+  form.trafficQuotaGb = undefined
   form.remark = ''
 }
 
@@ -248,6 +258,9 @@ async function onSubmit() {
       sshUser: form.sshUser.trim() || undefined,
       // edit 时留空 = 保留 DB 现值; create 时表单已要求必填
       sshPassword: form.sshPassword || undefined,
+      // bandwidth/quota: 后端 NULL 表示不限/未填, 前端 undefined 直接透传
+      bandwidthMbps: form.bandwidthMbps ?? undefined,
+      trafficQuotaGb: form.trafficQuotaGb ?? undefined,
       remark: form.remark.trim() || undefined
     }
     if (props.mode === 'create') {
@@ -398,12 +411,11 @@ function close() {
             <NFormItem>
               <template #label>
                 <span>日志级别</span>
-                <span class="text-xs text-zinc-400 ml-2">dante log 关键字; 空格分隔</span>
+                <span class="text-xs text-zinc-400 ml-2">仅错误 / 警告 / 详细; 实际是 dante log 事件关键字组合</span>
               </template>
-              <NInput
+              <NSelect
                 v-model:value="form.logLevel"
-                placeholder="connect disconnect error"
-                :input-props="{ style: 'font-family: monospace' }"
+                :options="[...DANTE_LOG_LEVEL_OPTIONS]"
               />
             </NFormItem>
           </div>
@@ -515,6 +527,46 @@ function close() {
               />
             </NFormItem>
           </div>
+        </div>
+
+        <NDivider title-placement="left">
+          采购规格
+          <span class="text-xs text-zinc-400 ml-2 font-normal">(账面记录, 后续套餐侧消费; 留空 = 不限/未填)</span>
+        </NDivider>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+          <NFormItem>
+            <template #label>
+              <span>带宽</span>
+              <span class="text-xs text-zinc-400 ml-2">Mbps; 留空 = 不限</span>
+            </template>
+            <NInputNumber
+              v-model:value="form.bandwidthMbps"
+              :min="1"
+              :max="1000000"
+              placeholder="例 100"
+              clearable
+              style="width: 100%"
+            >
+              <template #suffix>Mbps</template>
+            </NInputNumber>
+          </NFormItem>
+
+          <NFormItem>
+            <template #label>
+              <span>流量</span>
+              <span class="text-xs text-zinc-400 ml-2">GB; 留空 = 不限</span>
+            </template>
+            <NInputNumber
+              v-model:value="form.trafficQuotaGb"
+              :min="1"
+              :max="10000000"
+              placeholder="例 1000"
+              clearable
+              style="width: 100%"
+            >
+              <template #suffix>GB</template>
+            </NInputNumber>
+          </NFormItem>
         </div>
 
         <NFormItem label="备注">

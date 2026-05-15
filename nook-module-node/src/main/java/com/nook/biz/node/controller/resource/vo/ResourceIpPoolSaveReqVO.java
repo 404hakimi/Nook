@@ -93,6 +93,14 @@ public class ResourceIpPoolSaveReqVO {
     @Size(max = 255)
     private String sshPassword;
 
+    /** 采购带宽上限 (Mbps); NULL = 不限/未填. 仅账面记录, 不参与运行时分配. */
+    @Min(value = 1) @Max(value = 1_000_000)
+    private Integer bandwidthMbps;
+
+    /** 采购流量上限 (GB); NULL = 不限/未填. 仅账面记录. */
+    @Min(value = 1) @Max(value = 10_000_000)
+    private Integer trafficQuotaGb;
+
     @Size(max = 255)
     private String remark;
 }

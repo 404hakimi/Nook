@@ -77,6 +77,12 @@ public class ResourceIpPoolRespVO {
     /** 明文 SSH 密码; 后台受信网络场景, 跟 SOCKS5 密码同口径下发. UI 用 type=password 自然遮盖. */
     private String sshPassword;
 
+    /** 采购带宽上限 (Mbps); NULL = 不限/未填. */
+    private Integer bandwidthMbps;
+
+    /** 采购流量上限 (GB); NULL = 不限/未填. */
+    private Integer trafficQuotaGb;
+
     private String remark;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
