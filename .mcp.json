@@ -6,8 +6,7 @@
       "args": [
         "-y",
         "@fangjunjie/ssh-mcp-server",
-        "--config-file", ".mcp.ssh-config.json",
-        "--pre-connect"
+        "--config-file", ".mcp.ssh-config.json"
       ]
     },
     "my-database": {
