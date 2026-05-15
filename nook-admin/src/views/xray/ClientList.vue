@@ -2,7 +2,6 @@
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
   Activity,
-  MoreVertical,
   Pencil,
   Plus,
   RefreshCcw,
@@ -17,14 +16,12 @@ import {
   NButton,
   NCard,
   NDataTable,
-  NDropdown,
   NIcon,
   NInput,
   NSelect,
   NTag,
   useMessage,
-  type DataTableColumns,
-  type DropdownOption
+  type DataTableColumns
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import {
@@ -245,57 +242,7 @@ function openIpDetail(ipId: string) {
   ipDetailOpen.value = true
 }
 
-// ===== 行操作菜单 =====
-const ROW_ACTIONS: DropdownOption[] = [
-  {
-    label: '分享',
-    key: 'share',
-    icon: () => h(NIcon, null, { default: () => h(Share2) })
-  },
-  {
-    label: '流量',
-    key: 'traffic',
-    icon: () => h(NIcon, null, { default: () => h(Activity) })
-  },
-  {
-    label: '编辑',
-    key: 'edit',
-    icon: () => h(NIcon, null, { default: () => h(Pencil) })
-  },
-  { type: 'divider', key: 'd1' },
-  {
-    label: '同步到远端',
-    key: 'sync',
-    icon: () => h(NIcon, null, { default: () => h(RefreshCw) })
-  },
-  {
-    label: '轮换密钥',
-    key: 'rotate',
-    icon: () => h(NIcon, null, { default: () => h(RotateCw) })
-  },
-  {
-    label: '清零流量',
-    key: 'reset-traffic',
-    icon: () => h(NIcon, null, { default: () => h(Zap) })
-  },
-  { type: 'divider', key: 'd2' },
-  {
-    label: '吊销',
-    key: 'revoke',
-    props: { style: 'color: var(--n-error-color)' },
-    icon: () => h(NIcon, { color: 'var(--n-error-color)' }, { default: () => h(Trash2) })
-  }
-]
-
-function onRowAction(key: string | number, row: XrayClient) {
-  if (key === 'share') openShare(row)
-  else if (key === 'traffic') openTraffic(row)
-  else if (key === 'edit') openEdit(row)
-  else if (key === 'sync') onSync(row)
-  else if (key === 'rotate') onRotate(row)
-  else if (key === 'reset-traffic') onResetTraffic(row)
-  else if (key === 'revoke') onRevoke(row)
-}
+// ===== 行操作: 平铺一行小按钮 (跟 IpPoolList / XrayNodeList 风格一致) =====
 
 // ===== 表格列定义 =====
 const columns = computed<DataTableColumns<XrayClient>>(() => [
@@ -389,24 +336,91 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
     title: '操作',
     key: 'actions',
     align: 'right',
-    width: 80,
-    render: (row) =>
-      h(
-        NDropdown,
-        {
-          options: ROW_ACTIONS,
-          trigger: 'click',
-          onSelect: (key: string | number) => onRowAction(key, row)
-        },
-        {
-          default: () =>
-            h(
-              NButton,
-              { circle: true, quaternary: true, size: 'small', disabled: busy.value[row.id] },
-              { default: () => h(NIcon, null, { default: () => h(MoreVertical) }) }
-            )
-        }
-      )
+    width: 460,
+    render: (row) => {
+      const rowBusy = busy.value[row.id]
+      return h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            disabled: rowBusy,
+            onClick: () => openShare(row),
+            title: '生成订阅 / 分享链接'
+          },
+          { icon: () => h(NIcon, null, { default: () => h(Share2) }), default: () => '分享' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            disabled: rowBusy,
+            onClick: () => openTraffic(row),
+            title: '查看上下行流量统计'
+          },
+          { icon: () => h(NIcon, null, { default: () => h(Activity) }), default: () => '流量' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            disabled: rowBusy,
+            onClick: () => openEdit(row),
+            title: '编辑 Inbound 元数据'
+          },
+          { icon: () => h(NIcon, null, { default: () => h(Pencil) }), default: () => '编辑' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            type: 'primary',
+            disabled: rowBusy,
+            onClick: () => onSync(row),
+            title: '推送 DB 配置到远端 xray (待同步 / 远端缺失场景)'
+          },
+          { icon: () => h(NIcon, null, { default: () => h(RefreshCw) }), default: () => '同步' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            disabled: rowBusy,
+            onClick: () => onRotate(row),
+            title: '轮换 UUID / 密钥 (老凭据立即失效)'
+          },
+          { icon: () => h(NIcon, null, { default: () => h(RotateCw) }), default: () => '轮换' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            disabled: rowBusy,
+            onClick: () => onResetTraffic(row),
+            title: '清零累计流量'
+          },
+          { icon: () => h(NIcon, null, { default: () => h(Zap) }), default: () => '清流量' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            type: 'error',
+            disabled: rowBusy,
+            onClick: () => onRevoke(row),
+            title: '吊销客户端 (远端 inbound + DB 双删)'
+          },
+          { icon: () => h(NIcon, null, { default: () => h(Trash2) }), default: () => '吊销' }
+        )
+      ])
+    }
   }
 ])
 

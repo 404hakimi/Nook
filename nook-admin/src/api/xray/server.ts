@@ -31,6 +31,22 @@ export interface XrayServiceStatus {
   listening?: string
   /** systemctl is-enabled 输出: enabled / disabled / static / masked / ... */
   enabled?: string
+  /** ufw status verbose 输出原文; 未装 ufw 时为提示文案 */
+  ufwStatus?: string
+  /** 远端主机基本信息; 详情弹框默认折叠展示 */
+  hostInfo?: HostInfo
+}
+
+/** 远端主机基本信息 (跟 Socks5 状态共用同一结构); 与后端 HostInfoRespVO 字段对齐. */
+export interface HostInfo {
+  hostname?: string
+  kernel?: string
+  osRelease?: string
+  systemUptime?: string
+  loadAvg?: string
+  memory?: string
+  disk?: string
+  timezone?: string
 }
 
 /** 通用 systemd 状态 (后端 SystemdStatusRespVO); 不含 service 专属字段. */
@@ -99,6 +115,27 @@ export function getXrayLog(
   opts?: { lines?: number; level?: XrayLogLevel; keyword?: string }
 ) {
   return getServiceLog(serverId, 'xray', opts)
+}
+
+/** xray 文件日志变体: access (每个连接) vs error (xray 内部错误). */
+export type XrayLogFileVariant = 'access' | 'error'
+
+/**
+ * 拉 xray 自己的日志文件 (access.log / error.log); 跟 journalctl 互补.
+ * file 看真正的连接 / 错误日志, journal 只有 systemd 启动 banner.
+ */
+export function getXrayLogFile(
+  serverId: string,
+  opts?: { variant?: XrayLogFileVariant; lines?: number; keyword?: string }
+) {
+  return request.get<unknown, XrayLog>('/admin/xray/server/log-file', {
+    params: {
+      id: serverId,
+      variant: opts?.variant,
+      lines: opts?.lines,
+      keyword: opts?.keyword?.trim() || undefined
+    }
+  })
 }
 
 // ===== 后端 XrayServerManageController @ /admin/xray/server =====

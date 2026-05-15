@@ -155,9 +155,21 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void releaseToCoolingForRevoke(String id) {
+        // revoke 链路: 跟外层 (revokeDbOnly) 同事务, 看得到 deleteById 删的 client; 不做 bound 检查.
+        doMarkCooling(id, /* checkBound= */ false);
+    }
+
+    @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void releaseToCooling(String id) {
-        // REQUIRES_NEW: 跟外层 (e.g. CLIENT_REVOKE doRevoke) 隔离, 内层异常不污染外层事务.
+        // user-facing: 独立事务 + 带 bound 守卫. doMarkCooling 抛错时 REQUIRES_NEW 自身 rollback 不污染外层
+        doMarkCooling(id, /* checkBound= */ true);
+    }
+
+    /** releaseToCooling 与 releaseToCoolingForRevoke 共用核心逻辑; checkBound 控制是否做 bound 守卫. */
+    private void doMarkCooling(String id, boolean checkBound) {
         // 软存在校验: IP 已被删 → 没什么可退订的, no-op 返回; 比 validateExists 抛错更友好 (revoke 场景常见)
         ResourceIpPoolDO exist = resourceIpPoolMapper.selectById(id);
         if (exist == null) {
@@ -165,11 +177,14 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
             return;
         }
         // 守卫: 有 client 还引用此 IP, 拒绝退订 (避免 client status 与 pool status 漂移);
-        // revoke 链路先 deleteById 删 client 行, 再调本方法, 所以不会撞这里.
-        XrayClientDO bound = xrayClientMapper.selectByIpId(id);
-        if (bound != null) {
-            throw new BusinessException(ResourceErrorCode.IP_POOL_HAS_BOUND_CLIENT,
-                    exist.getIpAddress(), bound.getMemberUserId());
+        // revoke 链路在外层事务先 deleteById 删 client; 若走 REQUIRES_NEW 看不到外层未 commit 的 delete,
+        // 反而会误判 bound != null 把 release 拒了 → IP 卡在 occupied. 因此 revoke 路径 checkBound=false 跳过.
+        if (checkBound) {
+            XrayClientDO bound = xrayClientMapper.selectByIpId(id);
+            if (bound != null) {
+                throw new BusinessException(ResourceErrorCode.IP_POOL_HAS_BOUND_CLIENT,
+                        exist.getIpAddress(), bound.getMemberUserId());
+            }
         }
         // ip_type.cooling_minutes 是 NOT NULL 列; 家宽 IP 通常需要更久
         ResourceIpTypeDO type = resourceIpTypeMapper.selectById(exist.getIpTypeId());

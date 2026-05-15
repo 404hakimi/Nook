@@ -2,6 +2,7 @@ package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.nook.biz.node.controller.resource.vo.HostInfoRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksInstallReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksSyncCredsReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestReqVO;
@@ -19,6 +20,7 @@ import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
+import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.biz.node.framework.socks5.probe.Socks5Prober;
@@ -248,6 +250,9 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
             SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, DANTE_UNIT);
             String version = readDanteVersion(session);
             String listening = readDanteListening(session, ip.getSocks5Port());
+            // UFW + 主机信息: 一次状态刷新顺手取全, 减少前端二次刷
+            String ufw = serverProbe.readUfwStatus(session);
+            HostInfoSnapshot host = serverProbe.readHostInfo(session);
 
             Socks5StatusRespVO vo = new Socks5StatusRespVO();
             vo.setUnit(sysd.getUnit());
@@ -256,8 +261,25 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
             vo.setEnabled(sysd.getEnabled());
             vo.setVersion(version);
             vo.setListening(listening);
+            vo.setUfwStatus(ufw);
+            vo.setHostInfo(toHostInfoVO(host));
             return vo;
         });
+    }
+
+    /** snapshot → respVO 平铺复制; 字段同名, 直接 set. */
+    private static HostInfoRespVO toHostInfoVO(HostInfoSnapshot s) {
+        if (s == null) return null;
+        HostInfoRespVO vo = new HostInfoRespVO();
+        vo.setHostname(s.getHostname());
+        vo.setKernel(s.getKernel());
+        vo.setOsRelease(s.getOsRelease());
+        vo.setSystemUptime(s.getSystemUptime());
+        vo.setLoadAvg(s.getLoadAvg());
+        vo.setMemory(s.getMemory());
+        vo.setDisk(s.getDisk());
+        vo.setTimezone(s.getTimezone());
+        return vo;
     }
 
     @Override
@@ -286,6 +308,23 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         JournalLogSnapshot snap = SshSessions.runAdHoc(cred, session ->
                 serverProbe.readJournalLog(session, DANTE_UNIT, lines, level, keyword));
 
+        return toServiceLogVO(snap);
+    }
+
+    @Override
+    public ServiceLogRespVO getSocks5LogFile(String ipId, Integer lines, String keyword) {
+        ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
+        // 实际 log 文件路径: DB.log_path 留空时按 install_dir 兜底, 跟脚本渲染规则保持一致
+        String installDir = StrUtil.blankToDefault(ip.getInstallDir(), DEFAULT_INSTALL_DIR);
+        String filePath = StrUtil.isBlank(ip.getLogPath())
+                ? installDir + "/logs/sockd.log" : ip.getLogPath();
+        SessionCredential cred = buildStoredCred(ip);
+        JournalLogSnapshot snap = SshSessions.runAdHoc(cred, session ->
+                serverProbe.readFileLog(session, filePath, lines, keyword));
+        return toServiceLogVO(snap);
+    }
+
+    private static ServiceLogRespVO toServiceLogVO(JournalLogSnapshot snap) {
         ServiceLogRespVO vo = new ServiceLogRespVO();
         vo.setUnit(snap.getUnit());
         vo.setLines(snap.getLines());

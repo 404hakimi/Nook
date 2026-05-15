@@ -452,7 +452,7 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
     width: 420,
     render: (row) =>
       h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
-        // 详情: 自部署 + SSH 凭据齐全时露出, 弹框内查 dante 服务状态 + 切自启
+        // 服务状态: 自部署 + SSH 凭据齐全时露出, 弹框内查 dante 服务状态 + 切自启
         canManage(row)
           ? h(
               NButton,
@@ -460,11 +460,11 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
                 size: 'tiny',
                 quaternary: true,
                 onClick: () => openStatus(row),
-                title: '查看 dante 运行状态 / 版本 / 监听端口; 弹窗内可切自启'
+                title: '查看 dante 运行状态 / 版本 / 监听端口 / UFW / 主机信息; 弹窗内可切自启'
               },
               {
                 icon: () => h(NIcon, null, { default: () => h(Eye) }),
-                default: () => '详情'
+                default: () => '服务状态'
               }
             )
           : null,

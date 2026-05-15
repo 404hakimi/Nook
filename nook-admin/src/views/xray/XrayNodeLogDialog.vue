@@ -6,6 +6,8 @@ import {
   NIcon,
   NInput,
   NModal,
+  NRadioButton,
+  NRadioGroup,
   NSelect,
   NSpace,
   NSpin,
@@ -13,10 +15,15 @@ import {
 } from 'naive-ui'
 import {
   getXrayLog,
+  getXrayLogFile,
   type XrayLog,
+  type XrayLogFileVariant,
   type XrayLogLevel
 } from '@/api/xray/server'
 import type { XrayNode } from '@/api/xray/node'
+
+/** 日志源切换: file (xray 自己的 access/error.log, 默认) vs journal (systemctl 启停 / 启动报错). */
+type LogSource = 'file' | 'journal'
 
 interface Props {
   modelValue: boolean
@@ -46,6 +53,15 @@ const LOG_LEVEL_OPTIONS: { label: string; value: XrayLogLevel }[] = [
 ]
 const logLines = ref(100)
 const logLevel = ref<XrayLogLevel>('all')
+/** 日志源默认 file: 看真正的连接 / 错误; 切到 journal 排障启停问题. */
+const logSource = ref<LogSource>('file')
+/** file 模式下选 access (每个连接) 或 error (内部错误). */
+const logVariant = ref<XrayLogFileVariant>('access')
+
+const LOG_VARIANT_OPTIONS: { label: string; value: XrayLogFileVariant }[] = [
+  { label: 'access.log', value: 'access' },
+  { label: 'error.log', value: 'error' }
+]
 /**
  * 关键词输入: 服务端 grep -F -i 子串过滤, 大小写不敏感.
  * 允许字符: Unicode 字母/数字 + 空格 + ._-:/@ (后端 LOG_KEYWORD_PATTERN 同步校验).
@@ -87,11 +103,20 @@ async function runLog() {
   if (!props.node || logLoading.value) return
   logLoading.value = true
   try {
-    xrayLog.value = await getXrayLog(props.node.serverId, {
-      lines: logLines.value,
-      level: logLevel.value,
-      keyword: logKeyword.value || undefined
-    })
+    if (logSource.value === 'file') {
+      // file 源: 走 xray 自己的 access.log / error.log; 文件本身不分 level
+      xrayLog.value = await getXrayLogFile(props.node.serverId, {
+        variant: logVariant.value,
+        lines: logLines.value,
+        keyword: logKeyword.value || undefined
+      })
+    } else {
+      xrayLog.value = await getXrayLog(props.node.serverId, {
+        lines: logLines.value,
+        level: logLevel.value,
+        keyword: logKeyword.value || undefined
+      })
+    }
   } catch (e) {
     xrayLog.value = null
     message.error('拉日志失败: ' + ((e as Error).message ?? ''))
@@ -123,7 +148,29 @@ function close() {
       </span>
     </template>
 
-    <div class="flex gap-2 flex-wrap items-center justify-end mb-3">
+    <div class="flex gap-2 flex-wrap items-center justify-between mb-3">
+      <div class="flex gap-2 items-center">
+        <NRadioGroup
+          v-model:value="logSource"
+          size="small"
+          :disabled="logLoading"
+          @update:value="runLog"
+        >
+          <NRadioButton value="file" title="xray 自己的日志文件 (access/error.log); 业务连接 + 内部错误">文件日志</NRadioButton>
+          <NRadioButton value="journal" title="systemctl journal; 启停 + 启动失败信息">systemd 日志</NRadioButton>
+        </NRadioGroup>
+        <NSelect
+          v-if="logSource === 'file'"
+          v-model:value="logVariant"
+          :options="LOG_VARIANT_OPTIONS"
+          size="small"
+          class="w-28"
+          :disabled="logLoading"
+          @update:value="runLog"
+        />
+      </div>
+
+      <div class="flex gap-2 items-center">
       <NInput
         :value="logKeyword"
         size="small"
@@ -145,6 +192,7 @@ function close() {
         @update:value="runLog"
       />
       <NSelect
+        v-if="logSource === 'journal'"
         v-model:value="logLevel"
         :options="LOG_LEVEL_OPTIONS"
         size="small"
@@ -156,6 +204,7 @@ function close() {
         <template #icon><NIcon><RefreshCw /></NIcon></template>
         刷新日志
       </NButton>
+      </div>
     </div>
 
     <NSpin :show="logLoading && !xrayLog">

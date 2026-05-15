@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Activity, RefreshCw } from 'lucide-vue-next'
+import { Activity, ChevronDown, ChevronRight, RefreshCw, ShieldCheck, Server } from 'lucide-vue-next'
 import {
   NButton,
   NCard,
@@ -133,6 +133,9 @@ function autostartRailStyle({ checked }: { checked: boolean }) {
     background: checked ? 'var(--n-success-color, #18a058)' : '#d0d0d6'
   }
 }
+
+/** 主机信息折叠状态: 默认收起 (运维有时才要看, 不要默认占空间). */
+const hostInfoExpanded = ref(false)
 </script>
 
 <template>
@@ -201,6 +204,67 @@ function autostartRailStyle({ checked }: { checked: boolean }) {
           </div>
         </div>
         <div v-else class="text-xs text-zinc-400 py-2">(未获取到)</div>
+      </NCard>
+
+      <!-- UFW 防火墙 (始终展示, 跟服务状态强相关) -->
+      <NCard v-if="serviceStatus" size="small" class="mt-3">
+        <div class="text-xs font-semibold text-zinc-500 mb-2 flex items-center gap-1">
+          <NIcon :size="14"><ShieldCheck /></NIcon>
+          UFW 防火墙
+        </div>
+        <pre class="font-mono text-xs whitespace-pre-wrap break-all m-0 max-h-48 overflow-auto bg-zinc-50 dark:bg-zinc-900 px-3 py-2 rounded">{{
+          serviceStatus.ufwStatus || '(未获取到)'
+        }}</pre>
+      </NCard>
+
+      <!-- 主机基本信息 (默认折叠) -->
+      <NCard v-if="serviceStatus?.hostInfo" size="small" class="mt-3">
+        <div
+          class="text-xs font-semibold text-zinc-500 flex items-center gap-1 cursor-pointer select-none"
+          @click="hostInfoExpanded = !hostInfoExpanded"
+        >
+          <NIcon :size="14">
+            <ChevronDown v-if="hostInfoExpanded" />
+            <ChevronRight v-else />
+          </NIcon>
+          <NIcon :size="14"><Server /></NIcon>
+          主机信息
+          <span class="text-zinc-400 font-normal ml-1">({{ hostInfoExpanded ? '点击收起' : '点击展开' }})</span>
+        </div>
+        <div v-if="hostInfoExpanded" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm mt-3">
+          <div>
+            <div class="text-xs text-zinc-500">主机名</div>
+            <div class="font-mono text-xs">{{ serviceStatus.hostInfo.hostname || '-' }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-zinc-500">系统</div>
+            <div class="text-xs">{{ serviceStatus.hostInfo.osRelease || '-' }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-zinc-500">内核</div>
+            <div class="font-mono text-xs">{{ serviceStatus.hostInfo.kernel || '-' }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-zinc-500">时区</div>
+            <div class="font-mono text-xs">{{ serviceStatus.hostInfo.timezone || '-' }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-zinc-500">运行时间</div>
+            <div class="text-xs">{{ serviceStatus.hostInfo.systemUptime || '-' }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-zinc-500">负载 (1/5/15 分钟)</div>
+            <div class="font-mono text-xs">{{ serviceStatus.hostInfo.loadAvg || '-' }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-zinc-500">内存</div>
+            <div class="font-mono text-xs">{{ serviceStatus.hostInfo.memory || '-' }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-zinc-500">磁盘 (/)</div>
+            <div class="font-mono text-xs">{{ serviceStatus.hostInfo.disk || '-' }}</div>
+          </div>
+        </div>
       </NCard>
     </NSpin>
 

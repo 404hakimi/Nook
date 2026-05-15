@@ -39,8 +39,8 @@ nook:
   traffic:
     # xray in-memory stats 定时入库; 关闭后 getTraffic 退化为只看 in-memory (跨重启会丢)
     enabled: true
-    # 采样间隔 ms; 默认 30 min, 与 XRAY_RESTART 前置 sample 配合, 实际丢失窗口 ≤ 30 min
-    sample-interval-ms: 1800000
+    # 采样间隔 ms; 默认 5 min, 与 XRAY_RESTART 前置 sample 配合, 实际丢失窗口 ≤ 30 min
+    sample-interval-ms: 300000
     # 应用启动后多久跑第一次 sweep, 避免 xray_node 缓存 / SSH manager 还没就绪
     initial-delay-ms: 60000
 

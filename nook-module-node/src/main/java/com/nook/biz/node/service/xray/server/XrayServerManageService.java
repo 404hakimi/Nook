@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.xray.server;
 
+import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 
@@ -47,4 +48,16 @@ public interface XrayServerManageService {
      * @return 远端 stdout
      */
     String setAutostart(String serverId, boolean enabled);
+
+    /**
+     * 拉 xray 自己的日志文件 (access.log 或 error.log, 文件路径 = xray_node.xrayLogDir/{variant}.log),
+     * 跟 journalctl -u xray 互补 — journal 看启动失败, file 看真正的连接/错误.
+     *
+     * @param serverId resource_server.id
+     * @param variant  "access" | "error"; access 看每个连接, error 看 xray 内部错误
+     * @param lines    行数 (默认 100, 上限 5000)
+     * @param keyword  关键词子串过滤
+     * @return 日志快照; unit 字段填实际文件路径
+     */
+    ServiceLogRespVO getXrayLogFile(String serverId, String variant, Integer lines, String keyword);
 }

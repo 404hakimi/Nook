@@ -1,11 +1,6 @@
 # ===== Module 50: Xray 安装 + 预置 1:1 config (必装) =====
-# 触发: 永远
-# 关键设计:
-#   - 弃用官方 install-release.sh; binary / config / share 全装到 {{INSTALL_DIR}}/{bin,etc,share},
-#     不写 /usr/local 默认路径, 软链 /usr/local/bin/xray -> $INSTALL_DIR/bin/xray 让 PATH 兼容.
-#   - systemd unit 自渲染, 含 Restart / XRAY_LOCATION_ASSET; xray 进程以 root 跑 (项目策略).
-#   - 不生成共享 vmess inbound (1:1 模型: 客户 inbound 由 nook gRPC 动态加).
-#   - 生成 {{SLOT_POOL_SIZE}} 个 placeholder freedom outbound + 静态 routing 规则.
+# binary / config / share 装到 {{INSTALL_DIR}}/{bin,etc,share}, 软链 /usr/local/bin/xray.
+# 1:1 模型: 客户 inbound 由 nook gRPC 动态加, 这里只生成 {{SLOT_POOL_SIZE}} 个 freedom 占位 + 静态 routing.
 
 log "=== Module 50: Xray 安装 (版本: {{XRAY_VERSION}}, 安装到: {{INSTALL_DIR}}, slot 池: {{SLOT_POOL_SIZE}}) ==="
 
@@ -26,7 +21,6 @@ XRAY_CONFIG="$XRAY_ETC/config.json"
 XRAY_SHARE="$INSTALL_DIR/share/xray"
 SYSTEMD_UNIT="/etc/systemd/system/xray.service"
 
-# ---------- 1. 选下载 zip (按架构) ----------
 ARCH=$(uname -m)
 case "$ARCH" in
     x86_64|amd64)   ZIP_NAME="Xray-linux-64.zip" ;;
@@ -40,7 +34,6 @@ else
     DOWNLOAD_URL="https://github.com/XTLS/Xray-core/releases/download/$XRAY_VERSION/$ZIP_NAME"
 fi
 
-# ---------- 2. 决定是否需要重装 ----------
 NEED_INSTALL=1
 if [[ "$FORCE_REINSTALL" == "true" ]]; then
     log "强制重装 (前端勾选)"
@@ -55,7 +48,6 @@ elif [[ -x "$XRAY_BIN" ]]; then
     fi
 fi
 
-# ---------- 4. 装下载工具 (兜底; 多数发行版自带) ----------
 if [[ $NEED_INSTALL -eq 1 ]]; then
     if ! command -v wget >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
         log "安装下载依赖 wget / unzip..."
@@ -64,7 +56,6 @@ if [[ $NEED_INSTALL -eq 1 ]]; then
     fi
 fi
 
-# ---------- 5. 备份旧 binary (升级时) ----------
 if [[ $NEED_INSTALL -eq 1 && -x "$XRAY_BIN" ]]; then
     OLD_VER=$("$XRAY_BIN" version 2>/dev/null | head -1 | awk '{print $2}' || echo "")
     if [[ -n "$OLD_VER" && "$OLD_VER" != "?" ]]; then
@@ -74,10 +65,9 @@ if [[ $NEED_INSTALL -eq 1 && -x "$XRAY_BIN" ]]; then
     fi
 fi
 
-# ---------- 6. 停老 service (无论是否重装都要停, 后面 daemon-reload + restart) ----------
+# 无论是否重装都先停 service, 后面 daemon-reload + restart
 systemctl stop xray >/dev/null 2>&1 || true
 
-# ---------- 7. 下载 + 解压到 INSTALL_DIR ----------
 mkdir -p "$INSTALL_DIR/bin" "$XRAY_ETC" "$XRAY_SHARE" "$LOG_DIR"
 if [[ $NEED_INSTALL -eq 1 ]]; then
     log "下载 Xray ($XRAY_VERSION, $ARCH)..."
@@ -89,18 +79,16 @@ if [[ $NEED_INSTALL -eq 1 ]]; then
         exit 1
     fi
     unzip -o -q "$TMPZIP" xray       -d "$INSTALL_DIR/bin/"
-    # geo 文件可能不在 zip 里 (个别架构 release 不含), 解不出不阻断主流程
+    # geo 文件个别架构 release 不含, 解不出不阻断主流程
     unzip -o -q "$TMPZIP" "geo*.dat" -d "$XRAY_SHARE/" 2>/dev/null || true
     rm -f "$TMPZIP"
     chmod +x "$XRAY_BIN"
     log "✔ Xray binary: $XRAY_BIN"
 fi
 
-# ---------- 8. /usr/local/bin 软链 (PATH 兼容) ----------
-# 让 SSH non-interactive 模式下 `xray api ...` / `xray version` 不带绝对路径也能找到
+# SSH non-interactive 模式下 `xray api ...` 不带绝对路径也能找到
 ln -sf "$XRAY_BIN" /usr/local/bin/xray
 
-# ---------- 9. 备份并重写 config.json ----------
 if [[ -f "$XRAY_CONFIG" ]]; then
     BACKUP="${XRAY_CONFIG}.bak.$(date +%s)"
     cp "$XRAY_CONFIG" "$BACKUP"
@@ -116,7 +104,6 @@ gen_outbounds() {
     done
 }
 gen_routing_rules() {
-    # 新版 xray (v25+) routing rule 已无 "type" 字段; 解析器对其忽略, 这里直接不写减少噪声.
     echo '      { "inboundTag": ["api"], "outboundTag": "api" }'
     for i in $(seq 1 "$SLOT_POOL_SIZE"); do
         slot=$(printf "%02d" "$i")
@@ -168,9 +155,7 @@ $(gen_routing_rules)
 }
 XRAYCONF
 
-# ---------- 9. 写 systemd unit ----------
-# XRAY_LOCATION_ASSET 指向自定义 share 目录, binary 不在 /usr/local/bin 时 xray 默认查找路径会落空, 必须显式声明.
-# xray 进程以 root 跑 (项目策略); 不限 capability / NoNewPrivileges, 让远端运维直观.
+# XRAY_LOCATION_ASSET 指向自定义 share, 不在默认路径必须显式声明
 cat > "$SYSTEMD_UNIT" <<UNITEOF
 [Unit]
 Description=Xray Service (nook deployed)
@@ -189,10 +174,6 @@ Environment=XRAY_LOCATION_ASSET=$XRAY_SHARE
 WantedBy=multi-user.target
 UNITEOF
 
-# 老的 install-release.sh 留下的 drop-in (/etc/systemd/system/xray.service.d/) 在覆盖 unit 后已无意义,
-# 但保留不动避免误删用户自加的 override; daemon-reload 后 systemd 仍会按主 unit 文件 + drop-in 合并.
-
-# ---------- 10. 校验 config + 启动 ----------
 log "校验 Xray config..."
 if ! XRAY_LOCATION_ASSET="$XRAY_SHARE" "$XRAY_BIN" run -test -c "$XRAY_CONFIG" >/dev/null 2>&1; then
     err "Xray config 校验失败!"
@@ -217,7 +198,6 @@ if ! systemctl is-active --quiet xray; then
     exit 1
 fi
 
-# ---------- 13. 验证 gRPC API 监听 ----------
 sleep 1
 if ss -ltn 2>/dev/null | grep -q "127.0.0.1:$XRAY_API_PORT "; then
     log "✔ Xray gRPC API: 127.0.0.1:$XRAY_API_PORT"

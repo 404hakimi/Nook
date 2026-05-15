@@ -79,16 +79,16 @@ const menuOptions: MenuOption[] = [
     icon: icon(Server),
     children: [
       { key: '/resource/servers', label: routerLabel('/resource/servers', '服务器'), icon: icon(Server) },
-      { key: '/resource/ip-pool', label: routerLabel('/resource/ip-pool', 'IP代理池'), icon: icon(Globe2) }
-    ]
-  },
-  {
-    key: 'xray-group',
-    label: 'Xray 管理',
-    icon: icon(Cable),
-    children: [
-      { key: '/xray/nodes', label: routerLabel('/xray/nodes', 'Xray 节点'), icon: icon(Server) },
-      { key: '/xray/clients', label: routerLabel('/xray/clients', 'Xray 客户端'), icon: icon(Cable) }
+      { key: '/resource/ip-pool', label: routerLabel('/resource/ip-pool', 'IP代理池'), icon: icon(Globe2) },
+      {
+        key: 'xray-group',
+        label: 'Xray 管理',
+        icon: icon(Cable),
+        children: [
+          { key: '/xray/nodes', label: routerLabel('/xray/nodes', 'Xray 节点'), icon: icon(Server) },
+          { key: '/xray/clients', label: routerLabel('/xray/clients', 'Xray 客户端'), icon: icon(Cable) }
+        ]
+      }
     ]
   },
   {
@@ -103,11 +103,22 @@ const menuOptions: MenuOption[] = [
   { key: '/monitor/alerts', label: routerLabel('/monitor/alerts', '监控告警'), icon: icon(Bell) }
 ]
 
-/** 当前激活菜单项 key; 命中规则: route.path 以菜单 key 为前缀则视为该菜单激活 (兼容 detail / edit 子路由)。 */
+/** 当前激活菜单项 key; 命中规则: route.path 以菜单 key 为前缀则视为该菜单激活 (兼容 detail / edit 子路由)。
+ *  递归扁平所有叶子节点 — 支持任意层级 (当前 Xray 管理嵌在资源管理下是三级). */
+function collectLeafKeys(options: MenuOption[]): string[] {
+  return options.flatMap((m) =>
+    m.children && m.children.length > 0
+      ? collectLeafKeys(m.children as MenuOption[])
+      : [m.key as string]
+  )
+}
 const activeKey = computed(() => {
-  const leafKeys = menuOptions.flatMap((m) => (m.children ? m.children.map((c) => c.key as string) : [m.key as string]))
+  const leafKeys = collectLeafKeys(menuOptions)
   return leafKeys.find((k) => route.path.startsWith(k)) || ''
 })
+
+/** 默认展开的分组 key; 包含资源管理 + Xray 管理 (后者嵌在前者下作三级菜单), 让用户一进入就看到全部叶子. */
+const defaultExpandedKeys = ['resource-group', 'xray-group']
 
 /** 移动端: <md 折叠侧栏, 点 toggle 临时展开; >=md 直接常驻 */
 const collapsed = ref(false)
@@ -158,6 +169,7 @@ async function onUserDropdownSelect(key: string) {
         :collapsed-icon-size="20"
         :options="menuOptions"
         :value="activeKey"
+        :default-expanded-keys="defaultExpandedKeys"
         :indent="18"
       />
     </NLayoutSider>

@@ -175,6 +175,22 @@ export interface Socks5ServiceStatus {
   listening?: string
   /** is-enabled 输出: enabled / disabled / static / masked */
   enabled?: string
+  /** ufw status verbose 输出原文 */
+  ufwStatus?: string
+  /** 远端主机基本信息; 详情弹框默认折叠展示 */
+  hostInfo?: HostInfo
+}
+
+/** 远端主机基本信息; 与 xray server.ts 同结构, 复用一份语义 (跟后端 HostInfoRespVO 对齐). */
+export interface HostInfo {
+  hostname?: string
+  kernel?: string
+  osRelease?: string
+  systemUptime?: string
+  loadAvg?: string
+  memory?: string
+  disk?: string
+  timezone?: string
 }
 
 /** SOCKS5 日志级别过滤 (复用 xray 同语义). */
@@ -210,6 +226,23 @@ export function getSocks5Log(
       id,
       lines: opts?.lines,
       level: opts?.level === 'all' ? undefined : opts?.level,
+      keyword: opts?.keyword?.trim() || undefined
+    }
+  })
+}
+
+/**
+ * 拉 SOCKS5 (dante) 自己的日志文件 (DB.log_path 指向, 默认 /home/socks5/logs/sockd.log).
+ * 跟 systemd journal 互补 — file 才有真正的拨号 / 流量记录.
+ */
+export function getSocks5LogFile(
+  id: string,
+  opts?: { lines?: number; keyword?: string }
+) {
+  return request.get<unknown, Socks5Log>('/admin/resource/ip-pool/socks5-log-file', {
+    params: {
+      id,
+      lines: opts?.lines,
       keyword: opts?.keyword?.trim() || undefined
     }
   })

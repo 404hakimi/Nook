@@ -136,9 +136,10 @@ function close() {
   <NModal
     :show="modelValue"
     preset="card"
-    style="max-width: 48rem"
+    style="max-width: 64rem; width: 92vw"
     :bordered="false"
     :mask-closable="false"
+    :close-on-esc="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <template #header>

@@ -1,6 +1,7 @@
 package com.nook.biz.node.controller.xray;
 
 import com.nook.biz.node.config.WebStreamingProperties;
+import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 import com.nook.biz.node.service.xray.server.XrayServerManageService;
@@ -57,6 +58,18 @@ public class XrayServerManageController {
                                        @RequestParam("enabled") boolean enabled) {
         String out = xrayServerManageService.setAutostart(id, enabled);
         return Result.ok(out);
+    }
+
+    /**
+     * Xray 自己的日志文件 (access.log / error.log); 跟 service-log (journalctl) 互补.
+     * journal 看启动失败, file 看真正的连接 / 错误.
+     */
+    @GetMapping("/log-file")
+    public Result<ServiceLogRespVO> getXrayLogFile(@RequestParam("id") String id,
+                                                   @RequestParam(value = "variant", required = false) String variant,
+                                                   @RequestParam(value = "lines", required = false) Integer lines,
+                                                   @RequestParam(value = "keyword", required = false) String keyword) {
+        return Result.ok(xrayServerManageService.getXrayLogFile(id, variant, lines, keyword));
     }
 
     @PostMapping(value = "/install", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")

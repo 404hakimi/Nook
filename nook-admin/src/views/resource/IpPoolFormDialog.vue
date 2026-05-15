@@ -287,9 +287,10 @@ function close() {
     :show="modelValue"
     preset="card"
     :title="mode === 'create' ? '新增 IP' : '编辑 IP'"
-    style="max-width: 48rem"
+    style="max-width: 72rem; width: 92vw"
     :bordered="false"
     :mask-closable="false"
+    :close-on-esc="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <NSpin :show="loadingDetail">
@@ -300,7 +301,7 @@ function close() {
         size="small"
       >
         <NDivider title-placement="left" style="margin-top: 0">基本信息</NDivider>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-x-4">
           <NFormItem
             label="区域"
             required
@@ -309,7 +310,7 @@ function close() {
           >
             <NInput
               v-model:value="form.region"
-              placeholder="us-west / jp / hk / sg"
+              placeholder="us-west / jp"
             />
           </NFormItem>
 
@@ -327,21 +328,19 @@ function close() {
             />
           </NFormItem>
 
-          <div class="sm:col-span-2">
-            <NFormItem
-              label="IP 地址"
-              required
-              :validation-status="errors.ipAddress ? 'error' : undefined"
-              :feedback="errors.ipAddress || (isEdit ? '换 IP 等于换机器, 请新建条目, 不要在原行改' : undefined)"
-            >
-              <NInput
-                v-model:value="form.ipAddress"
-                placeholder="例 1.2.3.4"
-                :disabled="isEdit"
-                :input-props="{ style: 'font-family: monospace' }"
-              />
-            </NFormItem>
-          </div>
+          <NFormItem
+            label="IP 地址"
+            required
+            :validation-status="errors.ipAddress ? 'error' : undefined"
+            :feedback="errors.ipAddress || (isEdit ? '换 IP 请新建条目' : undefined)"
+          >
+            <NInput
+              v-model:value="form.ipAddress"
+              placeholder="例 1.2.3.4"
+              :disabled="isEdit"
+              :input-props="{ style: 'font-family: monospace' }"
+            />
+          </NFormItem>
 
           <NFormItem label="状态">
             <NSelect v-model:value="form.status" :options="STATUS_OPTIONS" />
@@ -351,7 +350,7 @@ function close() {
             label="部署模式"
             required
             :validation-status="errors.provisionMode ? 'error' : undefined"
-            :feedback="errors.provisionMode || '自部署 = 后台一键装的 SOCKS5; 第三方 = 现成供应商'"
+            :feedback="errors.provisionMode || '自部署 / 第三方'"
           >
             <NSelect
               v-model:value="form.provisionMode"
@@ -387,38 +386,34 @@ function close() {
             <NInput v-model:value="form.socks5Username" />
           </NFormItem>
 
-          <div class="sm:col-span-2">
-            <NFormItem
-              label="密码"
-              :required="!isEdit"
-              :validation-status="errors.socks5Password ? 'error' : undefined"
-              :feedback="errors.socks5Password"
-            >
-              <NInput
-                v-model:value="form.socks5Password"
-                type="password"
-                show-password-on="click"
-                :status="errors.socks5Password ? 'error' : undefined"
-                :input-props="{ autocomplete: 'new-password' }"
-              />
-            </NFormItem>
-          </div>
+          <NFormItem
+            label="密码"
+            :required="!isEdit"
+            :validation-status="errors.socks5Password ? 'error' : undefined"
+            :feedback="errors.socks5Password"
+          >
+            <NInput
+              v-model:value="form.socks5Password"
+              type="password"
+              show-password-on="click"
+              :status="errors.socks5Password ? 'error' : undefined"
+              :input-props="{ autocomplete: 'new-password' }"
+            />
+          </NFormItem>
         </div>
 
         <NDivider title-placement="left">dante 高级配置</NDivider>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
-          <div class="sm:col-span-2">
-            <NFormItem>
-              <template #label>
-                <span>日志级别</span>
-                <span class="text-xs text-zinc-400 ml-2">仅错误 / 警告 / 详细; 实际是 dante log 事件关键字组合</span>
-              </template>
-              <NSelect
-                v-model:value="form.logLevel"
-                :options="[...DANTE_LOG_LEVEL_OPTIONS]"
-              />
-            </NFormItem>
-          </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4">
+          <NFormItem>
+            <template #label>
+              <span>日志级别</span>
+              <span class="text-xs text-zinc-400 ml-2">事件关键字</span>
+            </template>
+            <NSelect
+              v-model:value="form.logLevel"
+              :options="[...DANTE_LOG_LEVEL_OPTIONS]"
+            />
+          </NFormItem>
 
           <NFormItem label="开机自启">
             <NSelect
@@ -427,6 +422,41 @@ function close() {
               @update:value="(v: number) => (form.autostartEnabled = v)"
             />
           </NFormItem>
+
+          <NFormItem label="UFW 防火墙">
+            <NSelect
+              :value="form.firewallEnabled"
+              :options="[{label: '启用', value: 1}, {label: '禁用', value: 0}]"
+              @update:value="(v: number) => (form.firewallEnabled = v)"
+            />
+          </NFormItem>
+
+          <NFormItem>
+            <template #label>
+              <span>UFW 允许来源</span>
+              <span class="text-xs text-zinc-400 ml-2">空 = 0.0.0.0/0</span>
+            </template>
+            <NInput
+              v-model:value="form.firewallAllowFrom"
+              placeholder="留空 = 0.0.0.0/0"
+              :disabled="form.firewallEnabled === 0"
+              :input-props="{ style: 'font-family: monospace' }"
+            />
+          </NFormItem>
+
+          <div class="sm:col-span-2">
+            <NFormItem>
+              <template #label>
+                <span>安装目录</span>
+                <span class="text-xs text-zinc-400 ml-2">默认 /home/socks5</span>
+              </template>
+              <NInput
+                v-model:value="form.installDir"
+                placeholder="/home/socks5"
+                :input-props="{ style: 'font-family: monospace' }"
+              />
+            </NFormItem>
+          </div>
 
           <div class="sm:col-span-2">
             <NFormItem>
@@ -441,55 +471,18 @@ function close() {
               />
             </NFormItem>
           </div>
-
-          <NFormItem label="UFW 防火墙">
-            <NSelect
-              :value="form.firewallEnabled"
-              :options="[{label: '启用', value: 1}, {label: '禁用', value: 0}]"
-              @update:value="(v: number) => (form.firewallEnabled = v)"
-            />
-          </NFormItem>
-
-          <div class="sm:col-span-3">
-            <NFormItem>
-              <template #label>
-                <span>UFW 允许来源</span>
-                <span class="text-xs text-zinc-400 ml-2">空 = 0.0.0.0/0 (全网开放); 推荐填中转线路公网 IP</span>
-              </template>
-              <NInput
-                v-model:value="form.firewallAllowFrom"
-                placeholder="留空 = 0.0.0.0/0"
-                :disabled="form.firewallEnabled === 0"
-                :input-props="{ style: 'font-family: monospace' }"
-              />
-            </NFormItem>
-          </div>
-
-          <div class="sm:col-span-3">
-            <NFormItem>
-              <template #label>
-                <span>安装目录</span>
-                <span class="text-xs text-zinc-400 ml-2">logs / info.txt 等运维资产存放; 默认 /home/socks5</span>
-              </template>
-              <NInput
-                v-model:value="form.installDir"
-                placeholder="/home/socks5"
-                :input-props="{ style: 'font-family: monospace' }"
-              />
-            </NFormItem>
-          </div>
         </div>
 
         <NDivider title-placement="left">
           SSH 凭据
           <span class="text-xs text-zinc-400 ml-2 font-normal">(后续 详情 / 日志 / 切自启 运维操作免输密码)</span>
         </NDivider>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
-          <div class="sm:col-span-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-x-4">
+          <div class="lg:col-span-2">
             <NFormItem>
               <template #label>
                 <span>SSH 主机</span>
-                <span class="text-xs text-zinc-400 ml-2">留空 = 用 IP 地址</span>
+                <span class="text-xs text-zinc-400 ml-2">留空 = 用 IP</span>
               </template>
               <NInput
                 v-model:value="form.sshHost"
@@ -512,11 +505,11 @@ function close() {
             <NInput v-model:value="form.sshUser" placeholder="root" />
           </NFormItem>
 
-          <div class="sm:col-span-2">
+          <div class="lg:col-span-2">
             <NFormItem>
               <template #label>
                 <span>SSH 密码</span>
-                <span class="text-xs text-zinc-400 ml-2">编辑时留空 = 保留 DB 原值</span>
+                <span class="text-xs text-zinc-400 ml-2">留空保留</span>
               </template>
               <NInput
                 v-model:value="form.sshPassword"

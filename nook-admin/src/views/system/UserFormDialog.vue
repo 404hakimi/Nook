@@ -179,9 +179,10 @@ function close() {
     :show="modelValue"
     preset="card"
     :title="mode === 'create' ? '新增后台用户' : '编辑后台用户'"
-    style="max-width: 42rem"
+    style="max-width: 56rem; width: 92vw"
     :bordered="false"
     :mask-closable="false"
+    :close-on-esc="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <NSpin :show="loadingDetail">

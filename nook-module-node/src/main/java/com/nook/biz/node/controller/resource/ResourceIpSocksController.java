@@ -99,4 +99,15 @@ public class ResourceIpSocksController {
                                                  @RequestParam(value = "keyword", required = false) String keyword) {
         return Result.ok(resourceIpSocksService.getSocks5Log(id, lines, level, keyword));
     }
+
+    /**
+     * SOCKS5 dante 自己的日志文件 (DB.log_path 指向); 跟 systemd journal 互补.
+     * journal 看启动/失败, file 看真正的拨号记录, 前端 LogDialog 顶部切换.
+     */
+    @GetMapping("/socks5-log-file")
+    public Result<ServiceLogRespVO> getSocks5LogFile(@RequestParam("id") String id,
+                                                     @RequestParam(value = "lines", required = false) Integer lines,
+                                                     @RequestParam(value = "keyword", required = false) String keyword) {
+        return Result.ok(resourceIpSocksService.getSocks5LogFile(id, lines, keyword));
+    }
 }

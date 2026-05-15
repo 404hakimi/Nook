@@ -246,9 +246,10 @@ function close() {
     :show="modelValue"
     preset="card"
     title="手动 Provision 客户端"
-    style="max-width: 42rem"
+    style="max-width: 56rem; width: 92vw"
     :bordered="false"
     :mask-closable="false"
+    :close-on-esc="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <NForm

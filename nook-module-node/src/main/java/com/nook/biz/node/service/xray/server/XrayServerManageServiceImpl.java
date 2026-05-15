@@ -2,11 +2,16 @@ package com.nook.biz.node.service.xray.server;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
+import com.nook.biz.node.controller.resource.vo.HostInfoRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
 import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
+import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
+import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
+import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
@@ -120,6 +125,9 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, XrayConstants.SYSTEMD_UNIT);
         int apiPort = xrayNodeValidator.validateExists(serverId).getXrayApiPort();
         XrayDaemonExtraSnapshot extras = xrayDaemonProbe.readExtras(session, apiPort);
+        // UFW + 主机信息: 一次状态刷新顺手拿全, 减少前端二次刷的来回
+        String ufw = serverProbe.readUfwStatus(session);
+        HostInfoSnapshot host = serverProbe.readHostInfo(session);
 
         XrayServerStatusRespVO vo = new XrayServerStatusRespVO();
         vo.setUnit(sysd.getUnit());
@@ -128,6 +136,50 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         vo.setEnabled(sysd.getEnabled());
         vo.setVersion(extras.getVersion());
         vo.setListening(extras.getListening());
+        vo.setUfwStatus(ufw);
+        vo.setHostInfo(toHostInfoVO(host));
+        return vo;
+    }
+
+    @Override
+    public ServiceLogRespVO getXrayLogFile(String serverId, String variant, Integer lines, String keyword) {
+        // variant 限定白名单: access / error; 防止前端瞎传, 也兼任路径拼装
+        String safeVariant = "error".equalsIgnoreCase(variant) ? "error" : "access";
+        XrayNodeDO node = xrayNodeValidator.validateExists(serverId);
+        if (StrUtil.isBlank(node.getXrayLogDir())) {
+            // 老 node 没填 logDir 时返回空日志, 不抛错 (前端能识别空状态)
+            ServiceLogRespVO empty = new ServiceLogRespVO();
+            empty.setUnit("(xray_log_dir 未配置)");
+            empty.setLines(0);
+            empty.setLevel("file");
+            empty.setLog("");
+            return empty;
+        }
+        String filePath = node.getXrayLogDir().replaceAll("/+$", "") + "/" + safeVariant + ".log";
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
+        JournalLogSnapshot snap = serverProbe.readFileLog(session, filePath, lines, keyword);
+
+        ServiceLogRespVO vo = new ServiceLogRespVO();
+        vo.setUnit(snap.getUnit());
+        vo.setLines(snap.getLines());
+        vo.setLevel(snap.getLevel());
+        vo.setKeyword(snap.getKeyword());
+        vo.setLog(snap.getLog());
+        return vo;
+    }
+
+    /** snapshot → respVO 平铺复制; 字段同名, 直接 set. */
+    private static HostInfoRespVO toHostInfoVO(HostInfoSnapshot s) {
+        if (s == null) return null;
+        HostInfoRespVO vo = new HostInfoRespVO();
+        vo.setHostname(s.getHostname());
+        vo.setKernel(s.getKernel());
+        vo.setOsRelease(s.getOsRelease());
+        vo.setSystemUptime(s.getSystemUptime());
+        vo.setLoadAvg(s.getLoadAvg());
+        vo.setMemory(s.getMemory());
+        vo.setDisk(s.getDisk());
+        vo.setTimezone(s.getTimezone());
         return vo;
     }
 

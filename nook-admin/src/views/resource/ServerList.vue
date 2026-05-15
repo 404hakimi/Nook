@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
-  MoreVertical,
   Pencil,
   Plus,
   RefreshCcw,
@@ -16,14 +15,12 @@ import {
   NButton,
   NCard,
   NDataTable,
-  NDropdown,
   NIcon,
   NInput,
   NSelect,
   NTag,
   useMessage,
-  type DataTableColumns,
-  type DropdownOption
+  type DataTableColumns
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import {
@@ -181,45 +178,8 @@ function openOsTune(s: ResourceServer) {
   osTuneOpen.value = true
 }
 
-// ===== 行操作菜单（NDropdown 选项 + 分发） =====
+// ===== 行操作: 平铺一行小按钮 (跟 XrayNodeList / IpPoolList 风格一致) =====
 // "服务器信息" 只看 OS 层 (hostname / 内存 / 磁盘); Xray 相关都在「Xray 节点」菜单. "OS 调优" 管内核 BBR / swap.
-const ROW_ACTIONS: DropdownOption[] = [
-  {
-    label: '测速',
-    key: 'test',
-    icon: () => h(NIcon, null, { default: () => h(Zap) })
-  },
-  {
-    label: '编辑',
-    key: 'edit',
-    icon: () => h(NIcon, null, { default: () => h(Pencil) })
-  },
-  {
-    label: '服务器信息',
-    key: 'ops',
-    icon: () => h(NIcon, null, { default: () => h(Terminal) })
-  },
-  {
-    label: 'OS 调优',
-    key: 'osTune',
-    icon: () => h(NIcon, null, { default: () => h(Settings2) })
-  },
-  { type: 'divider', key: 'd1' },
-  {
-    label: '删除',
-    key: 'delete',
-    props: { style: 'color: var(--n-error-color)' },
-    icon: () => h(NIcon, { color: 'var(--n-error-color)' }, { default: () => h(Trash2) })
-  }
-]
-
-function onRowAction(key: string | number, s: ResourceServer) {
-  if (key === 'test') onTest(s)
-  else if (key === 'edit') openEdit(s)
-  else if (key === 'ops') openOps(s)
-  else if (key === 'osTune') openOsTune(s)
-  else if (key === 'delete') onDelete(s)
-}
 
 // ===== 表格列定义 =====
 const columns = computed<DataTableColumns<ResourceServer>>(() => [
@@ -292,24 +252,78 @@ const columns = computed<DataTableColumns<ResourceServer>>(() => [
     title: '操作',
     key: 'actions',
     align: 'right',
-    width: 80,
+    width: 360,
     render: (row) =>
-      h(
-        NDropdown,
-        {
-          options: ROW_ACTIONS,
-          trigger: 'click',
-          onSelect: (key: string | number) => onRowAction(key, row)
-        },
-        {
-          default: () =>
-            h(
-              NButton,
-              { circle: true, quaternary: true, size: 'small' },
-              { default: () => h(NIcon, null, { default: () => h(MoreVertical) }) }
-            )
-        }
-      )
+      h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            type: 'warning',
+            loading: !!testing.value[row.id],
+            disabled: !!testing.value[row.id],
+            onClick: () => onTest(row),
+            title: 'SSH 探活 + Xray gRPC 测速'
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(Zap) }),
+            default: () => '测速'
+          }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            onClick: () => openEdit(row),
+            title: '编辑服务器元数据'
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(Pencil) }),
+            default: () => '编辑'
+          }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            onClick: () => openOps(row),
+            title: '查看服务器系统信息 (hostname / 内存 / 磁盘 等)'
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(Terminal) }),
+            default: () => '服务器信息'
+          }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            onClick: () => openOsTune(row),
+            title: '调优 OS 内核 (BBR / swap)'
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(Settings2) }),
+            default: () => 'OS 调优'
+          }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            type: 'error',
+            onClick: () => onDelete(row)
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(Trash2) }),
+            default: () => '删除'
+          }
+        )
+      ])
   }
 ])
 

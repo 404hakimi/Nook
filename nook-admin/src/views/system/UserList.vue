@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { KeyRound, MoreVertical, Pencil, Plus, RefreshCcw, Search, Trash2 } from 'lucide-vue-next'
+import { KeyRound, Pencil, Plus, RefreshCcw, Search, Trash2 } from 'lucide-vue-next'
 import {
   NButton,
   NCard,
   NDataTable,
-  NDropdown,
   NForm,
   NFormItem,
   NIcon,
@@ -15,8 +14,7 @@ import {
   NSpace,
   NTag,
   useMessage,
-  type DataTableColumns,
-  type DropdownOption
+  type DataTableColumns
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { useUserStore } from '@/stores/user'
@@ -104,32 +102,7 @@ function roleLabel(role: string): string {
   return ROLE_LABELS[role] || role
 }
 
-// ===== 行操作菜单（NDropdown 选项 + 分发） =====
-const ROW_ACTIONS: DropdownOption[] = [
-  {
-    label: '编辑',
-    key: 'edit',
-    icon: () => h(NIcon, null, { default: () => h(Pencil) })
-  },
-  {
-    label: '重置密码',
-    key: 'reset-pwd',
-    icon: () => h(NIcon, null, { default: () => h(KeyRound) })
-  },
-  { type: 'divider', key: 'd1' },
-  {
-    label: '删除',
-    key: 'delete',
-    props: { style: 'color: var(--n-error-color)' },
-    icon: () => h(NIcon, { color: 'var(--n-error-color)' }, { default: () => h(Trash2) })
-  }
-]
-
-function onRowAction(key: string | number, u: SystemUser) {
-  if (key === 'edit') openEdit(u)
-  else if (key === 'reset-pwd') openReset(u)
-  else if (key === 'delete') onDelete(u)
-}
+// ===== 行操作: 平铺一行小按钮 (跟其他列表风格一致) =====
 
 // ===== 表格列定义 =====
 const columns = computed<DataTableColumns<SystemUser>>(() => [
@@ -172,24 +145,40 @@ const columns = computed<DataTableColumns<SystemUser>>(() => [
     title: '操作',
     key: 'actions',
     align: 'right',
-    width: 80,
+    width: 240,
     render: (row) =>
-      h(
-        NDropdown,
-        {
-          options: ROW_ACTIONS,
-          trigger: 'click',
-          onSelect: (key: string | number) => onRowAction(key, row)
-        },
-        {
-          default: () =>
-            h(
-              NButton,
-              { circle: true, quaternary: true, size: 'small' },
-              { default: () => h(NIcon, null, { default: () => h(MoreVertical) }) }
-            )
-        }
-      )
+      h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            onClick: () => openEdit(row),
+            title: '编辑用户信息'
+          },
+          { icon: () => h(NIcon, null, { default: () => h(Pencil) }), default: () => '编辑' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            onClick: () => openReset(row),
+            title: '重置该用户登录密码'
+          },
+          { icon: () => h(NIcon, null, { default: () => h(KeyRound) }), default: () => '重置密码' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            type: 'error',
+            onClick: () => onDelete(row)
+          },
+          { icon: () => h(NIcon, null, { default: () => h(Trash2) }), default: () => '删除' }
+        )
+      ])
   }
 ])
 

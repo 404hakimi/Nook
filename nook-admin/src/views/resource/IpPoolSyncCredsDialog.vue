@@ -139,9 +139,10 @@ function close() {
   <NModal
     :show="modelValue"
     preset="card"
-    style="max-width: 42rem"
+    style="max-width: 56rem; width: 92vw"
     :bordered="false"
     :mask-closable="false"
+    :close-on-esc="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <template #header>
@@ -156,12 +157,6 @@ function close() {
         / {{ ip.socks5Username }}
       </span>
     </template>
-
-    <div class="text-xs text-zinc-500 mb-3">
-      把 DB 里当前的 SOCKS5 配置 (port/user/password/log/firewall) 推到 landing 上的 dante 服务,
-      并重建 fra-line 上对应 client 的 outbound. <strong>仅凭据变化时零 downtime</strong>;
-      若 port 或 log 路径变化则会 restart dante (~1 秒).
-    </div>
 
     <NForm
       :model="form"

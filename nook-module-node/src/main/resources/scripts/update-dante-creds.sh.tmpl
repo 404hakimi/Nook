@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
 #
-# Nook SOCKS5 凭据热更新脚本 (dante-server + PAM).
-# 用途: 改 port / user / password / log / firewall 等参数, 不重装包.
-#
-# 核心优势: PAM pam_pwdfile 每次连接重读密码文件, 改 user/pass 零 downtime;
-# 仅当 port / log_level / log_path / external_iface 等需要改 danted.conf 时才 restart 服务.
-#
+# Nook SOCKS5 凭据 / 配置热更新 (dante-server + PAM).
+# user/pass 改完 PAM pam_pwdfile 自动重读零 downtime; 仅当 port/log/firewall 需重写 conf 时才 restart.
 # 渲染时间: {{RENDER_AT}}
 #
 
 set -euo pipefail
 
-# 新值 (来自 DB 当前状态)
 NEW_SOCKS_PORT="{{SOCKS_PORT}}"
 NEW_SOCKS_USER="{{SOCKS_USER}}"
 NEW_SOCKS_PASS="{{SOCKS_PASS}}"
@@ -39,11 +34,20 @@ err()  { echo -e "${RED}[x]${NC} $*" >&2; }
 [[ -f "$DANTE_CONF" ]] || { err "dante 未安装 ($DANTE_CONF 不存在), 请先走 install-dante"; exit 1; }
 command -v htpasswd >/dev/null || { err "htpasswd 未装, apt install apache2-utils"; exit 1; }
 
-# ===== 1. 改 PAM 密码文件 (零 downtime) =====
-# pam_pwdfile 每次连接重读, 改完立即生效, 不动 dante 服务
+# 时区兜底: 统一 Asia/Shanghai (老条目 sync 时自动迁移)
+TARGET_TZ="Asia/Shanghai"
+CURRENT_TZ=$(timedatectl show -p Timezone --value 2>/dev/null || echo "")
+if [[ "$CURRENT_TZ" != "$TARGET_TZ" ]]; then
+    if timedatectl set-timezone "$TARGET_TZ" 2>/dev/null; then
+        log "时区 $CURRENT_TZ → $TARGET_TZ"
+    else
+        warn "时区设置失败, 当前: $CURRENT_TZ (不阻塞)"
+    fi
+fi
+
 log "更新用户凭据: $NEW_SOCKS_USER"
 if [[ -f "$PWDFILE" ]]; then
-    # 删旧 user 再加新 (兼容用户名变更); -D 在文件中不存在该 user 时会非 0 退出, || true 兜底
+    # 删旧 user 再加新, 兼容用户名变更
     while IFS=: read -r u _; do
         [[ -n "$u" && "$u" != "$NEW_SOCKS_USER" ]] && htpasswd -D "$PWDFILE" "$u" >/dev/null 2>&1 || true
     done < "$PWDFILE"
@@ -53,7 +57,6 @@ else
 fi
 chmod 600 "$PWDFILE"
 
-# ===== 2. 检测 danted.conf 是否需要改 (port / log_level / log_path) =====
 NEED_RESTART=0
 CUR_PORT=$(awk '/^internal:/ { for (i=1;i<=NF;i++) if ($i=="=") { print $(i+1); exit } }' "$DANTE_CONF" 2>/dev/null || echo "")
 CUR_LOG_PATH=$(awk '/^logoutput:/ { print $2; exit }' "$DANTE_CONF" 2>/dev/null || echo "")
@@ -61,9 +64,7 @@ CUR_LOG_PATH=$(awk '/^logoutput:/ { print $2; exit }' "$DANTE_CONF" 2>/dev/null 
 if [[ "$CUR_PORT" != "$NEW_SOCKS_PORT" ]] || [[ "$CUR_LOG_PATH" != "$NEW_LOG_PATH" ]]; then
     NEED_RESTART=1
     log "检测到 port/log 变化 (port: $CUR_PORT -> $NEW_SOCKS_PORT, log: $CUR_LOG_PATH -> $NEW_LOG_PATH), 重写 conf..."
-    # 备份
     cp "$DANTE_CONF" "${DANTE_CONF}.bak.$(date +%s)"
-    # 探测出网网卡
     EXT_IF=$(awk '$2 == "00000000" {print $1; exit}' /proc/net/route 2>/dev/null || echo "lo")
     cat > "$DANTE_CONF" <<DANTECONF
 # Updated by nook update-dante-creds
@@ -76,7 +77,7 @@ socksmethod: pam.username
 clientmethod: none
 
 user.privileged: root
-user.notprivileged: nobody
+user.notprivileged: root
 
 client pass {
     from: 0.0.0.0/0 to: 0.0.0.0/0
@@ -95,34 +96,30 @@ socks block {
 }
 DANTECONF
     chmod 644 "$DANTE_CONF"
-    # 日志文件准备
     LOG_DIR=$(dirname "$NEW_LOG_PATH")
     [[ "$LOG_DIR" != "." && "$LOG_DIR" != "/" ]] && mkdir -p "$LOG_DIR"
-    touch "$NEW_LOG_PATH"; chmod 640 "$NEW_LOG_PATH"
+    touch "$NEW_LOG_PATH"; chmod 644 "$NEW_LOG_PATH"
 elif ! grep -qF "log: $NEW_LOG_LEVEL" "$DANTE_CONF"; then
-    # log_level 改了但 port/path 没变 — sed 替换 log 行 (匹配 "log: <旧值>")
     log "log_level 变化, sed 替换..."
+    # socks block 段的 'log: error' 也会被替换, 但 NEW_LOG_LEVEL 通常含 error, 行为可接受
     sed -i -E "s/^([[:space:]]*log:[[:space:]]+).+\$/\\1$NEW_LOG_LEVEL/" "$DANTE_CONF"
-    # 注意: socks block 段的 'log: error' 也会被替换, 但只要 NEW_LOG_LEVEL 包含 error 行为还 ok;
-    # 若担心可改为更精确匹配, 暂时简化
     NEED_RESTART=1
 fi
 
-# ===== 3. systemd autostart 切换 =====
 if [[ "$NEW_AUTOSTART_ENABLED" == "1" || "$NEW_AUTOSTART_ENABLED" == "true" ]]; then
     systemctl enable danted >/dev/null 2>&1 || true
 else
     systemctl disable danted >/dev/null 2>&1 || true
 fi
 
-# ===== 4. UFW 重新配 (规则差异检测代价大, 直接 reset + 重建) =====
+# 规则差异检测代价大, 直接 reset + 重建
 if [[ "$NEW_FIREWALL_ENABLED" == "1" || "$NEW_FIREWALL_ENABLED" == "true" ]]; then
     if command -v ufw >/dev/null; then
         log "重写 UFW (allow_from=$NEW_ALLOW_FROM)..."
         ufw --force reset >/dev/null
         ufw default deny incoming >/dev/null
         ufw default allow outgoing >/dev/null
-        # SSH 端口走入参 (默认 22), 防止改过端口的远端被 reset 锁外面
+        # SSH 端口走入参防止改过端口的远端被 reset 锁外面
         ufw allow "${SSH_PORT}/tcp" comment "SSH" >/dev/null
         ufw allow from "$NEW_ALLOW_FROM" to any port "$NEW_SOCKS_PORT" proto tcp >/dev/null
         ufw allow from "$NEW_ALLOW_FROM" to any port "$NEW_SOCKS_PORT" proto udp >/dev/null
@@ -134,8 +131,31 @@ else
     warn "FIREWALL_ENABLED=0, 跳过 UFW 配置"
 fi
 
-# ===== 5. 仅 conf 改了才 restart, 否则 zero downtime =====
 if [[ "$NEED_RESTART" == "1" ]]; then
+    # 老条目 sync 时补 systemd drop-in (apt 包默认 sandbox 把 /home 关掉 + /var 只读, 必须解除)
+    if [[ ! -f /etc/systemd/system/danted.service.d/nook.conf ]]; then
+        log "补 systemd drop-in 解除 sandbox..."
+        mkdir -p /etc/systemd/system/danted.service.d
+        cat > /etc/systemd/system/danted.service.d/nook.conf <<'DROPIN'
+# Nook override: 解除 apt 包默认的 sandbox 限制
+[Service]
+InaccessibleDirectories=
+ReadOnlyDirectories=
+DROPIN
+        systemctl daemon-reload
+    fi
+
+    # 重启前确保 logfile 可写, 不然 dante 启动会 "could not open logfile" 失败
+    LOG_DIR=$(dirname "$NEW_LOG_PATH")
+    if [[ "$LOG_DIR" != "." && "$LOG_DIR" != "/" ]]; then
+        mkdir -p "$LOG_DIR"
+    fi
+    [[ -f "$NEW_LOG_PATH" ]] || touch "$NEW_LOG_PATH"
+    chmod 644 "$NEW_LOG_PATH" 2>/dev/null || true
+
+    # Nook 走 root 跑 dante 不用 nobody (sed 兜底, 老 conf 还是 nobody 时迁移)
+    sed -i 's/^user\.notprivileged:.*$/user.notprivileged: root/' "$DANTE_CONF" 2>/dev/null || true
+
     log "重启 danted (port / log 变化导致)..."
     systemctl restart danted
     sleep 1
@@ -149,7 +169,6 @@ else
     log "✔ 仅凭据变化, PAM 自动重读, 零 downtime"
 fi
 
-# ===== 自检 =====
 PUB=$(curl -s --max-time 10 \
     --socks5 "$NEW_SOCKS_USER:$NEW_SOCKS_PASS@127.0.0.1:$NEW_SOCKS_PORT" \
     https://ipinfo.io/ip 2>/dev/null || echo "TEST_FAILED")
@@ -159,7 +178,6 @@ else
     log "自检通过, 出网 IP: $PUB"
 fi
 
-# ===== 刷新 info.txt (运维入口配置随 DB 同步) =====
 if [[ -n "$INSTALL_DIR" && -d "$INSTALL_DIR" ]]; then
     cat > "$INSTALL_DIR/info.txt" <<INFO
 # Nook SOCKS5 落地节点 (dante-server)

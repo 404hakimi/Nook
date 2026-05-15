@@ -184,6 +184,70 @@ public class ServerProbe {
     }
 
     /**
+     * 文件路径白名单 (绝对路径前缀); 只允许读这些目录下的日志, 防止误读 /etc/shadow 等敏感文件.
+     * /var/log: 系统服务默认; /home: nook 自部署放在 /home/socks5 等; /opt: 第三方; /tmp: 临时调试.
+     */
+    private static final Pattern FILE_LOG_PATH_PATTERN = Pattern.compile(
+            "^/(var/log|home|opt|tmp)/[\\w./@\\-]{1,255}$");
+
+    /**
+     * 拉指定日志文件末尾若干行 (走 tail), 按关键词子串过滤; 复用 systemd-log 同款 RespVO 结构 (level 字段填 "file").
+     *
+     * <p>路径必须绝对 + 走白名单校验 (FILE_LOG_PATH_PATTERN); 不允许 .. 路径回溯.
+     * 文件不存在 / 无权读 时不抛错, 仅吐空日志 + 走 || true 防 set -e.
+     *
+     * @param session  caller 已 acquire 的 SSH 会话
+     * @param filePath 远端日志文件绝对路径
+     * @param logLines 行数 (默认 100, 上限 5000); 复用 readJournalLog 同一档配置
+     * @param keyword  关键词子串过滤 (大小写不敏感), 走 LOG_KEYWORD_PATTERN 防注入
+     * @return JournalLogSnapshot; unit 填 filePath, level 填 "file" 让前端识别
+     */
+    public JournalLogSnapshot readFileLog(SshSession session, String filePath,
+                                           Integer logLines, String keyword) {
+        if (StrUtil.isBlank(filePath) || filePath.contains("..")
+                || !FILE_LOG_PATH_PATTERN.matcher(filePath).matches()) {
+            throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
+                    session.serverId(), "非法日志文件路径: " + filePath);
+        }
+        int lines = (logLines == null || logLines <= 0)
+                ? DEFAULT_LOG_LINES
+                : Math.min(logLines, MAX_LOG_LINES);
+
+        String normalizedKeyword = StrUtil.isBlank(keyword) ? null : keyword.trim();
+        String grepClause = "";
+        if (normalizedKeyword != null) {
+            if (!LOG_KEYWORD_PATTERN.matcher(normalizedKeyword).matches()) {
+                throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
+                        session.serverId(),
+                        "非法搜索关键词 (仅允许字母/数字/中文/空格/._-:/@): " + keyword);
+            }
+            grepClause = " | grep -i -F --color=never -- '" + normalizedKeyword + "'";
+        }
+        // tail -n; 文件不存在退出非 0 但 || true 兜底返回空字符串, 前端会展示 "无命中/空"
+        String cmd = "[ -f '" + filePath + "' ] && tail -n " + lines + " '" + filePath + "'"
+                + grepClause + " 2>/dev/null || true";
+        String out = session.ssh().exec(cmd).getStdout();
+        return new JournalLogSnapshot(filePath, lines, "file", normalizedKeyword,
+                out == null ? "" : out);
+    }
+
+    /**
+     * 拉 UFW 防火墙状态原文 (verbose 模式; 含 Default + Status + 全部规则).
+     * ufw 未装 / 未启用都吐字符串, 不抛异常, 让前端直接 pre 展示.
+     *
+     * @param session caller 已 acquire 的 SSH 会话
+     * @return ufw status verbose 的输出 (失败时返回提示文案)
+     */
+    public String readUfwStatus(SshSession session) {
+        // command -v ufw 兼容未装 ufw 的远端; 套 || true 避免 set -e 在远端 shell 触发非 0 退出
+        String cmd = "if command -v ufw >/dev/null 2>&1; then "
+                + "ufw status verbose 2>&1 || true; "
+                + "else echo '(ufw 未安装)'; fi";
+        String out = session.ssh().exec(cmd).getStdout();
+        return out == null ? "" : out.trim();
+    }
+
+    /**
      * 归一化前端传入的 level, 容错 warn / error 等同义词, 未识别一律 all.
      *
      * @param raw 入参 level

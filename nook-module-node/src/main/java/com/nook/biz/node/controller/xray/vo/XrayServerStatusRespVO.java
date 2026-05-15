@@ -1,5 +1,6 @@
 package com.nook.biz.node.controller.xray.vo;
 
+import com.nook.biz.node.controller.resource.vo.HostInfoRespVO;
 import lombok.Data;
 
 /** Xray systemd 服务运行状态 + xray 专属字段 (version / 监听端口); 由 XrayServerManageService.status 返回. */
@@ -21,4 +22,10 @@ public class XrayServerStatusRespVO {
     private String listening;
     /** systemctl is-enabled 输出: enabled / disabled / static / masked / ... — 表示是否开机自启. */
     private String enabled;
+
+    /** UFW 防火墙状态 (ufw status verbose 输出原文); 未装 ufw 时为 "(ufw 未安装)" 之类的提示文案. */
+    private String ufwStatus;
+
+    /** 远端主机基本信息 (hostname/内存/磁盘/uptime 等), 详情弹框默认折叠展示. */
+    private HostInfoRespVO hostInfo;
 }

@@ -6,6 +6,8 @@ import {
   NIcon,
   NInput,
   NModal,
+  NRadioButton,
+  NRadioGroup,
   NSelect,
   NSpace,
   NSpin,
@@ -13,10 +15,14 @@ import {
 } from 'naive-ui'
 import {
   getSocks5Log,
+  getSocks5LogFile,
   type ResourceIpPool,
   type Socks5Log,
   type Socks5LogLevel
 } from '@/api/resource/ip-pool'
+
+/** 日志源切换: file = dante 自己的 logfile (access 内容, 默认), journal = systemctl journal (启停 + 启动报错). */
+type LogSource = 'file' | 'journal'
 
 interface Props {
   modelValue: boolean
@@ -47,6 +53,8 @@ const LOG_LEVEL_OPTIONS: { label: string; value: Socks5LogLevel }[] = [
 const logLines = ref(100)
 const logLevel = ref<Socks5LogLevel>('all')
 const logKeyword = ref('')
+/** 日志源默认 file: 看拨号/流量真实记录; 切到 journal 排障启停问题. */
+const logSource = ref<LogSource>('file')
 
 let keywordTimer: ReturnType<typeof setTimeout> | null = null
 function onKeywordChange(v: string) {
@@ -80,11 +88,20 @@ async function runLog() {
   if (!props.ip || logLoading.value) return
   logLoading.value = true
   try {
-    danteLog.value = await getSocks5Log(props.ip.id, {
-      lines: logLines.value,
-      level: logLevel.value,
-      keyword: logKeyword.value || undefined
-    })
+    // file 源: 走 dante logfile, 没有 level 概念 (文件本身不分级)
+    // journal 源: 走 systemctl journal, 支持 level 过滤
+    if (logSource.value === 'file') {
+      danteLog.value = await getSocks5LogFile(props.ip.id, {
+        lines: logLines.value,
+        keyword: logKeyword.value || undefined
+      })
+    } else {
+      danteLog.value = await getSocks5Log(props.ip.id, {
+        lines: logLines.value,
+        level: logLevel.value,
+        keyword: logKeyword.value || undefined
+      })
+    }
   } catch (e) {
     danteLog.value = null
     message.error('拉日志失败: ' + ((e as Error).message ?? ''))
@@ -116,39 +133,52 @@ function close() {
       </span>
     </template>
 
-    <div class="flex gap-2 flex-wrap items-center justify-end mb-3">
-      <NInput
-        :value="logKeyword"
+    <div class="flex gap-2 flex-wrap items-center justify-between mb-3">
+      <NRadioGroup
+        v-model:value="logSource"
         size="small"
-        class="w-60"
-        placeholder="搜关键词 (子串/不区分大小写)"
-        clearable
         :disabled="logLoading"
-        @update:value="onKeywordChange"
-        @keyup.enter="onKeywordEnter"
+        @update:value="runLog"
       >
-        <template #prefix><NIcon><Search /></NIcon></template>
-      </NInput>
-      <NSelect
-        v-model:value="logLines"
-        :options="LOG_LINES_OPTIONS"
-        size="small"
-        class="w-24"
-        :disabled="logLoading"
-        @update:value="runLog"
-      />
-      <NSelect
-        v-model:value="logLevel"
-        :options="LOG_LEVEL_OPTIONS"
-        size="small"
-        class="w-28"
-        :disabled="logLoading"
-        @update:value="runLog"
-      />
-      <NButton quaternary size="small" :disabled="logLoading" @click="runLog">
-        <template #icon><NIcon><RefreshCw /></NIcon></template>
-        刷新日志
-      </NButton>
+        <NRadioButton value="file" title="dante logfile, 含拨号 / 流量记录 (业务日志)">文件日志</NRadioButton>
+        <NRadioButton value="journal" title="systemctl journal, 含启停 / 启动报错 (服务日志)">systemd 日志</NRadioButton>
+      </NRadioGroup>
+
+      <div class="flex gap-2 items-center">
+        <NInput
+          :value="logKeyword"
+          size="small"
+          class="w-60"
+          placeholder="搜关键词 (子串/不区分大小写)"
+          clearable
+          :disabled="logLoading"
+          @update:value="onKeywordChange"
+          @keyup.enter="onKeywordEnter"
+        >
+          <template #prefix><NIcon><Search /></NIcon></template>
+        </NInput>
+        <NSelect
+          v-model:value="logLines"
+          :options="LOG_LINES_OPTIONS"
+          size="small"
+          class="w-24"
+          :disabled="logLoading"
+          @update:value="runLog"
+        />
+        <NSelect
+          v-if="logSource === 'journal'"
+          v-model:value="logLevel"
+          :options="LOG_LEVEL_OPTIONS"
+          size="small"
+          class="w-28"
+          :disabled="logLoading"
+          @update:value="runLog"
+        />
+        <NButton quaternary size="small" :disabled="logLoading" @click="runLog">
+          <template #icon><NIcon><RefreshCw /></NIcon></template>
+          刷新日志
+        </NButton>
+      </div>
     </div>
 
     <NSpin :show="logLoading && !danteLog">

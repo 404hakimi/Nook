@@ -216,9 +216,9 @@ const columns = computed<DataTableColumns<XrayNode>>(() => [
       const busy = rowBusy.value[row.serverId]
       return h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
         renderActionButton({
-          tooltip: '查看 Xray 运行状态 / 版本 / 监听端口; 弹窗内可切换开机自启',
+          tooltip: '查看 Xray 运行状态 / 版本 / 监听端口 / UFW / 主机信息; 弹窗内可切换开机自启',
           icon: Eye,
-          label: '详情',
+          label: '服务状态',
           disabled: !!busy,
           onClick: () => openStatus(row)
         }),

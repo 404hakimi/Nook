@@ -75,4 +75,15 @@ public interface ResourceIpSocksService {
      * @return 日志快照
      */
     ServiceLogRespVO getSocks5Log(String ipId, Integer lines, String level, String keyword);
+
+    /**
+     * 拉 dante 自己的日志文件 (DB.log_path 指向, 默认 /home/socks5/logs/sockd.log),
+     * 跟 systemd journal 互补 — journal 只有启动 banner, file 才有真正的拨号 / 流量记录.
+     *
+     * @param ipId    resource_ip_pool.id; 必须有 log_path 配置 (空时按 install_dir 兜底)
+     * @param lines   行数 (默认 100, 上限 5000)
+     * @param keyword 关键词子串过滤
+     * @return 日志快照; unit 字段填实际文件路径
+     */
+    ServiceLogRespVO getSocks5LogFile(String ipId, Integer lines, String keyword);
 }

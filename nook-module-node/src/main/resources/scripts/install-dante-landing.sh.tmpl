@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 #
-# Nook SOCKS5 落地节点安装脚本 — 基于 dante-server (Ubuntu apt 包) + PAM 用户密码认证.
-# 跟早期 xray-as-socks5 方案对比:
-#   - 体积: dante 941KB vs xray 20MB+
-#   - 改密码: htpasswd -b + PAM 自动重读 = 零 downtime; xray 路径必须 systemctl restart
-#   - apt 装机就有 systemd unit, 不用源码编译 (Lozy/danted 走源码路线我们绕过去了)
-#
+# Nook SOCKS5 落地节点安装脚本 — dante-server + PAM 用户密码认证.
 # 渲染时间: {{RENDER_AT}}
 #
 
@@ -26,7 +21,6 @@ DANTE_CONF=/etc/danted.conf
 PAM_FILE=/etc/pam.d/sockd
 PWDFILE=/etc/danted/sockd.passwd
 
-# nook 后台调用走非 TTY 分支, 不带 ANSI 码
 if [ -t 1 ]; then
     GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 else
@@ -36,7 +30,6 @@ log()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[x]${NC} $*" >&2; }
 
-# ===== 前置 =====
 [[ $EUID -eq 0 ]] || { err "需 root"; exit 1; }
 [[ -f /etc/os-release ]] || { err "无法识别系统"; exit 1; }
 . /etc/os-release
@@ -44,22 +37,32 @@ err()  { echo -e "${RED}[x]${NC} $*" >&2; }
     || { err "仅支持 Ubuntu 22.04+, 当前: $ID $VERSION_ID"; exit 1; }
 log "系统 OK: Ubuntu $VERSION_ID"
 
-# ===== 创建安装目录 (logs / etc 等运维资产; 跟 xray 习惯一致, 方便后期排障入口) =====
+# 统一 Asia/Shanghai (跟 xray 部署同口径, 跨节点时间戳一致便于排障)
+TARGET_TZ="Asia/Shanghai"
+CURRENT_TZ=$(timedatectl show -p Timezone --value 2>/dev/null || echo "")
+if [[ "$CURRENT_TZ" != "$TARGET_TZ" ]]; then
+    if timedatectl set-timezone "$TARGET_TZ" 2>/dev/null; then
+        log "时区 $CURRENT_TZ → $TARGET_TZ"
+    else
+        warn "时区设置失败, 当前: $CURRENT_TZ (不阻塞)"
+    fi
+else
+    log "时区已是 $TARGET_TZ"
+fi
+
 log "准备安装目录: $INSTALL_DIR (logs/etc)"
 mkdir -p "$INSTALL_DIR/logs" "$INSTALL_DIR/etc"
 chmod 755 "$INSTALL_DIR"
 
 export DEBIAN_FRONTEND=noninteractive
-log "安装 dante-server + apache2-utils (htpasswd) + libpam-pwdfile..."
+log "安装 dante-server + apache2-utils + libpam-pwdfile..."
 apt-get update -qq
 apt-get install -y -qq dante-server apache2-utils libpam-pwdfile iproute2 curl
 
-# ===== 探测出网网卡 (dante external 字段) =====
-# /proc/net/route 拿 default route 出口 iface; 失败兜底用环回防 conf 语法挂掉
+# default route 出口 iface; 失败兜底环回防 conf 语法挂掉
 EXT_IF=$(awk '$2 == "00000000" {print $1; exit}' /proc/net/route 2>/dev/null || echo "lo")
 log "出网网卡: $EXT_IF"
 
-# ===== 写 PAM 配置 (走 pam_pwdfile 读纯文本密码文件, 不动 /etc/shadow) =====
 log "配置 PAM (pam_pwdfile -> $PWDFILE)..."
 mkdir -p "$(dirname "$PWDFILE")"
 cat > "$PAM_FILE" <<PAM
@@ -69,13 +72,10 @@ account  required pam_permit.so
 PAM
 chmod 644 "$PAM_FILE"
 
-# ===== 写 sockd.passwd (htpasswd, bcrypt) =====
 log "写用户凭据: $SOCKS_USER"
-# -B = bcrypt; -c = 新建; -b = 命令行带密码 (避免交互)
 htpasswd -bcB "$PWDFILE" "$SOCKS_USER" "$SOCKS_PASS"
 chmod 600 "$PWDFILE"
 
-# ===== 写 danted.conf =====
 log "写 $DANTE_CONF (port=$SOCKS_PORT log='$LOG_LEVEL')..."
 if [[ -f "$DANTE_CONF" ]]; then
     cp "$DANTE_CONF" "${DANTE_CONF}.bak.$(date +%s)"
@@ -91,7 +91,7 @@ socksmethod: pam.username
 clientmethod: none
 
 user.privileged: root
-user.notprivileged: nobody
+user.notprivileged: root
 
 client pass {
     from: 0.0.0.0/0 to: 0.0.0.0/0
@@ -111,17 +111,25 @@ socks block {
 DANTECONF
 chmod 644 "$DANTE_CONF"
 
-# ===== 日志目录 + 文件 (logoutput 不会自己 mkdir) =====
+# logoutput 不会自己 mkdir
 LOG_DIR=$(dirname "$LOG_PATH")
 [[ "$LOG_DIR" != "." && "$LOG_DIR" != "/" ]] && mkdir -p "$LOG_DIR"
 touch "$LOG_PATH"
-chmod 640 "$LOG_PATH"
+chmod 644 "$LOG_PATH"
 
-# ===== 配置语法校验 (dante 没 dry-run, 用 -V 至少加载配置一次) =====
-# 注: dante 在 -V 时仍会绑端口, 跑前先 stop 老服务防 EADDRINUSE
+# apt 自带 danted.service 把 /home 设 InaccessibleDirectories + /var 设 ReadOnlyDirectories,
+# 不解除 dante 看不到 /home/socks5/, 也写不进 /var/log/.
+log "写 systemd drop-in 解除 sandbox..."
+mkdir -p /etc/systemd/system/danted.service.d
+cat > /etc/systemd/system/danted.service.d/nook.conf <<'DROPIN'
+# Nook override: 解除 apt 包默认的 sandbox 限制
+[Service]
+InaccessibleDirectories=
+ReadOnlyDirectories=
+DROPIN
+
 systemctl stop danted >/dev/null 2>&1 || true
 
-# ===== systemd =====
 log "配置 systemd (autostart=$AUTOSTART_ENABLED)..."
 systemctl daemon-reload
 if [[ "$AUTOSTART_ENABLED" == "1" || "$AUTOSTART_ENABLED" == "true" ]]; then
@@ -143,24 +151,22 @@ if ! ss -ltn 2>/dev/null | grep -q ":$SOCKS_PORT "; then
 fi
 log "✔ dante SOCKS5 监听 0.0.0.0:$SOCKS_PORT"
 
-# ===== UFW =====
 if [[ "$FIREWALL_ENABLED" == "1" || "$FIREWALL_ENABLED" == "true" ]]; then
     log "配置 UFW (allow_from=$ALLOW_FROM)..."
     apt-get install -y -qq ufw
     ufw --force reset >/dev/null
     ufw default deny incoming >/dev/null
     ufw default allow outgoing >/dev/null
-    # SSH 端口走入参 (默认 22), 防止远端改过端口后 reset 把自己锁外面
+    # SSH 端口走入参防止改过端口的远端被 reset 锁外面
     ufw allow "${SSH_PORT}/tcp" comment "SSH" >/dev/null
     ufw allow from "$ALLOW_FROM" to any port "$SOCKS_PORT" proto tcp >/dev/null
     ufw allow from "$ALLOW_FROM" to any port "$SOCKS_PORT" proto udp >/dev/null
     ufw --force enable >/dev/null
     log "UFW: SSH(${SSH_PORT}) + SOCKS5(${SOCKS_PORT}) 已放行, 仅允许来源 $ALLOW_FROM"
 else
-    warn "FIREWALL_ENABLED=0, 跳过 UFW 配置 (注意: SOCKS5 端口对全网开放)"
+    warn "FIREWALL_ENABLED=0, 跳过 UFW 配置 (SOCKS5 端口对全网开放)"
 fi
 
-# ===== 自检 =====
 log "自检 SOCKS5 拨号..."
 PUB=$(curl -s --max-time 10 \
     --socks5 "$SOCKS_USER:$SOCKS_PASS@127.0.0.1:$SOCKS_PORT" \
@@ -171,7 +177,6 @@ if [[ "$PUB" == "TEST_FAILED" ]]; then
     PUB=$(curl -s4 --max-time 5 ifconfig.me || echo "<your-ip>")
 fi
 
-# ===== 写 info.txt 到安装目录 (运维一眼就能看到关键路径 / 端口, 不用翻 systemctl) =====
 cat > "$INSTALL_DIR/info.txt" <<INFO
 # Nook SOCKS5 落地节点 (dante-server)
 install_at: $(date '+%Y-%m-%d %H:%M:%S %z')

@@ -74,11 +74,27 @@ public interface ResourceIpPoolService {
     ResourceIpPoolDO occupyById(String id, String memberUserId);
 
     /**
-     * 退订: 状态切到 cooling, 到期由 {@link #sweepExpiredCooling} 回到 available.
+     * 退订 (user-facing): 状态切到 cooling, 到期由 {@link #sweepExpiredCooling} 回到 available.
+     *
+     * <p>独立事务 (REQUIRES_NEW), 带 bound-client 守卫 — 若 IP 仍被 client 引用直接抛错,
+     * 防 controller 端手动退订把 IP 跟 client 解绑造成漂移.
      *
      * @param id IP 池编号
      */
     void releaseToCooling(String id);
+
+    /**
+     * 退订 (revoke 链路内部用): 跟外层事务共享 (REQUIRED), 不做 bound-client 校验.
+     *
+     * <p>跟 {@link #releaseToCooling} 行为一致, 但去掉 client 引用校验. revoke 主流程在外层
+     * 事务里先 deleteById 删 client, 用 REQUIRES_NEW 看不到外层未 commit 的 delete, 反而误判
+     * client 仍存在抛错, 导致 IP 状态停在 occupied 不切 cooling.
+     *
+     * <p>仅供 ClientOpExecutor 调; controller / job 等外部入口请用 {@link #releaseToCooling}.
+     *
+     * @param id IP 池编号
+     */
+    void releaseToCoolingForRevoke(String id);
 
     /**
      * 扫冷却到期条目回到 available; 调度器定时调用.

@@ -28,4 +28,10 @@ public class Socks5StatusRespVO {
 
     /** systemctl is-enabled 输出: enabled / disabled / static / masked / ... */
     private String enabled;
+
+    /** UFW 防火墙状态 (ufw status verbose 输出原文). */
+    private String ufwStatus;
+
+    /** 远端主机基本信息; 详情弹框默认折叠展示. */
+    private HostInfoRespVO hostInfo;
 }

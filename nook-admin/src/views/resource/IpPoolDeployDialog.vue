@@ -286,9 +286,10 @@ function close() {
   <NModal
     :show="modelValue"
     preset="card"
-    style="max-width: 48rem"
+    style="max-width: 72rem; width: 92vw"
     :bordered="false"
     :mask-closable="false"
+    :close-on-esc="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <template #header>
@@ -305,8 +306,8 @@ function close() {
       size="small"
     >
       <div class="text-sm font-semibold mb-2">SSH 凭据 (一次性)</div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
-        <div class="sm:col-span-2">
+      <div class="grid grid-cols-1 sm:grid-cols-6 gap-x-4">
+        <div class="sm:col-span-3">
           <NFormItem
             label="SSH 主机"
             required
@@ -344,31 +345,27 @@ function close() {
           <NInput v-model:value="form.sshUser" :disabled="installing" />
         </NFormItem>
 
-        <div class="sm:col-span-2"></div>
-
-        <div class="sm:col-span-3">
-          <NFormItem
-            label="SSH 密码"
-            required
-            :validation-status="errors.sshPassword ? 'error' : undefined"
-            :feedback="errors.sshPassword"
-          >
-            <NInput
-              v-model:value="form.sshPassword"
-              type="password"
-              show-password-on="click"
-              :disabled="installing"
-              :input-props="{ autocomplete: 'new-password' }"
-              placeholder="必填"
-            />
-          </NFormItem>
-        </div>
+        <NFormItem
+          label="SSH 密码"
+          required
+          :validation-status="errors.sshPassword ? 'error' : undefined"
+          :feedback="errors.sshPassword"
+        >
+          <NInput
+            v-model:value="form.sshPassword"
+            type="password"
+            show-password-on="click"
+            :disabled="installing"
+            :input-props="{ autocomplete: 'new-password' }"
+            placeholder="必填"
+          />
+        </NFormItem>
       </div>
 
       <div class="text-sm font-semibold mt-4 mb-2">
         超时配置
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4">
         <NFormItem
           :validation-status="errors.sshTimeoutSeconds ? 'error' : undefined"
           :feedback="errors.sshTimeoutSeconds"
@@ -436,7 +433,7 @@ function close() {
       </div>
 
       <div class="text-sm font-semibold mt-4 mb-2">SOCKS5 服务参数</div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-x-4">
         <NFormItem
           label="SOCKS5 端口"
           required
@@ -494,7 +491,7 @@ function close() {
           </NInputGroup>
         </NFormItem>
 
-        <div class="sm:col-span-2">
+        <div class="sm:col-span-3">
           <NFormItem>
             <template #label>
               <span>UFW allow_from</span>
@@ -520,12 +517,12 @@ function close() {
         高级配置
         <span class="text-xs text-zinc-400 ml-2 font-normal">(dante 日志 / 自启等; 保留默认即可)</span>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-x-4">
         <div class="sm:col-span-2">
           <NFormItem>
             <template #label>
               <span>日志级别</span>
-              <span class="text-xs text-zinc-400 ml-2">仅错误 / 警告 / 详细; 实际是 dante log 事件关键字组合</span>
+              <span class="text-xs text-zinc-400 ml-2">事件关键字组合</span>
             </template>
             <NSelect
               v-model:value="form.logLevel"
@@ -541,11 +538,11 @@ function close() {
           </NCheckbox>
         </NFormItem>
 
-        <div class="sm:col-span-3">
+        <div class="sm:col-span-2">
           <NFormItem>
             <template #label>
               <span>安装目录</span>
-              <span class="text-xs text-zinc-400 ml-2">logs / info.txt 等运维资产存放; 默认 /home/socks5</span>
+              <span class="text-xs text-zinc-400 ml-2">默认 /home/socks5</span>
             </template>
             <NInput
               v-model:value="form.installDir"
@@ -556,7 +553,7 @@ function close() {
           </NFormItem>
         </div>
 
-        <div class="sm:col-span-3">
+        <div class="sm:col-span-2">
           <NFormItem>
             <template #label>
               <span>日志路径</span>

@@ -177,7 +177,9 @@ async function onSubmit() {
     :show="modelValue"
     preset="card"
     :title="title"
-    :style="{ width: '600px' }"
+    :style="{ width: '720px', maxWidth: '92vw' }"
+    :mask-closable="false"
+    :close-on-esc="false"
     @update:show="onClose"
   >
     <NForm ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="110">

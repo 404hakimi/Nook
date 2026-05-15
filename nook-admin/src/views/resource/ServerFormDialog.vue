@@ -198,9 +198,10 @@ function close() {
     :show="modelValue"
     preset="card"
     :title="mode === 'create' ? '新增服务器' : '编辑服务器'"
-    style="max-width: 48rem"
+    style="max-width: 64rem; width: 92vw"
     :bordered="false"
     :mask-closable="false"
+    :close-on-esc="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <NSpin :show="loadingDetail">

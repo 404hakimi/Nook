@@ -1,25 +1,20 @@
 # ===== Module 40: UFW 防火墙 (可选) =====
 # 触发: installUfw=true
-# 阶段 1 改造: 不再开 vmess :443 (因为没有共享 inbound)
-#             改为开放客户端口段 {{SLOT_PORT_BASE}}-{{SLOT_PORT_END}} 给 1:1 模型用
+# 1:1 模型: 每客户独享一个 inbound 监听 SLOT_PORT_BASE+slot_index, 开整段
+# gRPC API 走 loopback + SSH 隧道不开公网
 
 log "=== Module 40: UFW + 防火墙规则 ==="
 
 apt-get install -y -qq ufw
 
-# 重置规则避免历史污染
+# reset 避免历史污染
 ufw --force reset >/dev/null
 
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 
-# SSH 必开
 ufw allow 22/tcp comment "SSH" >/dev/null
-
-# 客户端口段 (1:1 模型: 每客户独享一个 inbound, 监听 SLOT_PORT_BASE+slot_index)
 ufw allow {{SLOT_PORT_BASE}}:{{SLOT_PORT_END}}/tcp comment "nook client slots" >/dev/null
-
-# gRPC API 走 loopback + SSH 隧道, 不开公网
 
 ufw --force enable >/dev/null
 

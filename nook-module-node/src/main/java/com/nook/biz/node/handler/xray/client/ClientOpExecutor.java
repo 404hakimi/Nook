@@ -251,9 +251,11 @@ public class ClientOpExecutor {
         xrayClientMapper.deleteById(e.getId());
         xrayClientTrafficMapper.deleteByClientId(e.getId());
         slotPoolService.releaseSlot(e.getServerId(), e.getSlotIndex());
-        // releaseToCooling 是 REQUIRES_NEW 独立事务, 抛错也不污染本事务; 仍 try-catch 兜 IP 状态错位
+        // forRevoke 版本: 跟当前事务共享, 看得到刚 deleteById 的 client; 不做 bound 检查.
+        // 之前调 releaseToCooling (REQUIRES_NEW) 看不到外层未 commit 的 delete, 误判 bound != null 抛错,
+        // 导致 IP 卡在 occupied 不切 cooling — 已修.
         try {
-            resourceIpPoolService.releaseToCooling(e.getIpId());
+            resourceIpPoolService.releaseToCoolingForRevoke(e.getIpId());
         } catch (RuntimeException re) {
             log.warn("[revoke-db] IP 退订失败 ipId={}: {} (DB 主流程已完成)",
                     e.getIpId(), re.getMessage());

@@ -1,7 +1,7 @@
 # ===== Module 00: 基础环境检查 + apt 更新 =====
-# 必装. server 显示名: {{SERVER_NAME}} / 渲染时间: {{RENDER_AT}}
+# server: {{SERVER_NAME}} / 渲染时间: {{RENDER_AT}}
 
-# 仅在 TTY 上加颜色; nook 后台用 SSH 非交互模式跑这个脚本, 走非 TTY 分支不带 ANSI 码
+# nook 后台 SSH 非交互模式跑, 走非 TTY 分支不带 ANSI 码
 if [ -t 1 ]; then
     GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 else
@@ -13,23 +13,19 @@ err()  { echo -e "${RED}[x]${NC} $*" >&2; }
 
 log "=== Module 00: 环境检查 ==="
 
-# root 必须
 [[ $EUID -eq 0 ]] || { err "需 root 权限"; exit 1; }
 
-# Ubuntu 22+ 限制 (与 nook 当前生产环境对齐)
 [[ -f /etc/os-release ]] || { err "无法识别系统"; exit 1; }
 . /etc/os-release
 [[ "$ID" == "ubuntu" && "${VERSION_ID%.*}" -ge 22 ]] \
     || { err "仅支持 Ubuntu 22.04+, 当前: $ID $VERSION_ID"; exit 1; }
 
-# amd64 / arm64 限制
 ARCH=$(dpkg --print-architecture)
 [[ "$ARCH" == "amd64" || "$ARCH" == "arm64" ]] \
     || { err "仅支持 amd64/arm64, 当前: $ARCH"; exit 1; }
 
 log "✔ 系统 OK: Ubuntu $VERSION_ID $ARCH"
 
-# 更新 apt + 装基础工具
 log "更新 apt + 装基础工具 (curl/wget/jq/iproute2)..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
