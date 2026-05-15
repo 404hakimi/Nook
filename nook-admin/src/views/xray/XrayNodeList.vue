@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref, type Component } from 'vue'
-import { Eye, Power, PowerOff, RefreshCcw, Rocket, RotateCcw, Search } from 'lucide-vue-next'
+import { Eye, FileText, GitCompareArrows, LayoutGrid, Power, RefreshCcw, Rocket, Search } from 'lucide-vue-next'
 import {
   NButton,
   NCard,
@@ -14,15 +14,13 @@ import {
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { pageXrayNode, type XrayNode, type XrayNodePageQuery } from '@/api/xray/node'
-import {
-  getXrayServiceStatus,
-  xrayAutostart,
-  xrayRestart
-} from '@/api/xray/server'
-import { replayServer, type ReplayReport } from '@/api/xray/client'
+import { xrayRestart } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
 import ServerInstallDialog from '@/views/resource/ServerInstallDialog.vue'
-import XrayNodeOpsDialog from './XrayNodeOpsDialog.vue'
+import XrayNodeStatusDialog from './XrayNodeStatusDialog.vue'
+import XrayNodeSlotsDialog from './XrayNodeSlotsDialog.vue'
+import XrayNodeLogDialog from './XrayNodeLogDialog.vue'
+import XrayNodeDiffDialog from './XrayNodeDiffDialog.vue'
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -38,7 +36,7 @@ const total = ref(0)
 const loading = ref(false)
 
 /** 行级 loading 状态: serverId → 当前进行中的操作 (null = 空闲); 用于按钮 loading + disabled */
-type RowOp = 'restart' | 'autostart' | 'replay'
+type RowOp = 'restart'
 const rowBusy = ref<Record<string, RowOp | null>>({})
 
 async function loadList() {
@@ -87,12 +85,28 @@ function onInstalled() {
   loadList()
 }
 
-// ===== 行内: 详情 (打开纯查看弹框) =====
-const opsOpen = ref(false)
-const opsTarget = ref<XrayNode | null>(null)
-function openDetail(n: XrayNode) {
-  opsTarget.value = n
-  opsOpen.value = true
+// ===== 行内: 详情 / Slot / 日志 / 查看差异 四个独立弹窗 =====
+const statusOpen = ref(false)
+const slotsOpen = ref(false)
+const logOpen = ref(false)
+const diffOpen = ref(false)
+const dialogTarget = ref<XrayNode | null>(null)
+
+function openStatus(n: XrayNode) {
+  dialogTarget.value = n
+  statusOpen.value = true
+}
+function openSlots(n: XrayNode) {
+  dialogTarget.value = n
+  slotsOpen.value = true
+}
+function openLog(n: XrayNode) {
+  dialogTarget.value = n
+  logOpen.value = true
+}
+function openDiff(n: XrayNode) {
+  dialogTarget.value = n
+  diffOpen.value = true
 }
 
 // ===== 行内: 重启 Xray =====
@@ -112,69 +126,6 @@ async function onRestart(row: XrayNode) {
     message.success(`${label}: 已重启`)
   } catch (e) {
     message.error('重启失败: ' + ((e as Error).message ?? ''))
-  } finally {
-    rowBusy.value[row.serverId] = null
-  }
-}
-
-// ===== 行内: 切换自启 (动态: 先拉 status 拿当前 enabled, 再 confirm 反转) =====
-async function onToggleAutostart(row: XrayNode) {
-  if (rowBusy.value[row.serverId]) return
-  const label = row.serverName || row.serverId.slice(0, 12)
-  rowBusy.value[row.serverId] = 'autostart'
-  try {
-    const status = await getXrayServiceStatus(row.serverId)
-    const currentlyEnabled = status.enabled?.trim() === 'enabled'
-    const target = !currentlyEnabled
-    const ok = await confirm({
-      title: target ? '开启开机自启' : '关闭开机自启',
-      message: target
-        ? `开启 "${label}" 的 Xray 开机自启?`
-        : `关闭 "${label}" 的 Xray 开机自启?`,
-      type: target ? 'info' : 'warning',
-      confirmText: target ? '开启' : '关闭'
-    })
-    if (!ok) {
-      rowBusy.value[row.serverId] = null
-      return
-    }
-    await xrayAutostart(row.serverId, target)
-    message.success(`${label}: ${target ? '已开启自启' : '已关闭自启'}`)
-  } catch (e) {
-    message.error('切换自启失败: ' + ((e as Error).message ?? ''))
-  } finally {
-    rowBusy.value[row.serverId] = null
-  }
-}
-
-// ===== 行内: Replay 全部 client =====
-async function onReplay(row: XrayNode) {
-  if (rowBusy.value[row.serverId]) return
-  const label = row.serverName || row.serverId.slice(0, 12)
-  const ok = await confirm({
-    title: 'Replay 全部 client',
-    message: `将 "${label}" 上所有 client 重推到远端?`,
-    type: 'warning',
-    confirmText: '开始 Replay'
-  })
-  if (!ok) return
-  rowBusy.value[row.serverId] = 'replay'
-  try {
-    const report: ReplayReport = await replayServer(row.serverId)
-    const tip = `总 ${report.totalCount} · 已对齐 ${report.alreadyOkCount} · 推送 ${report.successCount}`
-    if (report.failedClientIds.length === 0) {
-      message.success(
-        report.successCount === 0
-          ? `${label}: Replay 跳过, 全部 ${report.alreadyOkCount} 个 client 远端已对齐`
-          : `${label}: Replay 完成 (${tip})`
-      )
-    } else {
-      message.warning(
-        `${label}: Replay 部分失败 ${tip} · 失败 ${report.failedClientIds.length} (已标 status=3 等下轮自动重试)`
-      )
-    }
-  } catch (e) {
-    message.error('Replay 失败: ' + ((e as Error).message ?? ''))
   } finally {
     rowBusy.value[row.serverId] = null
   }
@@ -260,16 +211,37 @@ const columns = computed<DataTableColumns<XrayNode>>(() => [
     title: '操作',
     key: 'actions',
     align: 'right',
-    width: 320,
+    width: 400,
     render: (row) => {
       const busy = rowBusy.value[row.serverId]
       return h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
         renderActionButton({
-          tooltip: '查看 Xray 运行状态 / 监听端口 / 日志 / 对账',
+          tooltip: '查看 Xray 运行状态 / 版本 / 监听端口; 弹窗内可切换开机自启',
           icon: Eye,
           label: '详情',
           disabled: !!busy,
-          onClick: () => openDetail(row)
+          onClick: () => openStatus(row)
+        }),
+        renderActionButton({
+          tooltip: '对比远端 inbound 与 DB 差异 (只读); 有缺失时可一键推送修复',
+          icon: GitCompareArrows,
+          label: '查看差异',
+          disabled: !!busy,
+          onClick: () => openDiff(row)
+        }),
+        renderActionButton({
+          tooltip: '查看该 server 上 slot 池 50 个槽位的占用情况 + 绑定 client',
+          icon: LayoutGrid,
+          label: 'Slot 占用',
+          disabled: !!busy,
+          onClick: () => openSlots(row)
+        }),
+        renderActionButton({
+          tooltip: '查看 xray access / error 日志, 支持 50-1000 行 + 按级别过滤',
+          icon: FileText,
+          label: '日志',
+          disabled: !!busy,
+          onClick: () => openLog(row)
         }),
         renderActionButton({
           tooltip: '在远端 systemctl restart xray; 所有客户端会断开重连约 1-2 秒',
@@ -279,22 +251,6 @@ const columns = computed<DataTableColumns<XrayNode>>(() => [
           loading: busy === 'restart',
           disabled: !!busy && busy !== 'restart',
           onClick: () => onRestart(row)
-        }),
-        renderActionButton({
-          tooltip: '点击后先查 systemctl is-enabled 当前状态, 再确认切换 (enable ↔ disable)',
-          icon: PowerOff,
-          label: '切换自启',
-          loading: busy === 'autostart',
-          disabled: !!busy && busy !== 'autostart',
-          onClick: () => onToggleAutostart(row)
-        }),
-        renderActionButton({
-          tooltip: '按 DB 状态把所有 client 重推到远端; server 重启或部署后状态恢复用',
-          icon: RotateCcw,
-          label: 'Replay',
-          loading: busy === 'replay',
-          disabled: !!busy && busy !== 'replay',
-          onClick: () => onReplay(row)
         })
       ])
     }
@@ -422,7 +378,13 @@ onMounted(loadList)
     <!-- 部署 / 重装 弹框 (server 不传 → 自带选择器) -->
     <ServerInstallDialog v-model="installOpen" :server="null" @installed="onInstalled" />
 
-    <!-- 详情弹框 (纯查看, 状态 + 日志 + 对账) -->
-    <XrayNodeOpsDialog v-model="opsOpen" :node="opsTarget" />
+    <!-- 详情: 状态 + 自启开关 -->
+    <XrayNodeStatusDialog v-model="statusOpen" :node="dialogTarget" />
+    <!-- 查看差异 + 推送修复 -->
+    <XrayNodeDiffDialog v-model="diffOpen" :node="dialogTarget" />
+    <!-- Slot 占用 -->
+    <XrayNodeSlotsDialog v-model="slotsOpen" :node="dialogTarget" />
+    <!-- 日志 -->
+    <XrayNodeLogDialog v-model="logOpen" :node="dialogTarget" />
   </div>
 </template>

@@ -49,6 +49,8 @@ export interface XrayLog {
   unit?: string
   lines: number
   level: XrayLogLevel
+  /** 关键词回显; 空表示本次未过滤 */
+  keyword?: string
   log?: string
 }
 
@@ -70,18 +72,23 @@ export function getSystemdStatus(serverId: string, unit: string) {
     { params: { id: serverId, unit } })
 }
 
-/** 拉指定 systemd unit 的 journalctl 日志, 按行数 + 级别过滤. */
+/**
+ * 拉指定 systemd unit 的 journalctl 日志, 按行数 + 级别 + 关键词过滤.
+ * keyword: 子串匹配, 大小写不敏感; 后端走 grep -F -i, 空 / undefined 不过滤.
+ * 注意 lines 是 journalctl 拉的原始末尾行数, keyword 在这些行里再做子串过滤.
+ */
 export function getServiceLog(
   serverId: string,
   unit: string,
-  opts?: { lines?: number; level?: XrayLogLevel }
+  opts?: { lines?: number; level?: XrayLogLevel; keyword?: string }
 ) {
   return request.get<unknown, XrayLog>('/admin/resource/server/service-log', {
     params: {
       id: serverId,
       unit,
       lines: opts?.lines,
-      level: opts?.level === 'all' ? undefined : opts?.level
+      level: opts?.level === 'all' ? undefined : opts?.level,
+      keyword: opts?.keyword?.trim() || undefined
     }
   })
 }
@@ -89,7 +96,7 @@ export function getServiceLog(
 /** 拉 Xray 的 journalctl 日志; 是 getServiceLog 的 unit=xray 便捷封装. */
 export function getXrayLog(
   serverId: string,
-  opts?: { lines?: number; level?: XrayLogLevel }
+  opts?: { lines?: number; level?: XrayLogLevel; keyword?: string }
 ) {
   return getServiceLog(serverId, 'xray', opts)
 }
