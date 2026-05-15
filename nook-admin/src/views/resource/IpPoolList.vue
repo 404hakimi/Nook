@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
+  Copy,
   Globe2,
   Pencil,
   Plus,
@@ -19,6 +20,7 @@ import {
   NInput,
   NSelect,
   NTag,
+  NTooltip,
   useMessage,
   type DataTableColumns
 } from 'naive-ui'
@@ -246,6 +248,42 @@ function openTest(ip: ResourceIpPool) {
 
 // 行操作直接平铺为一行小按钮; 不再折叠到 dropdown
 
+/**
+ * 拼标准 socks5:// URL: socks5://[user[:pass]@]host:port
+ * user/pass 走 encodeURIComponent 防特殊字符 (@ : / 等) 破坏 URL 结构.
+ * 客户端 (v2rayN / 浏览器扩展 / curl --proxy) 都吃这个格式.
+ */
+function buildSocks5Url(ip: ResourceIpPool): string | null {
+  if (!ip.ipAddress || !ip.socks5Port) return null
+  const user = ip.socks5Username?.trim() ?? ''
+  const pass = ip.socks5Password ?? ''
+  let auth = ''
+  if (user) {
+    auth = encodeURIComponent(user)
+    if (pass) auth += ':' + encodeURIComponent(pass)
+    auth += '@'
+  }
+  return `socks5://${auth}${ip.ipAddress}:${ip.socks5Port}`
+}
+
+async function copySocks5Url(ip: ResourceIpPool) {
+  const url = buildSocks5Url(ip)
+  if (!url) {
+    message.warning('SOCKS5 信息不完整, 无法复制')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    // 提示里隐去密码避免日志泄漏
+    const masked = ip.socks5Password
+      ? url.replace(/:[^@]*@/, ':***@')
+      : url
+    message.success(`已复制: ${masked}`)
+  } catch {
+    message.error('复制失败 (浏览器可能不支持 clipboard API)')
+  }
+}
+
 // ===== 表格列定义 =====
 const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
   {
@@ -266,23 +304,48 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
       if (!row.socks5Port) {
         return h('span', { class: 'text-xs text-zinc-400' }, '未部署')
       }
-      const children: ReturnType<typeof h>[] = [
+      // 显示 host:port / user; 无密码时 user 后面挂红字提示
+      const segments: ReturnType<typeof h>[] = [
         h('span', { class: 'font-mono text-xs' }, [
           row.ipAddress,
           h('span', { class: 'text-zinc-400' }, `:${row.socks5Port}`)
         ])
       ]
       if (row.socks5Username) {
-        children.push(
+        segments.push(
           h('span', { class: 'ml-1 font-mono text-xs text-zinc-500' }, `/ ${row.socks5Username}`)
         )
       }
-      children.push(
-        row.socks5Password
-          ? h(NTag, { size: 'small', type: 'success', class: 'ml-1' }, { default: () => 'pass' })
-          : h(NTag, { size: 'small', bordered: true, class: 'ml-1' }, { default: () => 'no-pass' })
+      if (!row.socks5Password) {
+        segments.push(
+          h('span', { class: 'ml-2 text-xs', style: 'color: var(--n-warning-color, #f0a020)' }, '(无密码)')
+        )
+      }
+      // 复制按钮: 拷标准 socks5:// URL; hover 提示 + 隐藏的密码 mask 显示
+      segments.push(
+        h(
+          NTooltip,
+          { placement: 'top', trigger: 'hover' },
+          {
+            trigger: () =>
+              h(
+                NButton,
+                {
+                  size: 'tiny',
+                  quaternary: true,
+                  class: 'ml-1',
+                  onClick: (e: MouseEvent) => {
+                    e.stopPropagation()
+                    copySocks5Url(row)
+                  }
+                },
+                { icon: () => h(NIcon, null, { default: () => h(Copy) }) }
+              ),
+            default: () => h('div', { class: 'text-xs' }, '复制为 socks5://user:password@host:port')
+          }
+        )
       )
-      return h('div', { class: 'flex items-center flex-wrap' }, children)
+      return h('div', { class: 'flex items-center flex-wrap' }, segments)
     }
   },
   {
