@@ -80,6 +80,14 @@ public class ClientOpExecutor {
     @Resource
     private XrayDaemonProbe xrayDaemonProbe;
 
+    /**
+     * 自注入代理: 同类内调用 @Transactional 方法必须走代理才能让 Spring AOP 启动事务,
+     * this.xxx() 直接调走 raw 实例不走 AOP. 见 doRevoke 调用 self.revokeDbOnly(...).
+     */
+    @Resource
+    @org.springframework.context.annotation.Lazy
+    private ClientOpExecutor self;
+
     /** CLIENT_PROVISION 实际执行体. */
     @Transactional(rollbackFor = Exception.class)
     XrayClientDO doProvision(XrayClientProvisionReqVO reqVO, OpProgressSink progress) {
@@ -196,30 +204,71 @@ public class ClientOpExecutor {
         return entity;
     }
 
-    /** CLIENT_REVOKE 实际执行体. */
-    @Transactional(rollbackFor = Exception.class)
+    /**
+     * CLIENT_REVOKE 实际执行体.
+     *
+     * <p><b>架构防御</b>: SSH 副作用不可回滚, 跟 DB 写混在同一 @Transactional 里会造成 split-brain
+     * (DB rollback 但远端 inbound 已删). 重构为两段: DB 事务在先 (commit 后才碰 SSH),
+     * SSH 失败仅 warn 不影响 op 结果, 残留的远端 inbound/outbound 由 sync-status 诊断 + 手动清理兜底.
+     */
     void doRevoke(String inboundEntityId, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
+
+        // ===== Stage 1: 校验 + 拉取信息 (无副作用) =====
         sink.report("加载客户端记录", 20);
         XrayClientDO e = clientValidator.validateExists(inboundEntityId);
         String inboundTag = e.getExternalInboundRef();
         String outboundTag = formatSlotTag("out_slot_", e.getSlotIndex());
         int apiPort = xrayNodeValidator.validateExists(e.getServerId()).getXrayApiPort();
-        sink.report("建立 SSH 会话", 35);
-        SshSession session = SshSessions.acquire(e.getServerId(), SshSessionScope.SHARED);
 
-        // 远端清理: 删 inbound (该客户连接断, 但其他客户不受影响)
-        sink.report("删除远端 inbound", 50);
+        // ===== Stage 2: DB 事务化操作 (走 self 代理才能让 @Transactional 生效) =====
+        sink.report("DB 删除 client / traffic / slot / IP 退订", 50);
+        self.revokeDbOnly(e);
+
+        // ===== Stage 3: SSH 兜底清理远端 (DB 已 commit, 此处失败仅 warn, sync-status 可诊断) =====
+        sink.report("建立 SSH 会话", 70);
+        try {
+            SshSession session = SshSessions.acquire(e.getServerId(), SshSessionScope.SHARED);
+            sink.report("远端 inbound + outbound 清理", 85);
+            cleanupRemoteAfterRevoke(session, apiPort, inboundTag, outboundTag, e.getServerId());
+        } catch (Exception ex) {
+            // DB 已 commit, 远端清理失败 → 留下孤儿 inbound/outbound; 不抛错让 op DONE,
+            // 后续运维通过 "查看差异" + "推送修复" 或直接 SSH 清理. 比 split-brain 好处理.
+            log.warn("[revoke] DB 已提交, 但 SSH 清理失败 server={} 远端可能留孤儿 inbound/outbound, 走 sync-status 诊断: {}",
+                    e.getServerId(), ex.getMessage());
+        }
+
+        log.info("[revoke] OK server={} slot={} email={}",
+                e.getServerId(), e.getSlotIndex(), e.getClientEmail());
+    }
+
+    /**
+     * doRevoke 的 DB 事务段; 必须通过 self-injected 代理调用 ({@code self.revokeDbOnly(...)})
+     * 才能让 Spring AOP 启动事务. 直接 this.revokeDbOnly() 不会生效.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void revokeDbOnly(XrayClientDO e) {
+        xrayClientMapper.deleteById(e.getId());
+        xrayClientTrafficMapper.deleteByClientId(e.getId());
+        slotPoolService.releaseSlot(e.getServerId(), e.getSlotIndex());
+        // releaseToCooling 是 REQUIRES_NEW 独立事务, 抛错也不污染本事务; 仍 try-catch 兜 IP 状态错位
+        try {
+            resourceIpPoolService.releaseToCooling(e.getIpId());
+        } catch (RuntimeException re) {
+            log.warn("[revoke-db] IP 退订失败 ipId={}: {} (DB 主流程已完成)",
+                    e.getIpId(), re.getMessage());
+        }
+    }
+
+    /** SSH 清理远端: rmi inbound + rmo+ado freedom 占位 outbound; 全部异常 swallow 让上层兜底. */
+    private void cleanupRemoteAfterRevoke(SshSession session, int apiPort,
+                                           String inboundTag, String outboundTag, String serverId) {
         try {
             inboundCli.removeInbound(session, apiPort, inboundTag);
         } catch (BusinessException be) {
-            // 远端已不存在视为成功, 目标态本来就是没了
             if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) throw be;
-            log.warn("[revoke] inbound 已不存在 server={} tag={}", e.getServerId(), inboundTag);
+            log.warn("[revoke] inbound 已不存在 server={} tag={}", serverId, inboundTag);
         }
-
-        // 删真实 socks5 outbound + 加回占位 freedom (保持 routing rule 引用不空)
-        sink.report("回收 outbound 占位", 65);
         try {
             outboundCli.removeOutbound(session, apiPort, outboundTag);
         } catch (BusinessException be) {
@@ -228,29 +277,10 @@ public class ClientOpExecutor {
         try {
             outboundCli.addFreedomOutbound(session, apiPort, outboundTag);
         } catch (RuntimeException re) {
-            // 占位还原失败: 不阻塞 revoke 主流程, 仅 warn (routing rule 此时引用不存在的 outbound, 流量走 default)
+            // 占位还原失败: routing rule 此时引用不存在的 outbound, 流量走 default; reconciler 兜底
             log.warn("[revoke] 占位 freedom 还原失败 server={} tag={}, 由后续巡检修复",
-                    e.getServerId(), outboundTag, re);
+                    serverId, outboundTag, re);
         }
-
-        // DB 硬删 + slot 释放; 流量累计行也一并清掉, 避免 client_id 死引用孤儿
-        sink.report("DB 删除与 slot 释放", 80);
-        xrayClientMapper.deleteById(e.getId());
-        xrayClientTrafficMapper.deleteByClientId(e.getId());
-        slotPoolService.releaseSlot(e.getServerId(), e.getSlotIndex());
-
-        // 退订落地 IP: occupied → cooling, 等冷却到期由 sweep 任务回到 available;
-        // 走 try 是因为 IP 行可能已被运维手动删 / 状态错位, 不阻断 revoke 主流程
-        sink.report("落地 IP 退订", 92);
-        try {
-            resourceIpPoolService.releaseToCooling(e.getIpId());
-        } catch (RuntimeException re) {
-            log.warn("[revoke] IP 退订失败 server={} ipId={}, 需运维手动处理 IP 状态: {}",
-                    e.getServerId(), e.getIpId(), re.getMessage());
-        }
-
-        log.info("[revoke] OK server={} slot={} email={}",
-                e.getServerId(), e.getSlotIndex(), e.getClientEmail());
     }
 
     /** CLIENT_ROTATE 实际执行体: 换 UUID, 端口/tag 不变, 重建 inbound 让新 UUID 生效. */

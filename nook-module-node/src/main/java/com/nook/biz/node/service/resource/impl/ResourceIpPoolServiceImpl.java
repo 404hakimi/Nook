@@ -25,6 +25,7 @@ import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -81,9 +82,15 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteIpPool(String id) {
         // 校验 IP 池条目存在
-        ipPoolValidator.validateExists(id);
-        // 删除 IP 池条目
+        ResourceIpPoolDO exist = ipPoolValidator.validateExists(id);
+        // 守卫: 有 client 绑定时拒绝删除 (跟 releaseToCooling 一致), 避免 client 走孤儿引用
+        XrayClientDO bound = xrayClientMapper.selectByIpId(id);
+        if (bound != null) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_HAS_BOUND_CLIENT,
+                    exist.getIpAddress(), bound.getMemberUserId());
+        }
         resourceIpPoolMapper.deleteById(id);
+        log.info("[ip-pool] DELETE ipId={} ip={}", id, exist.getIpAddress());
     }
 
     @Override
@@ -148,9 +155,15 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void releaseToCooling(String id) {
-        ResourceIpPoolDO exist = ipPoolValidator.validateExists(id);
+        // REQUIRES_NEW: 跟外层 (e.g. CLIENT_REVOKE doRevoke) 隔离, 内层异常不污染外层事务.
+        // 软存在校验: IP 已被删 → 没什么可退订的, no-op 返回; 比 validateExists 抛错更友好 (revoke 场景常见)
+        ResourceIpPoolDO exist = resourceIpPoolMapper.selectById(id);
+        if (exist == null) {
+            log.info("[ip-pool] RELEASE skip ipId={} (IP 行已不存在, 无需操作)", id);
+            return;
+        }
         // 守卫: 有 client 还引用此 IP, 拒绝退订 (避免 client status 与 pool status 漂移);
         // revoke 链路先 deleteById 删 client 行, 再调本方法, 所以不会撞这里.
         XrayClientDO bound = xrayClientMapper.selectByIpId(id);
@@ -161,7 +174,10 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
         // ip_type.cooling_minutes 是 NOT NULL 列; 家宽 IP 通常需要更久
         ResourceIpTypeDO type = resourceIpTypeMapper.selectById(exist.getIpTypeId());
         if (ObjectUtil.isNull(type) || ObjectUtil.isNull(type.getCoolingMinutes())) {
-            throw new BusinessException(ResourceErrorCode.IP_TYPE_NOT_FOUND, exist.getIpTypeId());
+            // ip_type 也丢了说明数据严重错位; 不强抛阻断 revoke, 仅 warn 让运维处理
+            log.warn("[ip-pool] RELEASE ipId={} ip={} 找不到 ip_type={}, 跳过 cooling 切换",
+                    id, exist.getIpAddress(), exist.getIpTypeId());
+            return;
         }
         resourceIpPoolMapper.markCooling(exist.getId(),
                 LocalDateTime.now().plusMinutes(type.getCoolingMinutes()));

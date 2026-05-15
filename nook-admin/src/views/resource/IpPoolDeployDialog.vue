@@ -29,6 +29,24 @@ const emit = defineEmits<{
     socks5Port: number
     socks5Username: string
     socks5Password: string
+    /** dante 日志级别 (空格分隔关键字). */
+    logLevel?: string
+    /** dante logoutput 路径; 空 = 用 installDir/logs/sockd.log 兜底. */
+    logPath?: string
+    /** systemd 开机自启 (1/0). */
+    autostartEnabled: number
+    /** UFW 是否配置 (1/0). */
+    firewallEnabled: number
+    /** UFW allow_from CIDR; 空 = 0.0.0.0/0. */
+    firewallAllowFrom?: string
+    /** SOCKS5 安装目录. */
+    installDir?: string
+    /** SSH 主机 (= sshHost form 值, 通常 = ipAddress); 后续运维操作 (详情/日志) 用 */
+    sshHost: string
+    sshPort: number
+    sshUser: string
+    /** SSH 密码; 跟 SOCKS5 密码同口径明文落库, 后台受信网络场景. */
+    sshPassword: string
   }): void
 }>()
 
@@ -59,15 +77,41 @@ const form = reactive({
   socksUser: '',
   socksPass: '',
   allowFrom: '',
-  installUfw: true
+  installUfw: true,
+
+  // dante 高级配置 (有合理默认, 让用户改 log / 自启 / 防火墙时不用改部署脚本)
+  logLevel: 'connect disconnect error',
+  /** 日志路径; 留空走 {installDir}/logs/sockd.log 兜底, placeholder 即兜底值 */
+  logPath: '',
+  autostartEnabled: true,
+  /** SOCKS5 安装目录; logs/info.txt 等运维资产放这里, 跟 xray 部署习惯一致 */
+  installDir: '/home/socks5'
 })
 
-/** 部署完成后, "添加到 IP 池" 按钮把这些值发给父组件; ipAddress 默认 = sshHost (出网 IP). */
+/** logPath 占位符随 installDir 联动, 给用户看出兜底规则. */
+const logPathPlaceholder = computed(
+  () => `${form.installDir.trim() || '/home/socks5'}/logs/sockd.log`
+)
+
+/**
+ * 部署完成后, "添加到 IP 池" 按钮把这些值发给父组件; ipAddress 默认 = sshHost (出网 IP).
+ * 高级配置同步带过去, 否则 IP 池条目记录的 dante 配置会跟远端实际状态对不上.
+ */
 const deployedSocks5 = computed(() => ({
   ipAddress: form.sshHost.trim(),
   socks5Port: form.socksPort,
   socks5Username: form.socksUser.trim(),
-  socks5Password: form.socksPass
+  socks5Password: form.socksPass,
+  logLevel: form.logLevel.trim() || undefined,
+  logPath: form.logPath.trim() || undefined,
+  autostartEnabled: form.autostartEnabled ? 1 : 0,
+  firewallEnabled: form.installUfw ? 1 : 0,
+  firewallAllowFrom: form.allowFrom.trim() || undefined,
+  installDir: form.installDir.trim() || undefined,
+  sshHost: form.sshHost.trim(),
+  sshPort: form.sshPort,
+  sshUser: form.sshUser.trim(),
+  sshPassword: form.sshPassword
 }))
 
 watch(
@@ -90,7 +134,11 @@ watch(
       socksUser: '',
       socksPass: '',
       allowFrom: '',
-      installUfw: true
+      installUfw: true,
+      logLevel: 'connect disconnect error',
+      logPath: '',
+      autostartEnabled: true,
+      installDir: '/home/socks5'
     })
   }
 )
@@ -139,7 +187,11 @@ async function onSubmit() {
       socksUser: form.socksUser.trim(),
       socksPass: form.socksPass,
       allowFrom: form.allowFrom.trim() || undefined,
-      installUfw: form.installUfw
+      installUfw: form.installUfw,
+      logLevel: form.logLevel.trim() || undefined,
+      logPath: form.logPath.trim() || undefined,
+      autostartEnabled: form.autostartEnabled,
+      installDir: form.installDir.trim() || undefined
     }
     await installSocks5Stream(dto, appendOutput, abortCtrl.signal)
     deployed.value = true
@@ -397,6 +449,63 @@ function close() {
             配置 UFW
           </NCheckbox>
         </NFormItem>
+      </div>
+
+      <div class="text-sm font-semibold mt-4 mb-2">
+        高级配置
+        <span class="text-xs text-zinc-400 ml-2 font-normal">(dante 日志 / 自启等; 保留默认即可)</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
+        <div class="sm:col-span-2">
+          <NFormItem>
+            <template #label>
+              <span>日志级别</span>
+              <span class="text-xs text-zinc-400 ml-2">dante log 关键字; 空格分隔</span>
+            </template>
+            <NInput
+              v-model:value="form.logLevel"
+              placeholder="connect disconnect error"
+              :disabled="installing"
+              :input-props="{ style: 'font-family: monospace' }"
+            />
+          </NFormItem>
+        </div>
+
+        <NFormItem label=" ">
+          <NCheckbox v-model:checked="form.autostartEnabled" :disabled="installing">
+            开机自启
+          </NCheckbox>
+        </NFormItem>
+
+        <div class="sm:col-span-3">
+          <NFormItem>
+            <template #label>
+              <span>安装目录</span>
+              <span class="text-xs text-zinc-400 ml-2">logs / info.txt 等运维资产存放; 默认 /home/socks5</span>
+            </template>
+            <NInput
+              v-model:value="form.installDir"
+              placeholder="/home/socks5"
+              :disabled="installing"
+              :input-props="{ style: 'font-family: monospace' }"
+            />
+          </NFormItem>
+        </div>
+
+        <div class="sm:col-span-3">
+          <NFormItem>
+            <template #label>
+              <span>日志路径</span>
+              <span class="text-xs text-zinc-400 ml-2">留空 = 安装目录/logs/sockd.log</span>
+            </template>
+            <NInput
+              v-model:value="form.logPath"
+              :placeholder="logPathPlaceholder"
+              :disabled="installing"
+              :input-props="{ style: 'font-family: monospace' }"
+            />
+          </NFormItem>
+        </div>
       </div>
     </NForm>
 

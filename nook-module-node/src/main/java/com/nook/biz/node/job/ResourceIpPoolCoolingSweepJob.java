@@ -21,9 +21,9 @@ public class ResourceIpPoolCoolingSweepJob {
     private ResourceIpPoolService resourceIpPoolService;
 
     /**
-     * 默认 1 分钟一轮; 相对最短冷却 30 分钟足够细, 失败重试到下一轮.
+     * 默认 5 分钟一轮; 相对最短冷却 30 分钟足够细, 失败重试到下一轮.
      */
-    @Scheduled(cron = "${nook.ip-pool.cooling-sweep-cron:0 * * * * ?}")
+    @Scheduled(cron = "${nook.ip-pool.cooling-sweep-cron:0 */5 * * * ?}")
     public void sweep() {
         try {
             int n = resourceIpPoolService.sweepExpiredCooling();

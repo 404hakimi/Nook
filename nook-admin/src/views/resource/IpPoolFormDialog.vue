@@ -28,6 +28,18 @@ interface SocksPrefill {
   socks5Port: number
   socks5Username: string
   socks5Password: string
+  /** 由部署窗口接力带过来的 dante 高级配置, 落库时跟远端实际状态对齐. */
+  logLevel?: string
+  logPath?: string
+  autostartEnabled?: number
+  firewallEnabled?: number
+  firewallAllowFrom?: string
+  installDir?: string
+  /** SSH 凭据接力: 部署成功必填, 后续 详情/日志/切自启 运维操作要用. */
+  sshHost?: string
+  sshPort?: number
+  sshUser?: string
+  sshPassword?: string
 }
 
 interface Props {
@@ -77,8 +89,31 @@ const form = reactive({
   status: 1,
   /** 部署模式 1=自部署 2=第三方; 后端必填, 由用户选 (部署接力进入时预填 1). */
   provisionMode: undefined as number | undefined,
+  /** dante 日志关键字 (空格分隔). */
+  logLevel: 'connect disconnect error',
+  /** dante logoutput 路径. */
+  logPath: '/var/log/sockd.log',
+  /** systemd 开机自启 (1=enable 0=disable). */
+  autostartEnabled: 1,
+  /** UFW 是否配 (1=配 0=跳过). */
+  firewallEnabled: 1,
+  /** UFW allow 来源 CIDR; 空 = 0.0.0.0/0. */
+  firewallAllowFrom: '',
+  /** SOCKS5 安装目录; logs / info.txt 等运维资产放这里. */
+  installDir: '/home/socks5',
+  /** SSH 主机; 留空 = 用 ipAddress 作为兜底 (后端处理). */
+  sshHost: '',
+  sshPort: 22,
+  sshUser: 'root',
+  /** SSH 密码; edit 时留空保留原值, create 必填; 跟 SOCKS5 密码同口径明文存储. */
+  sshPassword: '',
   remark: ''
 })
+
+/** logPath 占位符随 installDir 联动: 用户留空时 DB 也存空, 实际跑脚本时后端按 installDir/logs/sockd.log 兜底. */
+const logPathPlaceholder = computed(
+  () => `${(form.installDir || '').trim() || '/home/socks5'}/logs/sockd.log`
+)
 
 const isEdit = computed(() => props.mode === 'edit')
 
@@ -92,6 +127,16 @@ function fill(ip: ResourceIpPool) {
   form.socks5Password = ip.socks5Password ?? ''
   form.status = ip.status
   form.provisionMode = ip.provisionMode
+  form.logLevel = ip.logLevel ?? 'connect disconnect error'
+  form.logPath = ip.logPath ?? ''
+  form.autostartEnabled = ip.autostartEnabled ?? 1
+  form.firewallEnabled = ip.firewallEnabled ?? 1
+  form.firewallAllowFrom = ip.firewallAllowFrom ?? ''
+  form.installDir = ip.installDir ?? '/home/socks5'
+  form.sshHost = ip.sshHost ?? ''
+  form.sshPort = ip.sshPort ?? 22
+  form.sshUser = ip.sshUser ?? 'root'
+  form.sshPassword = ip.sshPassword ?? ''
   form.remark = ip.remark ?? ''
 }
 
@@ -104,6 +149,16 @@ function reset() {
   form.socks5Password = ''
   form.status = 1
   form.provisionMode = undefined
+  form.logLevel = 'connect disconnect error'
+  form.logPath = ''
+  form.autostartEnabled = 1
+  form.firewallEnabled = 1
+  form.firewallAllowFrom = ''
+  form.installDir = '/home/socks5'
+  form.sshHost = ''
+  form.sshPort = 22
+  form.sshUser = 'root'
+  form.sshPassword = ''
   form.remark = ''
 }
 
@@ -126,12 +181,24 @@ watch(
       reset()
       // create 且父组件传了 socksPrefill (部署成功接力场景), 预填 IP + SOCKS5 端口/账号
       // 部署接力场景必然是自部署, provisionMode 直接预填 1, 用户无需再选
-      if (props.socksPrefill) {
-        form.ipAddress = props.socksPrefill.ipAddress
-        form.socks5Port = props.socksPrefill.socks5Port
-        form.socks5Username = props.socksPrefill.socks5Username
-        form.socks5Password = props.socksPrefill.socks5Password
+      // 高级配置 (log / 自启 / UFW / 安装目录) 也接力过来, 否则 DB 记录跟远端实际状态会对不上
+      const p = props.socksPrefill
+      if (p) {
+        form.ipAddress = p.ipAddress
+        form.socks5Port = p.socks5Port
+        form.socks5Username = p.socks5Username
+        form.socks5Password = p.socks5Password
         form.provisionMode = 1
+        if (p.logLevel != null) form.logLevel = p.logLevel
+        if (p.logPath != null) form.logPath = p.logPath
+        if (p.autostartEnabled != null) form.autostartEnabled = p.autostartEnabled
+        if (p.firewallEnabled != null) form.firewallEnabled = p.firewallEnabled
+        if (p.firewallAllowFrom != null) form.firewallAllowFrom = p.firewallAllowFrom
+        if (p.installDir != null) form.installDir = p.installDir
+        if (p.sshHost != null) form.sshHost = p.sshHost
+        if (p.sshPort != null) form.sshPort = p.sshPort
+        if (p.sshUser != null) form.sshUser = p.sshUser
+        if (p.sshPassword != null) form.sshPassword = p.sshPassword
       }
     }
   }
@@ -170,6 +237,17 @@ async function onSubmit() {
       socks5Password: form.socks5Password || undefined,
       status: form.status,
       provisionMode: form.provisionMode,
+      logLevel: form.logLevel.trim() || undefined,
+      logPath: form.logPath.trim() || undefined,
+      autostartEnabled: form.autostartEnabled,
+      firewallEnabled: form.firewallEnabled,
+      firewallAllowFrom: form.firewallAllowFrom.trim() || undefined,
+      installDir: form.installDir.trim() || undefined,
+      sshHost: form.sshHost.trim() || undefined,
+      sshPort: form.sshPort || undefined,
+      sshUser: form.sshUser.trim() || undefined,
+      // edit 时留空 = 保留 DB 现值; create 时表单已要求必填
+      sshPassword: form.sshPassword || undefined,
       remark: form.remark.trim() || undefined
     }
     if (props.mode === 'create') {
@@ -241,11 +319,12 @@ function close() {
               label="IP 地址"
               required
               :validation-status="errors.ipAddress ? 'error' : undefined"
-              :feedback="errors.ipAddress"
+              :feedback="errors.ipAddress || (isEdit ? '换 IP 等于换机器, 请新建条目, 不要在原行改' : undefined)"
             >
               <NInput
                 v-model:value="form.ipAddress"
                 placeholder="例 1.2.3.4"
+                :disabled="isEdit"
                 :input-props="{ style: 'font-family: monospace' }"
               />
             </NFormItem>
@@ -308,6 +387,131 @@ function close() {
                 show-password-on="click"
                 :status="errors.socks5Password ? 'error' : undefined"
                 :input-props="{ autocomplete: 'new-password' }"
+              />
+            </NFormItem>
+          </div>
+        </div>
+
+        <NDivider title-placement="left">dante 高级配置</NDivider>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
+          <div class="sm:col-span-2">
+            <NFormItem>
+              <template #label>
+                <span>日志级别</span>
+                <span class="text-xs text-zinc-400 ml-2">dante log 关键字; 空格分隔</span>
+              </template>
+              <NInput
+                v-model:value="form.logLevel"
+                placeholder="connect disconnect error"
+                :input-props="{ style: 'font-family: monospace' }"
+              />
+            </NFormItem>
+          </div>
+
+          <NFormItem label="开机自启">
+            <NSelect
+              :value="form.autostartEnabled"
+              :options="[{label: '启用', value: 1}, {label: '禁用', value: 0}]"
+              @update:value="(v: number) => (form.autostartEnabled = v)"
+            />
+          </NFormItem>
+
+          <div class="sm:col-span-2">
+            <NFormItem>
+              <template #label>
+                <span>日志路径</span>
+                <span class="text-xs text-zinc-400 ml-2">留空 = 安装目录/logs/sockd.log</span>
+              </template>
+              <NInput
+                v-model:value="form.logPath"
+                :placeholder="logPathPlaceholder"
+                :input-props="{ style: 'font-family: monospace' }"
+              />
+            </NFormItem>
+          </div>
+
+          <NFormItem label="UFW 防火墙">
+            <NSelect
+              :value="form.firewallEnabled"
+              :options="[{label: '启用', value: 1}, {label: '禁用', value: 0}]"
+              @update:value="(v: number) => (form.firewallEnabled = v)"
+            />
+          </NFormItem>
+
+          <div class="sm:col-span-3">
+            <NFormItem>
+              <template #label>
+                <span>UFW 允许来源</span>
+                <span class="text-xs text-zinc-400 ml-2">空 = 0.0.0.0/0 (全网开放); 推荐填中转线路公网 IP</span>
+              </template>
+              <NInput
+                v-model:value="form.firewallAllowFrom"
+                placeholder="留空 = 0.0.0.0/0"
+                :disabled="form.firewallEnabled === 0"
+                :input-props="{ style: 'font-family: monospace' }"
+              />
+            </NFormItem>
+          </div>
+
+          <div class="sm:col-span-3">
+            <NFormItem>
+              <template #label>
+                <span>安装目录</span>
+                <span class="text-xs text-zinc-400 ml-2">logs / info.txt 等运维资产存放; 默认 /home/socks5</span>
+              </template>
+              <NInput
+                v-model:value="form.installDir"
+                placeholder="/home/socks5"
+                :input-props="{ style: 'font-family: monospace' }"
+              />
+            </NFormItem>
+          </div>
+        </div>
+
+        <NDivider title-placement="left">
+          SSH 凭据
+          <span class="text-xs text-zinc-400 ml-2 font-normal">(后续 详情 / 日志 / 切自启 运维操作免输密码)</span>
+        </NDivider>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
+          <div class="sm:col-span-2">
+            <NFormItem>
+              <template #label>
+                <span>SSH 主机</span>
+                <span class="text-xs text-zinc-400 ml-2">留空 = 用 IP 地址</span>
+              </template>
+              <NInput
+                v-model:value="form.sshHost"
+                :placeholder="form.ipAddress || '同 IP 地址'"
+                :input-props="{ style: 'font-family: monospace' }"
+              />
+            </NFormItem>
+          </div>
+
+          <NFormItem label="SSH 端口">
+            <NInputNumber
+              v-model:value="form.sshPort"
+              :min="1"
+              :max="65535"
+              style="width: 100%"
+            />
+          </NFormItem>
+
+          <NFormItem label="SSH 用户">
+            <NInput v-model:value="form.sshUser" placeholder="root" />
+          </NFormItem>
+
+          <div class="sm:col-span-2">
+            <NFormItem>
+              <template #label>
+                <span>SSH 密码</span>
+                <span class="text-xs text-zinc-400 ml-2">编辑时留空 = 保留 DB 原值</span>
+              </template>
+              <NInput
+                v-model:value="form.sshPassword"
+                type="password"
+                show-password-on="click"
+                :input-props="{ autocomplete: 'new-password' }"
+                :placeholder="isEdit ? '留空保留原值' : '必填'"
               />
             </NFormItem>
           </div>

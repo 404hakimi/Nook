@@ -2,7 +2,10 @@
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
   Copy,
+  Eye,
+  FileText,
   Globe2,
+  KeyRound,
   Pencil,
   Plus,
   RefreshCcw,
@@ -38,6 +41,9 @@ import { formatDateTime } from '@/utils/date'
 import IpPoolFormDialog from './IpPoolFormDialog.vue'
 import IpPoolDeployDialog from './IpPoolDeployDialog.vue'
 import IpPoolTestDialog from './IpPoolTestDialog.vue'
+import IpPoolSyncCredsDialog from './IpPoolSyncCredsDialog.vue'
+import IpPoolStatusDialog from './IpPoolStatusDialog.vue'
+import IpPoolLogDialog from './IpPoolLogDialog.vue'
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -153,6 +159,16 @@ const formSocksPrefill = ref<{
   socks5Port: number
   socks5Username: string
   socks5Password: string
+  logLevel?: string
+  logPath?: string
+  autostartEnabled?: number
+  firewallEnabled?: number
+  firewallAllowFrom?: string
+  installDir?: string
+  sshHost?: string
+  sshPort?: number
+  sshUser?: string
+  sshPassword?: string
 } | null>(null)
 
 function openCreate() {
@@ -216,12 +232,22 @@ function openDeploy() {
   deployOpen.value = true
 }
 
-/** 部署成功后用户点 "添加到 IP 池": 把凭据交给 FormDialog 预填走 create 流程。 */
+/** 部署成功后用户点 "添加到 IP 池": 把凭据 + dante 高级配置一并交给 FormDialog 预填走 create 流程。 */
 function onAddToPoolFromDeploy(payload: {
   ipAddress: string
   socks5Port: number
   socks5Username: string
   socks5Password: string
+  logLevel?: string
+  logPath?: string
+  autostartEnabled: number
+  firewallEnabled: number
+  firewallAllowFrom?: string
+  installDir?: string
+  sshHost: string
+  sshPort: number
+  sshUser: string
+  sshPassword: string
 }) {
   formMode.value = 'create'
   formIp.value = null
@@ -244,6 +270,40 @@ const testTarget = ref<ResourceIpPool | null>(null)
 function openTest(ip: ResourceIpPool) {
   testTarget.value = ip
   testOpen.value = true
+}
+
+// ===== 同步 SOCKS5 凭据 (自部署 IP, 改 user/pass/log 后推到远端 + 重建 outbound) =====
+const syncCredsOpen = ref(false)
+const syncCredsTarget = ref<ResourceIpPool | null>(null)
+
+function openSyncCreds(ip: ResourceIpPool) {
+  syncCredsTarget.value = ip
+  syncCredsOpen.value = true
+}
+
+function onSynced() {
+  // 同步完后没有 DB 状态变更, 但刷一下确保最新 updated_at 等字段同步
+  loadList()
+}
+
+// ===== SOCKS5 服务详情 / 日志 (走 IP 池条目存储的 SSH 凭据) =====
+const statusOpen = ref(false)
+const statusTarget = ref<ResourceIpPool | null>(null)
+const logOpen = ref(false)
+const logTarget = ref<ResourceIpPool | null>(null)
+
+function openStatus(ip: ResourceIpPool) {
+  statusTarget.value = ip
+  statusOpen.value = true
+}
+function openLog(ip: ResourceIpPool) {
+  logTarget.value = ip
+  logOpen.value = true
+}
+
+/** 详情/日志/切自启都依赖 IP 池条目里存储的 SSH 凭据; 部署模式 = 自部署且 password 已落库才有意义. */
+function canManage(ip: ResourceIpPool): boolean {
+  return ip.provisionMode === 1 && !!ip.sshPassword
 }
 
 // 行操作直接平铺为一行小按钮; 不再折叠到 dropdown
@@ -375,10 +435,41 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
     title: '操作',
     key: 'actions',
     align: 'right',
-    // 4 个按钮按需展示, 宽度按"测试 + 编辑 + 退订 + 删除"取上限
-    width: 220,
+    width: 420,
     render: (row) =>
-      h('div', { class: 'flex gap-1 justify-end' }, [
+      h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
+        // 详情: 自部署 + SSH 凭据齐全时露出, 弹框内查 dante 服务状态 + 切自启
+        canManage(row)
+          ? h(
+              NButton,
+              {
+                size: 'tiny',
+                quaternary: true,
+                onClick: () => openStatus(row),
+                title: '查看 dante 运行状态 / 版本 / 监听端口; 弹窗内可切自启'
+              },
+              {
+                icon: () => h(NIcon, null, { default: () => h(Eye) }),
+                default: () => '详情'
+              }
+            )
+          : null,
+        // 日志: 自部署 + SSH 凭据齐全时露出, journalctl -u danted
+        canManage(row)
+          ? h(
+              NButton,
+              {
+                size: 'tiny',
+                quaternary: true,
+                onClick: () => openLog(row),
+                title: '查看 dante journalctl 日志 (50-1000 行, 按级别 / 关键词过滤)'
+              },
+              {
+                icon: () => h(NIcon, null, { default: () => h(FileText) }),
+                default: () => '日志'
+              }
+            )
+          : null,
         // 测试: 仅 SOCKS5 凭据齐全时露出, 否则该 IP 无法发起拨号
         canTest(row)
           ? h(
@@ -403,6 +494,23 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
             default: () => '编辑'
           }
         ),
+        // 同步凭据: 仅自部署 (provisionMode=1) 且 SOCKS5 配齐的 IP 才显示
+        row.provisionMode === 1 && canTest(row)
+          ? h(
+              NButton,
+              {
+                size: 'tiny',
+                quaternary: true,
+                type: 'primary',
+                onClick: () => openSyncCreds(row),
+                title: '把 DB 当前 SOCKS5 配置推到远端 + 重建 client outbound'
+              },
+              {
+                icon: () => h(NIcon, null, { default: () => h(KeyRound) }),
+                default: () => '同步'
+              }
+            )
+          : null,
         // 退订: 仅"已占用"(status=2) 才有意义, 其它状态隐藏
         row.status === 2
           ? h(
@@ -552,5 +660,14 @@ onMounted(async () => {
 
     <!-- SOCKS5 测试弹框: 让用户选 echo-IP 端点 + 看完整请求结果 -->
     <IpPoolTestDialog v-model="testOpen" :ip="testTarget" />
+
+    <!-- SOCKS5 凭据同步弹框: 自部署 IP 改 user/pass/log 后推到远端 -->
+    <IpPoolSyncCredsDialog v-model="syncCredsOpen" :ip="syncCredsTarget" @synced="onSynced" />
+
+    <!-- SOCKS5 服务状态: 走存储的 SSH 凭据, 看 dante 运行状态 / 版本 / 监听端口, 含切自启 -->
+    <IpPoolStatusDialog v-model="statusOpen" :ip="statusTarget" @changed="loadList" />
+
+    <!-- SOCKS5 日志: journalctl -u danted, lines + level + keyword 过滤 -->
+    <IpPoolLogDialog v-model="logOpen" :ip="logTarget" />
   </div>
 </template>

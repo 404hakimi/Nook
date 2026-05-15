@@ -69,4 +69,19 @@ public class ResourceIpSocksInstallReqVO {
 
     @NotNull(message = "installUfw 必填")
     private Boolean installUfw;
+
+    /** dante 日志关键字组合 (空格分隔); 例 'connect disconnect error'; 留空走默认. */
+    @Size(max = 64)
+    private String logLevel;
+
+    /** dante logoutput 路径; 例 /var/log/sockd.log; 留空走默认. */
+    @Size(max = 255)
+    private String logPath;
+
+    /** systemd 开机自启 (true=enable, false=disable); 不传默认 true. */
+    private Boolean autostartEnabled;
+
+    /** SOCKS5 安装目录; 留空走默认 /home/socks5; logs / info.txt 等运维资产放这里. */
+    @Size(max = 255)
+    private String installDir;
 }

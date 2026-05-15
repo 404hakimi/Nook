@@ -1,7 +1,7 @@
 import request from '@/api/request'
 import { useUserStore } from '@/stores/user'
 
-/** IP 池条目: SOCKS5 落地节点; 一条 = 一台跑了 3proxy 的小 VPS, ip_address 即用户对外暴露的"独享 IP", 同时也是 SOCKS5 服务监听地址. */
+/** IP 池条目: SOCKS5 落地节点 (基于 dante-server + PAM 用户认证); ip_address 即用户对外暴露的"独享 IP", 同时也是 SOCKS5 服务监听地址. */
 export interface ResourceIpPool {
   id: string
   region: string
@@ -20,6 +20,26 @@ export interface ResourceIpPool {
   lastHealthAt?: string
   /** 部署模式: 1=自部署 2=第三方; 详情接口下发, 编辑表单 fill 回填. */
   provisionMode?: number
+  /** dante 日志关键字组合 (空格分隔); 例 'connect disconnect error'. */
+  logLevel?: string
+  /** dante logoutput 路径; 例 /var/log/sockd.log. */
+  logPath?: string
+  /** systemd 开机自启 (1=enable 0=disable). */
+  autostartEnabled?: number
+  /** 部署时是否配 UFW (1=配 0=跳过). */
+  firewallEnabled?: number
+  /** UFW allow 来源 CIDR; 空 = 0.0.0.0/0. */
+  firewallAllowFrom?: string
+  /** SOCKS5 安装目录; 默认 /home/socks5; logs/info.txt 等运维资产放这里. */
+  installDir?: string
+  /** SSH 主机 (默认 = ipAddress); 后续运维 (详情/日志/切自启) 用 */
+  sshHost?: string
+  /** SSH 端口 (默认 22). */
+  sshPort?: number
+  /** SSH 用户. */
+  sshUser?: string
+  /** 明文 SSH 密码; 后台受信网络场景下发. */
+  sshPassword?: string
   remark?: string
   createdAt?: string
   updatedAt?: string
@@ -44,6 +64,26 @@ export interface ResourceIpPoolSaveDTO {
   status?: number
   /** 部署模式: 1=SELF_DEPLOY 自部署, 2=EXTERNAL 第三方; 后端 @NotNull, create/update 都必填. */
   provisionMode?: number
+  /** dante 日志 (空格分隔关键字); 留空走默认 'connect disconnect error'. */
+  logLevel?: string
+  /** dante logoutput 路径; 留空走默认 /var/log/sockd.log. */
+  logPath?: string
+  /** systemd 开机自启 (1/0); 留空默认 1. */
+  autostartEnabled?: number
+  /** 部署时是否配 UFW (1/0); 留空默认 1. */
+  firewallEnabled?: number
+  /** UFW allow 来源 CIDR; 空 = 0.0.0.0/0. */
+  firewallAllowFrom?: string
+  /** SOCKS5 安装目录; 默认 /home/socks5. */
+  installDir?: string
+  /** SSH 主机 (默认 = ipAddress). */
+  sshHost?: string
+  /** SSH 端口 (默认 22). */
+  sshPort?: number
+  /** SSH 用户. */
+  sshUser?: string
+  /** SSH 密码; Update 留空 = 保留原值. */
+  sshPassword?: string
   remark?: string
 }
 
@@ -91,6 +131,62 @@ export function deleteIpPool(id: string) {
 /** 退订: occupied → cooling, 一段时间后由调度器扫回 available. */
 export function releaseIpPool(id: string) {
   return request.post<unknown, void>('/admin/resource/ip-pool/release', null, { params: { id } })
+}
+
+// ===== SOCKS5 落地节点 运维 (走 IP 池条目存储的 SSH 凭据, 不再问用户) =====
+
+/** SOCKS5 (dante) 服务运行状态; 与 xray Status 同口径, 让前端复刻 XrayNodeStatusDialog. */
+export interface Socks5ServiceStatus {
+  /** systemd unit, 固定 "danted" */
+  unit?: string
+  /** active / inactive / failed / unknown */
+  active?: string
+  /** dpkg-query 拿到的 dante 包版本 */
+  version?: string
+  /** ActiveEnterTimestamp 重格式化后的字符串 */
+  uptimeFrom?: string
+  /** ss -ltn 抓的 socks5 端口监听行 (多行, 前端按 \n 拆分展示) */
+  listening?: string
+  /** is-enabled 输出: enabled / disabled / static / masked */
+  enabled?: string
+}
+
+/** SOCKS5 日志级别过滤 (复用 xray 同语义). */
+export type Socks5LogLevel = 'all' | 'warning' | 'err'
+
+/** SOCKS5 日志快照 (复用 xray ServiceLog 同结构). */
+export interface Socks5Log {
+  unit?: string
+  lines: number
+  level: Socks5LogLevel
+  keyword?: string
+  log?: string
+}
+
+/** 拉 SOCKS5 (dante) 服务状态 + version / 监听端口. */
+export function getSocks5Status(id: string) {
+  return request.get<unknown, Socks5ServiceStatus>('/admin/resource/ip-pool/socks5-status', { params: { id } })
+}
+
+/** 切 SOCKS5 开机自启 (systemctl enable/disable + DB.autostart_enabled 同步). */
+export function setSocks5Autostart(id: string, enabled: boolean) {
+  return request.post<unknown, boolean>(
+    '/admin/resource/ip-pool/socks5-autostart', null, { params: { id, enabled } })
+}
+
+/** 拉 SOCKS5 (dante) journalctl 日志. */
+export function getSocks5Log(
+  id: string,
+  opts?: { lines?: number; level?: Socks5LogLevel; keyword?: string }
+) {
+  return request.get<unknown, Socks5Log>('/admin/resource/ip-pool/socks5-log', {
+    params: {
+      id,
+      lines: opts?.lines,
+      level: opts?.level === 'all' ? undefined : opts?.level,
+      keyword: opts?.keyword?.trim() || undefined
+    }
+  })
 }
 
 /** SOCKS5 测试入参; 全部必填, 后端做非空 + 范围校验, 不再兜底. */
@@ -163,6 +259,71 @@ export interface Socks5InstallDTO {
   /** UFW allow from 来源 CIDR; 推荐填中转线路服务器公网 IP */
   allowFrom?: string
   installUfw: boolean
+
+  /** dante log 关键字 (空格分隔); 留空走默认 'connect disconnect error'. */
+  logLevel?: string
+  /** dante logoutput 路径; 留空走默认 $INSTALL_DIR/logs/sockd.log. */
+  logPath?: string
+  /** systemd 开机自启 (不传默认 true). */
+  autostartEnabled?: boolean
+  /** SOCKS5 安装目录; 留空走默认 /home/socks5. */
+  installDir?: string
+}
+
+/**
+ * SOCKS5 凭据热同步入参; SSH 凭据 ad-hoc (一次性), SOCKS5 内容从 DB 现值读, 不在入参里.
+ */
+export interface Socks5SyncCredsDTO {
+  sshUser: string
+  sshPassword: string
+  sshPort: number
+  sshTimeoutSeconds: number
+  sshOpTimeoutSeconds: number
+  sshUploadTimeoutSeconds: number
+  installTimeoutSeconds: number
+}
+
+/**
+ * 流式同步 SOCKS5 凭据 — landing dante config 热更新 + fra-line outbound 重建.
+ * 跟 installSocks5Stream 同款 chunked transfer 模式.
+ */
+export async function syncSocks5CredsStream(
+  ipId: string,
+  dto: Socks5SyncCredsDTO,
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const userStore = useUserStore()
+  const res = await fetch(`/api/admin/resource/ip-pool/sync-creds?id=${encodeURIComponent(ipId)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: userStore.token
+    },
+    body: JSON.stringify(dto),
+    signal
+  })
+  if (res.status === 401) {
+    userStore.clear()
+    throw new Error('登录已过期, 请重新登录')
+  }
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`)
+  }
+  if (!res.body) {
+    throw new Error('当前浏览器不支持流式响应 (Response.body 为空)')
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    const text = decoder.decode(value, { stream: true })
+    if (text) onChunk(text)
+  }
+  const tail = decoder.decode()
+  if (tail) onChunk(tail)
 }
 
 /**

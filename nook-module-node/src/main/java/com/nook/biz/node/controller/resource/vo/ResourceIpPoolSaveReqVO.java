@@ -53,6 +53,46 @@ public class ResourceIpPoolSaveReqVO {
     @Max(value = 6, message = "状态值越界")
     private Integer status;
 
+    /** dante 日志关键字组合 (空格分隔); 默认 'connect disconnect error'. */
+    @Size(max = 64)
+    private String logLevel;
+
+    /** dante logoutput 路径; 默认 /var/log/sockd.log. */
+    @Size(max = 255)
+    private String logPath;
+
+    /** systemd 开机自启 (1=enable 0=disable); 默认 1. */
+    @Min(value = 0) @Max(value = 1)
+    private Integer autostartEnabled;
+
+    /** 部署时是否配 UFW (1=配置 0=跳过); 默认 1. */
+    @Min(value = 0) @Max(value = 1)
+    private Integer firewallEnabled;
+
+    /** UFW allow 来源 CIDR; 空 = 0.0.0.0/0. */
+    @Size(max = 255)
+    private String firewallAllowFrom;
+
+    /** SOCKS5 安装目录; 默认 /home/socks5. logs/info 等放这里; 留空走默认. */
+    @Size(max = 255)
+    private String installDir;
+
+    /** SSH 主机; 留空则用 ipAddress (出网 IP) 作为兜底. */
+    @Size(max = 128)
+    private String sshHost;
+
+    /** SSH 端口; 留空默认 22. */
+    @Min(value = 1) @Max(value = 65535)
+    private Integer sshPort;
+
+    /** SSH 用户. */
+    @Size(max = 64)
+    private String sshUser;
+
+    /** SSH 密码; Update 留空 = 保留原值, 故不加 @NotBlank. */
+    @Size(max = 255)
+    private String sshPassword;
+
     @Size(max = 255)
     private String remark;
 }

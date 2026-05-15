@@ -21,6 +21,9 @@ public enum ResourceErrorCode implements ErrorCode {
     IP_POOL_EXHAUSTED(5105, "%s 区域 %s 类型暂无可用 IP"),
     IP_POOL_OCCUPY_CONFLICT(5106, "IP %s 抢占失败, 已被其它会员领走"),
     IP_POOL_HAS_BOUND_CLIENT(5107, "IP %s 仍被客户端 %s 占用, 请先吊销该客户端再退订"),
+    IP_POOL_NOT_SELF_DEPLOY(5108, "IP %s 部署模式为第三方, 不支持同步凭据 (仅自部署可用)"),
+    IP_POOL_SOCKS5_INCOMPLETE(5109, "IP %s 的 SOCKS5 配置不完整 (port/user/password 必填)"),
+    IP_POOL_SSH_CRED_MISSING(5110, "IP %s 缺 SSH 凭据 (运维操作需要), 请到编辑表单补全后再操作"),
     ;
 
     private final int code;
