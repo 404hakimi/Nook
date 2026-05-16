@@ -1,7 +1,6 @@
 # ===== Module 40: UFW 防火墙 (可选) =====
 # 触发: installUfw=true
-# 1:1 模型: 每客户独享一个 inbound 监听 SLOT_PORT_BASE+slot_index, 开整段
-# gRPC API 走 loopback + SSH 隧道不开公网
+# 开放 slot 端口段供客户 inbound 监听; gRPC API 走 loopback + SSH 隧道不开公网
 
 log "=== Module 40: UFW + 防火墙规则 ==="
 

@@ -1,6 +1,7 @@
-# ===== Module 50: Xray 安装 + 预置 1:1 config (必装) =====
-# binary / config / share 装到 {{INSTALL_DIR}}/{bin,etc,share}, 软链 /usr/local/bin/xray.
-# 1:1 模型: 客户 inbound 由 nook gRPC 动态加, 这里只生成 {{SLOT_POOL_SIZE}} 个 freedom 占位 + 静态 routing.
+# ===== Module 50: Xray 安装 + 共享 inbound config (必装) =====
+# 1 个共享 vmess+ws inbound (users 空) + {{SLOT_POOL_SIZE}} 个 outbound freedom 占位.
+# domain + cfApiToken 都给才走 TLS (acme.sh + Cloudflare DNS-01); 否则纯 ws.
+# provision 走 xray api adu / adrules / ado, 不重启 xray.
 
 log "=== Module 50: Xray 安装 (版本: {{XRAY_VERSION}}, 安装到: {{INSTALL_DIR}}, slot 池: {{SLOT_POOL_SIZE}}) ==="
 
@@ -14,12 +15,19 @@ LOG_LEVEL="{{LOG_LEVEL}}"
 RESTART_POLICY="{{RESTART_POLICY}}"
 ENABLE_ON_BOOT="{{ENABLE_ON_BOOT}}"
 FORCE_REINSTALL="{{FORCE_REINSTALL}}"
+SHARED_INBOUND_PORT={{SHARED_INBOUND_PORT}}
+WS_PATH="{{WS_PATH}}"
+DOMAIN="{{DOMAIN}}"
+CF_API_TOKEN="{{CF_API_TOKEN}}"
+TLS_CERT_PATH="{{TLS_CERT_PATH}}"
+TLS_KEY_PATH="{{TLS_KEY_PATH}}"
 
 XRAY_BIN="$INSTALL_DIR/bin/xray"
 XRAY_ETC="$INSTALL_DIR/etc/xray"
 XRAY_CONFIG="$XRAY_ETC/config.json"
 XRAY_SHARE="$INSTALL_DIR/share/xray"
 SYSTEMD_UNIT="/etc/systemd/system/xray.service"
+TLS_DIR="$INSTALL_DIR/tls"
 
 ARCH=$(uname -m)
 case "$ARCH" in
@@ -89,6 +97,34 @@ fi
 # SSH non-interactive 模式下 `xray api ...` 不带绝对路径也能找到
 ln -sf "$XRAY_BIN" /usr/local/bin/xray
 
+# ===== ACME TLS 证书 (DOMAIN + CF_API_TOKEN 都给才走) =====
+# Cloudflare DNS-01 不需要开 80 端口, 适合远端公网入口被 CDN 代理的场景.
+STREAM_TLS_BLOCK=""
+if [[ -n "$DOMAIN" && -n "$CF_API_TOKEN" ]]; then
+    log "为 $DOMAIN 签发 TLS (acme.sh + Cloudflare DNS-01)..."
+    if [[ ! -f "$HOME/.acme.sh/acme.sh" ]]; then
+        curl -fsSL https://get.acme.sh | sh -s email="admin@$DOMAIN" >/dev/null
+    fi
+    "$HOME/.acme.sh/acme.sh" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
+
+    mkdir -p "$TLS_DIR"; chmod 700 "$TLS_DIR"
+    export CF_Token="$CF_API_TOKEN"
+    if ! "$HOME/.acme.sh/acme.sh" --issue --dns dns_cf -d "$DOMAIN" --keylength 2048 --force; then
+        err "acme.sh 签发失败! 检查 CF Token (Zone:Read + DNS:Edit) + DNS 解析"
+        exit 1
+    fi
+    # install-cert 落到 nook 约定路径 + 续期 reloadcmd 让 xray 用新证书 (90 天 acme.sh 自动跑)
+    "$HOME/.acme.sh/acme.sh" --install-cert -d "$DOMAIN" \
+        --key-file       "$TLS_KEY_PATH" \
+        --fullchain-file "$TLS_CERT_PATH" \
+        --reloadcmd      "systemctl reload-or-restart xray 2>/dev/null || true"
+    log "✔ TLS 证书 → $TLS_CERT_PATH"
+    # serverName = $DOMAIN 让 SNI 校验对齐, 避免客户端用 IP 直连绕过域名校验
+    STREAM_TLS_BLOCK="\"security\": \"tls\","$'\n'"        \"tlsSettings\": {"$'\n'"          \"serverName\": \"$DOMAIN\","$'\n'"          \"alpn\": [\"h2\", \"http/1.1\"],"$'\n'"          \"minVersion\": \"1.2\","$'\n'"          \"certificates\": [{ \"certificateFile\": \"$TLS_CERT_PATH\", \"keyFile\": \"$TLS_KEY_PATH\" }]"$'\n'"        },"
+else
+    log "DOMAIN/CF_API_TOKEN 为空, 跳过 TLS 签发 (xray inbound 走纯 ws)"
+fi
+
 if [[ -f "$XRAY_CONFIG" ]]; then
     BACKUP="${XRAY_CONFIG}.bak.$(date +%s)"
     cp "$XRAY_CONFIG" "$BACKUP"
@@ -103,13 +139,6 @@ gen_outbounds() {
         echo "    ,{ \"tag\": \"out_slot_$slot\", \"protocol\": \"freedom\" }"
     done
 }
-gen_routing_rules() {
-    echo '      { "inboundTag": ["api"], "outboundTag": "api" }'
-    for i in $(seq 1 "$SLOT_POOL_SIZE"); do
-        slot=$(printf "%02d" "$i")
-        echo "      ,{ \"inboundTag\": [\"in_slot_$slot\"], \"outboundTag\": \"out_slot_$slot\" }"
-    done
-}
 
 cat > "$XRAY_CONFIG" <<XRAYCONF
 {
@@ -120,7 +149,7 @@ cat > "$XRAY_CONFIG" <<XRAYCONF
   },
   "api": {
     "tag": "api",
-    "services": ["HandlerService", "LoggerService", "StatsService"]
+    "services": ["HandlerService", "LoggerService", "StatsService", "RoutingService"]
   },
   "stats": {},
   "policy": {
@@ -141,6 +170,22 @@ cat > "$XRAY_CONFIG" <<XRAYCONF
       "port": $XRAY_API_PORT,
       "protocol": "dokodemo-door",
       "settings": { "address": "127.0.0.1" }
+    },
+    {
+      "tag": "in_shared",
+      "listen": "0.0.0.0",
+      "port": $SHARED_INBOUND_PORT,
+      "protocol": "vmess",
+      "settings": { "users": [] },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"]
+      },
+      "streamSettings": {
+        "network": "ws",
+        $STREAM_TLS_BLOCK
+        "wsSettings": { "path": "$WS_PATH" }
+      }
     }
   ],
   "outbounds": [
@@ -149,7 +194,7 @@ $(gen_outbounds)
   "routing": {
     "domainStrategy": "AsIs",
     "rules": [
-$(gen_routing_rules)
+      { "inboundTag": ["api"], "outboundTag": "api" }
     ]
   }
 }
