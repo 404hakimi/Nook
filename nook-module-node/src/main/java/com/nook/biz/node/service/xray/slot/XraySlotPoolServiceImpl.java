@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Xray 1:1 Slot 池 Service 实现类
+ * Xray Slot 池 Service 实现类
  *
  * @author nook
  */

@@ -5,7 +5,7 @@ import com.nook.biz.node.dal.dataobject.slot.XraySlotPoolDO;
 import java.util.List;
 
 /**
- * Xray 1:1 Slot 池 Service 接口
+ * Xray Slot 池 Service 接口
  *
  * @author nook
  */
