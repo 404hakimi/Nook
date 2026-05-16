@@ -68,12 +68,9 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     public void updateIpPool(String id, ResourceIpPoolSaveReqVO updateReqVO) {
         // 校验 IP 池条目存在
         ipPoolValidator.validateExists(id);
-        // 校验 IP 类型存在
         ipPoolValidator.validateIpTypeExists(updateReqVO.getIpTypeId());
-        // 校验 IP 地址唯一
         ipPoolValidator.validateIpAddressUnique(id, updateReqVO.getIpAddress());
 
-        // 更新 IP 池条目
         ResourceIpPoolDO updateObj = BeanUtils.toBean(updateReqVO, ResourceIpPoolDO.class);
         resourceIpPoolMapper.update(updateObj, Wrappers.<ResourceIpPoolDO>lambdaUpdate().eq(ResourceIpPoolDO::getId, id));
     }

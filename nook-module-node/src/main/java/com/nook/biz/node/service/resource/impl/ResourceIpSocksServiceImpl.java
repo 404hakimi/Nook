@@ -140,7 +140,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
 
         // 4. SSH 到 client 所在 xray server (走 stored cred), 仅 rmo + ado outbound
         XrayNodeDO node = xrayNodeValidator.validateExists(client.getServerId());
-        String outboundTag = "out_slot_" + String.format("%02d", client.getSlotIndex());
+        String outboundTag = "out_" + String.format("%02d", client.getOutboundIndex());
         int apiPort = node.getXrayApiPort();
 
         lineSink.accept(String.format("[nook] SSH xray server=%s, 重建 outbound tag=%s ...\n",
@@ -193,8 +193,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 Map.entry("ALLOW_FROM", StrUtil.blankToDefault(ip.getFirewallAllowFrom(), "0.0.0.0/0")),
                 Map.entry("FIREWALL_ENABLED", String.valueOf(firewall)),
                 Map.entry("LOG_LEVEL", StrUtil.blankToDefault(ip.getLogLevel(), DEFAULT_LOG_LEVEL)),
-                Map.entry("LOG_PATH", StrUtil.isBlank(ip.getLogPath())
-                        ? installDir + "/logs/sockd.log" : ip.getLogPath()),
+                Map.entry("LOG_PATH", ip.getLogPath()),
                 Map.entry("INSTALL_DIR", installDir),
                 Map.entry("AUTOSTART_ENABLED", String.valueOf(autostart)));
     }
@@ -233,9 +232,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 Map.entry("ALLOW_FROM", StrUtil.blankToDefault(r.getAllowFrom(), "0.0.0.0/0")),
                 Map.entry("FIREWALL_ENABLED", firewall ? "1" : "0"),
                 Map.entry("LOG_LEVEL", StrUtil.blankToDefault(r.getLogLevel(), DEFAULT_LOG_LEVEL)),
-                // LOG_PATH 兜底规则: 用户留空 → $INSTALL_DIR/logs/sockd.log (跟 xray 安装目录习惯保持一致)
-                Map.entry("LOG_PATH", StrUtil.isBlank(r.getLogPath())
-                        ? installDir + "/logs/sockd.log" : r.getLogPath()),
+                Map.entry("LOG_PATH", r.getLogPath()),
                 Map.entry("INSTALL_DIR", installDir),
                 Map.entry("AUTOSTART_ENABLED", autostart ? "1" : "0"));
     }
@@ -314,10 +311,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     @Override
     public ServiceLogRespVO getSocks5LogFile(String ipId, Integer lines, String keyword) {
         ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
-        // 实际 log 文件路径: DB.log_path 留空时按 install_dir 兜底, 跟脚本渲染规则保持一致
-        String installDir = StrUtil.blankToDefault(ip.getInstallDir(), DEFAULT_INSTALL_DIR);
-        String filePath = StrUtil.isBlank(ip.getLogPath())
-                ? installDir + "/logs/sockd.log" : ip.getLogPath();
+        String filePath = ip.getLogPath();
         SessionCredential cred = buildStoredCred(ip);
         JournalLogSnapshot snap = SshSessions.runAdHoc(cred, session ->
                 serverProbe.readFileLog(session, filePath, lines, keyword));
