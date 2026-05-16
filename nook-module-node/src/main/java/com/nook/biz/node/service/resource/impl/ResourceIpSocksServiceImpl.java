@@ -129,7 +129,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                         session, RemoteScriptPaths.SOCKS5_UPDATE_CREDS_TMPL, vars,
                         RemoteScriptPaths.UPDATE_SOCKS5_CREDS_TMP, scriptTimeout, lineSink));
 
-        // 3. 反查 xray_client (1:1 模型, 至多 1 行); 没绑 client 就完事
+        // 反查 xray_client (IP 跟 client 一一对应, 至多 1 行); 没绑 client 就完事
         lineSink.accept("\n[nook] === 阶段 2/2: 重建 fra-line outbound (新凭据生效) ===\n");
         XrayClientDO client = xrayClientMapper.selectByIpId(ipId);
         if (client == null) {
