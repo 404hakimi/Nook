@@ -11,7 +11,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Xray 1:1 slot 池访问层.
+ * Xray slot 池访问层.
  *
  * <p>分配流程: {@link #pickFreeSlotForUpdate} (行锁拿空闲) → {@link #occupy} (标占用),
  * 两步必须同一事务. SQL 在 {@code resources/mapper/XraySlotPoolMapper.xml}.
