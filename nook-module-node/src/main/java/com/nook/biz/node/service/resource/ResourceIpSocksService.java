@@ -38,7 +38,7 @@ public interface ResourceIpSocksService {
     ResourceIpSocksTestRespVO testSocks5(String ipId, ResourceIpSocksTestReqVO reqVO);
 
     /**
-     * 流式同步 SOCKS5 凭据到 landing + 重建 fra-line 上对应 client 的 outbound (1:1 模型).
+     * 流式同步 SOCKS5 凭据到 landing + 重建对应 client 的 outbound.
      *
      * <p>landing: SSH 走 ad-hoc cred (跟 install 同一套), 跑 update-dante-creds.sh 重写 conf + htpasswd + 视情况 restart.
      * fra-line: SSH 走 stored cred (resource_server), 仅 rmo + ado outbound, 不动 inbound.
