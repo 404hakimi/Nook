@@ -12,7 +12,6 @@ public enum OpType {
 
     // ===== xray daemon 级 =====
     XRAY_RESTART,
-    SERVER_PROVISION,
     SERVER_AUTOSTART,
 
     // ===== client 生命周期 =====
