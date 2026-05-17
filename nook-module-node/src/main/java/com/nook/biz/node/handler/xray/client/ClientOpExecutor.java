@@ -11,6 +11,9 @@ import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.framework.xray.XrayConstants;
+
+import static com.nook.biz.node.framework.xray.XrayConstants.outboundTagOf;
+import static com.nook.biz.node.framework.xray.XrayConstants.ruleTagOf;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayRoutingCli;
@@ -105,8 +108,7 @@ public class ClientOpExecutor {
         String clientId = UUID.randomUUID().toString().replace("-", "");
         int listenPort = node.getSharedInboundPort();
         String inboundTag = SHARED_INBOUND_TAG;
-        // outbound tag = 裸 clientId; rule tag 加前缀避免与 outbound 撞名
-        String outboundTag = clientId;
+        String outboundTag = outboundTagOf(clientId);
         String ruleTag = ruleTagOf(clientId);
         String clientUuid = UUID.randomUUID().toString();
         String clientEmail = "member_" + reqVO.getMemberUserId() + "_" + reqVO.getIpId();
@@ -199,7 +201,7 @@ public class ClientOpExecutor {
 
         sink.report("加载客户端", 20);
         XrayClientDO e = clientValidator.validateExists(inboundEntityId);
-        String outboundTag = e.getId();
+        String outboundTag = outboundTagOf(e.getId());
         String ruleTag = ruleTagOf(e.getId());
         XrayNodeDO node = xrayNodeValidator.validateExists(e.getServerId());
         int apiPort = node.getXrayApiPort();
@@ -476,7 +478,7 @@ public class ClientOpExecutor {
 
         String xrayBin = node.getXrayBinaryPath();
         int apiPort = node.getXrayApiPort();
-        String outboundTag = c.getId();
+        String outboundTag = outboundTagOf(c.getId());
         String ruleTag = ruleTagOf(c.getId());
 
         progress.report("移除旧客户配置", 55);
@@ -532,8 +534,4 @@ public class ClientOpExecutor {
         progress.report("更新状态", 95);
     }
 
-    /** 由 clientId 派生 routing rule tag; 加前缀避免与 outbound tag 撞名. */
-    private static String ruleTagOf(String clientId) {
-        return "rule_" + clientId;
-    }
 }

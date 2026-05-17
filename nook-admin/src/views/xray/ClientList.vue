@@ -4,7 +4,6 @@ import {
   Activity,
   Plus,
   RefreshCcw,
-  RefreshCw,
   RotateCw,
   Search,
   Share2,
@@ -29,7 +28,6 @@ import {
   resetClientTraffic,
   revokeClient,
   rotateClient,
-  syncClient,
   type XrayClient,
   type XrayClientQuery
 } from '@/api/xray/client'
@@ -183,26 +181,6 @@ async function onResetTraffic(e: XrayClient) {
   }
 }
 
-// ===== 同步到远端 (reconciler 入口); 幂等 = 远端有就先删再加, 用 DB 现有 UUID =====
-async function onSync(e: XrayClient) {
-  if (busy.value[e.id]) return
-  const ok = await confirm({
-    title: '同步到远端',
-    message: `把 ${e.clientEmail} 同步到远端?`,
-    type: 'warning',
-    confirmText: '同步'
-  })
-  if (!ok) return
-  busy.value[e.id] = true
-  try {
-    await syncClient(e.id)
-    message.success('已同步')
-    loadList()
-  } catch { /* */ } finally {
-    busy.value[e.id] = false
-  }
-}
-
 // ===== 看流量 =====
 const trafficOpen = ref(false)
 const trafficTarget = ref<XrayClient | null>(null)
@@ -343,18 +321,6 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
             title: '查看上下行流量统计'
           },
           { icon: () => h(NIcon, null, { default: () => h(Activity) }), default: () => '流量' }
-        ),
-        h(
-          NButton,
-          {
-            size: 'tiny',
-            quaternary: true,
-            type: 'primary',
-            disabled: rowBusy,
-            onClick: () => onSync(row),
-            title: '推送 DB 配置到远端 xray (待同步 / 远端缺失场景)'
-          },
-          { icon: () => h(NIcon, null, { default: () => h(RefreshCw) }), default: () => '同步' }
         ),
         h(
           NButton,

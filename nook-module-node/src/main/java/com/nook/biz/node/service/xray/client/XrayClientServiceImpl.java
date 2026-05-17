@@ -232,20 +232,20 @@ public class XrayClientServiceImpl implements XrayClientService {
         vo.setOrphanRemoteEmails(orphan);
     }
 
-    /**
-     * outbound 维度对账: 远端 socks outbound 的 tag 就是 clientId, 直接跟 DB 活客户 id 集比对.
-     * 静态 outbound (blackhole / api / direct 等) 不是 socks 类型, 自然被 kind 过滤掉.
-     */
+    /** outbound 维度对账: 业务 socks outbound tag = "out_" + clientId, 静态出站被 socks 类型过滤排除. */
     private static void diffOutbounds(Set<String> dbClientIds, Map<String, String> remoteOutbounds,
                                       XrayClientSyncStatusRespVO vo) {
         List<String> stale = new ArrayList<>();
         for (String id : dbClientIds) {
-            if (!"socks".equals(remoteOutbounds.get(id))) stale.add(id);
+            if (!"socks".equals(remoteOutbounds.get(XrayConstants.outboundTagOf(id)))) stale.add(id);
         }
         List<String> orphan = new ArrayList<>();
         for (Map.Entry<String, String> ent : remoteOutbounds.entrySet()) {
             if (!"socks".equals(ent.getValue())) continue;
-            if (!dbClientIds.contains(ent.getKey())) orphan.add(ent.getKey());
+            String tag = ent.getKey();
+            if (!tag.startsWith(XrayConstants.OUTBOUND_TAG_PREFIX)) continue;
+            String id = tag.substring(XrayConstants.OUTBOUND_TAG_PREFIX.length());
+            if (!dbClientIds.contains(id)) orphan.add(id);
         }
         vo.setStaleDbOutbounds(stale);
         vo.setOrphanRemoteOutbounds(orphan);
@@ -256,13 +256,13 @@ public class XrayClientServiceImpl implements XrayClientService {
                                   XrayClientSyncStatusRespVO vo) {
         List<String> stale = new ArrayList<>();
         for (String id : dbClientIds) {
-            if (!remoteRules.contains("rule_" + id)) stale.add(id);
+            if (!remoteRules.contains(XrayConstants.ruleTagOf(id))) stale.add(id);
         }
         List<String> orphan = new ArrayList<>();
         for (String tag : remoteRules) {
             if (XrayConstants.BUILTIN_API_RULE_TAG.equals(tag)) continue;
-            if (!tag.startsWith("rule_")) continue;
-            String id = tag.substring("rule_".length());
+            if (!tag.startsWith(XrayConstants.RULE_TAG_PREFIX)) continue;
+            String id = tag.substring(XrayConstants.RULE_TAG_PREFIX.length());
             if (!dbClientIds.contains(id)) orphan.add(id);
         }
         vo.setStaleDbRules(stale);
