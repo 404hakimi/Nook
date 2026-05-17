@@ -24,7 +24,7 @@ public class RestartXrayHandler implements OpHandler {
 
     @Override
     public Object execute(OpContext ctx) {
-        ctx.report("建立 SSH 会话", 15);
+        ctx.report("连接服务器", 15);
         // executor 内部会用 sink 报 systemctl 状态
         return executor.doRestart(ctx.serverId(), ctx);
     }

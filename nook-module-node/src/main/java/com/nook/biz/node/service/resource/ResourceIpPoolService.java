@@ -110,4 +110,12 @@ public interface ResourceIpPoolService {
      * @return Map of ipId → ipAddress
      */
     Map<String, String> getIpAddressMap(Collection<String> ids);
+
+    /**
+     * 批量获得 IP 池整行 (含 socks5 凭据); replay / sync 一次性预拉避免 N+1.
+     *
+     * @param ids IP 池编号集合
+     * @return Map of ipId → ResourceIpPoolDO
+     */
+    Map<String, ResourceIpPoolDO> getIpPoolMap(Collection<String> ids);
 }

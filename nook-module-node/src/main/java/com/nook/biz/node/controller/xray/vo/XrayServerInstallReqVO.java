@@ -1,7 +1,5 @@
 package com.nook.biz.node.controller.xray.vo;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -18,15 +16,10 @@ import lombok.Data;
 @Data
 public class XrayServerInstallReqVO {
 
-    /** 客户端口段起点; 1:1 模型每客户独享 inbound 监听 base + slotIndex. */
-    @NotNull(message = "slotPortBase 必填")
-    @Min(value = 1024) @Max(value = 60000)
-    private Integer slotPortBase;
-
-    /** Slot 池大小; 该 server 最多承载客户数. */
-    @NotNull(message = "slotPoolSize 必填")
+    /** 该 server 最多挂载的落地 IP 数量 (= 客户端数量上限). */
+    @NotNull(message = "touchdownSize 必填")
     @Min(value = 1) @Max(value = 200)
-    private Integer slotPoolSize;
+    private Integer touchdownSize;
 
     /** xray 内置 api server 端口 (loopback). */
     @NotNull(message = "xrayApiPort 必填")
@@ -39,17 +32,34 @@ public class XrayServerInstallReqVO {
     private String xrayVersion;
 
     /**
-     * Xray 安装目录 (binary / config / share); 全部资源装在此目录下:
-     *   <installDir>/bin/xray, <installDir>/etc/xray/config.json, <installDir>/share/xray/{geosite,geoip}.dat
-     * 必须绝对路径; 不允许常用系统目录避免误操作 (校验见 isInstallDirSafe).
+     * Xray 安装根目录, 仅作展示分组用; 实际 binary / config / share / log / TLS 路径全部由前端独立传, 后端零派生.
      */
     @NotBlank(message = "installDir 必填")
     @Pattern(regexp = "^/.+", message = "installDir 必须是绝对路径")
     @Size(max = 255)
     private String installDir;
 
-    /** 远端 xray 日志目录; 留空时后端派生为 <installDir>/logs. */
-    @Pattern(regexp = "^$|^/.+", message = "logDir 必须是绝对路径或留空")
+    /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray, 落到 xray_node.xrayBinaryPath. */
+    @NotBlank(message = "xrayBinaryPath 必填")
+    @Pattern(regexp = "^/.+", message = "xrayBinaryPath 必须是绝对路径")
+    @Size(max = 255)
+    private String xrayBinaryPath;
+
+    /** xray config.json 绝对路径; 前端默认 <installDir>/etc/xray/config.json. */
+    @NotBlank(message = "xrayConfigPath 必填")
+    @Pattern(regexp = "^/.+", message = "xrayConfigPath 必须是绝对路径")
+    @Size(max = 255)
+    private String xrayConfigPath;
+
+    /** xray share 目录 (geo*.dat); 前端默认 <installDir>/share/xray. */
+    @NotBlank(message = "xrayShareDir 必填")
+    @Pattern(regexp = "^/.+", message = "xrayShareDir 必须是绝对路径")
+    @Size(max = 255)
+    private String xrayShareDir;
+
+    /** 远端 xray 日志目录 (access.log / error.log 父目录); 前端默认 <installDir>/logs. */
+    @NotBlank(message = "logDir 必填")
+    @Pattern(regexp = "^/.+", message = "logDir 必须是绝对路径")
     @Size(max = 255)
     private String logDir;
 
@@ -73,27 +83,69 @@ public class XrayServerInstallReqVO {
     @NotNull(message = "forceReinstall 必填")
     private Boolean forceReinstall;
 
-    /** 是否安装 / 启用 UFW 防火墙 (跟 slot 端口段联动, 留在 install 内). */
+    /** 是否安装 / 启用 UFW 防火墙. */
     @NotNull(message = "installUfw 必填")
     private Boolean installUfw;
 
-    /** IANA 时区, 如 Asia/Shanghai / UTC; "skip" 表示不改远端时区. */
-    @NotBlank(message = "timezone 必填 (skip 表示不改)")
-    @Size(max = 64)
-    private String timezone;
+    /** 是否设置远端时区; true = Asia/Shanghai, false = 跳过 (10-timezone 模块不渲染). */
+    @NotNull(message = "setTimezone 必填")
+    private Boolean setTimezone;
+
+    /** 共享 inbound 协议; 当前部署期固定 vmess (前端置灰), 协议适配阶段才放开. */
+    @NotBlank(message = "protocol 必填")
+    @Pattern(regexp = "vmess|vless|trojan", message = "protocol 必须是 vmess / vless / trojan 之一")
+    @Size(max = 16)
+    private String protocol;
+
+    /** 共享 inbound 传输; 当前部署期固定 ws (前端置灰). */
+    @NotBlank(message = "transport 必填")
+    @Pattern(regexp = "tcp|ws|grpc|h2|quic", message = "transport 必须是 tcp / ws / grpc / h2 / quic 之一")
+    @Size(max = 32)
+    private String transport;
+
+    /** 共享 inbound 监听 IP; 当前部署期固定 0.0.0.0 (前端置灰). */
+    @NotBlank(message = "listenIp 必填")
+    @Pattern(regexp = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$|^::$|^[0-9a-fA-F:]+$",
+            message = "listenIp 必须是合法 IPv4 / IPv6")
+    @Size(max = 45)
+    private String listenIp;
+
+    /** 共享 inbound 监听端口; 默认 443. */
+    @NotNull(message = "sharedInboundPort 必填")
+    @Min(value = 1) @Max(value = 65535)
+    private Integer sharedInboundPort;
+
+    /** WebSocket transport path. */
+    @NotBlank(message = "wsPath 必填")
+    @Pattern(regexp = "^/[A-Za-z0-9_\\-/]{0,127}$", message = "wsPath 必须以 / 开头, 仅字母数字_-/")
+    @Size(max = 128)
+    private String wsPath;
 
     /**
-     * 跨字段校验: xray api 端口不能落在 slot 端口段内, 否则启动时端口冲突.
-     * 任一依赖字段为 null 时跳过, 由 @NotNull 单独报错.
+     * 是否走域名 + TLS (生产路径): true 时 domain / cfApiToken 必填, 安装链路会跑 CF A 记录 + 45-acme-tls 模块 + xray inbound 渲染 TLS 块; false 时这三项全部跳过, xray inbound 退化成纯 vmess+ws, 客户端走 IP:port 直连.
      */
-    @AssertTrue(message = "xrayApiPort 不能落在 slot 端口段 [slotPortBase, slotPortBase + slotPoolSize] 内")
-    @JsonIgnore
-    public boolean isXrayApiPortNotConflictSlotRange() {
-        if (xrayApiPort == null || slotPortBase == null || slotPoolSize == null) {
-            return true;
-        }
-        int slotEnd = slotPortBase + slotPoolSize;
-        return xrayApiPort < slotPortBase || xrayApiPort > slotEnd;
-    }
+    @NotNull(message = "useTls 必填")
+    private Boolean useTls;
 
+    /** 对外域名; useTls=true 时必填, useTls=false 时忽略. */
+    @Pattern(regexp = "^$|^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$",
+            message = "domain 格式非法")
+    @Size(max = 255)
+    private String domain;
+
+    /**
+     * Cloudflare API Token; useTls=true 且远端 cert 需新签时必填. 远端 ~/.acme.sh 保存供续期, 不入 nook DB.
+     */
+    @Size(max = 255)
+    private String cfApiToken;
+
+    /** TLS 证书路径; useTls=true 时必填, useTls=false 时前端可送空串. 前端默认 <installDir>/tls/cert.pem. */
+    @Pattern(regexp = "^$|^/.+", message = "tlsCertPath 必须是绝对路径或空串")
+    @Size(max = 255)
+    private String tlsCertPath;
+
+    /** TLS 私钥路径; useTls=true 时必填, useTls=false 时前端可送空串. 前端默认 <installDir>/tls/key.pem. */
+    @Pattern(regexp = "^$|^/.+", message = "tlsKeyPath 必须是绝对路径或空串")
+    @Size(max = 255)
+    private String tlsKeyPath;
 }

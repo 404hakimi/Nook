@@ -3,7 +3,6 @@ package com.nook.biz.node.service.xray.client;
 import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientUpdateReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
@@ -61,14 +60,6 @@ public interface XrayClientService {
     XrayClientDO rotateXrayClient(String id);
 
     /**
-     * 编辑本地元数据 (listenIp / listenPort / transport / status), 不触达远端
-     *
-     * @param id          xray_client.id
-     * @param updateReqVO 更新入参
-     */
-    void updateXrayClient(String id, XrayClientUpdateReqVO updateReqVO);
-
-    /**
      * 获得 Xray Client 协议级凭据明文 (UUID + 服务器 host), 拼订阅链接用; 与 list/detail 的 mask 行为区分
      *
      * @param id xray_client.id
@@ -117,7 +108,7 @@ public interface XrayClientService {
     Map<String, String> getEmailMap(Collection<String> clientIds);
 
     /**
-     * 批量取 Client DO map; 给跨域视图 (如 slot 占用 view) 一次性补全多字段用
+     * 批量取 Client DO map, 给跨域视图 (如落地占用 view) 一次性补全多字段用.
      *
      * @param clientIds id 集合; null / 空返空 map
      * @return Map of clientId → XrayClientDO

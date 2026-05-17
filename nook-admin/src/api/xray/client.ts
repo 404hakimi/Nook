@@ -1,6 +1,11 @@
 import request from '@/api/request'
 
-/** Xray client 实体 (一个会员在某线路+落地 IP 上的 client 凭据); 与后端 ClientRespVO 对齐. */
+/**
+ * Xray client 实体 (一个会员在某线路+落地 IP 上的 client 凭据); 与后端 ClientRespVO 对齐.
+ *
+ * inbound 维度 (protocol / transport / listenIp / listenPort) 不存 xray_client, 是 server 级共享配置;
+ * 后端 convert 时按 serverId 关联 xray_node + 常量 enrich, server 未装 xray 时这些字段会为空.
+ */
 export interface XrayClient {
   id: string
   serverId: string
@@ -14,13 +19,14 @@ export interface XrayClient {
    */
   ipAddress?: string
   memberUserId: string
-  /** 挂到的远端 Xray inbound tag */
-  externalInboundRef: string
-  protocol: string
+  /** 共享 inbound 协议 (后端 enrich, 来源 XrayConstants); server 未装 xray 时为空. */
+  protocol?: string
+  /** 共享 inbound 传输 (后端 enrich, 来源 XrayConstants). */
   transport?: string
+  /** 共享 inbound 监听 IP (后端 enrich, 来源 XrayConstants). */
   listenIp?: string
+  /** 共享 inbound 监听端口 (后端 enrich, 来源 xray_node.sharedInboundPort). */
   listenPort?: number
-  /** list/detail 接口下发的是 mask 形式 (前 8 + *** + 后 8); 明文走 /credential 接口 */
   clientUuid: string
   clientEmail: string
   /** 1=运行 2=已停 3=待同步 4=远端已不存在 */
@@ -40,32 +46,20 @@ export interface XrayClientQuery {
   status?: number
 }
 
-export interface XrayClientUpdateDTO {
-  listenIp?: string
-  listenPort?: number
-  transport?: string
-  /** 1=运行 2=已停 3=待同步 4=远端缺失 */
-  status?: number
-}
-
+/**
+ * 手动 provision 入参; 共享 inbound 模型下协议 / 传输 / listen IP 都是 server 级固有属性,
+ * 不从前端传, 后端按 server 的 xray inbound 配置走.
+ */
 export interface XrayClientProvisionDTO {
   serverId: string
   ipId: string
   memberUserId: string
-  /** 协议 vless / vmess / trojan. */
-  protocol: 'vless' | 'vmess' | 'trojan'
-  /** 传输层 tcp / ws / grpc / h2 / quic; 当前 streamSettings 仅 tcp 走通. */
-  transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
-  /** 监听 IP, 0.0.0.0 = 所有 IPv4 接口, :: = 所有 IPv6 接口. */
-  listenIp: string
   /** 流量上限(字节); 0/不传 = 不限. */
   totalBytes?: number
   /** 到期时间戳(毫秒); 0/不传 = 永久. */
   expiryEpochMillis?: number
   /** 单客户端最多并发源 IP 数; 0/不传 = 不限, 上限 100. */
   limitIp?: number
-  /** vless flow, 例 xtls-rprx-vision; vmess / trojan 必须留空. */
-  flow?: string
 }
 
 /**
@@ -110,10 +104,16 @@ export interface XrayClientCredential {
   clientUuid: string
   clientEmail: string
   protocol: string
-  /** 客户端连接的 host (resource_server.host) */
+  /** 客户端连接的 host; domain 不空时下发 domain, 否则下发 server.host */
   serverHost: string
   listenPort: number
   transport?: string
+  /** WS path. */
+  wsPath?: string
+  /** TLS 启用标志; true 时 URI 加 security=tls + sni */
+  tlsEnabled?: boolean
+  /** TLS SNI (= domain); tlsEnabled=true 时有值 */
+  sni?: string
 }
 
 export interface PageResult<T> {
@@ -142,10 +142,6 @@ export function provisionClient(dto: XrayClientProvisionDTO) {
   return request.post<unknown, XrayClient>('/admin/xray/client/create', dto)
 }
 
-export function updateClient(id: string, dto: XrayClientUpdateDTO) {
-  return request.put<unknown, XrayClient>('/admin/xray/client/update', dto, { params: { id } })
-}
-
 export function revokeClient(id: string) {
   return request.delete<unknown, void>('/admin/xray/client/delete', { params: { id } })
 }
@@ -172,17 +168,28 @@ export function getClientCredential(id: string) {
 
 // ===== reconciler 对账接口 =====
 
-/** server 远端 vs DB 对账结果. */
+/** server 远端 vs DB 对账结果 (1:N 模型, 三维度: user / outbound / rule). */
 export interface SyncStatus {
   serverId: string
-  /** 能否 SSH 连通 + xray 跑着. */
+  /** 能否 SSH 连通 + xray api 可读. */
   reachable: boolean
-  /** DB 与远端均有 (双方对齐). */
-  okTags: string[]
-  /** DB 有但远端缺失; 调 sync 推回去. */
-  staleDbTags: string[]
-  /** 远端有但 DB 没有 (排除静态预置 api); 视为孤儿. */
-  orphanRemoteTags: string[]
+
+  /** 共享 inbound 上 user email: DB + 远端均有. */
+  okEmails: string[]
+  /** 共享 inbound 上 user email: DB 有 / 远端缺 (客户连不上, 推 sync 修). */
+  staleDbEmails: string[]
+  /** 共享 inbound 上 user email: 远端有 / DB 没 (孤儿, 不自动清). */
+  orphanRemoteEmails: string[]
+
+  /** clientId: DB 有但远端缺 socks 出站 (流量进 blackhole 兜底被丢, 推 sync 修). */
+  staleDbOutbounds: string[]
+  /** clientId: 远端有 socks 出站但 DB 没对应 client (孤儿, 不自动清). */
+  orphanRemoteOutbounds: string[]
+
+  /** clientId: DB 有 client 但远端 rule_<clientId> 缺. */
+  staleDbRules: string[]
+  /** clientId: 远端有 rule_<clientId> 但 DB 没对应 client (孤儿). */
+  orphanRemoteRules: string[]
 }
 
 /** server 全量 replay 报告. */

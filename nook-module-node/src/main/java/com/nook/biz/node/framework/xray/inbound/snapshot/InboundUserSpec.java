@@ -12,9 +12,6 @@ import lombok.Data;
 @Builder
 public class InboundUserSpec {
 
-    /** 远端 inbound tag. */
-    private String externalInboundRef;
-
     /** client email; 同 server 全局唯一. */
     private String email;
 

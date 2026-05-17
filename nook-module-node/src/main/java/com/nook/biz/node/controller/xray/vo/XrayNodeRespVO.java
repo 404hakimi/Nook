@@ -29,9 +29,30 @@ public class XrayNodeRespVO {
 
     private String xrayInstallDir;
 
-    private Integer slotPoolSize;
+    /** xray binary 绝对路径; install 时落库, 前端展示用 (不再前端拼接). */
+    private String xrayBinaryPath;
 
-    private Integer slotPortBase;
+    /** xray config.json 绝对路径; install 时落库. */
+    private String xrayConfigPath;
+
+    /** xray share 目录 (geo*.dat); install 时落库. */
+    private String xrayShareDir;
+
+    /** 远端 systemd unit 文件路径; 全节点固定常量, 后端填, 前端只读. */
+    private String xraySystemdUnitPath;
+
+    /** 该 node 最多落地 IP 数量 (软上限). */
+    private Integer touchdownSize;
+
+    private Integer sharedInboundPort;
+
+    private String wsPath;
+
+    private String domain;
+
+    private String tlsCertPath;
+
+    private String tlsKeyPath;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastXrayUptime;

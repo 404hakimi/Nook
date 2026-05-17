@@ -11,8 +11,14 @@ public class XrayClientCredentialRespVO {
     private String clientUuid;
     private String clientEmail;
     private String protocol;
-    /** 客户端连接的 host (resource_server.host); 拼订阅链接需要 */
+    /** 客户端连接的 host; domain 不空时下发 domain, 否则下发 server.host */
     private String serverHost;
     private Integer listenPort;
     private String transport;
+    /** WS path. */
+    private String wsPath;
+    /** TLS 启用标志; true 时客户端 URI 加 security=tls + sni. */
+    private Boolean tlsEnabled;
+    /** TLS SNI (= node.domain). */
+    private String sni;
 }

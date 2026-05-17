@@ -57,7 +57,8 @@ public class ResourceIpPoolSaveReqVO {
     @Size(max = 64)
     private String logLevel;
 
-    /** dante logoutput 路径; 默认 /var/log/sockd.log. */
+    /** dante logoutput 路径; 前端必须传完整路径 (留空 = 用 installDir/logs/sockd.log 自行兜底后再提交). */
+    @NotBlank(message = "logPath 必填")
     @Size(max = 255)
     private String logPath;
 

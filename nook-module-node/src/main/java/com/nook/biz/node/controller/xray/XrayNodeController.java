@@ -2,18 +2,17 @@ package com.nook.biz.node.controller.xray;
 
 import com.nook.biz.node.controller.xray.vo.XrayNodePageReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayNodeRespVO;
-import com.nook.biz.node.controller.xray.vo.XraySlotItemRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayTouchdownItemRespVO;
 import com.nook.biz.node.convert.xray.XrayNodeConvert;
-import com.nook.biz.node.convert.xray.XraySlotPoolConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.slot.XraySlotPoolDO;
+import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
+import com.nook.biz.node.service.resource.ResourceIpPoolService;
 import com.nook.biz.node.service.resource.ResourceServerService;
-import com.nook.biz.node.service.xray.client.XrayClientService;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
-import com.nook.biz.node.service.xray.slot.XraySlotPoolService;
 import com.nook.biz.node.validator.XrayNodeValidator;
+import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
@@ -24,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -44,9 +44,9 @@ public class XrayNodeController {
     @Resource
     private XrayNodeValidator xrayNodeValidator;
     @Resource
-    private XraySlotPoolService xraySlotPoolService;
+    private XrayClientMapper xrayClientMapper;
     @Resource
-    private XrayClientService xrayClientService;
+    private ResourceIpPoolService resourceIpPoolService;
     @Resource
     private ResourceServerService resourceServerService;
 
@@ -72,22 +72,30 @@ public class XrayNodeController {
     }
 
     /**
-     * Slot 占用视图 = xray_node (slot_port_base) + xray_slot_pool (used 状态) + xray_client (客户字段) 三表派生
+     * 该 server 的"落地占用列表" = xray_client active 行 + 关联 ip_pool 拉 ip_address.
      *
-     * <p>Controller 只负责拉数据 + 调 convert; 派生 / 拼装逻辑都在 {@link XraySlotPoolConvert}.
+     * <p>新模型下没有"出站池槽位"的概念了, 每个活客户就是一份落地占用; 容量上限是 xray_node.touchdownSize.
      */
-    @GetMapping("/slot-list")
-    public Result<List<XraySlotItemRespVO>> getSlotList(@RequestParam("serverId") String serverId) {
-        // node 必须先存在 (无则抛 SERVER_STATE_NOT_FOUND); 拿 slot_port_base 派生 listen_port
+    @GetMapping("/touchdown-list")
+    public Result<List<XrayTouchdownItemRespVO>> getTouchdownList(@RequestParam("serverId") String serverId) {
+        // 共享 inbound 模型下协议 / 传输是 server 级配置 (xray_node), 一次拉到 entrust convert 用
         XrayNodeDO node = xrayNodeValidator.validateExists(serverId);
-        int portBase = node.getSlotPortBase() == null ? 0 : node.getSlotPortBase();
-
-        List<XraySlotPoolDO> slots = xraySlotPoolService.getSlotPoolList(serverId);
-
-        Set<String> usedByIds = XraySlotPoolConvert.collectUsedByIds(slots);
-
-        Map<String, XrayClientDO> clientMap = xrayClientService.getXrayClientMap(usedByIds);
-
-        return Result.ok(XraySlotPoolConvert.INSTANCE.convertSlotView(slots, portBase, clientMap));
+        List<XrayClientDO> clients = xrayClientMapper.selectByServerId(serverId);
+        Set<String> ipIds = CollectionUtils.convertSet(clients, XrayClientDO::getIpId);
+        Map<String, String> ipAddrMap = resourceIpPoolService.getIpAddressMap(ipIds);
+        List<XrayTouchdownItemRespVO> view = new ArrayList<>(clients.size());
+        for (XrayClientDO c : clients) {
+            XrayTouchdownItemRespVO item = new XrayTouchdownItemRespVO();
+            item.setClientId(c.getId());
+            item.setIpId(c.getIpId());
+            item.setIpAddress(ipAddrMap.get(c.getIpId()));
+            item.setClientEmail(c.getClientEmail());
+            item.setProtocol(node.getProtocol());
+            item.setTransport(node.getTransport());
+            item.setClientStatus(c.getStatus());
+            item.setCreatedAt(c.getCreatedAt());
+            view.add(item);
+        }
+        return Result.ok(view);
     }
 }

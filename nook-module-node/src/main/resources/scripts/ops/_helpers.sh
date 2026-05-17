@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# ===== nook ops 脚本公共头 =====
-# 单独运维操作 (swap/bbr/...) 用; install 链路另有 modules/00-prepare-env 自带这段.
-# 不做 OS 校验 (假设服务器已通过 install 部署过, 满足 Ubuntu 22+ amd64/arm64 前提).
+# 单独 ops 脚本 (swap/bbr/...) 的公共头: log/warn/err + root 校验.
+# install 链路有自己的 00-prepare-env, 不复用这份.
 
 set -euo pipefail
 

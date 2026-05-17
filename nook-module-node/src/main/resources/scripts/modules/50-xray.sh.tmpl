@@ -1,33 +1,30 @@
-# ===== Module 50: Xray 安装 + 共享 inbound config (必装) =====
-# 1 个共享 vmess+ws inbound (users 空) + {{SLOT_POOL_SIZE}} 个 outbound freedom 占位.
-# domain + cfApiToken 都给才走 TLS (acme.sh + Cloudflare DNS-01); 否则纯 ws.
-# provision 走 xray api adu / adrules / ado, 不重启 xray.
+# Module 50 — xray binary + 共享 inbound (vmess+ws, users 空) + 仅 api/blackhole 两个静态 outbound.
+# 业务出站 (tag=clientId 的 socks5) 全部靠 `xray api ado` 动态加; restart 兜底走 blackhole 防 IP 泄漏.
 
-log "=== Module 50: Xray 安装 (版本: {{XRAY_VERSION}}, 安装到: {{INSTALL_DIR}}, slot 池: {{SLOT_POOL_SIZE}}) ==="
+log "=== Module 50: Xray 安装 (版本: {{XRAY_VERSION}}, 安装到: {{INSTALL_DIR}}, 落地上限: {{TOUCHDOWN_SIZE}}) ==="
 
 INSTALL_DIR="{{INSTALL_DIR}}"
 LOG_DIR="{{LOG_DIR}}"
 XRAY_VERSION="{{XRAY_VERSION}}"
 XRAY_API_PORT={{XRAY_API_PORT}}
-SLOT_POOL_SIZE={{SLOT_POOL_SIZE}}
-SLOT_PORT_BASE={{SLOT_PORT_BASE}}
+TOUCHDOWN_SIZE={{TOUCHDOWN_SIZE}}
 LOG_LEVEL="{{LOG_LEVEL}}"
 RESTART_POLICY="{{RESTART_POLICY}}"
 ENABLE_ON_BOOT="{{ENABLE_ON_BOOT}}"
 FORCE_REINSTALL="{{FORCE_REINSTALL}}"
 SHARED_INBOUND_PORT={{SHARED_INBOUND_PORT}}
 WS_PATH="{{WS_PATH}}"
+USE_TLS="{{USE_TLS}}"
 DOMAIN="{{DOMAIN}}"
-CF_API_TOKEN="{{CF_API_TOKEN}}"
 TLS_CERT_PATH="{{TLS_CERT_PATH}}"
 TLS_KEY_PATH="{{TLS_KEY_PATH}}"
 
-XRAY_BIN="$INSTALL_DIR/bin/xray"
-XRAY_ETC="$INSTALL_DIR/etc/xray"
-XRAY_CONFIG="$XRAY_ETC/config.json"
-XRAY_SHARE="$INSTALL_DIR/share/xray"
-SYSTEMD_UNIT="/etc/systemd/system/xray.service"
-TLS_DIR="$INSTALL_DIR/tls"
+# 路径全部由 Java 计算 + 经模板下发, 跟 xray_node 表 DB 字段一一对应 (单点真理).
+# 脚本不再自己拼 "$INSTALL_DIR/bin/xray" 这种, 防止 Java 端跟脚本端布局漂移.
+XRAY_BIN="{{XRAY_BINARY_PATH}}"
+XRAY_CONFIG="{{XRAY_CONFIG_PATH}}"
+XRAY_SHARE="{{XRAY_SHARE_DIR}}"
+SYSTEMD_UNIT="{{XRAY_SYSTEMD_UNIT_PATH}}"
 
 ARCH=$(uname -m)
 case "$ARCH" in
@@ -59,24 +56,29 @@ fi
 if [[ $NEED_INSTALL -eq 1 ]]; then
     if ! command -v wget >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
         log "安装下载依赖 wget / unzip..."
-        DEBIAN_FRONTEND=noninteractive apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wget unzip
+        export DEBIAN_FRONTEND=noninteractive
+        wait_for_dpkg_lock
+        apt-get update -qq
+        apt-get install -y -qq wget unzip
     fi
 fi
+
+XRAY_BIN_DIR="$(dirname "$XRAY_BIN")"
+XRAY_CONFIG_DIR="$(dirname "$XRAY_CONFIG")"
 
 if [[ $NEED_INSTALL -eq 1 && -x "$XRAY_BIN" ]]; then
     OLD_VER=$("$XRAY_BIN" version 2>/dev/null | head -1 | awk '{print $2}' || echo "")
     if [[ -n "$OLD_VER" && "$OLD_VER" != "?" ]]; then
-        BAK_BIN="$INSTALL_DIR/bin/xray.bak.v$OLD_VER"
+        BAK_BIN="$XRAY_BIN_DIR/xray.bak.v$OLD_VER"
         cp "$XRAY_BIN" "$BAK_BIN"
         log "✔ 已备份旧 binary v$OLD_VER → $BAK_BIN"
     fi
 fi
 
-# 无论是否重装都先停 service, 后面 daemon-reload + restart
+# 先停 service: 即使不重装也要保证 daemon-reload + 新 config 生效
 systemctl stop xray >/dev/null 2>&1 || true
 
-mkdir -p "$INSTALL_DIR/bin" "$XRAY_ETC" "$XRAY_SHARE" "$LOG_DIR"
+mkdir -p "$XRAY_BIN_DIR" "$XRAY_CONFIG_DIR" "$XRAY_SHARE" "$LOG_DIR"
 if [[ $NEED_INSTALL -eq 1 ]]; then
     log "下载 Xray ($XRAY_VERSION, $ARCH)..."
     log "  URL: $DOWNLOAD_URL"
@@ -86,7 +88,7 @@ if [[ $NEED_INSTALL -eq 1 ]]; then
         err "下载失败: $DOWNLOAD_URL"
         exit 1
     fi
-    unzip -o -q "$TMPZIP" xray       -d "$INSTALL_DIR/bin/"
+    unzip -o -q "$TMPZIP" xray       -d "$XRAY_BIN_DIR/"
     # geo 文件个别架构 release 不含, 解不出不阻断主流程
     unzip -o -q "$TMPZIP" "geo*.dat" -d "$XRAY_SHARE/" 2>/dev/null || true
     rm -f "$TMPZIP"
@@ -94,35 +96,18 @@ if [[ $NEED_INSTALL -eq 1 ]]; then
     log "✔ Xray binary: $XRAY_BIN"
 fi
 
-# SSH non-interactive 模式下 `xray api ...` 不带绝对路径也能找到
-ln -sf "$XRAY_BIN" /usr/local/bin/xray
-
-# ===== ACME TLS 证书 (DOMAIN + CF_API_TOKEN 都给才走) =====
-# Cloudflare DNS-01 不需要开 80 端口, 适合远端公网入口被 CDN 代理的场景.
+# TLS 块: 45-acme-tls 已落好 cert/key, 这里只渲染 streamSettings.tlsSettings 片段
 STREAM_TLS_BLOCK=""
-if [[ -n "$DOMAIN" && -n "$CF_API_TOKEN" ]]; then
-    log "为 $DOMAIN 签发 TLS (acme.sh + Cloudflare DNS-01)..."
-    if [[ ! -f "$HOME/.acme.sh/acme.sh" ]]; then
-        curl -fsSL https://get.acme.sh | sh -s email="admin@$DOMAIN" >/dev/null
-    fi
-    "$HOME/.acme.sh/acme.sh" --set-default-ca --server letsencrypt >/dev/null 2>&1 || true
-
-    mkdir -p "$TLS_DIR"; chmod 700 "$TLS_DIR"
-    export CF_Token="$CF_API_TOKEN"
-    if ! "$HOME/.acme.sh/acme.sh" --issue --dns dns_cf -d "$DOMAIN" --keylength 2048 --force; then
-        err "acme.sh 签发失败! 检查 CF Token (Zone:Read + DNS:Edit) + DNS 解析"
+if [[ "$USE_TLS" == "true" ]]; then
+    if [[ ! -f "$TLS_CERT_PATH" || ! -f "$TLS_KEY_PATH" ]]; then
+        err "USE_TLS=true 但 cert/key 文件不存在: $TLS_CERT_PATH — 检查 45-acme-tls 是否成功"
         exit 1
     fi
-    # install-cert 落到 nook 约定路径 + 续期 reloadcmd 让 xray 用新证书 (90 天 acme.sh 自动跑)
-    "$HOME/.acme.sh/acme.sh" --install-cert -d "$DOMAIN" \
-        --key-file       "$TLS_KEY_PATH" \
-        --fullchain-file "$TLS_CERT_PATH" \
-        --reloadcmd      "systemctl reload-or-restart xray 2>/dev/null || true"
-    log "✔ TLS 证书 → $TLS_CERT_PATH"
-    # serverName = $DOMAIN 让 SNI 校验对齐, 避免客户端用 IP 直连绕过域名校验
+    # serverName = $DOMAIN, 让客户端 IP 直连时 SNI 不匹配握手失败
     STREAM_TLS_BLOCK="\"security\": \"tls\","$'\n'"        \"tlsSettings\": {"$'\n'"          \"serverName\": \"$DOMAIN\","$'\n'"          \"alpn\": [\"h2\", \"http/1.1\"],"$'\n'"          \"minVersion\": \"1.2\","$'\n'"          \"certificates\": [{ \"certificateFile\": \"$TLS_CERT_PATH\", \"keyFile\": \"$TLS_KEY_PATH\" }]"$'\n'"        },"
+    log "✔ TLS 块已渲染 (复用 $TLS_CERT_PATH)"
 else
-    log "DOMAIN/CF_API_TOKEN 为空, 跳过 TLS 签发 (xray inbound 走纯 ws)"
+    log "useTls=false, xray inbound 走纯 ws"
 fi
 
 if [[ -f "$XRAY_CONFIG" ]]; then
@@ -132,12 +117,11 @@ if [[ -f "$XRAY_CONFIG" ]]; then
 fi
 
 gen_outbounds() {
-    echo '    { "tag": "api",    "protocol": "freedom" },'
-    echo '    { "tag": "direct", "protocol": "freedom" }'
-    for i in $(seq 1 "$SLOT_POOL_SIZE"); do
-        slot=$(printf "%02d" "$i")
-        echo "    ,{ \"tag\": \"out_slot_$slot\", \"protocol\": \"freedom\" }"
-    done
+    # 顺序很重要: blackhole 放第一位 = 默认兜底出站 (任何未匹配 routing rule 的流量进它就被丢);
+    # api outbound 仅给 xray 自己的 api inbound 用 (走 routing rule 显式匹配, 不会落到默认).
+    # 真实业务出站 (tag=clientId 的 socks5) 全程靠 `xray api ado` 动态加, 不在 config.json 里.
+    echo '    { "tag": "blackhole", "protocol": "blackhole" },'
+    echo '    { "tag": "api",       "protocol": "freedom" }'
 }
 
 cat > "$XRAY_CONFIG" <<XRAYCONF
@@ -200,7 +184,7 @@ $(gen_outbounds)
 }
 XRAYCONF
 
-# XRAY_LOCATION_ASSET 指向自定义 share, 不在默认路径必须显式声明
+# XRAY_LOCATION_ASSET 指向自定义 share 目录 (geo*.dat); 不在默认路径必须显式声明
 cat > "$SYSTEMD_UNIT" <<UNITEOF
 [Unit]
 Description=Xray Service (nook deployed)
@@ -254,7 +238,9 @@ fi
 
 OUTBOUND_COUNT=$(jq '.outbounds | length' "$XRAY_CONFIG")
 RULE_COUNT=$(jq '.routing.rules | length' "$XRAY_CONFIG")
-INSTALLED_VER=$("$XRAY_BIN" version | head -1)
+# `xray version | head -1` 下 set -o pipefail + xray 写多行被 head 截断 → SIGPIPE (141), 触发 set -e 退出.
+# 加 2>/dev/null + || echo "?" 兜底, 跟脚本前面 INSTALLED_RAW 用同一套写法.
+INSTALLED_VER=$("$XRAY_BIN" version 2>/dev/null | head -1 || echo "?")
 log "✔ Module 50 完成: $INSTALLED_VER, $OUTBOUND_COUNT outbound, $RULE_COUNT routing rule"
 log "  binary:  $XRAY_BIN"
 log "  config:  $XRAY_CONFIG"

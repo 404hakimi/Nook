@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { ChevronDown, ChevronRight, FolderOpen, Rocket } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, FolderOpen, Rocket, Shuffle } from 'lucide-vue-next'
 import {
   NButton,
   NCheckbox,
@@ -74,19 +74,6 @@ function onPickServer(serverId: string | null) {
   pickedServer.value = opt ? opt.raw : null
 }
 
-const TIMEZONE_OPTIONS = [
-  { label: '不修改 (skip)', value: 'skip' },
-  { label: 'Asia/Shanghai (北京)', value: 'Asia/Shanghai' },
-  { label: 'Asia/Hong_Kong', value: 'Asia/Hong_Kong' },
-  { label: 'Asia/Tokyo', value: 'Asia/Tokyo' },
-  { label: 'Asia/Singapore', value: 'Asia/Singapore' },
-  { label: 'UTC', value: 'UTC' },
-  { label: 'America/Los_Angeles', value: 'America/Los_Angeles' },
-  { label: 'America/New_York', value: 'America/New_York' },
-  { label: 'Europe/London', value: 'Europe/London' },
-  { label: 'Europe/Frankfurt', value: 'Europe/Frankfurt' }
-]
-
 /** 项目认可的 Xray 稳定版; 升级时改这里. (后端不再有 fallback, 必须前端传值) */
 const XRAY_DEFAULT_VERSION = 'v26.3.27'
 
@@ -111,11 +98,20 @@ const RESTART_POLICY_OPTIONS = [
 
 const DEFAULT_INSTALL_DIR = '/home/xray'
 
+/** 随机生成 16 字符 ws path (16^16 取一段); 减少同节点 path 撞车 / 被识别概率 */
+function randomWsPath(): string {
+  const buf = new Uint8Array(8)
+  crypto.getRandomValues(buf)
+  return '/' + Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 const form = reactive<LineServerInstallDTO>({
   xrayVersion: XRAY_DEFAULT_VERSION,
   installDir: DEFAULT_INSTALL_DIR,
-  slotPortBase: 30000,
-  slotPoolSize: 50,
+  xrayBinaryPath: '',
+  xrayConfigPath: '',
+  xrayShareDir: '',
+  touchdownSize: 50,
   xrayApiPort: 8080,
   logDir: '',
   logLevel: 'warning',
@@ -123,26 +119,46 @@ const form = reactive<LineServerInstallDTO>({
   enableOnBoot: true,
   forceReinstall: false,
   installUfw: true,
-  timezone: 'Asia/Shanghai'
+  setTimezone: true,
+  // 部署期固定 vmess+ws+0.0.0.0; UI 置灰禁改, 协议适配阶段才放开
+  protocol: 'vmess',
+  transport: 'ws',
+  listenIp: '0.0.0.0',
+  sharedInboundPort: 443,
+  wsPath: randomWsPath(),
+  useTls: true,
+  domain: '',
+  cfApiToken: '',
+  tlsCertPath: '',
+  tlsKeyPath: ''
 })
 
-/** logDir 派生值 (installDir 末尾去掉多余 / 后拼 /logs); placeholder + 提交派生都用 */
-const derivedLogDir = computed(() => {
-  const d = form.installDir.replace(/\/+$/, '')
-  return d ? `${d}/logs` : ''
+/**
+ * installDir 派生的全部约定路径; 用户没手动改 form 上对应字段时 placeholder + submit 都用这套.
+ * "约定" 仅活在前端, 后端只 @NotBlank 校验 + 入库 + 透传给脚本, 完全不再派生.
+ */
+const derivedPaths = computed(() => {
+  const d = (form.installDir || DEFAULT_INSTALL_DIR).replace(/\/+$/, '')
+  return {
+    xrayBinaryPath: `${d}/bin/xray`,
+    xrayConfigPath: `${d}/etc/xray/config.json`,
+    xrayShareDir: `${d}/share/xray`,
+    logDir: `${d}/logs`,
+    tlsCertPath: `${d}/tls/cert.pem`,
+    tlsKeyPath: `${d}/tls/key.pem`
+  }
 })
 
-/** 安装路径展示块: 只读, 跟随 installDir 实时联动 */
+/** 安装路径预览; 表单字段空时回落到 derivedPaths, 跟实际提交对齐. */
 const installPaths = computed(() => {
-  const d = form.installDir.replace(/\/+$/, '') || DEFAULT_INSTALL_DIR
-  const log = form.logDir.trim() || derivedLogDir.value
+  const d = derivedPaths.value
+  const log = form.logDir.trim() || d.logDir
   return [
-    { label: 'binary', path: `${d}/bin/xray` },
-    { label: 'config', path: `${d}/etc/xray/config.json` },
-    { label: 'share', path: `${d}/share/xray/  (geo 数据)` },
-    { label: 'log', path: log ? `${log}/{access,error}.log` : '-' },
-    { label: 'systemd', path: '/etc/systemd/system/xray.service  (固定)' },
-    { label: 'PATH 软链', path: '/usr/local/bin/xray → ' + `${d}/bin/xray` }
+    { label: 'binary', path: form.xrayBinaryPath?.trim() || d.xrayBinaryPath },
+    { label: 'config', path: form.xrayConfigPath?.trim() || d.xrayConfigPath },
+    { label: 'share', path: (form.xrayShareDir?.trim() || d.xrayShareDir) + '  (geo 数据)' },
+    { label: 'log', path: `${log}/{access,error}.log` },
+    { label: 'systemd', path: '/etc/systemd/system/xray.service  (固定)' }
   ]
 })
 
@@ -170,16 +186,27 @@ function validate() {
     errors.installDir = '必须以 / 开头的绝对路径'
   }
   if (form.xrayApiPort < 1 || form.xrayApiPort > 65535) errors.xrayApiPort = '端口范围 1-65535'
-  if (form.slotPortBase < 1024 || form.slotPortBase > 60000) errors.slotPortBase = '端口范围 1024-60000'
-  if (form.slotPoolSize < 1 || form.slotPoolSize > 200) errors.slotPoolSize = '槽位数 1-200'
-  // slot 端口段不能覆盖 xray api 端口
-  const slotEnd = form.slotPortBase + form.slotPoolSize
-  if (form.xrayApiPort >= form.slotPortBase && form.xrayApiPort <= slotEnd) {
-    errors.xrayApiPort = `不能落在 slot 端口段 ${form.slotPortBase}-${slotEnd} 内`
-  }
+  if (form.touchdownSize < 1 || form.touchdownSize > 200) errors.touchdownSize = '落地数上限 1-200'
   // logDir 留空 OK (后端派生); 给了就必须绝对路径
   if (form.logDir.trim() && !form.logDir.startsWith('/')) {
     errors.logDir = '必须以 / 开头的绝对路径 (留空走默认 <installDir>/logs)'
+  }
+  if (form.sharedInboundPort < 1 || form.sharedInboundPort > 65535) {
+    errors.sharedInboundPort = '端口范围 1-65535'
+  }
+  if (!form.wsPath || !form.wsPath.startsWith('/') || !/^\/[A-Za-z0-9_\-/]{0,127}$/.test(form.wsPath)) {
+    errors.wsPath = '必须 / 开头, 仅字母数字_-/'
+  }
+  // useTls=true 才校验 domain / cfApiToken; useTls=false 这两字段被后端忽略
+  if (form.useTls) {
+    if (!form.domain?.trim()) {
+      errors.domain = '走域名 + TLS 必须填 domain'
+    } else if (!/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(form.domain.trim())) {
+      errors.domain = '域名格式非法'
+    }
+    if (!form.cfApiToken?.trim()) {
+      errors.cfApiToken = '走域名 + TLS 必须给 CF API Token (首次/续签用; 远端 cert 仍有效时脚本会自动跳过 acme)'
+    }
   }
   return Object.keys(errors).length === 0
 }
@@ -202,20 +229,34 @@ async function onSubmit() {
   output.value = ''
   abortCtrl = new AbortController()
   try {
-    // logDir 留空走后端派生 (<installDir>/logs); trim 后空字符串原样传, 后端识别空字符串 = 派生
+    // 全部路径字段空 → 用前端约定派生值兜底; 真正发到后端的是绝对路径, 后端 @NotBlank 校验后透传脚本 + 入库
+    const d = derivedPaths.value
     const dto: LineServerInstallDTO = {
       xrayVersion: form.xrayVersion,
       installDir: form.installDir.trim(),
-      slotPortBase: form.slotPortBase,
-      slotPoolSize: form.slotPoolSize,
+      xrayBinaryPath: form.xrayBinaryPath?.trim() || d.xrayBinaryPath,
+      xrayConfigPath: form.xrayConfigPath?.trim() || d.xrayConfigPath,
+      xrayShareDir: form.xrayShareDir?.trim() || d.xrayShareDir,
+      touchdownSize: form.touchdownSize,
       xrayApiPort: form.xrayApiPort,
-      logDir: form.logDir.trim(),
+      logDir: form.logDir.trim() || d.logDir,
       logLevel: form.logLevel,
       restartPolicy: form.restartPolicy,
       enableOnBoot: form.enableOnBoot,
       forceReinstall: form.forceReinstall,
       installUfw: form.installUfw,
-      timezone: form.timezone || 'skip'
+      setTimezone: form.setTimezone,
+      protocol: form.protocol,
+      transport: form.transport,
+      listenIp: form.listenIp,
+      sharedInboundPort: form.sharedInboundPort,
+      wsPath: form.wsPath.trim(),
+      useTls: form.useTls,
+      // useTls=false 时 domain / cfApiToken 后端忽略, 仍按表单原样传; tls 路径走 useTls 分支决定送默认还是空
+      domain: form.domain?.trim() || undefined,
+      cfApiToken: form.cfApiToken?.trim() || undefined,
+      tlsCertPath: form.useTls ? (form.tlsCertPath?.trim() || d.tlsCertPath) : '',
+      tlsKeyPath: form.useTls ? (form.tlsKeyPath?.trim() || d.tlsKeyPath) : ''
     }
     await xrayInstallStream(target.id, dto, appendOutput, abortCtrl.signal)
     message.success('部署完成')
@@ -270,7 +311,7 @@ function close() {
     <template #header>
       <div class="flex items-center gap-2">
         <NIcon :size="20" :depth="2"><Rocket /></NIcon>
-        <span>一键部署 Xray (1:1 + slot 模型)</span>
+        <span>一键部署 Xray</span>
       </div>
     </template>
     <template #header-extra>
@@ -367,36 +408,141 @@ function close() {
 
         <NFormItem
           required
-          :validation-status="errors.slotPortBase ? 'error' : undefined"
-          :feedback="errors.slotPortBase"
+          :validation-status="errors.touchdownSize ? 'error' : undefined"
+          :feedback="errors.touchdownSize"
         >
           <template #label>
-            <span>Slot 端口段起点</span>
-            <span class="text-xs text-zinc-400 ml-2">每客户独享一个端口</span>
+            <span>落地数上限</span>
+            <span class="text-xs text-zinc-400 ml-2">最多挂载的落地 IP 数量 (= 客户端上限)</span>
           </template>
           <NInputNumber
-            v-model:value="form.slotPortBase"
-            :min="1024"
-            :max="60000"
-            :disabled="installing"
-            class="w-full"
-          />
-        </NFormItem>
-        <NFormItem
-          required
-          :validation-status="errors.slotPoolSize ? 'error' : undefined"
-          :feedback="errors.slotPoolSize"
-        >
-          <template #label>
-            <span>Slot 池大小</span>
-            <span class="text-xs text-zinc-400 ml-2">该 server 客户上限 (含冗余)</span>
-          </template>
-          <NInputNumber
-            v-model:value="form.slotPoolSize"
+            v-model:value="form.touchdownSize"
             :min="1"
             :max="200"
             :disabled="installing"
             class="w-full"
+          />
+        </NFormItem>
+      </div>
+
+      <div class="text-sm font-semibold mt-4 mb-2">
+        共享 inbound
+        <span class="text-xs text-zinc-400 ml-2 font-normal">所有客户共用一个端口 + path; 协议 / 传输 / 监听 IP 当前固定, 协议适配后开放</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
+        <NFormItem>
+          <template #label>
+            <span>协议</span>
+            <span class="text-xs text-zinc-400 ml-2">固定 vmess</span>
+          </template>
+          <NInput :value="form.protocol" disabled :input-props="{ style: 'font-family: monospace' }" />
+        </NFormItem>
+
+        <NFormItem>
+          <template #label>
+            <span>传输</span>
+            <span class="text-xs text-zinc-400 ml-2">固定 ws</span>
+          </template>
+          <NInput :value="form.transport" disabled :input-props="{ style: 'font-family: monospace' }" />
+        </NFormItem>
+
+        <NFormItem>
+          <template #label>
+            <span>监听 IP</span>
+            <span class="text-xs text-zinc-400 ml-2">固定 0.0.0.0</span>
+          </template>
+          <NInput :value="form.listenIp" disabled :input-props="{ style: 'font-family: monospace' }" />
+        </NFormItem>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+        <NFormItem
+          required
+          :validation-status="errors.sharedInboundPort ? 'error' : undefined"
+          :feedback="errors.sharedInboundPort"
+        >
+          <template #label>
+            <span>监听端口</span>
+            <span class="text-xs text-zinc-400 ml-2">默认 443</span>
+          </template>
+          <NInputNumber
+            v-model:value="form.sharedInboundPort"
+            :min="1"
+            :max="65535"
+            :disabled="installing"
+            class="w-full"
+          />
+        </NFormItem>
+
+        <NFormItem
+          required
+          :validation-status="errors.wsPath ? 'error' : undefined"
+          :feedback="errors.wsPath"
+        >
+          <template #label>
+            <span>WS Path</span>
+            <NButton
+              text
+              size="tiny"
+              class="ml-2"
+              :disabled="installing"
+              @click="form.wsPath = randomWsPath()"
+            >
+              <template #icon><NIcon><Shuffle /></NIcon></template>
+              重新随机
+            </NButton>
+          </template>
+          <NInput
+            v-model:value="form.wsPath"
+            placeholder="/abc123"
+            :disabled="installing"
+            :input-props="{ style: 'font-family: monospace' }"
+          />
+        </NFormItem>
+      </div>
+
+      <!-- ===== 走域名 + TLS (生产路径) ===== -->
+      <div class="text-sm font-semibold mt-4 mb-2 flex items-center gap-3">
+        <NCheckbox v-model:checked="form.useTls" :disabled="installing">
+          走域名 + TLS (推荐生产)
+        </NCheckbox>
+        <span class="text-xs text-zinc-400 font-normal">
+          关闭 = 客户端走 IP:port 直连, xray inbound 退化纯 ws, 不签证书 / 不动 CF
+        </span>
+      </div>
+      <div v-if="form.useTls" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+        <NFormItem
+          required
+          :validation-status="errors.domain ? 'error' : undefined"
+          :feedback="errors.domain"
+        >
+          <template #label>
+            <span>对外域名</span>
+            <span class="text-xs text-zinc-400 ml-2">CDN CNAME 指向</span>
+          </template>
+          <NInput
+            v-model:value="form.domain"
+            placeholder="server01.example.com"
+            :disabled="installing"
+            :input-props="{ style: 'font-family: monospace' }"
+          />
+        </NFormItem>
+
+        <NFormItem
+          required
+          :validation-status="errors.cfApiToken ? 'error' : undefined"
+          :feedback="errors.cfApiToken || 'acme.sh DNS-01 签发证书用; 远端 cert 仍有效时脚本会自动跳过 acme 不烧 LE 周配额'"
+        >
+          <template #label>
+            <span>Cloudflare API Token</span>
+            <span class="text-xs text-zinc-400 ml-2">Zone:Read + DNS:Edit</span>
+          </template>
+          <NInput
+            v-model:value="form.cfApiToken"
+            type="password"
+            show-password-on="click"
+            placeholder="CF API Token"
+            :disabled="installing"
+            :input-props="{ autocomplete: 'new-password' }"
           />
         </NFormItem>
       </div>
@@ -454,18 +600,6 @@ function close() {
             />
           </NFormItem>
 
-          <NFormItem>
-            <template #label>
-              <span>时区</span>
-              <span class="text-xs text-zinc-400 ml-2">影响日志/到期判定</span>
-            </template>
-            <NSelect
-              v-model:value="form.timezone"
-              :options="TIMEZONE_OPTIONS"
-              :disabled="installing"
-            />
-          </NFormItem>
-
           <div class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mt-1">
             <NCheckbox v-model:checked="form.enableOnBoot" :disabled="installing">
               开机自启 Xray
@@ -474,7 +608,10 @@ function close() {
               强制重装
             </NCheckbox>
             <NCheckbox v-model:checked="form.installUfw" :disabled="installing">
-              配置 UFW 防火墙 (22 + slot 端口段)
+              配置 UFW 防火墙 (22 + 共享 inbound 端口)
+            </NCheckbox>
+            <NCheckbox v-model:checked="form.setTimezone" :disabled="installing">
+              设置时区 Asia/Shanghai
             </NCheckbox>
           </div>
         </div>

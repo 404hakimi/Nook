@@ -140,14 +140,15 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
 
         // 4. SSH 到 client 所在 xray server (走 stored cred), 仅 rmo + ado outbound
         XrayNodeDO node = xrayNodeValidator.validateExists(client.getServerId());
-        String outboundTag = "out_" + String.format("%02d", client.getOutboundIndex());
+        String outboundTag = client.getId();
         int apiPort = node.getXrayApiPort();
+        String xrayBin = node.getXrayBinaryPath();
 
         lineSink.accept(String.format("[nook] SSH xray server=%s, 重建 outbound tag=%s ...\n",
                 client.getServerId(), outboundTag));
         SshSession session = SshSessions.acquire(client.getServerId(), SshSessionScope.SHARED);
         try {
-            outboundCli.removeOutbound(session, apiPort, outboundTag);
+            outboundCli.removeOutbound(session, xrayBin, apiPort, outboundTag);
         } catch (BusinessException be) {
             // 远端原本没有就当作已删, 不报错
             if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) {
@@ -155,7 +156,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
             }
             lineSink.accept("[nook] 远端原本无该 outbound, 跳过 rmo\n");
         }
-        outboundCli.addSocksOutbound(session, apiPort, outboundTag,
+        outboundCli.addSocksOutbound(session, xrayBin, apiPort, outboundTag,
                 ip.getIpAddress(), ip.getSocks5Port(),
                 ip.getSocks5Username(), ip.getSocks5Password());
         lineSink.accept("[nook] outbound " + outboundTag + " 已用新凭据重建\n");

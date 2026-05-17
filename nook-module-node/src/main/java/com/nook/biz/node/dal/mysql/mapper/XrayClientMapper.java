@@ -27,23 +27,7 @@ public interface XrayClientMapper extends BaseMapper<XrayClientDO> {
                 .last("LIMIT 1"));
     }
 
-    /** 按 (serverId, externalInboundRef, clientEmail) 唯一定位远端 client. */
-    default XrayClientDO selectByEmail(String serverId, String externalInboundRef, String clientEmail) {
-        return selectOne(Wrappers.<XrayClientDO>lambdaQuery()
-                .eq(XrayClientDO::getServerId, serverId)
-                .eq(XrayClientDO::getExternalInboundRef, externalInboundRef)
-                .eq(XrayClientDO::getClientEmail, clientEmail)
-                .last("LIMIT 1"));
-    }
-
-    /** 列指定 server + inbound 下的所有 client (给 reconciler 用). */
-    default List<XrayClientDO> selectByServerAndInbound(String serverId, String externalInboundRef) {
-        return selectList(Wrappers.<XrayClientDO>lambdaQuery()
-                .eq(XrayClientDO::getServerId, serverId)
-                .eq(XrayClientDO::getExternalInboundRef, externalInboundRef));
-    }
-
-    /** 列指定 server 下所有 client (reconciler 全量重写 xray.json 用, 不限 inbound tag). */
+    /** 列指定 server 下所有 client (reconciler 全量重写 xray.json 用). */
     default List<XrayClientDO> selectByServerId(String serverId) {
         return selectList(Wrappers.<XrayClientDO>lambdaQuery()
                 .eq(XrayClientDO::getServerId, serverId));
@@ -58,7 +42,7 @@ public interface XrayClientMapper extends BaseMapper<XrayClientDO> {
                 .eq(XrayClientDO::getId, id));
     }
 
-    /** 更新 client_uuid (轮换密钥); 显式 set updated_at 同 updateStatus 原因. */
+    /** 更新 client_uuid (轮换密钥) */
     default int updateClientUuid(String id, String newUuid) {
         return update(null, Wrappers.<XrayClientDO>lambdaUpdate()
                 .set(XrayClientDO::getClientUuid, newUuid)

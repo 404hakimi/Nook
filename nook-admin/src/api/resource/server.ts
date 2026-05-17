@@ -4,7 +4,7 @@ import request from '@/api/request'
  * 服务器列表/详情响应; 纯硬件 + SSH 凭据 + 三档 SSH/install 超时 (按地区差异化).
  *
  * <p>SSH 密码以明文下发 (DB 明文存, 后台受信场景), 编辑时 fill 进 type=password 输入框.
- * <p>Xray 配置 (api 端口 / slot 池等) 不在本响应里, 走 xray_node 接口单独取.
+ * <p>Xray 配置 (api 端口 / 落地池等) 不在本响应里, 走 xray_node 接口单独取.
  */
 export interface ResourceServer {
   id: string

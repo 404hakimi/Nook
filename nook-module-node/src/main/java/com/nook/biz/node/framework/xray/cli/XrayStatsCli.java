@@ -52,10 +52,10 @@ public class XrayStatsCli {
      * @param reset   读后是否清零
      * @return XrayUserTrafficSnapshot (counter 不存在 / SSH 抖动均返 (0, 0) 占位)
      */
-    public XrayUserTrafficSnapshot readUserTraffic(SshSession session, int apiPort, String email, boolean reset) {
+    public XrayUserTrafficSnapshot readUserTraffic(SshSession session, String xrayBin, int apiPort, String email, boolean reset) {
         // pattern 末尾 STAT_SEPARATOR 保证 email 字段完整匹配, 不被前缀同名 email 误命中
         String pattern = USER_STAT_PREFIX + email + STAT_SEPARATOR;
-        Map<String, XrayUserTrafficSnapshot> all = queryByPattern(session, apiPort, pattern, reset);
+        Map<String, XrayUserTrafficSnapshot> all = queryByPattern(session, xrayBin, apiPort, pattern, reset);
         XrayUserTrafficSnapshot s = all.get(email);
         // counter 没注册 (新 client 还没流量) 或 statsquery 失败时, 返 (0, 0) 占位
         return s != null ? s : XrayUserTrafficSnapshot.builder()
@@ -74,15 +74,15 @@ public class XrayStatsCli {
      * @param reset   读后是否清零所有 user counter
      * @return Map&lt;email, snapshot&gt;; 没匹配 / SSH 抖动均返空 map (不抛错)
      */
-    public Map<String, XrayUserTrafficSnapshot> readAllUserTraffics(SshSession session, int apiPort, boolean reset) {
-        return queryByPattern(session, apiPort, USER_STAT_PREFIX, reset);
+    public Map<String, XrayUserTrafficSnapshot> readAllUserTraffics(SshSession session, String xrayBin, int apiPort, boolean reset) {
+        return queryByPattern(session, xrayBin, apiPort, USER_STAT_PREFIX, reset);
     }
 
     /** 内部统一查询: xray api statsquery --pattern; 失败返空 map 不抛错 */
-    private Map<String, XrayUserTrafficSnapshot> queryByPattern(SshSession session, int apiPort,
+    private Map<String, XrayUserTrafficSnapshot> queryByPattern(SshSession session, String xrayBin, int apiPort,
                                                                 String pattern, boolean reset) {
         // statsquery 没匹配也返 exit 0 + 空对象, 不需要 grep 兜底
-        String cmd = "xray api statsquery --server=127.0.0.1:" + apiPort
+        String cmd = xrayBin + " api statsquery --server=127.0.0.1:" + apiPort
                 + " --pattern " + ShellEscapeUtils.shellArg(pattern)
                 + (reset ? " --reset" : "");
         String stdout;

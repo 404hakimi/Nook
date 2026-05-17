@@ -29,10 +29,10 @@ import java.util.regex.Pattern;
      * @param apiPort xray 内置 api server 端口
      * @return XrayDaemonExtraSnapshot
      */
-    public XrayDaemonExtraSnapshot readExtras(SshSession session, int apiPort) {
+    public XrayDaemonExtraSnapshot readExtras(SshSession session, String xrayBin, int apiPort) {
         String composite = String.join("\n",
                 "echo '====[VERSION]===='",
-                "xray version 2>/dev/null | head -1 || true",
+                xrayBin + " version 2>/dev/null | head -1 || true",
                 "echo '====[LISTEN]===='",
                 "ss -ltn 2>/dev/null | grep -E '(127.0.0.1:" + apiPort + " |:443 |:2087 )' || true"
         );
@@ -49,11 +49,11 @@ import java.util.regex.Pattern;
      * @param session caller 已 acquire 的 SSH 会话
      * @return 远端 stdout (含 active 状态 + xray version 首行)
      */
-    public String restart(SshSession session) {
+    public String restart(SshSession session, String xrayBin) {
         return session.ssh().exec(
                 "systemctl restart " + XrayConstants.SYSTEMD_UNIT
                         + " && sleep 2 && systemctl is-active " + XrayConstants.SYSTEMD_UNIT
-                        + " && xray version | head -1"
+                        + " && " + xrayBin + " version | head -1"
         ).getStdout();
     }
 
@@ -81,11 +81,11 @@ import java.util.regex.Pattern;
      * @param requested 用户请求的版本字符串 ("latest" 或 "vX.Y.Z")
      * @return 实际版本 tag (例 "v26.3.27") 或原 requested
      */
-    public String resolveActualVersion(SshSession session, String requested) {
+    public String resolveActualVersion(SshSession session, String xrayBin, String requested) {
         if (!"latest".equalsIgnoreCase(requested)) return requested;
         String raw;
         try {
-            raw = session.ssh().exec("xray version 2>/dev/null | head -1 | awk '{print $2}' || true")
+            raw = session.ssh().exec(xrayBin + " version 2>/dev/null | head -1 | awk '{print $2}' || true")
                     .getStdout().trim();
         } catch (RuntimeException e) {
             log.warn("[xray-probe] resolveActualVersion 失败 server={}: {}", session.serverId(), e.getMessage());

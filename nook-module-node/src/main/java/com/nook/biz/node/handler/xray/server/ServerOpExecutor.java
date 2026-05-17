@@ -1,7 +1,9 @@
 package com.nook.biz.node.handler.xray.server;
 
+import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService;
+import com.nook.biz.node.validator.XrayNodeValidator;
 import com.nook.biz.operation.api.OpProgressSink;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
@@ -24,6 +26,8 @@ public class ServerOpExecutor {
 
     @Resource
     private XrayDaemonProbe xrayDaemonProbe;
+    @Resource
+    private XrayNodeValidator xrayNodeValidator;
     /** restart 前置 sample 让流量数据不丢; 失败仅 warn, 不阻塞 restart 主流程. */
     @Resource
     private XrayClientTrafficSampleService trafficSampleService;
@@ -31,6 +35,7 @@ public class ServerOpExecutor {
     /** XRAY_RESTART 实际执行体. */
     String doRestart(String serverId, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
+        XrayNodeDO node = xrayNodeValidator.validateExists(serverId);
         // restart 是可控的"清零事件" — systemctl restart 后 xray in-memory counter 全归零;
         // 先 sample 一次把当前增量入库, 让用户层流量统计跨重启不丢. 失败仅 warn, 不阻塞 restart.
         sink.report("采样流量入库", 20);
@@ -39,10 +44,10 @@ public class ServerOpExecutor {
         } catch (Exception e) {
             log.warn("[restart] server={} 前置 sample 失败, 仍继续 restart: {}", serverId, e.getMessage());
         }
-        sink.report("获取 SSH 会话", 40);
+        sink.report("连接服务器", 40);
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
-        sink.report("正在执行 systemctl restart", 60);
-        String out = xrayDaemonProbe.restart(session);
+        sink.report("重启 Xray 服务", 60);
+        String out = xrayDaemonProbe.restart(session, node.getXrayBinaryPath());
         sink.report("等待进程就绪", 90);
         return out;
     }
@@ -50,9 +55,9 @@ public class ServerOpExecutor {
     /** SERVER_AUTOSTART 实际执行体. */
     String doSetAutostart(String serverId, boolean enabled, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
-        sink.report("建立 SSH 会话", 50);
+        sink.report("连接服务器", 50);
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
-        sink.report(enabled ? "执行 systemctl enable" : "执行 systemctl disable", 80);
+        sink.report(enabled ? "开启开机自启" : "关闭开机自启", 80);
         return xrayDaemonProbe.setAutostart(session, enabled);
     }
 }

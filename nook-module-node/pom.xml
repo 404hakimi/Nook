@@ -13,10 +13,6 @@
 
     <artifactId>nook-module-node</artifactId>
     <description>
-        Xray 内核对接 (1:1 + slot 模型, 全 SSH+CLI):
-          - SSH 跑 xray api adi/rmi/ado/rmo 增删 inbound/outbound (xray 进程不重启, 客户连接 0 感知)
-          - SSH 跑 xray api stats 拉用户流量
-          - server 部署模板化, 每客户独享一个 inbound + 一个 outbound + 静态 routing rule
     </description>
 
     <dependencies>

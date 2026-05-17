@@ -1,7 +1,7 @@
 package com.nook.biz.node.validator;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
@@ -55,16 +55,23 @@ public class XrayClientValidator {
      * @param reqVO provision 入参
      */
     public void validateForProvision(XrayClientProvisionReqVO reqVO) {
-        validateFlow(reqVO.getFlow(), reqVO.getProtocol());
         validateExpiry(reqVO.getExpiryEpochMillis());
         validateLimitIp(reqVO.getLimitIp());
     }
 
-    private void validateFlow(String flow, String protocol) {
-        if (StrUtil.isBlank(flow)) return;
-        if (!"vless".equalsIgnoreCase(protocol)) {
-            throw new BusinessException(XrayErrorCode.CLIENT_PROVISION_INVALID,
-                    "flow 仅 vless 协议支持, 当前 protocol=" + protocol);
+    /**
+     * 落地数软上限校验: 该 server 活客户数 ≥ touchdownSize 则不允许再开通.
+     *
+     * @param serverId      resource_server.id
+     * @param touchdownSize 该 server 的 touchdownSize (来自 xray_node); null 视为无上限不校验
+     */
+    public void validateTouchdownCapacity(String serverId, Integer touchdownSize) {
+        if (touchdownSize == null) return;
+        long activeCount = xrayClientMapper.selectCount(Wrappers.<XrayClientDO>lambdaQuery()
+                .eq(XrayClientDO::getServerId, serverId));
+        if (activeCount >= touchdownSize) {
+            throw new BusinessException(XrayErrorCode.TOUCHDOWN_LIMIT_REACHED,
+                    serverId, touchdownSize);
         }
     }
 

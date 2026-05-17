@@ -1,7 +1,7 @@
 import request from '@/api/request'
 import type { PageResult } from '@/api/operation/op-log'
 
-/** Xray 节点 (后端 XrayNodeRespVO); 与 resource_server 1:1 关联 */
+/** Xray 节点; 与 resource_server 一一对应 */
 export interface XrayNode {
   serverId: string
   /** 后端 enrich 的服务器别名; 已删 server 字段为空, 前端 fallback 用 serverId */
@@ -12,8 +12,21 @@ export interface XrayNode {
   xrayApiPort?: number
   xrayLogDir?: string
   xrayInstallDir?: string
-  slotPoolSize?: number
-  slotPortBase?: number
+  /** xray binary 绝对路径; install 时落库, 不前端拼接 */
+  xrayBinaryPath?: string
+  /** xray config.json 绝对路径; install 时落库 */
+  xrayConfigPath?: string
+  /** xray share 目录 (geo*.dat); install 时落库 */
+  xrayShareDir?: string
+  /** 全节点固定常量, 后端 convert 时回填 (/etc/systemd/system/xray.service) */
+  xraySystemdUnitPath?: string
+  /** 该 node 最多挂载的落地 IP 数量 (软上限). */
+  touchdownSize?: number
+  sharedInboundPort?: number
+  wsPath?: string
+  domain?: string
+  tlsCertPath?: string
+  tlsKeyPath?: string
   /** 上次探测到的 xray 启动时间, 用于判断是否需 replay; 重装时清零 */
   lastXrayUptime?: string
   /** 最近一次部署完成时间 (重装会覆写) */
@@ -37,20 +50,21 @@ export function getXrayNodeDetail(serverId: string) {
   return request.get<unknown, XrayNode>('/admin/xray/node/get', { params: { serverId } })
 }
 
-/** Slot 占用视图项 (后端 XraySlotItemRespVO); slot_pool + xray_node + xray_client 三表派生 */
-export interface XraySlotItem {
-  slotIndex: number
-  listenPort: number
-  /** 0=空闲 1=已占用 */
-  used: number
-  clientId?: string | null
+/** 落地占用视图项; xray_client + ip_pool 派生. */
+export interface XrayTouchdownItem {
+  /** xray_client.id, 也是远端 outbound tag */
+  clientId: string
+  ipId?: string | null
+  /** 关联的落地 IP 地址 (ip_pool join) */
+  ipAddress?: string | null
   clientEmail?: string | null
   protocol?: string | null
   transport?: string | null
   /** 1=运行 2=已停 3=待同步 4=远端已不存在 */
   clientStatus?: number | null
+  createdAt?: string | null
 }
 
-export function getSlotPoolView(serverId: string) {
-  return request.get<unknown, XraySlotItem[]>('/admin/xray/node/slot-list', { params: { serverId } })
+export function getTouchdownList(serverId: string) {
+  return request.get<unknown, XrayTouchdownItem[]>('/admin/xray/node/touchdown-list', { params: { serverId } })
 }

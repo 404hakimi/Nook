@@ -25,21 +25,6 @@ public class XrayClientDO extends BaseEntity {
 
     private String memberUserId;
 
-    /** 占用的 slot 编号 (1..slot_pool_size); 1:1 模型下每客户独占一个 slot. 0 表示历史数据未分配 */
-    private Integer slotIndex;
-
-    /** 挂到的远端 Xray inbound tag; 1:1 模型下 = "in_slot_{slot_index 02d}" */
-    private String externalInboundRef;
-
-    /** 协议编码: vmess / vless / trojan / shadowsocks; 与 XrayProtocol 枚举对齐 */
-    private String protocol;
-
-    private String transport;
-
-    private String listenIp;
-
-    private Integer listenPort;
-
     /** 协议级密钥 (vless/vmess UUID, trojan password) */
     private String clientUuid;
 

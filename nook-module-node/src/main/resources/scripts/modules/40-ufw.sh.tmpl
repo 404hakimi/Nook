@@ -1,20 +1,19 @@
-# ===== Module 40: UFW 防火墙 (可选) =====
-# 触发: installUfw=true
-# 开放 slot 端口段供客户 inbound 监听; gRPC API 走 loopback + SSH 隧道不开公网
+# Module 40 — UFW 防火墙; 只开 22 + 共享 inbound 端口, gRPC API 走 loopback + SSH 隧道不开公网.
 
 log "=== Module 40: UFW + 防火墙规则 ==="
 
+wait_for_dpkg_lock
 apt-get install -y -qq ufw
 
-# reset 避免历史污染
+# reset 避免历史规则污染
 ufw --force reset >/dev/null
 
 ufw default deny incoming >/dev/null
 ufw default allow outgoing >/dev/null
 
 ufw allow 22/tcp comment "SSH" >/dev/null
-ufw allow {{SLOT_PORT_BASE}}:{{SLOT_PORT_END}}/tcp comment "nook client slots" >/dev/null
+ufw allow {{SHARED_INBOUND_PORT}}/tcp comment "xray shared inbound" >/dev/null
 
 ufw --force enable >/dev/null
 
-log "✔ UFW 已启用, 开放端口段: 22, {{SLOT_PORT_BASE}}-{{SLOT_PORT_END}}"
+log "✔ UFW 已启用, 开放端口: 22, {{SHARED_INBOUND_PORT}} (共享 inbound)"

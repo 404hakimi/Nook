@@ -52,14 +52,29 @@ async function runSyncStatus() {
   }
 }
 
+/** client UUID 32 hex 太长, 表里只显示前 8 位. */
+const shortId = (id: string) => id.slice(0, 8)
+
+/** 当前快照里需要修复的总条数 (三维度 staleDb 之和). */
+const totalStale = computed(() => {
+  const s = syncStatus.value
+  if (!s) return 0
+  return s.staleDbEmails.length + s.staleDbOutbounds.length + s.staleDbRules.length
+})
+
+/** 当前快照里所有孤儿条数 (三维度 orphan 之和), 仅用于摘要展示. */
+const totalOrphan = computed(() => {
+  const s = syncStatus.value
+  if (!s) return 0
+  return s.orphanRemoteEmails.length + s.orphanRemoteOutbounds.length + s.orphanRemoteRules.length
+})
+
 /**
- * 推送修复: 走 SERVER_REPLAY (后端内部仍会 lsi 二次校验, 只推未对齐).
- * 当前显示的 syncStatus 是入口前的快照, 实际推送数以后端报告为准.
+ * 推送修复: 走 SERVER_REPLAY (后端会幂等推三段 user/rule/outbound).
+ * 当前显示的 syncStatus 是入口前的快照, 实际推送以后端报告为准.
  */
 async function onReplay() {
-  if (!props.node || replayLoading.value) return
-  const tags = syncStatus.value?.staleDbTags ?? []
-  if (tags.length === 0) return
+  if (!props.node || replayLoading.value || totalStale.value === 0) return
   const label = props.node.serverName || props.node.serverId.slice(0, 12)
   replayLoading.value = true
   try {
@@ -80,7 +95,6 @@ async function onReplay() {
   }
 }
 
-/** 推送按钮文案动态: 已对齐时禁用, 不可达时禁用, 否则显示缺失数 */
 const replayButton = computed<{ label: string; disabled: boolean; tip: string }>(() => {
   if (!syncStatus.value) {
     return { label: '推送修复', disabled: true, tip: '查看差异加载中...' }
@@ -88,14 +102,14 @@ const replayButton = computed<{ label: string; disabled: boolean; tip: string }>
   if (!syncStatus.value.reachable) {
     return { label: '推送修复', disabled: true, tip: '远端不可达, 无法推送' }
   }
-  const n = syncStatus.value.staleDbTags.length
+  const n = totalStale.value
   if (n === 0) {
     return { label: '✓ 已对齐, 无需推送', disabled: true, tip: '远端与 DB 一致, 不需要推送' }
   }
   return {
-    label: `立即推送修复 ${n} 个`,
+    label: `立即推送修复 ${n} 项`,
     disabled: false,
-    tip: `按 DB 状态把 ${n} 个缺失的 inbound 重建到远端 (其余 ${syncStatus.value.okTags.length} 个已对齐, 不动)`
+    tip: `按 DB 状态推 user / rule / outbound 三段到远端 (幂等)`
   }
 })
 
@@ -108,7 +122,7 @@ function close() {
   <NModal
     :show="modelValue"
     preset="card"
-    style="max-width: 48rem"
+    style="max-width: 52rem"
     :bordered="false"
     :mask-closable="true"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
@@ -127,7 +141,7 @@ function close() {
         <div class="flex items-center justify-between mb-2">
           <div class="text-xs font-semibold text-zinc-500 flex items-center gap-1">
             <NIcon :size="14"><ShieldAlert /></NIcon>
-            查看差异
+            三维度对账 (user / outbound / rule)
           </div>
           <NButton
             quaternary
@@ -141,57 +155,131 @@ function close() {
         </div>
 
         <div v-if="!syncStatus" class="text-xs text-zinc-400 py-2">
-          拉远端 inbound list 跟 DB 比对 (只读, 不动远端).
+          拉远端 user / outbound / rule 跟 DB 比对 (只读, 不动远端).
         </div>
-        <div v-else class="space-y-2 text-sm">
+        <div v-else class="space-y-3 text-sm">
           <div v-if="!syncStatus.reachable">
             <NTag size="small" type="error">不可达</NTag>
             <span class="text-xs text-zinc-500 ml-2">SSH 不通或 xray 未起, 跳过本次查看</span>
           </div>
           <template v-else>
-            <div class="grid grid-cols-3 gap-2">
+            <!-- 总览 -->
+            <div class="flex items-center gap-4 text-xs">
               <div class="flex items-center gap-1">
                 <NIcon :size="14" color="var(--n-success-color)"><CheckCircle2 /></NIcon>
-                <span class="text-xs text-zinc-500">OK</span>
-                <span class="font-mono font-semibold">{{ syncStatus.okTags.length }}</span>
+                <span class="text-zinc-500">用户对齐</span>
+                <span class="font-mono font-semibold">{{ syncStatus.okEmails.length }}</span>
               </div>
               <div class="flex items-center gap-1">
-                <span class="text-xs text-zinc-500">DB 有远端无</span>
+                <span class="text-zinc-500">待修复</span>
                 <span
                   class="font-mono font-semibold"
-                  :style="syncStatus.staleDbTags.length > 0 ? 'color: var(--n-warning-color)' : ''"
-                >{{ syncStatus.staleDbTags.length }}</span>
+                  :style="totalStale > 0 ? 'color: var(--n-warning-color)' : ''"
+                >{{ totalStale }}</span>
               </div>
               <div class="flex items-center gap-1">
-                <span class="text-xs text-zinc-500">远端孤儿</span>
+                <span class="text-zinc-500">孤儿</span>
                 <span
                   class="font-mono font-semibold"
-                  :style="syncStatus.orphanRemoteTags.length > 0 ? 'color: var(--n-info-color)' : ''"
-                >{{ syncStatus.orphanRemoteTags.length }}</span>
+                  :style="totalOrphan > 0 ? 'color: var(--n-info-color)' : ''"
+                >{{ totalOrphan }}</span>
               </div>
             </div>
 
-            <div
-              v-if="syncStatus.staleDbTags.length > 0"
-              class="text-xs"
-              style="color: var(--n-warning-color)"
-            >
-              缺失: {{ syncStatus.staleDbTags.join(', ') }}
-              <span class="text-zinc-500 ml-1">- 点下方"推送修复"按钮恢复</span>
+            <!-- 用户维度 -->
+            <div class="border-t pt-2">
+              <div class="text-xs font-semibold text-zinc-500 mb-1">
+                共享 inbound 上的 user
+                <span class="text-zinc-400 font-normal ml-1">
+                  (OK {{ syncStatus.okEmails.length }} · 缺 {{ syncStatus.staleDbEmails.length }} · 孤儿 {{ syncStatus.orphanRemoteEmails.length }})
+                </span>
+              </div>
+              <div
+                v-if="syncStatus.staleDbEmails.length > 0"
+                class="text-xs"
+                style="color: var(--n-warning-color)"
+              >
+                缺失: {{ syncStatus.staleDbEmails.join(', ') }}
+                <span class="text-zinc-500 ml-1">— 客户连不上, 点下方"推送修复"</span>
+              </div>
+              <div
+                v-if="syncStatus.orphanRemoteEmails.length > 0"
+                class="text-xs text-zinc-500"
+              >
+                孤儿: {{ syncStatus.orphanRemoteEmails.join(', ') }}
+                <span class="text-zinc-400 ml-1">— 不自动清</span>
+              </div>
+              <div
+                v-if="syncStatus.staleDbEmails.length === 0 && syncStatus.orphanRemoteEmails.length === 0"
+                class="text-xs"
+                style="color: var(--n-success-color)"
+              >
+                ✓ 已对齐
+              </div>
             </div>
-            <div
-              v-if="syncStatus.orphanRemoteTags.length > 0"
-              class="text-xs text-zinc-500"
-            >
-              孤儿: {{ syncStatus.orphanRemoteTags.join(', ') }}
-              <span class="text-zinc-400 ml-1">- 当前不自动清理</span>
+
+            <!-- 出站维度 (tag = clientId) -->
+            <div class="border-t pt-2">
+              <div class="text-xs font-semibold text-zinc-500 mb-1">
+                动态 socks 出站 (tag = clientId)
+                <span class="text-zinc-400 font-normal ml-1">
+                  (缺 {{ syncStatus.staleDbOutbounds.length }} · 孤儿 {{ syncStatus.orphanRemoteOutbounds.length }})
+                </span>
+              </div>
+              <div
+                v-if="syncStatus.staleDbOutbounds.length > 0"
+                class="text-xs"
+                style="color: var(--n-warning-color)"
+              >
+                缺失: {{ syncStatus.staleDbOutbounds.map(shortId).join(', ') }}
+                <span class="text-zinc-500 ml-1">— 远端缺动态 socks, 流量进 blackhole 兜底被丢; 推送修复</span>
+              </div>
+              <div
+                v-if="syncStatus.orphanRemoteOutbounds.length > 0"
+                class="text-xs text-zinc-500"
+              >
+                孤儿: {{ syncStatus.orphanRemoteOutbounds.map(shortId).join(', ') }}
+                <span class="text-zinc-400 ml-1">— DB 没对应 client (revoke 残留), 不自动清</span>
+              </div>
+              <div
+                v-if="syncStatus.staleDbOutbounds.length === 0 && syncStatus.orphanRemoteOutbounds.length === 0"
+                class="text-xs"
+                style="color: var(--n-success-color)"
+              >
+                ✓ 已对齐
+              </div>
             </div>
-            <div
-              v-if="syncStatus.staleDbTags.length === 0 && syncStatus.orphanRemoteTags.length === 0"
-              class="text-xs"
-              style="color: var(--n-success-color)"
-            >
-              ✓ 已对齐
+
+            <!-- 路由规则维度 (tag = rule_<clientId>) -->
+            <div class="border-t pt-2">
+              <div class="text-xs font-semibold text-zinc-500 mb-1">
+                路由规则 (tag = rule_&lt;clientId&gt;)
+                <span class="text-zinc-400 font-normal ml-1">
+                  (缺 {{ syncStatus.staleDbRules.length }} · 孤儿 {{ syncStatus.orphanRemoteRules.length }})
+                </span>
+              </div>
+              <div
+                v-if="syncStatus.staleDbRules.length > 0"
+                class="text-xs"
+                style="color: var(--n-warning-color)"
+              >
+                缺失: {{ syncStatus.staleDbRules.map(shortId).join(', ') }}
+                <span class="text-zinc-500 ml-1">— 流量进 blackhole 兜底被丢, 推送修复</span>
+              </div>
+              <div
+                v-if="syncStatus.orphanRemoteRules.length > 0"
+                class="text-xs text-zinc-500"
+              >
+                孤儿: {{ syncStatus.orphanRemoteRules.map(shortId).join(', ') }}
+                <span class="text-zinc-400 ml-1">— DB 没对应 client, 不自动清</span>
+              </div>
+              <div
+                v-if="syncStatus.staleDbRules.length === 0 && syncStatus.orphanRemoteRules.length === 0"
+                class="text-xs"
+                style="color: var(--n-success-color)"
+              >
+                ✓ 已对齐
+              </div>
             </div>
           </template>
         </div>

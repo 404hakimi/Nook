@@ -2,20 +2,22 @@ package com.nook.biz.node.service.xray.client;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientUpdateReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
+import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
+import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
+import com.nook.biz.node.framework.xray.cli.XrayRoutingCli;
 import com.nook.biz.node.validator.ResourceServerValidator;
+import com.nook.biz.node.validator.XrayNodeValidator;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.biz.operation.api.OpType;
@@ -23,7 +25,6 @@ import com.nook.biz.operation.api.dto.OpEnqueueRequest;
 import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.api.spi.OpOrchestrator;
 import com.nook.common.utils.collection.CollectionUtils;
-import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
 import com.nook.framework.security.stp.StpSystemUtil;
 import com.nook.framework.ssh.core.SshSession;
@@ -56,9 +57,15 @@ public class XrayClientServiceImpl implements XrayClientService {
     @Resource
     private XrayClientMapper xrayClientMapper;
     @Resource
-    private XrayInboundCli inboundCli;          // getSyncStatus 需要 lsi 拉远端 tag
+    private XrayInboundCli inboundCli;
+    @Resource
+    private XrayOutboundCli outboundCli;
+    @Resource
+    private XrayRoutingCli routingCli;
     @Resource
     private XrayNodeService xrayNodeService;
+    @Resource
+    private XrayNodeValidator xrayNodeValidator;
     @Resource
     private ResourceServerValidator serverValidator;
     @Resource
@@ -119,89 +126,147 @@ public class XrayClientServiceImpl implements XrayClientService {
     }
 
     @Override
-    public void updateXrayClient(String inboundEntityId, XrayClientUpdateReqVO updateReqVO) {
-        // 校验 client 存在
-        clientValidator.validateExists(inboundEntityId);
-        // 更新本地元数据; null 字段由 MP NOT_NULL 策略跳过, 即"保留原值"
-        XrayClientDO entity = BeanUtils.toBean(updateReqVO, XrayClientDO.class);
-        xrayClientMapper.update(entity, Wrappers.<XrayClientDO>lambdaUpdate()
-                .eq(XrayClientDO::getId, inboundEntityId));
-    }
-
-    @Override
     public XrayClientCredentialRespVO getXrayClientCredential(String inboundEntityId) {
         XrayClientDO e = getXrayClient(inboundEntityId);
+        // 凭据里的协议 / 传输 / 端口 / listen IP 全部来自 xray_node, 因为这是 server 级共享 inbound 的属性
+        XrayNodeDO node = xrayNodeValidator.validateExists(e.getServerId());
         XrayClientCredentialRespVO vo = new XrayClientCredentialRespVO();
         vo.setId(e.getId());
         vo.setClientUuid(e.getClientUuid());
         vo.setClientEmail(e.getClientEmail());
-        vo.setProtocol(e.getProtocol());
-        // 客户连接的 host = server 公网 IP (resource_server.host); 拼订阅链接用
-        vo.setServerHost(serverValidator.validateExists(e.getServerId()).getHost());
-        vo.setListenPort(e.getListenPort());
-        vo.setTransport(e.getTransport());
+        vo.setProtocol(node.getProtocol());
+        // host: 有 domain 优先 (CDN / TLS), 否则回退 server 公网 IP
+        if (StrUtil.isNotBlank(node.getDomain())) {
+            vo.setServerHost(node.getDomain());
+        } else {
+            vo.setServerHost(serverValidator.validateExists(e.getServerId()).getHost());
+        }
+        vo.setListenPort(node.getSharedInboundPort());
+        vo.setTransport(node.getTransport());
+        vo.setWsPath(node.getWsPath());
+        boolean hasTls = StrUtil.isNotBlank(node.getTlsCertPath()) && StrUtil.isNotBlank(node.getDomain());
+        vo.setTlsEnabled(hasTls);
+        vo.setSni(hasTls ? node.getDomain() : null);
         return vo;
     }
 
     @Override
     public XrayClientSyncStatusRespVO getSyncStatus(String serverId) {
-        XrayClientSyncStatusRespVO vo = new XrayClientSyncStatusRespVO();
-        vo.setServerId(serverId);
-        vo.setOkTags(Collections.emptyList());
-        vo.setStaleDbTags(Collections.emptyList());
-        vo.setOrphanRemoteTags(Collections.emptyList());
+        XrayClientSyncStatusRespVO vo = newEmptySyncStatus(serverId);
 
-        // server 未装过 xray (无 xray_node) 或 SSH 不通, 都标 reachable=false 静默返回
+        // server 未装过 xray (无 xray_node) → reachable=false 静默返回
         XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
         if (node == null) {
-            vo.setReachable(false);
             log.debug("[reconciler] 同步状态查询跳过 服务器={} (无 xray 节点)", serverId);
             return vo;
         }
         int apiPort = node.getXrayApiPort();
+        String xrayBin = node.getXrayBinaryPath();
+
+        // SSH 不通 → reachable=false 静默返回
         SshSession session;
         try {
             session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
         } catch (RuntimeException e) {
-            vo.setReachable(false);
             log.warn("[reconciler] 同步状态查询服务器不可达 服务器={}: {}", serverId, e.getMessage());
+            return vo;
+        }
+
+        // 三维度远端拉取; 任一步失败都视为"远端不可探测", 不向上 5xx
+        Set<String> remoteEmails;
+        Map<String, String> remoteOutbounds;
+        Set<String> remoteRules;
+        try {
+            remoteEmails = inboundCli.listUsers(session, xrayBin, apiPort, XrayConstants.SHARED_INBOUND_TAG);
+            remoteOutbounds = outboundCli.listOutbounds(session, xrayBin, apiPort);
+            remoteRules = routingCli.listRuleTags(session, xrayBin, apiPort);
+        } catch (RuntimeException e) {
+            log.warn("[reconciler] 同步状态查询拉远端列表失败 服务器={}: {}", serverId, e.getMessage());
             return vo;
         }
         vo.setReachable(true);
 
-        // 远端 inbound list; 过滤掉静态预置 (config.json 里 dokodemo "api" inbound).
-        // lsi 失败现在会抛 BACKEND_OPERATION_FAILED (避免误判空集); 在 sync-status 只读路径里
-        // 等价于"远端不可探测", 标 reachable=false 返回, 不向上 5xx
-        Set<String> remote;
-        try {
-            remote = new HashSet<>(inboundCli.listInbounds(session, apiPort));
-        } catch (RuntimeException e) {
-            vo.setReachable(false);
-            log.warn("[reconciler] 同步状态查询拉远端 inbound 列表失败 服务器={}: {}", serverId, e.getMessage());
-            return vo;
-        }
-        remote.remove("api");
-
-        // DB 里 server 关联的活动 client (status != 2 已停)
-        Set<String> dbTags = new HashSet<>();
+        // DB 活动 client (status != 2 已停); 维度按 email / clientId 收集
+        Set<String> dbEmails = new HashSet<>();
+        Set<String> dbClientIds = new HashSet<>();
         for (XrayClientDO c : xrayClientMapper.selectByServerId(serverId)) {
             if (c.getStatus() != null && c.getStatus() == 2) continue;
-            if (StrUtil.isNotBlank(c.getExternalInboundRef())) dbTags.add(c.getExternalInboundRef());
+            if (StrUtil.isNotBlank(c.getClientEmail())) dbEmails.add(c.getClientEmail());
+            if (StrUtil.isNotBlank(c.getId())) dbClientIds.add(c.getId());
         }
 
+        diffUsers(dbEmails, remoteEmails, vo);
+        diffOutbounds(dbClientIds, remoteOutbounds, vo);
+        diffRules(dbClientIds, remoteRules, vo);
+        return vo;
+    }
+
+    /** sync-status 默认实例: reachable=false + 各维度空集; 失败路径快速返回用. */
+    private static XrayClientSyncStatusRespVO newEmptySyncStatus(String serverId) {
+        XrayClientSyncStatusRespVO vo = new XrayClientSyncStatusRespVO();
+        vo.setServerId(serverId);
+        vo.setReachable(false);
+        vo.setOkEmails(Collections.emptyList());
+        vo.setStaleDbEmails(Collections.emptyList());
+        vo.setOrphanRemoteEmails(Collections.emptyList());
+        vo.setStaleDbOutbounds(Collections.<String>emptyList());
+        vo.setOrphanRemoteOutbounds(Collections.<String>emptyList());
+        vo.setStaleDbRules(Collections.<String>emptyList());
+        vo.setOrphanRemoteRules(Collections.<String>emptyList());
+        return vo;
+    }
+
+    /** user 维度对账: 共享 inbound 上 email 与 DB clientEmail 比对. */
+    private static void diffUsers(Set<String> dbEmails, Set<String> remoteEmails,
+                                  XrayClientSyncStatusRespVO vo) {
         List<String> ok = new ArrayList<>();
         List<String> stale = new ArrayList<>();
-        for (String tag : dbTags) {
-            if (remote.contains(tag)) ok.add(tag);
-            else stale.add(tag);
+        for (String email : dbEmails) {
+            if (remoteEmails.contains(email)) ok.add(email);
+            else stale.add(email);
         }
-        List<String> orphan = new ArrayList<>(remote);
-        orphan.removeAll(dbTags);
+        List<String> orphan = new ArrayList<>(remoteEmails);
+        orphan.removeAll(dbEmails);
+        vo.setOkEmails(ok);
+        vo.setStaleDbEmails(stale);
+        vo.setOrphanRemoteEmails(orphan);
+    }
 
-        vo.setOkTags(ok);
-        vo.setStaleDbTags(stale);
-        vo.setOrphanRemoteTags(orphan);
-        return vo;
+    /**
+     * outbound 维度对账: 远端 socks outbound 的 tag 就是 clientId, 直接跟 DB 活客户 id 集比对.
+     * 静态 outbound (blackhole / api / direct 等) 不是 socks 类型, 自然被 kind 过滤掉.
+     */
+    private static void diffOutbounds(Set<String> dbClientIds, Map<String, String> remoteOutbounds,
+                                      XrayClientSyncStatusRespVO vo) {
+        List<String> stale = new ArrayList<>();
+        for (String id : dbClientIds) {
+            if (!"socks".equals(remoteOutbounds.get(id))) stale.add(id);
+        }
+        List<String> orphan = new ArrayList<>();
+        for (Map.Entry<String, String> ent : remoteOutbounds.entrySet()) {
+            if (!"socks".equals(ent.getValue())) continue;
+            if (!dbClientIds.contains(ent.getKey())) orphan.add(ent.getKey());
+        }
+        vo.setStaleDbOutbounds(stale);
+        vo.setOrphanRemoteOutbounds(orphan);
+    }
+
+    /** routing rule 维度对账: rule tag = "rule_" + clientId, 排除 builtin api rule. */
+    private static void diffRules(Set<String> dbClientIds, Set<String> remoteRules,
+                                  XrayClientSyncStatusRespVO vo) {
+        List<String> stale = new ArrayList<>();
+        for (String id : dbClientIds) {
+            if (!remoteRules.contains("rule_" + id)) stale.add(id);
+        }
+        List<String> orphan = new ArrayList<>();
+        for (String tag : remoteRules) {
+            if (XrayConstants.BUILTIN_API_RULE_TAG.equals(tag)) continue;
+            if (!tag.startsWith("rule_")) continue;
+            String id = tag.substring("rule_".length());
+            if (!dbClientIds.contains(id)) orphan.add(id);
+        }
+        vo.setStaleDbRules(stale);
+        vo.setOrphanRemoteRules(orphan);
     }
 
     @Override

@@ -74,7 +74,8 @@ public class ResourceIpSocksInstallReqVO {
     @Size(max = 64)
     private String logLevel;
 
-    /** dante logoutput 路径; 例 /var/log/sockd.log; 留空走默认. */
+    /** dante logoutput 路径; 前端兜底为 installDir/logs/sockd.log, 后端不再加默认. */
+    @NotBlank(message = "logPath 必填")
     @Size(max = 255)
     private String logPath;
 

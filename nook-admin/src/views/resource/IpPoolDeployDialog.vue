@@ -149,7 +149,8 @@ const deployedSocks5 = computed(() => ({
   socks5Username: form.socksUser.trim(),
   socks5Password: form.socksPass,
   logLevel: form.logLevel.trim() || undefined,
-  logPath: form.logPath.trim() || undefined,
+  // 留空 → 用 placeholder 兜底, 接力到 IP 池表单时已是实际路径
+  logPath: form.logPath.trim() || logPathPlaceholder.value,
   autostartEnabled: form.autostartEnabled ? 1 : 0,
   firewallEnabled: form.installUfw ? 1 : 0,
   firewallAllowFrom: form.allowFrom.trim() || undefined,
@@ -236,7 +237,7 @@ async function onSubmit() {
       allowFrom: form.allowFrom.trim() || undefined,
       installUfw: form.installUfw,
       logLevel: form.logLevel.trim() || undefined,
-      logPath: form.logPath.trim() || undefined,
+      logPath: form.logPath.trim() || logPathPlaceholder.value,
       autostartEnabled: form.autostartEnabled,
       installDir: form.installDir.trim() || undefined
     }

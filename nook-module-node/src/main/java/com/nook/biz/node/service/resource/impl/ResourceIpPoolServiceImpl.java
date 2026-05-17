@@ -219,4 +219,11 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
                 ResourceIpPoolDO::getId,
                 ResourceIpPoolDO::getIpAddress);
     }
+
+    @Override
+    public Map<String, ResourceIpPoolDO> getIpPoolMap(Collection<String> ids) {
+        if (CollectionUtils.isAnyEmpty(ids)) return Collections.emptyMap();
+        return CollectionUtils.convertMap(
+                resourceIpPoolMapper.selectBatchIds(ids), ResourceIpPoolDO::getId);
+    }
 }

@@ -12,6 +12,9 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Xray outbound 增删 CLI 客户端 (走 SSH + xray api ado/rmo); 由 caller 传入已 acquire 的 session.
@@ -33,28 +36,63 @@ public class XrayOutboundCli {
      * @param username  socks5 鉴权用户 (可空)
      * @param password  socks5 鉴权密码 (可空)
      */
-    public void addSocksOutbound(SshSession session, int apiPort, String tag,
+    public void addSocksOutbound(SshSession session, String xrayBin, int apiPort, String tag,
                                  String socksHost, int socksPort,
                                  String username, String password) {
         String json = buildSocksOutboundJson(tag, socksHost, socksPort, username, password);
-        execAdo(session, apiPort, tag, json);
+        String stdout = execAdo(session, xrayBin, apiPort, tag, json);
+        // ado 每条 outbound 处理时 stdout 会 echo "adding: <tag>"; 缺则视为 xray 解析到空 outbounds 数组,
+        // 此情况 xray 仍 exit 0, 无法靠 exit code 兜底 (跟 adu 同款静默坑).
+        if (!StrUtil.contains(stdout, "adding: " + tag)) {
+            log.warn("[xray-cli] addSocksOutbound 静默失败 server={} tag={} stdout={}",
+                    session.serverId(), tag, StrUtil.maxLength(stdout, 400));
+            throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
+                    session.serverId(), "addOutbound 远端未确认 (stdout: "
+                            + StrUtil.maxLength(stdout, 200) + ")");
+        }
         log.info("[xray-cli] addSocksOutbound server={} tag={} socks={}:{}",
                 session.serverId(), tag, socksHost, socksPort);
     }
 
     /**
-     * 加 freedom 直连出站 (api 通道 / placeholder 占位 / revoke 后还原占位).
+     * 列远端所有 outbound, 返回 {@code tag → 协议类别 (socks / other)}.
+     *
+     * <p>{@code xray.proxy.socks.Config} → {@code "socks"} (per-user 业务出站); 其它 (blackhole / freedom / api) 一律归为 {@code "other"}.
+     * sync-status 对账只关心 socks 类型的业务出站 (tag = clientId), 静态 outbound (blackhole/api) 不参与对账.
      *
      * @param session caller 已 acquire 的 SSH 会话
      * @param apiPort xray 内置 api server 端口
-     * @param tag     outbound tag
+     * @return tag → kind 映射 (顺序保留, 便于 UI 展示)
+     * @throws BusinessException SSH / xray 不可用; 调用方应放弃本轮对账
      */
-    public void addFreedomOutbound(SshSession session, int apiPort, String tag) {
-        JSONObject outbound = new JSONObject();
-        outbound.put("tag", tag);
-        outbound.put("protocol", "freedom");
-        execAdo(session, apiPort, tag, wrapAsConfig(outbound));
-        log.info("[xray-cli] addFreedomOutbound server={} tag={}", session.serverId(), tag);
+    public Map<String, String> listOutbounds(SshSession session, String xrayBin, int apiPort) {
+        // jq 把 (tag, _TypedMessage_) 平铺成一行用 tab 分隔, 远端 stdout 行数即出站条目数
+        String cmd = xrayBin + " api lso --server=127.0.0.1:" + apiPort
+                + " | jq -r '.outbounds[] | \"\\(.tag)\\t\\(.proxySettings._TypedMessage_ // \"\")\"'";
+        String stdout;
+        try {
+            stdout = session.ssh().exec(cmd).getStdout();
+        } catch (RuntimeException e) {
+            log.warn("[xray-cli] listOutbounds 失败 server={}: {}",
+                    session.serverId(), e.getMessage());
+            throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, e,
+                    session.serverId(), "listOutbounds: " + StrUtil.maxLength(e.getMessage(), 200));
+        }
+        if (StrUtil.isBlank(stdout)) return Collections.emptyMap();
+        Map<String, String> out = new LinkedHashMap<>();
+        for (String line : stdout.split("\\R")) {
+            if (StrUtil.isBlank(line)) continue;
+            String[] parts = line.split("\\t", 2);
+            String tag = parts[0].trim();
+            String typedMsg = parts.length > 1 ? parts[1].trim() : "";
+            out.put(tag, classifyOutbound(typedMsg));
+        }
+        return out;
+    }
+
+    /** 把 lso 的 _TypedMessage_ 字符串映射到业务侧 kind (只区分 socks vs other). */
+    private static String classifyOutbound(String typedMessage) {
+        return StrUtil.containsIgnoreCase(typedMessage, "socks") ? "socks" : "other";
     }
 
     /**
@@ -64,8 +102,8 @@ public class XrayOutboundCli {
      * @param apiPort xray 内置 api server 端口
      * @param tag     outbound tag
      */
-    public void removeOutbound(SshSession session, int apiPort, String tag) {
-        String cmd = "xray api rmo --server=127.0.0.1:" + apiPort + " "
+    public void removeOutbound(SshSession session, String xrayBin, int apiPort, String tag) {
+        String cmd = xrayBin + " api rmo --server=127.0.0.1:" + apiPort + " "
                 + ShellEscapeUtils.shellArg(tag);
         try {
             session.ssh().exec(cmd);
@@ -76,19 +114,19 @@ public class XrayOutboundCli {
     }
 
     /**
-     * 共用 ado 命令封装; 把 config JSON 经 base64 喂给 xray api ado 的 stdin (新版 xray 不传文件参数即读 stdin).
-     * 没有临时文件 / race / 残留风险, pipe 的 exit code 取末段 (xray) 的, 默认行为.
+     * 共用 ado 命令封装; 经 base64 把 config JSON 喂给 xray, 用 xray-core 文档化的 {@code stdin:} 显式语法.
      *
-     * @param session caller 已 acquire 的 SSH 会话
-     * @param apiPort xray 内置 api server 端口
-     * @param tag     outbound tag (仅用于日志)
-     * @param json    已包装的 config JSON 字符串, 顶层须为 {"outbounds":[...]} 格式
+     * <p>v26.3.27 源码 ado 在 unnamedArgs 为空时会自动补 {@code "stdin:"}, 但这是隐式 fallback,
+     * 显式传 {@code stdin:} 跟 adu 风格一致, 跨版本稳健.
+     *
+     * @return ado stdout (调用方靠 "adding: <tag>" 字样做 sanity-check)
      */
-    private void execAdo(SshSession session, int apiPort, String tag, String json) {
+    private String execAdo(SshSession session, String xrayBin, int apiPort, String tag, String json) {
         String b64 = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
-        String cmd = "echo '" + b64 + "' | base64 -d | xray api ado --server=127.0.0.1:" + apiPort;
+        String cmd = "echo '" + b64 + "' | base64 -d | " + xrayBin
+                + " api ado --server=127.0.0.1:" + apiPort + " stdin:";
         try {
-            session.ssh().exec(cmd);
+            return session.ssh().exec(cmd).getStdout();
         } catch (BusinessException be) {
             throw mapAddOutboundError(be, session.serverId(), tag);
         }

@@ -156,28 +156,28 @@ export function xrayAutostart(serverId: string, enabled: boolean) {
 }
 
 /**
- * Xray 线路服务器一键安装入参 (1:1 + slot 模型).
+ * Xray 线路服务器一键安装入参.
  *
- * <p>仅 xray 内核 + slot 池 + UFW + 时区; swap / bbr 等通用 OS 调优拆到 ServerOps 接口,
- * 在服务器列表"运维操作"菜单按需独立触发, 不混进部署链路.
+ * <p>仅装 xray 内核 + 落地池 + UFW + 时区; swap / bbr 等通用 OS 调优走 ServerOps 接口单独触发.
  *
  * <p>所有字段都必须由前端传入, 后端不再 fallback (LineServerInstallReqVOValidator 严校验).
  */
 export interface LineServerInstallDTO {
   /** Xray 版本; "v26.3.27" 这种或 "latest". */
   xrayVersion: string
-  /**
-   * Xray 安装目录; binary / config / share 全装在 <installDir>/{bin,etc,share} 下.
-   * 必须绝对路径; 后端校验黑名单 (/, /etc, /usr, /var, /bin, /sbin, /lib, /boot, /dev, /proc, /sys, /run, /root).
-   */
+  /** Xray 安装根目录, 仅作展示分组; 实际路径全部独立传 (xrayBinaryPath 等). */
   installDir: string
-  /** 客户端口段起点; 1:1 模型每客户独享 inbound 监听 base+slotIndex. */
-  slotPortBase: number
-  /** Slot 池大小, server 最多承载客户数. */
-  slotPoolSize: number
+  /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray. */
+  xrayBinaryPath: string
+  /** xray config.json 绝对路径; 前端默认 <installDir>/etc/xray/config.json. */
+  xrayConfigPath: string
+  /** xray share 目录 (geo*.dat); 前端默认 <installDir>/share/xray. */
+  xrayShareDir: string
+  /** 该 server 最多挂载的落地 IP 数量 (= 客户端数量上限, 软上限). */
+  touchdownSize: number
   /** Xray 内置 api server 端口 (loopback); xray api adi/rmi 用. */
   xrayApiPort: number
-  /** xray 日志目录; 留空时后端派生为 <installDir>/logs. */
+  /** xray 日志目录; 前端默认 <installDir>/logs. */
   logDir: string
   /** Xray 日志级别: debug / info / warning / error / none. */
   logLevel: 'debug' | 'info' | 'warning' | 'error' | 'none'
@@ -188,8 +188,31 @@ export interface LineServerInstallDTO {
   /** 强制重装; 即使版本号一致也走下载流程, 用于自编译 / build 后缀差异. */
   forceReinstall: boolean
   installUfw: boolean
-  /** IANA tz, 如 Asia/Shanghai / UTC; "skip" 表示不改远端时区. */
-  timezone: string
+  /** true = 设置远端时区为 Asia/Shanghai, false = 跳过 (10-timezone 模块不渲染). */
+  setTimezone: boolean
+  /** 共享 inbound 协议; 当前部署期固定 vmess (前端置灰), 协议适配阶段才放开. */
+  protocol: 'vmess' | 'vless' | 'trojan'
+  /** 共享 inbound 传输; 当前部署期固定 ws (前端置灰). */
+  transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
+  /** 共享 inbound 监听 IP; 当前部署期固定 0.0.0.0 (前端置灰). */
+  listenIp: string
+  /** 共享 inbound 监听端口 (默认 443). */
+  sharedInboundPort: number
+  /** WebSocket transport path; 必须 / 开头. */
+  wsPath: string
+  /**
+   * true = 走域名 + TLS (生产路径): domain 必填, 安装链路跑 CF A 记录 + 45-acme-tls 模块 + xray inbound 渲染 TLS;
+   * false = 不走域名, xray inbound 退化成纯 vmess+ws, domain / cfApiToken 字段被忽略.
+   */
+  useTls: boolean
+  /** 对外域名; useTls=true 时必填. */
+  domain?: string
+  /** Cloudflare API Token; useTls=true 且远端 cert 需新签时必填. 远端保存供续期, 不入 nook DB. */
+  cfApiToken?: string
+  /** TLS 证书路径; useTls=true 必填, useTls=false 送空串. 前端默认 <installDir>/tls/cert.pem. */
+  tlsCertPath: string
+  /** TLS 私钥路径; useTls=true 必填, useTls=false 送空串. 前端默认 <installDir>/tls/key.pem. */
+  tlsKeyPath: string
 }
 
 /** 启用 swap 入参. */

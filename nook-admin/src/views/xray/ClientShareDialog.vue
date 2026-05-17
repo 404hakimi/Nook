@@ -10,10 +10,17 @@ import {
   NInput,
   NModal,
   NSpin,
+  NTag,
   useMessage
 } from 'naive-ui'
 import QrcodeVue from 'qrcode.vue'
-import { getClientCredential, type XrayClient, type XrayClientCredential } from '@/api/xray/client'
+import {
+  CLIENT_STATUS_LABELS,
+  getClientCredential,
+  type XrayClient,
+  type XrayClientCredential
+} from '@/api/xray/client'
+import { formatDateTime } from '@/utils/date'
 import { buildClientUri } from '@/utils/xrayUri'
 
 interface Props {
@@ -44,7 +51,10 @@ const uri = computed(() => {
       port: c.listenPort,
       uuid: c.clientUuid,
       email: c.clientEmail,
-      transport: c.transport
+      transport: c.transport,
+      wsPath: c.wsPath,
+      tlsEnabled: c.tlsEnabled,
+      sni: c.sni
     })
   } catch (e) {
     console.warn('[share] 拼 URI 失败:', e)
@@ -73,6 +83,14 @@ watch(
   }
 )
 
+function statusType(s: number): 'success' | 'warning' | 'error' | 'default' {
+  if (s === 1) return 'success'
+  if (s === 2) return 'default'
+  if (s === 3) return 'warning'
+  if (s === 4) return 'error'
+  return 'default'
+}
+
 async function onCopy() {
   if (!uri.value) return
   try {
@@ -95,7 +113,7 @@ function close() {
   <NModal
     :show="modelValue"
     preset="card"
-    style="max-width: 46rem"
+    style="max-width: 56rem; width: 92vw"
     :bordered="false"
     :mask-closable="true"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
@@ -131,6 +149,39 @@ function close() {
         </NAlert>
 
         <template v-else-if="credential && uri">
+          <!-- 客户端信息 (只读; inbound 是 server 级共享配置, 不在这里展示) -->
+          <div class="text-sm font-semibold mb-2">客户端信息</div>
+          <NDescriptions :column="2" size="small" label-placement="left" bordered class="!mb-4">
+            <NDescriptionsItem label="服务器">
+              <span class="text-xs">{{ client?.serverName || client?.serverId }}</span>
+              <span v-if="client?.serverHost" class="text-zinc-400 ml-2 text-xs font-mono">
+                {{ client.serverHost }}
+              </span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="状态">
+              <NTag v-if="client" size="small" :type="statusType(client.status)">
+                {{ CLIENT_STATUS_LABELS[client.status] || client.status }}
+              </NTag>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="会员 ID">
+              <span class="font-mono text-xs">{{ client?.memberUserId }}</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="落地 IP">
+              <span class="font-mono text-xs">
+                {{ client?.ipAddress || '—' }}
+                <span v-if="client?.ipId" class="text-zinc-400 ml-2">
+                  (ipId: {{ client.ipId }})
+                </span>
+              </span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="创建时间">
+              <span class="text-xs">{{ formatDateTime(client?.createdAt) }}</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="最近同步">
+              <span class="text-xs">{{ formatDateTime(client?.lastSyncedAt) }}</span>
+            </NDescriptionsItem>
+          </NDescriptions>
+
           <!-- 安全提示: 二维码 = 凭据明文图像, 截图泄露即等于送密钥 -->
           <NAlert type="warning" :show-icon="true" class="!mb-3">
             <template #icon>
@@ -186,16 +237,20 @@ function close() {
           <!-- 协议级凭据 (备用) -->
           <div class="text-sm font-semibold mt-6 mb-2">协议级凭据 (备用)</div>
           <NDescriptions :column="2" size="small" label-placement="left" bordered>
-            <NDescriptionsItem label="协议">{{ credential.protocol }}</NDescriptionsItem>
-            <NDescriptionsItem label="传输">{{ credential.transport || 'tcp' }}</NDescriptionsItem>
+            <NDescriptionsItem label="协议">
+              <span class="text-xs">{{ credential.protocol }}</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="传输">
+              <span class="text-xs">{{ credential.transport || 'tcp' }}</span>
+            </NDescriptionsItem>
             <NDescriptionsItem label="主机" :span="2">
-              <span class="font-mono">{{ credential.serverHost }}:{{ credential.listenPort }}</span>
+              <span class="font-mono text-xs">{{ credential.serverHost }}:{{ credential.listenPort }}</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="UUID/密码" :span="2">
-              <span class="font-mono break-all">{{ credential.clientUuid }}</span>
+              <span class="font-mono text-xs break-all">{{ credential.clientUuid }}</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="Email" :span="2">
-              <span class="font-mono break-all">{{ credential.clientEmail }}</span>
+              <span class="font-mono text-xs break-all">{{ credential.clientEmail }}</span>
             </NDescriptionsItem>
           </NDescriptions>
         </template>

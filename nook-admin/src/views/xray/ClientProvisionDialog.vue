@@ -46,36 +46,15 @@ const loadingIpPool = ref(false)
 /** memberUserId 唯一性预校验状态; 'idle' 表示未校验, 'ok' 通过, 'dup' 已重复, 'checking' 正在请求. */
 const memberCheck = ref<'idle' | 'checking' | 'ok' | 'dup'>('idle')
 
-/**
- * 1:1 + slot 模型: inbound tag / 监听端口由 nook 自动决定 (in_slot_NN, port = slot_port_base + slot_index);
- * transport / listenIp 后端不再 fallback 默认值, 必须前端传 (有合理默认值, 运维可改).
- */
+/** 共享 inbound 模型下, 协议 / 传输 / listen IP 由 server 上的 xray 配置决定, 不在这里采集. */
 const form = reactive({
   serverId: '',
   ipId: '',
   memberUserId: '',
-  protocol: '' as '' | 'vless' | 'vmess' | 'trojan',
-  transport: 'tcp' as 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic',
-  listenIp: '0.0.0.0',
   totalBytes: undefined as number | undefined,
   expiryEpochMillis: undefined as number | undefined,
-  limitIp: undefined as number | undefined,
-  flow: ''
+  limitIp: undefined as number | undefined
 })
-
-const PROTOCOL_OPTIONS = [
-  { label: 'vless', value: 'vless' as const },
-  { label: 'vmess', value: 'vmess' as const },
-  { label: 'trojan', value: 'trojan' as const }
-]
-
-const TRANSPORT_OPTIONS = [
-  { label: 'tcp (默认)', value: 'tcp' as const },
-  { label: 'ws', value: 'ws' as const },
-  { label: 'grpc', value: 'grpc' as const },
-  { label: 'h2', value: 'h2' as const },
-  { label: 'quic', value: 'quic' as const }
-]
 
 const serverOptions = computed(() =>
   servers.value.map((s) => ({
@@ -107,13 +86,9 @@ watch(
       serverId: '',
       ipId: '',
       memberUserId: '',
-      protocol: '',
-      transport: 'tcp',
-      listenIp: '0.0.0.0',
       totalBytes: undefined,
       expiryEpochMillis: undefined,
-      limitIp: undefined,
-      flow: ''
+      limitIp: undefined
     })
     await Promise.all([loadServers(), loadIpPool(), loadIpTypesOnce()])
   }
@@ -196,13 +171,6 @@ function validate(): boolean {
   if (!form.serverId) errors.serverId = '请选服务器'
   if (!form.memberUserId.trim()) errors.memberUserId = '请输入会员 ID'
   if (!form.ipId.trim()) errors.ipId = '请选 IP'
-  if (!form.protocol) errors.protocol = '请选协议'
-  if (!form.transport) errors.transport = '请选传输层'
-  if (!form.listenIp.trim()) errors.listenIp = '请输入监听 IP'
-  // flow 仅 vless 协议可填; 后端 Validator 会复核, 这里前置一道避免无效请求
-  if (form.flow.trim() && form.protocol !== 'vless') {
-    errors.flow = 'flow 仅 vless 协议支持'
-  }
   return Object.keys(errors).length === 0
 }
 
@@ -212,18 +180,14 @@ async function onSubmit() {
   if (!(await checkMemberUnique())) return
   submitting.value = true
   try {
-    // inbound tag / 监听端口由 nook 自动分配; transport / listenIp 由前端传
+    // inbound / 协议 / 传输 / listen IP 都由 server 端 xray 配置决定, 前端只传 server + IP + 会员 + 配额
     const dto: XrayClientProvisionDTO = {
       serverId: form.serverId,
       ipId: form.ipId.trim(),
       memberUserId: form.memberUserId.trim(),
-      protocol: form.protocol as 'vless' | 'vmess' | 'trojan',
-      transport: form.transport,
-      listenIp: form.listenIp.trim(),
       totalBytes: form.totalBytes,
       expiryEpochMillis: form.expiryEpochMillis,
-      limitIp: form.limitIp,
-      flow: form.flow.trim() || undefined
+      limitIp: form.limitIp
     }
     await provisionClient(dto)
     message.success('开通成功')
@@ -332,59 +296,6 @@ function close() {
             />
           </NFormItem>
         </div>
-
-        <NFormItem
-          label="协议"
-          required
-          :validation-status="errors.protocol ? 'error' : undefined"
-          :feedback="errors.protocol"
-        >
-          <NSelect
-            v-model:value="form.protocol"
-            :options="PROTOCOL_OPTIONS"
-            :status="errors.protocol ? 'error' : undefined"
-            placeholder="vless / vmess / trojan"
-          />
-        </NFormItem>
-
-        <NFormItem
-          label="传输层"
-          required
-          :validation-status="errors.transport ? 'error' : undefined"
-          :feedback="errors.transport"
-        >
-          <NSelect
-            v-model:value="form.transport"
-            :options="TRANSPORT_OPTIONS"
-            :status="errors.transport ? 'error' : undefined"
-          />
-        </NFormItem>
-
-        <NFormItem
-          label="监听 IP"
-          required
-          :validation-status="errors.listenIp ? 'error' : undefined"
-          :feedback="errors.listenIp"
-        >
-          <NInput
-            v-model:value="form.listenIp"
-            :status="errors.listenIp ? 'error' : undefined"
-            placeholder="0.0.0.0 / ::"
-            :input-props="{ style: 'font-family: monospace' }"
-          />
-        </NFormItem>
-
-        <NFormItem
-          label="flow"
-          :validation-status="errors.flow ? 'error' : undefined"
-          :feedback="errors.flow || (form.protocol === 'vless' ? 'vless reality 用, 例 xtls-rprx-vision' : '仅 vless 协议可填')"
-        >
-          <NInput
-            v-model:value="form.flow"
-            :disabled="form.protocol !== 'vless'"
-            placeholder="xtls-rprx-vision 或留空"
-          />
-        </NFormItem>
 
         <NFormItem label="流量上限 (字节, 0=不限)">
           <NInputNumber v-model:value="form.totalBytes" :min="0" class="w-full" />

@@ -1,5 +1,4 @@
-# ===== Module 99: 部署收尾 (必装) =====
-# 触发: 永远
+# Module 99 — 部署完成总结 (打印关键路径 / 版本 / 端口).
 
 log "=== Module 99: 部署完成总结 ==="
 
@@ -9,10 +8,11 @@ echo ""
 echo "${GREEN}━━━━━━━━━━━━━━━━ 部署完成 ━━━━━━━━━━━━━━━━${NC}"
 echo "  Server:        {{SERVER_NAME}}"
 echo "  公网 IP:       $PUBLIC_IP"
-echo "  Xray 版本:     $(xray version 2>/dev/null | head -1)"
+echo "  Xray 版本:     $({{XRAY_BINARY_PATH}} version 2>/dev/null | head -1 || echo '?')"
 echo "  Xray 状态:     $(systemctl is-active xray 2>/dev/null)"
 echo "  gRPC API:      127.0.0.1:{{XRAY_API_PORT}} (走 SSH 隧道访问)"
-echo "  Slot 池:       {{SLOT_POOL_SIZE}} (端口段 {{SLOT_PORT_BASE}}-{{SLOT_PORT_END}})"
+echo "  落地上限:      {{TOUCHDOWN_SIZE}}"
+echo "  共享 inbound:  :{{SHARED_INBOUND_PORT}} (vmess+ws, path={{WS_PATH}})"
 echo "  时区:          $(timedatectl show -p Timezone --value 2>/dev/null || echo unknown)"
 echo "  BBR:           $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)"
 echo "  swap:          $(swapon --show=NAME,SIZE --noheadings 2>/dev/null | head -1 || echo 无)"

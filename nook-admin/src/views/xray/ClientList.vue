@@ -2,7 +2,6 @@
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
   Activity,
-  Pencil,
   Plus,
   RefreshCcw,
   RefreshCw,
@@ -35,7 +34,6 @@ import {
   type XrayClientQuery
 } from '@/api/xray/client'
 import { formatDateTime } from '@/utils/date'
-import ClientEditDialog from './ClientEditDialog.vue'
 import ClientProvisionDialog from './ClientProvisionDialog.vue'
 import ClientShareDialog from './ClientShareDialog.vue'
 import ClientTrafficDialog from './ClientTrafficDialog.vue'
@@ -221,17 +219,6 @@ function openShare(e: XrayClient) {
   shareOpen.value = true
 }
 
-// ===== 编辑（本地元数据：listenIp/Port/transport/status） =====
-const editOpen = ref(false)
-const editTarget = ref<XrayClient | null>(null)
-function openEdit(e: XrayClient) {
-  editTarget.value = e
-  editOpen.value = true
-}
-async function onEdited() {
-  await loadList()
-}
-
 // ===== IP 详情弹框 (点 IP 列触发, 仅展示, 不在这里改 IP) =====
 const ipDetailOpen = ref(false)
 const ipDetailId = ref<string>('')
@@ -268,11 +255,6 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
           ? h('span', { class: 'font-mono text-xs text-zinc-500' }, row.serverHost)
           : null
       ])
-  },
-  {
-    title: 'Inbound 引用',
-    key: 'externalInboundRef',
-    render: (row) => h('span', { class: 'font-mono text-xs' }, row.externalInboundRef)
   },
   {
     title: '会员 ID',
@@ -361,17 +343,6 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
             title: '查看上下行流量统计'
           },
           { icon: () => h(NIcon, null, { default: () => h(Activity) }), default: () => '流量' }
-        ),
-        h(
-          NButton,
-          {
-            size: 'tiny',
-            quaternary: true,
-            disabled: rowBusy,
-            onClick: () => openEdit(row),
-            title: '编辑 Inbound 元数据'
-          },
-          { icon: () => h(NIcon, null, { default: () => h(Pencil) }), default: () => '编辑' }
         ),
         h(
           NButton,
@@ -557,11 +528,6 @@ onMounted(() => {
 
     <ClientProvisionDialog v-model="provisionOpen" @saved="onProvisioned" />
     <ClientTrafficDialog v-model="trafficOpen" :inbound="trafficTarget" />
-    <ClientEditDialog
-      v-model="editOpen"
-      :inbound="editTarget"
-      @saved="onEdited"
-    />
     <ClientShareDialog v-model="shareOpen" :client="shareTarget" />
     <!-- 点击列表 IP 列触发: 只读详情, 不带改 IP 入口 (改 IP 走 IP 池管理页) -->
     <IpPoolDetailDialog v-model="ipDetailOpen" :ip-id="ipDetailId" />

@@ -20,6 +20,12 @@ export interface XrayClientUriInput {
   flow?: string
   /** 传输方式: tcp / ws / grpc / xhttp 等; 默认 tcp */
   transport?: string
+  /** ws path; transport=ws 时必填 */
+  wsPath?: string
+  /** TLS 启用标志; true 时加 tls 参数 */
+  tlsEnabled?: boolean
+  /** TLS SNI (= 服务器域名); tlsEnabled=true 时必填 */
+  sni?: string
 }
 
 export function buildClientUri(input: XrayClientUriInput): string {
@@ -39,7 +45,7 @@ export function buildClientUri(input: XrayClientUriInput): string {
   }
 }
 
-/** vmess JSON v2 schema; auto 加密 + tcp + 无 TLS, 这是 nook 标配 inbound 的最小可工作形态。 */
+/** vmess JSON v2 schema; ws + 可选 TLS, path/sni 跟 server 配置对齐. */
 function buildVmess(input: XrayClientUriInput): string {
   const payload = {
     v: '2',
@@ -47,15 +53,15 @@ function buildVmess(input: XrayClientUriInput): string {
     add: input.host,
     port: input.port,
     id: input.uuid,
-    aid: 0, // AEAD 模式 alterId 必须 0
+    aid: 0,
     scy: 'auto',
     net: input.transport || 'tcp',
     type: 'none',
-    host: '',
-    path: '',
-    tls: '',
-    sni: '',
-    alpn: '',
+    host: input.tlsEnabled ? (input.sni || '') : '',
+    path: input.wsPath || '',
+    tls: input.tlsEnabled ? 'tls' : '',
+    sni: input.tlsEnabled ? (input.sni || '') : '',
+    alpn: input.tlsEnabled ? 'h2,http/1.1' : '',
     fp: ''
   }
   return 'vmess://' + base64UrlSafe(JSON.stringify(payload))
@@ -66,6 +72,12 @@ function buildVless(input: XrayClientUriInput): string {
   params.set('encryption', 'none')
   params.set('type', input.transport || 'tcp')
   if (input.flow) params.set('flow', input.flow)
+  if (input.wsPath) params.set('path', input.wsPath)
+  if (input.tlsEnabled) {
+    params.set('security', 'tls')
+    if (input.sni) params.set('sni', input.sni)
+    params.set('alpn', 'h2,http/1.1')
+  }
   return `vless://${encodeURIComponent(input.uuid)}@${input.host}:${input.port}?${params.toString()}#${encodeURIComponent(input.email)}`
 }
 

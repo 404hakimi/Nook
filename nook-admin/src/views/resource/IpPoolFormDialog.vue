@@ -248,7 +248,8 @@ async function onSubmit() {
       status: form.status,
       provisionMode: form.provisionMode,
       logLevel: form.logLevel.trim() || undefined,
-      logPath: form.logPath.trim() || undefined,
+      // 留空 → 用 placeholder 的兜底 (installDir/logs/sockd.log) 填回, 后端 @NotBlank 校验直接拒空
+      logPath: form.logPath.trim() || logPathPlaceholder.value,
       autostartEnabled: form.autostartEnabled,
       firewallEnabled: form.firewallEnabled,
       firewallAllowFrom: form.firewallAllowFrom.trim() || undefined,

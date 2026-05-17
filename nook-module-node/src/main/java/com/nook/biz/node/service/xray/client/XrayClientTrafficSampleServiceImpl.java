@@ -62,7 +62,7 @@ public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSamp
         Map<String, XrayUserTrafficSnapshot> counters;
         try {
             SshSession session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
-            counters = xrayStatsCli.readAllUserTraffics(session, node.getXrayApiPort(), false);
+            counters = xrayStatsCli.readAllUserTraffics(session, node.getXrayBinaryPath(), node.getXrayApiPort(), false);
         } catch (RuntimeException e) {
             log.warn("[traffic-sample] 服务器={} SSH 拉计数器失败, 跳过本轮: {}", serverId, e.getMessage());
             return SampleStat.EMPTY;

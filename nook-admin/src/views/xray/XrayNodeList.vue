@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref, type Component } from 'vue'
-import { Eye, FileText, GitCompareArrows, LayoutGrid, Power, RefreshCcw, Rocket, Search } from 'lucide-vue-next'
+import { Eye, FileText, FolderOpen, GitCompareArrows, LayoutGrid, Power, RefreshCcw, Rocket, Search } from 'lucide-vue-next'
 import {
   NButton,
   NCard,
@@ -18,9 +18,10 @@ import { xrayRestart } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
 import ServerInstallDialog from '@/views/resource/ServerInstallDialog.vue'
 import XrayNodeStatusDialog from './XrayNodeStatusDialog.vue'
-import XrayNodeSlotsDialog from './XrayNodeSlotsDialog.vue'
+import XrayNodeTouchdownDialog from './XrayNodeTouchdownDialog.vue'
 import XrayNodeLogDialog from './XrayNodeLogDialog.vue'
 import XrayNodeDiffDialog from './XrayNodeDiffDialog.vue'
+import XrayNodeInstallInfoDialog from './XrayNodeInstallInfoDialog.vue'
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -85,20 +86,21 @@ function onInstalled() {
   loadList()
 }
 
-// ===== 行内: 详情 / Slot / 日志 / 查看差异 四个独立弹窗 =====
+// ===== 行内: 服务状态 / 落地占用 / 日志 / 查看差异 / 安装详情 五个独立弹窗 =====
 const statusOpen = ref(false)
-const slotsOpen = ref(false)
+const touchdownOpen = ref(false)
 const logOpen = ref(false)
 const diffOpen = ref(false)
+const installInfoOpen = ref(false)
 const dialogTarget = ref<XrayNode | null>(null)
 
 function openStatus(n: XrayNode) {
   dialogTarget.value = n
   statusOpen.value = true
 }
-function openSlots(n: XrayNode) {
+function openTouchdown(n: XrayNode) {
   dialogTarget.value = n
-  slotsOpen.value = true
+  touchdownOpen.value = true
 }
 function openLog(n: XrayNode) {
   dialogTarget.value = n
@@ -107,6 +109,10 @@ function openLog(n: XrayNode) {
 function openDiff(n: XrayNode) {
   dialogTarget.value = n
   diffOpen.value = true
+}
+function openInstallInfo(n: XrayNode) {
+  dialogTarget.value = n
+  installInfoOpen.value = true
 }
 
 // ===== 行内: 重启 Xray =====
@@ -164,16 +170,71 @@ const columns = computed<DataTableColumns<XrayNode>>(() => [
     render: (row) => h('span', { class: 'font-mono text-xs' }, row.xrayApiPort ?? '-')
   },
   {
-    title: 'Slot 池',
-    key: 'slot',
-    width: 130,
+    title: '落地上限',
+    key: 'touchdownSize',
+    width: 80,
+    render: (row) =>
+      row.touchdownSize == null
+        ? h('span', { class: 'text-zinc-400 text-xs' }, '-')
+        : h('span', { class: 'font-mono text-xs' }, row.touchdownSize)
+  },
+  {
+    title: '共享 inbound',
+    key: 'sharedInbound',
+    width: 220,
     render: (row) => {
-      if (row.slotPoolSize == null && row.slotPortBase == null) {
+      // 都缺时显示 '-'; 否则两行: 端口 + ws path, 每行带 label 让两个值自解释
+      if (row.sharedInboundPort == null && !row.wsPath) {
         return h('span', { class: 'text-zinc-400 text-xs' }, '-')
       }
-      const size = row.slotPoolSize ?? '-'
-      const base = row.slotPortBase ?? '-'
-      return h('span', { class: 'font-mono text-xs' }, `size=${size} / base=${base}`)
+      const labelClass = 'text-[10px] uppercase tracking-wide text-zinc-400 w-10 flex-shrink-0'
+      return h('div', { class: 'flex flex-col gap-0.5 text-xs' }, [
+        row.sharedInboundPort != null
+          ? h('div', { class: 'flex items-baseline gap-2' }, [
+              h('span', { class: labelClass }, '端口'),
+              h('span', { class: 'font-mono' }, `:${row.sharedInboundPort}`)
+            ])
+          : null,
+        row.wsPath
+          ? h('div', { class: 'flex items-baseline gap-2 min-w-0' }, [
+              h('span', { class: labelClass }, 'ws'),
+              h(
+                'span',
+                {
+                  class: 'font-mono text-zinc-600 dark:text-zinc-400 truncate',
+                  title: row.wsPath
+                },
+                row.wsPath
+              )
+            ])
+          : null
+      ])
+    }
+  },
+  {
+    title: '域名 / TLS',
+    key: 'domain',
+    width: 220,
+    render: (row) => {
+      // domain 不空 = 走域名 + TLS; 空 = IP 直连
+      if (!row.domain) {
+        return h(
+          NTag,
+          { size: 'small', type: 'default', bordered: false, title: 'IP 直连, 无 TLS' },
+          { default: () => 'IP 直连' }
+        )
+      }
+      return h('div', { class: 'flex items-center gap-2 min-w-0' }, [
+        h(NTag, { size: 'small', type: 'success', bordered: false, title: '走域名 + TLS' }, { default: () => 'TLS' }),
+        h(
+          'span',
+          {
+            class: 'font-mono text-xs truncate',
+            title: row.domain
+          },
+          row.domain
+        )
+      ])
     }
   },
   {
@@ -181,11 +242,24 @@ const columns = computed<DataTableColumns<XrayNode>>(() => [
     key: 'xrayInstallDir',
     ellipsis: { tooltip: true },
     render: (row) =>
-      h(
-        'span',
-        { class: 'font-mono text-xs text-zinc-600 dark:text-zinc-400' },
-        row.xrayInstallDir || '-'
-      )
+      row.xrayInstallDir
+        ? h(
+            'button',
+            {
+              type: 'button',
+              class:
+                'inline-flex items-center gap-1 font-mono text-xs text-blue-600 dark:text-blue-400 ' +
+                'underline decoration-dotted underline-offset-4 hover:decoration-solid hover:text-blue-800 ' +
+                'dark:hover:text-blue-300 cursor-pointer',
+              title: '点击查看安装详情 (binary / config / log / systemd / TLS 等派生路径)',
+              onClick: () => openInstallInfo(row)
+            },
+            [
+              h(NIcon, { size: 12 }, { default: () => h(FolderOpen) }),
+              h('span', null, row.xrayInstallDir)
+            ]
+          )
+        : h('span', { class: 'text-zinc-400 text-xs' }, '-')
   },
   {
     title: '上次探测启动',
@@ -230,11 +304,11 @@ const columns = computed<DataTableColumns<XrayNode>>(() => [
           onClick: () => openDiff(row)
         }),
         renderActionButton({
-          tooltip: '查看该 server 上 slot 池 50 个槽位的占用情况 + 绑定 client',
+          tooltip: '查看该 server 落地 IP 占用情况 + 绑定客户',
           icon: LayoutGrid,
-          label: 'Slot 占用',
+          label: '落地占用',
           disabled: !!busy,
-          onClick: () => openSlots(row)
+          onClick: () => openTouchdown(row)
         }),
         renderActionButton({
           tooltip: '查看 xray access / error 日志, 支持 50-1000 行 + 按级别过滤',
@@ -382,9 +456,11 @@ onMounted(loadList)
     <XrayNodeStatusDialog v-model="statusOpen" :node="dialogTarget" />
     <!-- 查看差异 + 推送修复 -->
     <XrayNodeDiffDialog v-model="diffOpen" :node="dialogTarget" />
-    <!-- Slot 占用 -->
-    <XrayNodeSlotsDialog v-model="slotsOpen" :node="dialogTarget" />
+    <!-- 落地占用 -->
+    <XrayNodeTouchdownDialog v-model="touchdownOpen" :node="dialogTarget" />
     <!-- 日志 -->
     <XrayNodeLogDialog v-model="logOpen" :node="dialogTarget" />
+    <!-- 安装详情 (点击表格"安装目录"列触发) -->
+    <XrayNodeInstallInfoDialog v-model="installInfoOpen" :node="dialogTarget" />
   </div>
 </template>
