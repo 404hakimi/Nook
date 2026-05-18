@@ -13,13 +13,16 @@ spring:
     password: nWSDjJWE2r3fH8f7!ly8@21
     hikari:
       maximum-pool-size: 20
-      minimum-idle: 5
+      # dev 期不预热, 首次查询才按需建连接; 启动直接快 (生产环境调回 5 让首请求不等连接)
+      minimum-idle: 0
       connection-timeout: 60000        # 借连接最长等 60s
       idle-timeout: 600000             # idle 10min 主动关 (在 minimum-idle 之上的)
       max-lifetime: 1800000            # 单连接最长寿命 30min, 比 MySQL wait_timeout (默认 8h) 短即可
       keepalive-time: 60000            # 每 60s ping 一次 idle 连接, 关键: 阻止 NAT 切 TCP
       validation-timeout: 5000
       connection-test-query: SELECT 1
+      # 启动不阻塞 — MySQL 暂时不通也让 app 起来, 首次查询时再连
+      initialization-fail-timeout: -1
   data:
     redis:
       host: 36.111.148.126
