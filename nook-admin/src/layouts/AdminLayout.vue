@@ -80,15 +80,8 @@ const menuOptions: MenuOption[] = [
     children: [
       { key: '/resource/servers', label: routerLabel('/resource/servers', '服务器'), icon: icon(Server) },
       { key: '/resource/ip-pool', label: routerLabel('/resource/ip-pool', 'IP代理池'), icon: icon(Globe2) },
-      {
-        key: 'xray-group',
-        label: 'Xray 管理',
-        icon: icon(Cable),
-        children: [
-          { key: '/xray/nodes', label: routerLabel('/xray/nodes', 'Xray 节点'), icon: icon(Server) },
-          { key: '/xray/clients', label: routerLabel('/xray/clients', 'Xray 客户端'), icon: icon(Cable) }
-        ]
-      }
+      // Xray 节点行展开即可看到该 server 的客户列表; 独立"客户端"页保留路由但不在侧栏显示
+      { key: '/xray/nodes', label: routerLabel('/xray/nodes', 'Xray 节点'), icon: icon(Cable) }
     ]
   },
   {
@@ -118,7 +111,7 @@ const activeKey = computed(() => {
 })
 
 /** 默认展开的分组 key; 包含资源管理 + Xray 管理 (后者嵌在前者下作三级菜单), 让用户一进入就看到全部叶子. */
-const defaultExpandedKeys = ['resource-group', 'xray-group']
+const defaultExpandedKeys = ['resource-group']
 
 /** 移动端: <md 折叠侧栏, 点 toggle 临时展开; >=md 直接常驻 */
 const collapsed = ref(false)

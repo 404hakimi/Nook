@@ -327,6 +327,8 @@ export interface Socks5InstallDTO {
   autostartEnabled?: boolean
   /** SOCKS5 安装目录; 留空走默认 /home/socks5. */
   installDir?: string
+  /** logrotate 日志轮转 (sockd.log 50M 触发滚 + gzip); 不传默认 true. */
+  logRotate?: boolean
 }
 
 /**

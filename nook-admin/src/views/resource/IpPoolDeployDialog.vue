@@ -130,6 +130,7 @@ const form = reactive({
   /** 日志路径; 留空走 {installDir}/logs/sockd.log 兜底, placeholder 即兜底值 */
   logPath: '',
   autostartEnabled: true,
+  logRotate: true,
   /** SOCKS5 安装目录; logs/info.txt 等运维资产放这里, 跟 xray 部署习惯一致 */
   installDir: '/home/socks5'
 })
@@ -186,6 +187,7 @@ watch(
       logLevel: DANTE_LOG_LEVEL_DEFAULT,
       logPath: '',
       autostartEnabled: true,
+      logRotate: true,
       installDir: '/home/socks5'
     })
   }
@@ -239,6 +241,7 @@ async function onSubmit() {
       logLevel: form.logLevel.trim() || undefined,
       logPath: form.logPath.trim() || logPathPlaceholder.value,
       autostartEnabled: form.autostartEnabled,
+      logRotate: form.logRotate,
       installDir: form.installDir.trim() || undefined
     }
     await installSocks5Stream(dto, appendOutput, abortCtrl.signal)
@@ -534,9 +537,18 @@ function close() {
         </div>
 
         <NFormItem label=" ">
-          <NCheckbox v-model:checked="form.autostartEnabled" :disabled="installing">
-            开机自启
-          </NCheckbox>
+          <div class="flex flex-col gap-1">
+            <NCheckbox v-model:checked="form.autostartEnabled" :disabled="installing">
+              开机自启
+            </NCheckbox>
+            <NCheckbox
+              v-model:checked="form.logRotate"
+              :disabled="installing"
+              title="sockd.log 50M 触发滚 + gzip 压缩 + copytruncate 0 中断; 低配机推荐开启"
+            >
+              日志轮转 (sockd.log 50M 自动滚)
+            </NCheckbox>
+          </div>
         </NFormItem>
 
         <div class="sm:col-span-2">

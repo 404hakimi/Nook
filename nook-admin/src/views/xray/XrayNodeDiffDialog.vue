@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
-import { CheckCircle2, Copy, FlaskConical, Info, RefreshCw, X as XIcon } from 'lucide-vue-next'
+import { CheckCircle2, Copy, Info, RefreshCw, X as XIcon } from 'lucide-vue-next'
 import {
   NAlert,
   NButton,
   NIcon,
-  NInputNumber,
   NModal,
   NSpace,
   NSpin,
@@ -92,27 +91,17 @@ const totalOrphan = computed(() => {
   return s.orphanRemoteEmails.length + s.orphanRemoteOutbounds.length + s.orphanRemoteRules.length
 })
 
-/**
- * DEV 期间调试开关: true 时打开弹框直接走模拟数据, 不再发后端请求 (后端 sync-status 走 SSH 远端拉取很慢).
- * 调试完置 false 或删掉.
- */
-const MOCK_ONLY = import.meta.env.DEV
-
 watch(
   () => [props.modelValue, props.node?.serverId],
   ([open]) => {
     if (open) {
-      if (MOCK_ONLY) {
-        // 直接用 mockCount 注入, 跳过 API
-        nextTick(() => injectMock())
-      } else {
-        runRefresh()
-      }
+      runRefresh()
     } else {
       destroyGraph()
       syncStatus.value = null
       clients.value = []
       columns.value = []
+      ipPoolByIpId.value = {}
       closeSelection()
     }
   }
@@ -120,10 +109,6 @@ watch(
 
 async function runRefresh() {
   if (!props.node) return
-  if (MOCK_ONLY) {
-    await injectMock()
-    return
-  }
   loading.value = true
   try {
     const [status, clientPage] = await Promise.all([
@@ -132,7 +117,7 @@ async function runRefresh() {
     ])
     syncStatus.value = status
     clients.value = clientPage.records
-    // 拉本 server 关联的 IP 池行 (按 region/keyword 不行, 直接拉全部 status=2 已占用的) 用于详情 enrich
+    // 拉本轮涉及到的 IP 池行 (status=2 已占用) 给详情面板 enrich 用; 失败留空差异主流程不受影响
     try {
       const ipPage = await pageIpPool({ pageNo: 1, pageSize: 500, status: 2 })
       ipPoolByIpId.value = Object.fromEntries(ipPage.records.map((r) => [r.id, r]))
@@ -150,103 +135,6 @@ async function runRefresh() {
   } finally {
     loading.value = false
   }
-}
-
-// ===== 仅 dev 期使用: 注入 N 个模拟客户端 + 各种异常状态, 用来评估大数据量下图的视觉表现 =====
-const isDev = import.meta.env.DEV
-const mockCount = ref(15)
-
-async function injectMock() {
-  const n = Math.max(1, Math.min(200, mockCount.value || 15))
-  const mockClients: XrayClient[] = []
-  const okEmails: string[] = []
-  const staleEmails: string[] = []
-  const staleOutbounds: string[] = []
-  const staleRules: string[] = []
-
-  const segs = {
-    ok: Math.floor(n * 0.55),
-    staleUser: Math.floor(n * 0.15),
-    staleRule: Math.floor(n * 0.1),
-    staleOut: 0
-  }
-  segs.staleOut = n - segs.ok - segs.staleUser - segs.staleRule
-
-  for (let i = 0; i < n; i++) {
-    const id = `mock${String(i).padStart(2, '0')}` + Math.random().toString(16).slice(2, 28).padEnd(26, '0')
-    const clientId = id.slice(0, 32)
-    const memberId = `m${String(i).padStart(3, '0')}`
-    const ipShort = clientId.slice(0, 8)
-    const email = `member_${memberId}_${ipShort}`
-    mockClients.push({
-      id: clientId,
-      serverId: 'mock',
-      ipId: `ip_${ipShort}`,
-      ipAddress: `216.236.30.${100 + (i % 155)}`,
-      memberUserId: memberId,
-      clientUuid: 'mock',
-      clientEmail: email,
-      status: 1
-    } as XrayClient)
-
-    if (i < segs.ok) {
-      okEmails.push(email)
-    } else if (i < segs.ok + segs.staleUser) {
-      staleEmails.push(email)
-    } else if (i < segs.ok + segs.staleUser + segs.staleRule) {
-      okEmails.push(email)
-      staleRules.push(clientId)
-    } else {
-      okEmails.push(email)
-      staleOutbounds.push(clientId)
-    }
-  }
-
-  // 加几条远端孤儿
-  const orphanCount = Math.min(3, Math.floor(n / 5))
-  const orphanEmailsArr: string[] = []
-  const orphanRulesArr: string[] = []
-  const orphanOutboundsArr: string[] = []
-  for (let i = 0; i < orphanCount; i++) {
-    const oid = `orphan${i}` + Math.random().toString(16).slice(2).padEnd(25, '0').slice(0, 25)
-    orphanEmailsArr.push(`member_orphan${i}_${oid.slice(0, 8)}`)
-    orphanRulesArr.push(oid.slice(0, 32))
-    orphanOutboundsArr.push(oid.slice(0, 32))
-  }
-
-  syncStatus.value = {
-    serverId: 'mock',
-    reachable: true,
-    okEmails,
-    staleDbEmails: staleEmails,
-    orphanRemoteEmails: orphanEmailsArr,
-    staleDbOutbounds: staleOutbounds,
-    orphanRemoteOutbounds: orphanOutboundsArr,
-    staleDbRules: staleRules,
-    orphanRemoteRules: orphanRulesArr
-  }
-  clients.value = mockClients
-  // 合成 mock IP 池行, 每条客户端一份, 加点状态/region 的变化让 UI 看起来真实
-  const regions = ['DE-Frankfurt', 'US-Seattle', 'JP-Tokyo', 'SG-Singapore']
-  ipPoolByIpId.value = Object.fromEntries(mockClients.map((c, i) => [c.ipId, {
-    id: c.ipId,
-    region: regions[i % regions.length],
-    ipTypeId: 'mock-residential',
-    ipAddress: c.ipAddress ?? `216.236.30.${100 + i}`,
-    socks5Port: 51000 + i,
-    socks5Username: `u_${c.ipId.slice(0, 6)}`,
-    socks5Password: '****',
-    status: 2,
-    assignedMemberId: c.memberUserId,
-    assignedAt: '2026-05-15 10:30',
-    assignCount: 1 + (i % 3),
-    lastHealthAt: '2026-05-17 09:00',
-    autostartEnabled: 1
-  }]))
-  buildColumns()
-  await nextTick()
-  renderGraph()
-  message.success(`已注入 ${n} 个模拟客户端 + ${orphanCount} 孤儿`)
 }
 
 function buildColumns() {
@@ -791,7 +679,7 @@ const replayButton = computed<{ label: string; disabled: boolean; tip: string }>
   }
   const n = totalStale.value
   if (n === 0) {
-    return { label: '✓ 已对齐, 无需推送', disabled: true, tip: '远端与 DB 一致' }
+    return { label: '✓ 一切正常, 无需推送', disabled: true, tip: '远端与 DB 一致' }
   }
   return {
     label: `立即推送修复 ${n} 项`,
@@ -809,35 +697,14 @@ async function copyText(text: string) {
   }
 }
 
-/** 单条修复: 调 syncClient 把该 client 的三段配置幂等推到远端; mock 模式下本地翻转状态为 ok. */
+/** 单条修复: 调 syncClient 把该 client 的三段配置幂等推到远端. */
 async function onSyncOne(clientId: string) {
   if (syncingClientId.value) return
   syncingClientId.value = clientId
   try {
-    if (MOCK_ONLY) {
-      await new Promise((r) => setTimeout(r, 400))
-      // 把这条 client 的所有 stale 翻成 ok (模拟修复)
-      const s = syncStatus.value
-      if (s) {
-        const c = clients.value.find((x) => x.id === clientId)
-        if (c) {
-          if (s.staleDbEmails.includes(c.clientEmail)) {
-            s.staleDbEmails = s.staleDbEmails.filter((e) => e !== c.clientEmail)
-            if (!s.okEmails.includes(c.clientEmail)) s.okEmails.push(c.clientEmail)
-          }
-          s.staleDbOutbounds = s.staleDbOutbounds.filter((id) => id !== clientId)
-          s.staleDbRules = s.staleDbRules.filter((id) => id !== clientId)
-        }
-      }
-      buildColumns()
-      await nextTick()
-      renderGraph()
-      message.success('已模拟修复')
-    } else {
-      await syncClient(clientId)
-      message.success('已推送')
-      await runRefresh()
-    }
+    await syncClient(clientId)
+    message.success('已推送')
+    await runRefresh()
     selectedMeta.value = null
   } catch (e) {
     message.error('修复失败: ' + ((e as Error).message ?? ''))
@@ -852,7 +719,7 @@ async function onReplay() {
   replayLoading.value = true
   try {
     const report: ReplayReport = await replayServer(props.node.serverId)
-    const tip = `总 ${report.totalCount} · 已对齐 ${report.alreadyOkCount} · 推送 ${report.successCount}`
+    const tip = `总 ${report.totalCount} · 已就绪 ${report.alreadyOkCount} · 推送 ${report.successCount}`
     if (report.failedClientIds.length === 0) {
       message.success(`${label}: 推送完成 (${tip})`)
     } else {
@@ -886,7 +753,7 @@ function statusTagType(s: NodeStatus): 'success' | 'warning' | 'default' {
   return s === 'ok' ? 'success' : s === 'stale' ? 'warning' : 'default'
 }
 function statusLabel(s: NodeStatus) {
-  return s === 'ok' ? '已对齐' : s === 'stale' ? '待修复' : '孤儿'
+  return s === 'ok' ? '正常' : s === 'stale' ? '缺配置' : '多配置'
 }
 
 function accentBar(a: SectionAccent) {
@@ -925,20 +792,26 @@ onBeforeUnmount(destroyGraph)
     <!-- 摘要 + 操作栏 -->
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-4 text-sm">
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-1" title="远端配置与 DB 一致">
           <NIcon :size="14" color="#52c41a"><CheckCircle2 /></NIcon>
-          <span class="text-zinc-500">已对齐 user</span>
+          <span class="text-zinc-500">正常 user</span>
           <span class="font-mono font-semibold">{{ syncStatus?.okEmails.length ?? 0 }}</span>
         </div>
-        <div class="flex items-center gap-1">
-          <span class="text-zinc-500">待修复</span>
+        <div
+          class="flex items-center gap-1"
+          title="DB 期望存在但远端缺, 客户连不上 / 走默认出口; 点'立即推送'修复"
+        >
+          <span class="text-zinc-500">缺配置</span>
           <span
             class="font-mono font-semibold"
             :style="totalStale > 0 ? 'color: #fa8c16' : ''"
           >{{ totalStale }}</span>
         </div>
-        <div class="flex items-center gap-1">
-          <span class="text-zinc-500">孤儿</span>
+        <div
+          class="flex items-center gap-1"
+          title="远端存在但 DB 没对应客户端 (一般是 revoke 残留); 不影响其他客户, 不自动清"
+        >
+          <span class="text-zinc-500">多配置</span>
           <span
             class="font-mono font-semibold"
             :style="totalOrphan > 0 ? 'color: #8c8c8c' : ''"
@@ -948,38 +821,25 @@ onBeforeUnmount(destroyGraph)
       <div class="flex items-center gap-2">
         <!-- 图例 -->
         <span class="text-xs text-zinc-400 mr-2 flex items-center gap-2">
-          <span class="inline-flex items-center gap-1">
+          <span class="inline-flex items-center gap-1" title="远端配置与 DB 一致">
             <span class="inline-block w-3 h-3 rounded" style="background:#f6ffed;border:1px solid #52c41a"></span>
-            已对齐
+            正常
           </span>
-          <span class="inline-flex items-center gap-1">
+          <span class="inline-flex items-center gap-1"
+                title="DB 期望存在但远端缺, 客户连不上; 点'立即推送'修复">
             <span class="inline-block w-3 h-3 rounded" style="background:#fff7e6;border:2px solid #fa8c16"></span>
-            待修复 (DB 有远端缺)
+            缺配置
           </span>
-          <span class="inline-flex items-center gap-1">
+          <span class="inline-flex items-center gap-1"
+                title="远端存在但 DB 没对应客户端 (revoke 残留); 不自动清">
             <span class="inline-block w-3 h-3 rounded" style="background:#fafafa;border:1px dashed #bfbfbf"></span>
-            孤儿 (远端有 DB 无)
+            多配置
           </span>
         </span>
         <NButton quaternary size="small" :loading="loading" @click="runRefresh">
           <template #icon><NIcon><RefreshCw /></NIcon></template>
           重新查看
         </NButton>
-        <template v-if="isDev">
-          <NInputNumber
-            v-model:value="mockCount"
-            :min="1"
-            :max="200"
-            size="small"
-            :show-button="false"
-            style="width: 4.5rem"
-            placeholder="N"
-          />
-          <NButton quaternary size="small" type="info" @click="injectMock">
-            <template #icon><NIcon><FlaskConical /></NIcon></template>
-            模拟
-          </NButton>
-        </template>
       </div>
     </div>
 
@@ -989,7 +849,7 @@ onBeforeUnmount(destroyGraph)
       :show-icon="true"
       class="!mb-3"
     >
-      远端不可达 (SSH 不通或 xray 未起), 暂无法对账
+      远端不可达 (SSH 不通或 xray 未起), 暂无法查看差异
     </NAlert>
 
     <NAlert
@@ -999,7 +859,7 @@ onBeforeUnmount(destroyGraph)
       class="!mb-3"
     >
       <template #icon><NIcon><Info /></NIcon></template>
-      该服务器下暂无任何客户端, 也没有远端孤儿数据
+      该服务器下暂无任何客户端, 远端也无残留配置
     </NAlert>
 
     <div class="flex items-center justify-between mb-2 text-xs">
@@ -1149,11 +1009,11 @@ onBeforeUnmount(destroyGraph)
               v-else-if="selectedMeta.status === 'orphan'"
               class="text-zinc-500 text-[11px] leading-relaxed"
             >
-              远端孤儿: DB 没对应客户端, 不自动清理.
+              多配置: 远端存在但 DB 没对应客户端, 不自动清理.
               如需清除请在服务器手动 <code>xray api rmu / rmrules / rmo</code>.
             </div>
             <div v-else class="text-zinc-400 text-[11px] text-center py-1">
-              该链路已对齐, 无需操作
+              该链路一切正常, 无需操作
             </div>
           </div>
         </div>

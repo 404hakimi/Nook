@@ -222,6 +222,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     private Map<String, String> buildVars(ResourceIpSocksInstallReqVO r) {
         boolean autostart = r.getAutostartEnabled() == null || r.getAutostartEnabled();
         boolean firewall = r.getInstallUfw() != null && r.getInstallUfw();
+        boolean logRotate = r.getLogRotate() == null || r.getLogRotate();
         String installDir = StrUtil.blankToDefault(r.getInstallDir(), DEFAULT_INSTALL_DIR);
         return Map.ofEntries(
                 Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
@@ -235,7 +236,8 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 Map.entry("LOG_LEVEL", StrUtil.blankToDefault(r.getLogLevel(), DEFAULT_LOG_LEVEL)),
                 Map.entry("LOG_PATH", r.getLogPath()),
                 Map.entry("INSTALL_DIR", installDir),
-                Map.entry("AUTOSTART_ENABLED", autostart ? "1" : "0"));
+                Map.entry("AUTOSTART_ENABLED", autostart ? "1" : "0"),
+                Map.entry("LOG_ROTATE_ENABLED", logRotate ? "1" : "0"));
     }
 
     // ===== status / autostart / log: 走 IP 池条目存储的 SSH 凭据, 不需要前端再输 =====

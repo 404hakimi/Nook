@@ -190,6 +190,8 @@ export interface LineServerInstallDTO {
   installUfw: boolean
   /** true = 设置远端时区为 Asia/Shanghai, false = 跳过 (10-timezone 模块不渲染). */
   setTimezone: boolean
+  /** true = 装 logrotate 自动滚 xray 日志 (低配机推荐); false = 跳过 (日志可能填满磁盘). */
+  logRotate: boolean
   /** 共享 inbound 协议; 当前部署期固定 vmess (前端置灰), 协议适配阶段才放开. */
   protocol: 'vmess' | 'vless' | 'trojan'
   /** 共享 inbound 传输; 当前部署期固定 ws (前端置灰). */

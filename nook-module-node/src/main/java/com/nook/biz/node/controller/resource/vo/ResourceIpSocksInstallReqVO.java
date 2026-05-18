@@ -82,6 +82,9 @@ public class ResourceIpSocksInstallReqVO {
     /** systemd 开机自启 (true=enable, false=disable); 不传默认 true. */
     private Boolean autostartEnabled;
 
+    /** 是否启用 logrotate 日志轮转 (sockd.log 50M 触发 + gzip 压缩); 推荐低配机开启. */
+    private Boolean logRotate;
+
     /** SOCKS5 安装目录; 留空走默认 /home/socks5; logs / info.txt 等运维资产放这里. */
     @Size(max = 255)
     private String installDir;

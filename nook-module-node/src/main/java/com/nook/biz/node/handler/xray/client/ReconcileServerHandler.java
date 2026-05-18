@@ -7,7 +7,8 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * SERVER_RECONCILE handler; 定时器和手动入口都走这. 业务执行见 ClientOpExecutor.doReplayIfRestarted.
+ * CLIENT_RECONCILE handler (客户端自检对账); 定时调度入口, 探 xray 重启则触发全量同步.
+ * 业务执行见 ClientOpExecutor.doReplayIfRestarted.
  *
  * @author nook
  */
@@ -19,7 +20,7 @@ public class ReconcileServerHandler implements OpHandler {
 
     @Override
     public String type() {
-        return OpType.SERVER_RECONCILE.name();
+        return OpType.CLIENT_RECONCILE.name();
     }
 
     @Override

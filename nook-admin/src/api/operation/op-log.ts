@@ -12,14 +12,13 @@ export type OpStatus =
 /** 后端 OpType 枚举名; 新加 op 时同步更新这里. */
 export type OpType =
   | 'XRAY_RESTART'
-  | 'SERVER_PROVISION'
   | 'SERVER_AUTOSTART'
   | 'CLIENT_PROVISION'
   | 'CLIENT_REVOKE'
   | 'CLIENT_ROTATE'
   | 'CLIENT_SYNC'
-  | 'SERVER_REPLAY'
-  | 'SERVER_RECONCILE'
+  | 'CLIENT_ALL_SYNC'
+  | 'CLIENT_RECONCILE'
 
 /** 单条 op_log; 列表/详情共用; 列表场景 paramsJson/errorMsg 为 null. */
 export interface OpLog {

@@ -91,6 +91,10 @@ public class XrayServerInstallReqVO {
     @NotNull(message = "setTimezone 必填")
     private Boolean setTimezone;
 
+    /** 是否启用 logrotate 日志轮转; 推荐开启避免日志填满低配机磁盘. */
+    @NotNull(message = "logRotate 必填")
+    private Boolean logRotate;
+
     /** 共享 inbound 协议; 当前部署期固定 vmess (前端置灰), 协议适配阶段才放开. */
     @NotBlank(message = "protocol 必填")
     @Pattern(regexp = "vmess|vless|trojan", message = "protocol 必须是 vmess / vless / trojan 之一")

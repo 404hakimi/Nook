@@ -199,6 +199,28 @@ tail -f $LOG_PATH
 INFO
 chmod 644 "$INSTALL_DIR/info.txt"
 
+# ===== logrotate: size-based + gzip + copytruncate, 0 中断, 适合低配机 =====
+if [[ "{{LOG_ROTATE_ENABLED}}" == "1" ]]; then
+    if ! command -v logrotate >/dev/null 2>&1; then
+        apt-get install -y -qq logrotate
+    fi
+    cat > /etc/logrotate.d/dante <<EOF
+$LOG_PATH {
+    size 50M
+    rotate 5
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+    # 立即跑一次校验语法 / 验证路径; 失败仅 warn, cron 后续会修复
+    logrotate -f /etc/logrotate.d/dante 2>/dev/null \
+      && echo "  ✔ logrotate 已配置 ($LOG_PATH ≥50M 触发滚动, 保留 5 份 gzip 压缩)" \
+      || echo "  ⚠ logrotate 配置有问题, 可手动 logrotate -f /etc/logrotate.d/dante 排查"
+fi
+
 echo ""
 echo -e "${GREEN}━━━━━━━━ 落地节点安装完成 (dante-server) ━━━━━━━━${NC}"
 echo "  SOCKS5 地址:  $PUB:$SOCKS_PORT"

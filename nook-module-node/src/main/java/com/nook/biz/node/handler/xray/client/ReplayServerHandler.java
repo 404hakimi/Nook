@@ -7,7 +7,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * SERVER_REPLAY handler; 业务执行见 ClientOpExecutor.doReplayServer.
+ * CLIENT_ALL_SYNC handler (同步全部客户端); 业务执行见 ClientOpExecutor.doReplayServer.
  *
  * @author nook
  */
@@ -19,12 +19,12 @@ public class ReplayServerHandler implements OpHandler {
 
     @Override
     public String type() {
-        return OpType.SERVER_REPLAY.name();
+        return OpType.CLIENT_ALL_SYNC.name();
     }
 
     @Override
     public Object execute(OpContext ctx) {
-        ctx.report("准备 replay", 10);
+        ctx.report("准备同步全部客户端", 10);
         return executor.doReplayServer(ctx.serverId(), ctx);
     }
 }

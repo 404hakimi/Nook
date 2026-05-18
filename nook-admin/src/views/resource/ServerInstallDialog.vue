@@ -120,6 +120,7 @@ const form = reactive<LineServerInstallDTO>({
   forceReinstall: false,
   installUfw: true,
   setTimezone: true,
+  logRotate: true,
   // 部署期固定 vmess+ws+0.0.0.0; UI 置灰禁改, 协议适配阶段才放开
   protocol: 'vmess',
   transport: 'ws',
@@ -246,6 +247,7 @@ async function onSubmit() {
       forceReinstall: form.forceReinstall,
       installUfw: form.installUfw,
       setTimezone: form.setTimezone,
+      logRotate: form.logRotate,
       protocol: form.protocol,
       transport: form.transport,
       listenIp: form.listenIp,
@@ -612,6 +614,13 @@ function close() {
             </NCheckbox>
             <NCheckbox v-model:checked="form.setTimezone" :disabled="installing">
               设置时区 Asia/Shanghai
+            </NCheckbox>
+            <NCheckbox
+              v-model:checked="form.logRotate"
+              :disabled="installing"
+              title="size-based 滚 + gzip 压缩 + copytruncate 0 中断; 低配机推荐开启避免日志填满磁盘"
+            >
+              日志轮转 (access 50M + error 10M 自动滚)
             </NCheckbox>
           </div>
         </div>

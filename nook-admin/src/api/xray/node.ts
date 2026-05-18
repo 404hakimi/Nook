@@ -49,22 +49,3 @@ export function pageXrayNode(params: XrayNodePageQuery) {
 export function getXrayNodeDetail(serverId: string) {
   return request.get<unknown, XrayNode>('/admin/xray/node/get', { params: { serverId } })
 }
-
-/** 落地占用视图项; xray_client + ip_pool 派生. */
-export interface XrayTouchdownItem {
-  /** xray_client.id, 也是远端 outbound tag */
-  clientId: string
-  ipId?: string | null
-  /** 关联的落地 IP 地址 (ip_pool join) */
-  ipAddress?: string | null
-  clientEmail?: string | null
-  protocol?: string | null
-  transport?: string | null
-  /** 1=运行 2=已停 3=待同步 4=远端已不存在 */
-  clientStatus?: number | null
-  createdAt?: string | null
-}
-
-export function getTouchdownList(serverId: string) {
-  return request.get<unknown, XrayTouchdownItem[]>('/admin/xray/node/touchdown-list', { params: { serverId } })
-}

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref, type Component } from 'vue'
-import { Eye, FileText, FolderOpen, GitCompareArrows, LayoutGrid, Power, RefreshCcw, Rocket, Search } from 'lucide-vue-next'
+import { Eye, FileText, FolderOpen, GitCompareArrows, Power, RefreshCcw, Rocket, Search } from 'lucide-vue-next'
 import {
   NButton,
   NCard,
@@ -18,10 +18,10 @@ import { xrayRestart } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
 import ServerInstallDialog from '@/views/resource/ServerInstallDialog.vue'
 import XrayNodeStatusDialog from './XrayNodeStatusDialog.vue'
-import XrayNodeTouchdownDialog from './XrayNodeTouchdownDialog.vue'
 import XrayNodeLogDialog from './XrayNodeLogDialog.vue'
 import XrayNodeDiffDialog from './XrayNodeDiffDialog.vue'
 import XrayNodeInstallInfoDialog from './XrayNodeInstallInfoDialog.vue'
+import NodeClientsSubTable from './NodeClientsSubTable.vue'
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -86,9 +86,8 @@ function onInstalled() {
   loadList()
 }
 
-// ===== 行内: 服务状态 / 落地占用 / 日志 / 查看差异 / 安装详情 五个独立弹窗 =====
+// ===== 行内: 服务状态 / 日志 / 查看差异 / 安装详情 四个独立弹窗 =====
 const statusOpen = ref(false)
-const touchdownOpen = ref(false)
 const logOpen = ref(false)
 const diffOpen = ref(false)
 const installInfoOpen = ref(false)
@@ -97,10 +96,6 @@ const dialogTarget = ref<XrayNode | null>(null)
 function openStatus(n: XrayNode) {
   dialogTarget.value = n
   statusOpen.value = true
-}
-function openTouchdown(n: XrayNode) {
-  dialogTarget.value = n
-  touchdownOpen.value = true
 }
 function openLog(n: XrayNode) {
   dialogTarget.value = n
@@ -138,6 +133,11 @@ async function onRestart(row: XrayNode) {
 }
 
 const columns = computed<DataTableColumns<XrayNode>>(() => [
+  {
+    type: 'expand',
+    expandable: () => true,
+    renderExpand: (row) => h(NodeClientsSubTable, { serverId: row.serverId })
+  },
   {
     title: '服务器',
     key: 'server',
@@ -304,13 +304,6 @@ const columns = computed<DataTableColumns<XrayNode>>(() => [
           onClick: () => openDiff(row)
         }),
         renderActionButton({
-          tooltip: '查看该 server 落地 IP 占用情况 + 绑定客户',
-          icon: LayoutGrid,
-          label: '落地占用',
-          disabled: !!busy,
-          onClick: () => openTouchdown(row)
-        }),
-        renderActionButton({
           tooltip: '查看 xray access / error 日志, 支持 50-1000 行 + 按级别过滤',
           icon: FileText,
           label: '日志',
@@ -435,7 +428,7 @@ onMounted(loadList)
       </div>
     </NCard>
 
-    <!-- 表格 -->
+    <!-- 表格 (行可展开 → 该节点客户端子表) -->
     <NCard size="small" :content-style="{ padding: 0 }">
       <NDataTable
         :columns="columns"
@@ -456,8 +449,6 @@ onMounted(loadList)
     <XrayNodeStatusDialog v-model="statusOpen" :node="dialogTarget" />
     <!-- 查看差异 + 推送修复 -->
     <XrayNodeDiffDialog v-model="diffOpen" :node="dialogTarget" />
-    <!-- 落地占用 -->
-    <XrayNodeTouchdownDialog v-model="touchdownOpen" :node="dialogTarget" />
     <!-- 日志 -->
     <XrayNodeLogDialog v-model="logOpen" :node="dialogTarget" />
     <!-- 安装详情 (点击表格"安装目录"列触发) -->

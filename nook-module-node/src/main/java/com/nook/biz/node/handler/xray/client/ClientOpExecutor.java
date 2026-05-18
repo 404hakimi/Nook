@@ -355,7 +355,7 @@ public class ClientOpExecutor {
     }
 
     /**
-     * 全量重放该服务器下的客户端配置.
+     * 同步全部客户端 (CLIENT_ALL_SYNC): 把该 server 下所有非停 client 三段配置幂等推到远端.
      *
      * @param serverId resource_server.id
      * @param progress 进度 sink, 允许为 null

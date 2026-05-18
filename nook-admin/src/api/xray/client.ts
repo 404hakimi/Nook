@@ -166,9 +166,9 @@ export function getClientCredential(id: string) {
   return request.get<unknown, XrayClientCredential>('/admin/xray/client/credential', { params: { id } })
 }
 
-// ===== reconciler 对账接口 =====
+// ===== 差异检查 / 同步接口 =====
 
-/** server 远端 vs DB 对账结果 (1:N 模型, 三维度: user / outbound / rule). */
+/** server 远端 vs DB 差异结果 (1:N 模型, 三维度: user / outbound / rule). */
 export interface SyncStatus {
   serverId: string
   /** 能否 SSH 连通 + xray api 可读. */
@@ -205,7 +205,7 @@ export interface ReplayReport {
   failedClientIds: string[]
 }
 
-/** 拉 server 远端 vs DB 对账状态; 不修改任何状态, 只读. */
+/** 拉 server 远端 vs DB 差异状态; 不修改任何状态, 只读. */
 export function getSyncStatus(serverId: string) {
   return request.get<unknown, SyncStatus>('/admin/xray/client/sync-status', { params: { serverId } })
 }

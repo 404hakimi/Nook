@@ -286,10 +286,10 @@ public class XrayClientServiceImpl implements XrayClientService {
     public XrayClientReplayReportRespVO replayServer(String serverId) {
         OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(serverId)
-                .opType(OpType.SERVER_REPLAY.name())
+                .opType(OpType.CLIENT_ALL_SYNC.name())
                 .operator(currentOperator())
                 .build();
-        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_REPLAY.name()), XrayClientReplayReportRespVO.class);
+        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_ALL_SYNC.name()), XrayClientReplayReportRespVO.class);
     }
 
     @Override
@@ -298,7 +298,7 @@ public class XrayClientServiceImpl implements XrayClientService {
         // 单线程串行扫节点时被慢 server 拖死整轮 (timeout 比 cron 大时根本跑不完一遍)
         OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(serverId)
-                .opType(OpType.SERVER_RECONCILE.name())
+                .opType(OpType.CLIENT_RECONCILE.name())
                 .operator("SCHEDULER")
                 .build();
         opOrchestrator.enqueue(req);

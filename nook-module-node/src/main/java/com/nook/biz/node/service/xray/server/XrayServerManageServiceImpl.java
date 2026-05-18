@@ -256,6 +256,9 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         if (Boolean.TRUE.equals(r.getUseTls())) {
             appendModule(sb, "45-acme-tls.sh.tmpl", vars);
         }
+        if (Boolean.TRUE.equals(r.getLogRotate())) {
+            appendModule(sb, "47-logrotate.sh.tmpl", vars);
+        }
 
         appendModule(sb, "50-xray.sh.tmpl", vars);
         appendModule(sb, "99-finalize.sh.tmpl", vars);
