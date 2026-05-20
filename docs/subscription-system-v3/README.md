@@ -1,6 +1,7 @@
 # Nook 订阅与套餐系统设计 v3
 
-> 状态: **设计稿 v3 (SKU 资源池 + Agent 模式), 待评审**. 评审通过前不进入编码.
+> 状态: **设计稿 v3 (SKU 资源池 + Agent 模式)**.
+> 实施进度: **Sprint 0 会员管理 ✅ 已完成** (2026-05-20) — 详见 [06-Sprint实施计划 §11](./06-Sprint实施计划.md). 下一步进入 Sprint 1 (核心订阅模型 + SKU 池).
 
 ---
 
@@ -18,6 +19,7 @@
 | [05-Agent架构.md](./05-Agent架构.md) | Go agent 设计 + 任务队列 + 部署 | Agent (Go) 开发, 运维 |
 | [06-Sprint实施计划.md](./06-Sprint实施计划.md) | Sprint 1-5 实施清单 + 依赖前置 | PM, lead |
 | [07-决策-排除-风险-Checklist.md](./07-决策-排除-风险-Checklist.md) | 排除项 + 风险 + 评审 Checklist | 评审, 决策 |
+| [../dev/backend-coding-standards.md](../dev/backend-coding-standards.md) | Nook 后端开发规范 (强制约束) | 所有后端开发 |
 
 ---
 

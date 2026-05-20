@@ -73,9 +73,13 @@
 
 ### 数据模型
 
-- [ ] resource_server 拆出 resource_server_capacity (基础设施 vs 容量解耦) 可接受?
+- [ ] resource_server 拆 3 表 (主表 + capacity + **runtime, v3 优化**) 按更新频率分层 可接受? ⭐
 - [ ] server / ip_pool 加 lifecycle_state (INSTALLING/READY/LIVE/RETIRED) 可接受?
-- [ ] 表前缀方案 (resource_/member_/plan_/sub_/order_/alert_) 可接受?
+- [ ] **resource_ip_pool 两层状态** lifecycle (装机) + status (占用, v3 优化) 可接受? ⭐
+- [ ] **sub_main 状态双维度** status (业务) + provision_state (流程, v3 优化) 可接受? ⭐
+- [ ] **order_item CHECK 约束** type=NEW/RENEW 字段一致性 (v3 优化) 可接受? ⭐
+- [ ] **乐观锁 version** 字段加到 sub_main + order_main (v3 优化) 可接受? ⭐
+- [ ] 表前缀方案 (resource_/member_/plan_/sub_/order_/alert_/agent_) 可接受?
 - [ ] SKU 关键字段不可改 (traffic_gb / period_days / region / ip_type / price_cny 只读, 想改建新 SKU) 可接受?
 - [ ] sub_main 不留快照字段 (JOIN plan_sku 实时读) 可接受?
 - [ ] 用户级 sub_token (聚合 URL) + sub 级 sub_domain (DNS 入口) 双层结构可接受?

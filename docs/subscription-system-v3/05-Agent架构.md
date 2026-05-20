@@ -242,7 +242,7 @@ User=nook-agent
 WantedBy=multi-user.target
 ```
 
-### 15.8 安全设计
+### 15.9 安全设计
 
 - **Token 鉴权**: 每 server 一个 32 char 随机 token, 后端校验, token 泄露只影响该 server
 - **任务限流**: shell executor 白名单路径 + max_runtime; xray-api executor 只能调指定 api 接口
@@ -250,7 +250,7 @@ WantedBy=multi-user.target
 - **配置变更审计**: agent 收到 config-reload 任务时上报 sha256, backend 比对
 - **任务幂等**: 所有任务可重复执行不出错 (e.g., add user 重复 = 已存在, 不报错)
 
-### 15.9 起步阶段 vs 未来扩展
+### 15.10 起步阶段 vs 未来扩展
 
 **Sprint 1 落地 (最小可用)**:
 - collectors: heartbeat / vnstat / xray-stats / systemd

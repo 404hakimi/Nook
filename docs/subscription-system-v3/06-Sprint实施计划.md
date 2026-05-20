@@ -6,14 +6,44 @@
 
 ## 十一、实施计划 (Sprint)
 
+### Sprint 0 — 会员管理 (已完成 ✅, 2026-05-20)
+
+**目标**: 把会员账号体系单独切片做掉, 解锁后续所有依赖 `member_user_id` 的功能 + 立起 customer portal 鉴权骨架.
+
+**交付**:
+- DB: `member_user` (email UQ / password_hash / sub_token UQ / status / last_login_at + ip / remark / 软删)
+- 后端 (`nook-module-member`):
+  - `MemberAuthService`: 注册 (邮箱 + 密码强度校验 + 自动生成 sub_token + 注册即登录) / 登录 / 登出
+  - `MemberProfileService`: getProfile / changePassword (旧密码校验 + 新密码强度) / resetSubToken (碰撞重试)
+  - `AdminMemberService`: 列表分页 / 详情 / 禁用 (sa-token kickout) / 启用 / 备注
+  - `MemberUserValidator` 集中校验; `MemberErrorCode` 3xxx 段错误码; MapStruct Convert 双 VO (portal / admin)
+- 路径前缀: portal `/portal/member/auth/*` + `/portal/member/profile/*`; admin `/admin/member/users/*`
+- 鉴权: 复用现有 `SaTokenConfig` 双 StpLogic (system / member) 隔离; 放行注册 / 登录 / 登出
+- 前端 (`nook-admin`): `/member/accounts` 列表页 (邮箱搜索 + 状态过滤 + 详情弹窗 + 禁用 / 启用 / 编辑备注)
+- 验证: 18 步 PowerShell + MCP DB 端到端测试 ✅; Chrome DevTools UI 验证 ✅
+
+**未做 (转后续 Sprint)**:
+- 注册邮箱验证码 (起步不做, 接 SMTP 后补)
+- 单元 / 集成测试 (JUnit + MockMvc, 等 CI 时补)
+- Customer portal 前端 (起步用 Postman / 后续 P5 订阅生命周期时一起做)
+
+> 详见 `docs/dev/backend-coding-standards.md` (Nook 后端规范 v1.0).
+
 ### Sprint 1 — 核心订阅模型 + SKU 池 (v3, 2.5 周)
 
 **目标**: 后台能搭 SKU 资源池 + 用户能买套餐 + 资源 lifecycle 完整闭环 + 池内切换跑通.
 
-- DB 新增: `resource_region` / `member_user(sub_token)` / `plan_sku` / **`plan_sku_resource`** (v3 核心) / `sub_main` (含 sub_domain) / `order_main` / `order_item` / `alert_record` / `resource_server_capacity` (砍 sold) / `resource_server_traffic` / `resource_ip_pool_traffic`
+- DB 新增:
+  - `resource_region` / `member_user(sub_token)` / `plan_sku` / **`plan_sku_resource`** (v3 核心关联表)
+  - `sub_main` (含 sub_domain + **双状态字段** status/provision_state + **version 乐观锁**)
+  - `order_main` (**version 乐观锁**) / `order_item` (**CHECK 约束** type/字段一致性)
+  - `alert_record` (5 种 type)
+  - `resource_server_capacity` (砍 sold) / **`resource_server_runtime`** (v3 拆出, 高频心跳字段 1:1)
+  - `resource_server_traffic` / `resource_ip_pool_traffic` (NIC 流量历史)
+  - `agent_task` (Agent 任务队列)
 - DB 改老表:
-  - `resource_server` 加 `bandwidth_mbps` / `domain` / `cf_zone_id` / `cf_record_id` / `billing_cycle_day` / `expires_at` / `lifecycle_state`
-  - `resource_ip_pool` 加 `ip_type` / `lifecycle_state` / `dante_user` / `dante_pass`
+  - `resource_server` 加 `bandwidth_mbps` / `domain` / `cf_zone_id` / `cf_record_id` / `billing_cycle_day` / `expires_at` / `lifecycle_state` / `max_concurrent_clients` (必填)
+  - `resource_ip_pool` 加 `ip_type` / `lifecycle_state` / **`status`** (AVAILABLE/RESERVED/OCCUPIED/COOLING, v3 优化) / `dante_user` / `dante_pass`
 - 表前缀: `resource_*` / `member_*` / `plan_*` / `sub_*` / `order_*` / `alert_*`
 - Service:
   - `SkuService.bindResources / unbindResources / listSkus`
