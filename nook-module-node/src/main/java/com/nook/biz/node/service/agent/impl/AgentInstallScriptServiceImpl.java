@@ -1,6 +1,7 @@
 package com.nook.biz.node.service.agent.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.nook.biz.node.controller.resource.vo.AgentInstallMetaRespVO;
 import com.nook.biz.node.controller.resource.vo.AgentInstallReqVO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
@@ -41,6 +42,13 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
 
     /** xray stats 上报间隔; agent-side 轮询率, 装机时统一值, 后续 ConfigEditDialog 可改. */
     private static final int XRAY_STATS_INTERVAL_SECONDS = 300;
+
+    // ==================== 装机路径常量 (跟 nook-agent.sh.tmpl 对齐) ====================
+    private static final String NOOK_HOME = "/home/nook-agent";
+    private static final String BIN_PATH = NOOK_HOME + "/nook-agent";
+    private static final String CONFIG_PATH = NOOK_HOME + "/config.yml";
+    private static final String SYSTEMD_UNIT_PATH = "/etc/systemd/system/nook-agent.service";
+    private static final String BIN_DOWNLOAD_API_PATH = "/admin/agent-dist/bin";
 
     @Override
     public void installStreaming(String serverId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
@@ -85,6 +93,21 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
                 serverId, srv.getName(), reqVO.getRole());
     }
 
+    @Override
+    public AgentInstallMetaRespVO getInstallMeta(String role) {
+        if (!"frontline".equals(role) && !"landing".equals(role)) {
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "role 只能是 frontline / landing");
+        }
+        AgentInstallMetaRespVO vo = new AgentInstallMetaRespVO();
+        vo.setNookHome(NOOK_HOME);
+        vo.setBinPath(BIN_PATH);
+        vo.setConfigPath(CONFIG_PATH);
+        vo.setSystemdUnitPath(SYSTEMD_UNIT_PATH);
+        vo.setBackendUrl(StrUtil.blankToDefault(backendPublicUrl, ""));
+        vo.setBinaryDownloadUrl(StrUtil.blankToDefault(backendPublicUrl, "") + BIN_DOWNLOAD_API_PATH + "?role=" + role);
+        return vo;
+    }
+
     /**
      * 拼 nook-agent config.yml.
      *
@@ -115,7 +138,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
             sb.append("  stats_interval_seconds: ").append(XRAY_STATS_INTERVAL_SECONDS).append("\n\n");
         }
         sb.append("runtime:\n");
-        sb.append("  bin_path: /home/nook-agent/nook-agent\n");
+        sb.append("  bin_path: ").append(BIN_PATH).append("\n");
         return sb.toString();
     }
 }

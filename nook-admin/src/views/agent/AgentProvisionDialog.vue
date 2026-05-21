@@ -23,9 +23,11 @@ import {
 } from 'naive-ui'
 import {
   agentInstallStream,
+  getAgentInstallMeta,
   listNetworkInterfaces,
   pageServers,
-  type AgentInstallDTO
+  type AgentInstallDTO,
+  type AgentInstallMeta
 } from '@/api/resource/server'
 import {
   AGENT_ONLINE_LABELS,
@@ -177,6 +179,17 @@ function startUpgradePolling(serverId: string, oldVersion: string) {
   }, 5000)
 }
 
+// ---------- 装机元信息 (后端常量, readonly 展示) ----------
+const installMeta = ref<AgentInstallMeta | null>(null)
+
+async function loadInstallMeta() {
+  try {
+    installMeta.value = await getAgentInstallMeta(selectedRole.value)
+  } catch {
+    installMeta.value = null
+  }
+}
+
 // ---------- 部署表单 ----------
 // 选 server 后 SSH 拉远端网卡; 失败/未选时只剩 auto
 const nicOptions = ref<Array<{ label: string; value: string }>>([
@@ -283,6 +296,7 @@ watch(open, (v) => {
     upgradeStatus.value = 'WAITING'
     upgradeElapsed.value = 0
     resetForm()
+    loadInstallMeta()
   } else {
     stopPolling()
     if (deployAbort) deployAbort.abort()
@@ -297,6 +311,7 @@ watch(selectedRole, () => {
     }
   }
   form.role = selectedRole.value
+  loadInstallMeta()
 })
 
 // 选 server 后 SSH 拉网卡填下拉
@@ -388,8 +403,20 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
           <NTabPane name="deploy" tab="重新部署">
             <div class="space-y-3 mt-2">
               <NAlert type="warning" :show-icon="false" size="small">
-                覆盖 <code>/home/nook-agent/config.yml</code>; 字段全必填, 后端不持兜底默认.
+                覆盖 <code>{{ installMeta?.configPath ?? '/home/nook-agent/config.yml' }}</code>;
+                字段全必填, 后端不持兜底默认.
               </NAlert>
+
+              <!-- 装机元信息 (后端常量, readonly) -->
+              <div v-if="installMeta" class="install-meta">
+                <div class="meta-header">装机元信息 (后端固定, 不可编辑)</div>
+                <div class="meta-row"><span class="k">装机根目录</span><code class="v">{{ installMeta.nookHome }}</code></div>
+                <div class="meta-row"><span class="k">Binary 路径</span><code class="v">{{ installMeta.binPath }}</code></div>
+                <div class="meta-row"><span class="k">Config 路径</span><code class="v">{{ installMeta.configPath }}</code></div>
+                <div class="meta-row"><span class="k">systemd unit</span><code class="v">{{ installMeta.systemdUnitPath }}</code></div>
+                <div class="meta-row"><span class="k">Backend URL</span><code class="v">{{ installMeta.backendUrl || '⚠ 未配置 nook.backend.public-url' }}</code></div>
+                <div class="meta-row"><span class="k">Binary 下载</span><code class="v">{{ installMeta.binaryDownloadUrl }}</code></div>
+              </div>
 
               <NForm :model="form" label-placement="left" label-width="auto" size="small">
                 <NFormItem path="backendTimeoutSeconds">
@@ -490,6 +517,39 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
 </template>
 
 <style scoped>
+.install-meta {
+  border: 1px solid rgba(127, 127, 127, 0.2);
+  border-radius: 4px;
+  padding: 8px 12px;
+  background: rgba(127, 127, 127, 0.04);
+}
+.install-meta .meta-header {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.install-meta .meta-row {
+  display: flex;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.install-meta .meta-row .k {
+  flex: 0 0 7rem;
+  color: #71717a;
+}
+.install-meta .meta-row .v {
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+  color: #3f3f46;
+  background: none;
+  padding: 0;
+  word-break: break-all;
+}
+html[data-theme='dark'] .install-meta .meta-row .v {
+  color: #d4d4d8;
+}
 .hint-icon {
   margin-left: 4px;
   vertical-align: middle;

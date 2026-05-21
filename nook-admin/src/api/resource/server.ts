@@ -129,6 +129,23 @@ export function listNetworkInterfaces(id: string) {
   return request.get<unknown, string[]>('/admin/resource/server/network-interfaces', { params: { id } })
 }
 
+/** Agent 装机会动到的路径 + URL 常量; dialog readonly 展示给 admin 看. */
+export interface AgentInstallMeta {
+  nookHome: string
+  binPath: string
+  configPath: string
+  systemdUnitPath: string
+  binaryDownloadUrl: string
+  backendUrl: string
+}
+
+export function getAgentInstallMeta(role: 'frontline' | 'landing') {
+  return request.get<unknown, AgentInstallMeta>(
+    '/admin/resource/server/agent-install-meta',
+    { params: { role } }
+  )
+}
+
 export function getServerDetail(id: string) {
   return request.get<unknown, ResourceServer>('/admin/resource/server/get', { params: { id } })
 }

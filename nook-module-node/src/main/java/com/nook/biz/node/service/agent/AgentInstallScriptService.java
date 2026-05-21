@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.agent;
 
+import com.nook.biz.node.controller.resource.vo.AgentInstallMetaRespVO;
 import com.nook.biz.node.controller.resource.vo.AgentInstallReqVO;
 
 import java.util.function.Consumer;
@@ -19,4 +20,7 @@ public interface AgentInstallScriptService {
      * @param lineSink 日志逐行回调
      */
     void installStreaming(String serverId, AgentInstallReqVO reqVO, Consumer<String> lineSink);
+
+    /** 装机会动到的路径 + URL 常量; dialog 顶部 readonly 展示让 admin 心里有数. */
+    AgentInstallMetaRespVO getInstallMeta(String role);
 }

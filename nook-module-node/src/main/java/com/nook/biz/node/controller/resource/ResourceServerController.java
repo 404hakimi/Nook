@@ -1,6 +1,7 @@
 package com.nook.biz.node.controller.resource;
 
 import com.nook.biz.node.config.WebStreamingProperties;
+import com.nook.biz.node.controller.resource.vo.AgentInstallMetaRespVO;
 import com.nook.biz.node.controller.resource.vo.AgentInstallReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerRespVO;
@@ -98,6 +99,13 @@ public class ResourceServerController {
         Duration emitterTimeout = Duration.ofSeconds(installTimeout).plus(webStreamingProperties.getEmitterBuffer());
         return streamingSupport.stream("agent-install:" + id, emitterTimeout,
                 lineSink -> agentInstallScriptService.installStreaming(id, reqVO, lineSink));
+    }
+
+    /** 装机会动到的路径 + URL 常量; dialog 顶部 readonly 展示用. */
+    @GetMapping("/agent-install-meta")
+    public Result<AgentInstallMetaRespVO> agentInstallMeta(
+            @RequestParam(value = "role", defaultValue = "frontline") String role) {
+        return Result.ok(agentInstallScriptService.getInstallMeta(role));
     }
 
 }
