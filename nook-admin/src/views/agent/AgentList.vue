@@ -1,29 +1,24 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref } from 'vue'
-import { ArrowUp, FileCog, History, RefreshCcw, Trash2 } from 'lucide-vue-next'
+import { ArrowUp, FileCog, History, RefreshCcw } from 'lucide-vue-next'
 import {
   NBadge,
   NButton,
   NCard,
   NDataTable,
   NIcon,
-  NInput,
-  NModal,
-  NSpace,
   NTabs,
   NTabPane,
   NTag,
   useMessage,
   type DataTableColumns
 } from 'naive-ui'
-import { useConfirm } from '@/composables/useConfirm'
 import {
   AGENT_ONLINE_LABELS,
   AGENT_ONLINE_TAG_TYPE,
   CONFIG_SYNC_LABELS,
   CONFIG_SYNC_TAG_TYPE,
   listAgents,
-  truncateLog,
   type AgentListItem
 } from '@/api/agent/agent'
 import ConfigEditDialog from './ConfigEditDialog.vue'
@@ -32,7 +27,6 @@ import AgentTaskHistoryDialog from './AgentTaskHistoryDialog.vue'
 import { formatDateTime } from '@/utils/date'
 
 const message = useMessage()
-const { confirm } = useConfirm()
 
 const list = ref<AgentListItem[]>([])
 const loading = ref(false)
@@ -93,43 +87,6 @@ function openProvision(row?: AgentListItem) {
     provisionInitialRole.value = activeTab.value === 'landing' ? 'landing' : 'frontline'
   }
   provisionOpen.value = true
-}
-
-// ===== 清日志弹窗 =====
-const truncateOpen = ref(false)
-const truncateTarget = ref<AgentListItem | null>(null)
-const truncatePathsText = ref('')
-const truncateSubmitting = ref(false)
-
-function openTruncate(row: AgentListItem) {
-  truncateTarget.value = row
-  truncatePathsText.value = '/home/socks5/logs/sockd.log\n/home/xray/logs/access.log\n/var/log/journal/'
-  truncateOpen.value = true
-}
-
-async function confirmTruncate() {
-  const paths = truncatePathsText.value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
-  if (paths.length === 0) {
-    message.error('至少给一个路径')
-    return
-  }
-  const ok = await confirm({
-    title: '一键清日志',
-    message: `将 truncate ${paths.length} 个日志文件 (保留 inode); 不可恢复. 继续?`,
-    type: 'danger',
-    confirmText: '清空'
-  })
-  if (!ok) return
-  truncateSubmitting.value = true
-  try {
-    const taskId = await truncateLog(truncateTarget.value!.serverId, { paths })
-    message.success(`清日志任务已派发 taskId=${taskId.slice(0, 8)}…`)
-    truncateOpen.value = false
-  } catch {
-    /* */
-  } finally {
-    truncateSubmitting.value = false
-  }
 }
 
 const columns = computed<DataTableColumns<AgentListItem>>(() => [
@@ -247,19 +204,8 @@ const columns = computed<DataTableColumns<AgentListItem>>(() => [
           {
             size: 'tiny',
             quaternary: true,
-            type: 'warning',
-            onClick: () => openTruncate(row),
-            title: '清空指定日志文件 (truncate -s 0, 保留 inode 不重启服务)'
-          },
-          { icon: () => h(NIcon, null, { default: () => h(Trash2) }), default: () => '清日志' }
-        ),
-        h(
-          NButton,
-          {
-            size: 'tiny',
-            quaternary: true,
             onClick: () => openHistory(row),
-            title: '查看该 server 最近的 task 历史 (升级 / 改配置 / 清日志 / xray_*)'
+            title: '查看该 server 最近的 task 历史 (升级 / 改配置 / xray_*)'
           },
           { icon: () => h(NIcon, null, { default: () => h(History) }), default: () => '历史' }
         )
@@ -371,35 +317,5 @@ onMounted(loadList)
       :server-id="historyTarget?.serverId ?? null"
       :server-name="historyTarget?.serverName"
     />
-
-    <!-- 清日志弹窗 -->
-    <NModal
-      :show="truncateOpen"
-      preset="card"
-      title="一键清日志"
-      style="max-width: 40rem"
-      :bordered="false"
-      :mask-closable="false"
-      @update:show="(v: boolean) => (truncateOpen = v)"
-    >
-      <p class="text-sm mb-3">目标: <span class="font-mono">{{ truncateTarget?.serverName }}</span>; 路径白名单 <code class="text-xs">/var/log /home/socks5/logs /home/xray/logs</code></p>
-      <NForm size="small" label-placement="top">
-        <NFormItem label="日志文件路径 (一行一个)" required>
-          <NInput
-            v-model:value="truncatePathsText"
-            type="textarea"
-            :autosize="{ minRows: 4, maxRows: 12 }"
-            placeholder="/home/socks5/logs/sockd.log"
-            :input-props="{ style: 'font-family: monospace' }"
-          />
-        </NFormItem>
-      </NForm>
-      <template #footer>
-        <NSpace justify="end">
-          <NButton size="small" @click="truncateOpen = false">取消</NButton>
-          <NButton type="warning" size="small" :loading="truncateSubmitting" @click="confirmTruncate">清空</NButton>
-        </NSpace>
-      </template>
-    </NModal>
   </div>
 </template>

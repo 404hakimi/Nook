@@ -4,7 +4,6 @@ import com.nook.biz.node.controller.agent.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentListItemRespVO;
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentTaskPageReqVO;
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentTaskRespVO;
-import com.nook.biz.node.controller.agent.admin.vo.AdminTruncateLogReqVO;
 import com.nook.biz.node.convert.agent.AgentTaskConvert;
 import com.nook.biz.node.service.agent.AdminAgentService;
 import com.nook.common.web.response.PageResult;
@@ -16,7 +15,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -47,13 +45,6 @@ public class AdminAgentController {
     @PostMapping("/{serverId}/upgrade")
     public Result<String> upgrade(@PathVariable String serverId) {
         return Result.ok(adminAgentService.dispatchUpgrade(serverId));
-    }
-
-    /** 派 truncate_log task: 清指定 server 上的 xray/socks5/agent 日志. */
-    @PostMapping("/{serverId}/truncate-log")
-    public Result<String> truncateLog(@PathVariable String serverId,
-                                      @RequestBody @Valid AdminTruncateLogReqVO reqVO) {
-        return Result.ok(adminAgentService.dispatchTruncateLog(serverId, reqVO));
     }
 
     /** 某 server task 历史 分页 (倒序; 含 taskType / status 可选筛选). */

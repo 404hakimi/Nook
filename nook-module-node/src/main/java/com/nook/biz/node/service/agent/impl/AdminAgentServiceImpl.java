@@ -7,7 +7,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentListItemRespVO;
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentTaskPageReqVO;
-import com.nook.biz.node.controller.agent.admin.vo.AdminTruncateLogReqVO;
 import com.nook.common.web.response.PageResult;
 import com.nook.biz.node.dal.dataobject.agent.AgentRuntimeConfigDO;
 import com.nook.biz.node.dal.dataobject.agent.AgentTaskDO;
@@ -151,22 +150,6 @@ public class AdminAgentServiceImpl implements AdminAgentService {
         IPage<AgentTaskDO> page = agentTaskMapper.selectPageByServer(
                 Page.of(reqVO.getPageNo(), reqVO.getPageSize()), serverId, reqVO);
         return PageResult.of(page.getTotal(), page.getRecords());
-    }
-
-    @Override
-    public String dispatchTruncateLog(String serverId, AdminTruncateLogReqVO req) {
-        serverValidator.validateExists(serverId);
-        if (CollectionUtils.isAnyEmpty(req.getPaths())) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "paths 不能为空");
-        }
-        // 简易 JSON 拼装; 路径不允许双引号 (admin UI 应该禁止)
-        StringBuilder sb = new StringBuilder("{\"paths\":[");
-        for (int i = 0; i < req.getPaths().size(); i++) {
-            if (i > 0) sb.append(',');
-            sb.append('"').append(escape(req.getPaths().get(i))).append('"');
-        }
-        sb.append("]}");
-        return agentTaskDispatchService.dispatch(serverId, "truncate_log", sb.toString());
     }
 
     /** 心跳距今秒数 → 上线状态分类 (跟 AgentHeartbeatTimeoutJob 阈值对齐). */

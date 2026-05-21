@@ -34,11 +34,6 @@ export const CONFIG_SYNC_TAG_TYPE: Record<ConfigSyncState, 'default' | 'success'
   PENDING: 'warning'
 }
 
-/** 清日志入参; path 必须落白名单 (/var/log /home/socks5/logs /home/xray/logs). */
-export interface TruncateLogReq {
-  paths: string[]
-}
-
 export function listAgents() {
   return request.get<unknown, AgentListItem[]>('/admin/agent/list')
 }
@@ -81,11 +76,6 @@ export function pageAgentTasks(serverId: string, params: AgentTaskPageQuery) {
   return request.get<unknown, PageResultT<AgentTaskHistoryItem>>(
     `/admin/agent/${serverId}/tasks/page`, { params }
   )
-}
-
-/** 派清日志 task; 返回 taskId. */
-export function truncateLog(serverId: string, req: TruncateLogReq) {
-  return request.post<unknown, string>(`/admin/agent/${serverId}/truncate-log`, req)
 }
 
 /** Online state → 中文标签. */
