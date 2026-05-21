@@ -48,6 +48,11 @@ async function loadList() {
   }
 }
 
+/** Dispatched 后延 3s 刷一次, 给 backend 写入 + agent 心跳一个余量. */
+function loadListAfterDispatch() {
+  setTimeout(loadList, 3000)
+}
+
 // ===== Tab 切换 (按 role 分组) =====
 type TabKey = 'frontline' | 'landing' | 'unprovisioned'
 const activeTab = ref<TabKey>('frontline')
@@ -359,7 +364,7 @@ onMounted(loadList)
       v-model="provisionOpen"
       :initial-server-id="provisionInitialServerId"
       :initial-role="provisionInitialRole"
-      @dispatched="() => setTimeout(loadList, 3000)"
+      @dispatched="loadListAfterDispatch"
     />
     <AgentTaskHistoryDialog
       v-model="historyOpen"
