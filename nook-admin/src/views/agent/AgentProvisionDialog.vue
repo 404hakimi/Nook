@@ -22,6 +22,7 @@ import {
 } from 'naive-ui'
 import {
   agentInstallStream,
+  listNetworkInterfaces,
   pageServers,
   type AgentInstallDTO
 } from '@/api/resource/server'
@@ -176,12 +177,26 @@ function startUpgradePolling(serverId: string, oldVersion: string) {
 }
 
 // ---------- 部署表单 ----------
-const NIC_INTERFACE_OPTIONS = [
-  { label: 'auto (默认路由出口网卡)', value: 'auto' },
-  { label: 'eth0', value: 'eth0' },
-  { label: 'ens5', value: 'ens5' },
-  { label: 'enp1s0', value: 'enp1s0' }
-]
+// 选 server 后 SSH 拉远端网卡; 失败/未选时只剩 auto
+const nicOptions = ref<Array<{ label: string; value: string }>>([
+  { label: 'auto (默认路由出口网卡)', value: 'auto' }
+])
+const nicLoading = ref(false)
+
+async function loadNicOptions(serverId: string) {
+  nicLoading.value = true
+  try {
+    const ifaces = await listNetworkInterfaces(serverId)
+    nicOptions.value = [
+      { label: 'auto (默认路由出口网卡)', value: 'auto' },
+      ...ifaces.map((n) => ({ label: n, value: n }))
+    ]
+  } catch {
+    nicOptions.value = [{ label: 'auto (默认路由出口网卡)', value: 'auto' }]
+  } finally {
+    nicLoading.value = false
+  }
+}
 
 function defaultForm(): AgentInstallDTO {
   return {
@@ -282,6 +297,15 @@ watch(selectedRole, () => {
   form.role = selectedRole.value
 })
 
+// 选 server 后 SSH 拉网卡填下拉
+watch(selectedServerId, (id) => {
+  if (id) {
+    loadNicOptions(id)
+  } else {
+    nicOptions.value = [{ label: 'auto (默认路由出口网卡)', value: 'auto' }]
+  }
+})
+
 onMounted(() => { if (props.modelValue) loadData() })
 onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
 </script>
@@ -379,10 +403,12 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                 <NFormItem label="NIC 网卡" path="nicInterface">
                   <NSelect
                     v-model:value="form.nicInterface"
-                    :options="NIC_INTERFACE_OPTIONS"
+                    :options="nicOptions"
+                    :loading="nicLoading"
                     tag
                     filterable
                     class="w-60"
+                    placeholder="选 server 后自动拉取"
                   />
                 </NFormItem>
                 <NFormItem label="任务轮询间隔 (s)" path="pollerIntervalSeconds">

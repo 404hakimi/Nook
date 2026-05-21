@@ -8,18 +8,25 @@ import com.nook.biz.node.convert.server.ServerInspectorConvert;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.snapshot.ConnectivitySnapshot;
 import com.nook.biz.node.service.resource.ResourceServerInfoService;
+import com.nook.framework.ssh.core.SshExecResult;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * 服务器信息 Service 实现类
  *
  * @author nook
  */
+@Slf4j
 @Service
 public class ResourceServerInfoServiceImpl implements ResourceServerInfoService {
 
@@ -55,5 +62,28 @@ public class ResourceServerInfoServiceImpl implements ResourceServerInfoService 
     public ServiceLogRespVO getServiceLog(String serverId, String unit, Integer logLines, String logLevel, String keyword) {
         return ServerInspectorConvert.INSTANCE.convert(serverProbe.readJournalLog(
                 SshSessions.acquire(serverId, SshSessionScope.SHARED), unit, logLines, logLevel, keyword));
+    }
+
+    @Override
+    public List<String> listNetworkInterfaces(String serverId) {
+        try {
+            SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
+            // -o 每行一个; 第二字段是 iface 名; 排除 loopback
+            SshExecResult result = session.ssh().exec(
+                    "ip -o link show | awk -F': ' '{print $2}' | grep -v '^lo$'",
+                    Duration.ofSeconds(10));
+            if (result.getExitCode() != 0) {
+                log.warn("[listNetworkInterfaces] serverId={} exit={} stderr={}",
+                        serverId, result.getExitCode(), result.getStderr());
+                return List.of();
+            }
+            return Arrays.stream(result.getStdout().split("\\R"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+        } catch (BusinessException be) {
+            log.warn("[listNetworkInterfaces] serverId={} SSH 失败: {}", serverId, be.getMessage());
+            return List.of();
+        }
     }
 }

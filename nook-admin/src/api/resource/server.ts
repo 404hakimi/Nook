@@ -124,6 +124,11 @@ export function pageServers(params: ResourceServerQuery) {
   return request.get<unknown, PageResult<ResourceServer>>('/admin/resource/server/page', { params })
 }
 
+/** SSH 列出远端网卡 (排除 lo); 失败返空 list, 前端 fallback 到 "auto". */
+export function listNetworkInterfaces(id: string) {
+  return request.get<unknown, string[]>('/admin/resource/server/network-interfaces', { params: { id } })
+}
+
 export function getServerDetail(id: string) {
   return request.get<unknown, ResourceServer>('/admin/resource/server/get', { params: { id } })
 }

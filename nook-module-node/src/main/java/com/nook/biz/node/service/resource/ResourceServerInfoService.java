@@ -48,4 +48,11 @@ public interface ResourceServerInfoService {
      * @return 日志结果
      */
     ServiceLogRespVO getServiceLog(String serverId, String unit, Integer logLines, String logLevel, String keyword);
+
+    /**
+     * SSH 列出远端网卡 (排除 lo); agent 装机时 NIC interface 下拉用.
+     *
+     * @return 网卡名列表, 失败返空 list (前端 fallback 用 "auto")
+     */
+    java.util.List<String> listNetworkInterfaces(String serverId);
 }

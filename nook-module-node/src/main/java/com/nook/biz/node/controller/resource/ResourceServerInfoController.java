@@ -55,4 +55,10 @@ public class ResourceServerInfoController {
         ServiceLogRespVO log = resourceServerInfoService.getServiceLog(id, unit, lines, level, keyword);
         return Result.ok(log);
     }
+
+    /** SSH 列出远端网卡 (排除 lo); agent 装机 NIC interface 下拉用. 失败返空 list. */
+    @GetMapping("/network-interfaces")
+    public Result<java.util.List<String>> listNetworkInterfaces(@RequestParam("id") String id) {
+        return Result.ok(resourceServerInfoService.listNetworkInterfaces(id));
+    }
 }
