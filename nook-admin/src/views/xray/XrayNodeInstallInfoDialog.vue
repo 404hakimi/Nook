@@ -23,7 +23,7 @@ const installPaths = computed(() => {
   if (!n) return []
   const logSuffix = '{access,error}.log'
   const rows = [
-    { label: 'binary', value: n.xrayBinaryPath },
+    { label: '二进制包', value: n.xrayBinaryPath },
     { label: 'config', value: n.xrayConfigPath },
     { label: 'share', value: n.xrayShareDir },
     { label: 'log', value: n.xrayLogDir ? `${n.xrayLogDir.replace(/\/+$/, '')}/${logSuffix}` : '' },

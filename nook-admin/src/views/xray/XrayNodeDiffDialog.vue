@@ -117,9 +117,9 @@ async function runRefresh() {
     ])
     syncStatus.value = status
     clients.value = clientPage.records
-    // 拉本轮涉及到的 IP 池行 (status=2 已占用) 给详情面板 enrich 用; 失败留空差异主流程不受影响
+    // 拉本轮涉及到的 IP 池行 (OCCUPIED) 给详情面板 enrich 用; 失败留空差异主流程不受影响
     try {
-      const ipPage = await pageIpPool({ pageNo: 1, pageSize: 500, status: 2 })
+      const ipPage = await pageIpPool({ pageNo: 1, pageSize: 500, status: 'OCCUPIED' })
       ipPoolByIpId.value = Object.fromEntries(ipPage.records.map((r) => [r.id, r]))
     } catch {
       ipPoolByIpId.value = {}
@@ -519,7 +519,7 @@ function buildXrayNodeView(): PanelView {
         accent: 'green',
         rows: [
           { label: '安装目录', value: n?.xrayInstallDir ?? '—', mono: true },
-          { label: 'binary', value: n?.xrayBinaryPath ?? '—', mono: true },
+          { label: '二进制包', value: n?.xrayBinaryPath ?? '—', mono: true },
           { label: 'config.json', value: n?.xrayConfigPath ?? '—', mono: true },
           { label: 'share 目录', value: n?.xrayShareDir ?? '—', mono: true },
           { label: '日志目录', value: n?.xrayLogDir ?? '—', mono: true },
@@ -618,8 +618,8 @@ function buildGraphNodeView(): PanelView {
     { label: 'IP 状态', value: ipPool.status != null ? IP_POOL_STATUS_LABELS[ipPool.status] ?? String(ipPool.status) : '—', copyable: false },
     { label: 'region', value: ipPool.region ?? '—' },
     { label: 'ipType', value: ipPool.ipTypeId ?? '—', mono: true },
-    { label: '分配会员', value: ipPool.assignedMemberId ?? '—', mono: true },
-    { label: '分配时间', value: ipPool.assignedAt ?? '—' },
+    { label: '占用会员', value: ipPool.occupiedByMemberId ?? '—', mono: true },
+    { label: '占用时间', value: ipPool.occupiedAt ?? '—' },
     { label: '分配次数', value: ipPool.assignCount != null ? String(ipPool.assignCount) : '—', copyable: false },
     { label: 'SOCKS5 端口', value: ipPool.socks5Port != null ? String(ipPool.socks5Port) : '—', mono: true },
     { label: 'SOCKS5 用户', value: ipPool.socks5Username ?? '—', mono: true }

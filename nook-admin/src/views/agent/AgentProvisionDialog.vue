@@ -351,10 +351,10 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
 
         <NTabs v-if="currentAgent" v-model:value="activeTab" type="line" size="small">
           <!-- ============ 升级 ============ -->
-          <NTabPane name="upgrade" tab="升级 binary">
+          <NTabPane name="upgrade" tab="升级二进制包">
             <div class="space-y-2 mt-2">
               <NAlert type="info" :show-icon="false" size="small">
-                仅替换 binary; <b>agent_token / config.yml / systemd unit 全保留</b>.
+                仅替换二进制包; <b>agent_token / config.yml / systemd unit 全保留</b>.
                 重启窗口 ~10-20 秒, 期间断 1 次心跳 + 1-2 次任务轮询; xray / socks5 不动.
               </NAlert>
               <div v-if="!dispatchedTaskId || lastDispatchedFor !== currentAgent.serverName">

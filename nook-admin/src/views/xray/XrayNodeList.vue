@@ -251,7 +251,7 @@ const columns = computed<DataTableColumns<XrayNode>>(() => [
                 'inline-flex items-center gap-1 font-mono text-xs text-blue-600 dark:text-blue-400 ' +
                 'underline decoration-dotted underline-offset-4 hover:decoration-solid hover:text-blue-800 ' +
                 'dark:hover:text-blue-300 cursor-pointer',
-              title: '点击查看安装详情 (binary / config / log / systemd / TLS 等派生路径)',
+              title: '点击查看安装详情 (二进制包 / 配置 / 日志 / systemd / TLS 等派生路径)',
               onClick: () => openInstallInfo(row)
             },
             [

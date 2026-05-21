@@ -155,7 +155,7 @@ const installPaths = computed(() => {
   const d = derivedPaths.value
   const log = form.logDir.trim() || d.logDir
   return [
-    { label: 'binary', path: form.xrayBinaryPath?.trim() || d.xrayBinaryPath },
+    { label: '二进制包', path: form.xrayBinaryPath?.trim() || d.xrayBinaryPath },
     { label: 'config', path: form.xrayConfigPath?.trim() || d.xrayConfigPath },
     { label: 'share', path: (form.xrayShareDir?.trim() || d.xrayShareDir) + '  (geo 数据)' },
     { label: 'log', path: `${log}/{access,error}.log` },
@@ -365,7 +365,7 @@ function close() {
         >
           <template #label>
             <span>安装目录</span>
-            <span class="text-xs text-zinc-400 ml-2">binary / config / share 全在此目录下</span>
+            <span class="text-xs text-zinc-400 ml-2">二进制包 / 配置 / 共享数据 全在此目录下</span>
           </template>
           <NInput
             v-model:value="form.installDir"
