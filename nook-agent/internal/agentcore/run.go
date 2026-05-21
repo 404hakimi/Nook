@@ -60,7 +60,6 @@ func Run(version string, registerRole RoleRegister) {
 	}
 	log.Printf("[main] upgrade 目标路径 (自动探测): %s", binPath)
 	executor.NewUpgradeExecutor(binPath, cfg.Backend.APIToken).Register(exec)
-	executor.NewLogExecutor().Register(exec)
 	executor.NewConfigReloadExecutor(*configPath).Register(exec)
 
 	// 角色注册器挂自己的 (e.g., frontline 挂 xray)
