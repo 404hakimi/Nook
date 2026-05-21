@@ -65,10 +65,7 @@ SystemMaxFileSize=10M
 EOF
 systemctl restart systemd-journald
 
-echo "=== 8. 清理老路径残留 (老装机的 bin/ etc/ 子目录 + /usr/local/bin/nook-agent) ==="
-rm -rf $NOOK_HOME/bin $NOOK_HOME/etc /usr/local/bin/nook-agent 2>/dev/null || true
-
-echo "=== 9. 启动 agent ==="
+echo "=== 8. 启动 agent ==="
 systemctl daemon-reload
 systemctl enable nook-agent
 systemctl restart nook-agent
