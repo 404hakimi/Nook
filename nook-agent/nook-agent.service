@@ -1,0 +1,18 @@
+[Unit]
+Description=Nook Agent
+After=network.target
+
+[Service]
+Type=simple
+# 默认装机路径: /home/nook-agent/ (跟 /home/socks5 同级)
+# 兼容旧装机: 把 ExecStart 指向 /usr/local/bin/nook-agent + /etc/nook-agent/config.yml 即可
+ExecStart=/home/nook-agent/bin/nook-agent -c /home/nook-agent/etc/config.yml
+Restart=always
+RestartSec=10s
+User=root
+# 静默运行: 不写 journal (磁盘紧张); 真要排查临时改 journal 后 restart
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target

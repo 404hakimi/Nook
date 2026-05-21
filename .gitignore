@@ -30,3 +30,7 @@ application-local.properties
 .env
 .env.local
 .mcp.ssh-config.json
+
+# go agent
+/agent/nook-*
+nook-agent/dist/
