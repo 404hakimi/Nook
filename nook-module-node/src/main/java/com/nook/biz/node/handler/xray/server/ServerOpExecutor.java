@@ -8,7 +8,7 @@ import com.nook.biz.operation.api.OpProgressSink;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -22,15 +22,13 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ServerOpExecutor {
 
-    @Resource
-    private XrayDaemonProbe xrayDaemonProbe;
-    @Resource
-    private XrayNodeValidator xrayNodeValidator;
+    private final XrayDaemonProbe xrayDaemonProbe;
+    private final XrayNodeValidator xrayNodeValidator;
     /** restart 前置 sample 让流量数据不丢; 失败仅 warn, 不阻塞 restart 主流程. */
-    @Resource
-    private XrayClientTrafficSampleService trafficSampleService;
+    private final XrayClientTrafficSampleService trafficSampleService;
 
     /** XRAY_RESTART 实际执行体. */
     String doRestart(String serverId, OpProgressSink progress) {

@@ -3,7 +3,7 @@ package com.nook.biz.node.handler.xray.client;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OpContext;
 import com.nook.biz.operation.api.spi.OpHandler;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,10 +12,10 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
+@RequiredArgsConstructor
 public class ReplayServerHandler implements OpHandler {
 
-    @Resource
-    private ClientOpExecutor executor;
+    private final ClientOpExecutor executor;
 
     @Override
     public String type() {

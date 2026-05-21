@@ -6,7 +6,7 @@ import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.resource.vo.SystemdStatusRespVO;
 import com.nook.biz.node.service.resource.ResourceServerInfoService;
 import com.nook.common.web.response.Result;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,10 +22,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/resource/server")
 @Validated
+@RequiredArgsConstructor
 public class ResourceServerInfoController {
 
-    @Resource
-    private ResourceServerInfoService resourceServerInfoService;
+    private final ResourceServerInfoService resourceServerInfoService;
 
     @PostMapping("/connectivity-test")
     public Result<ConnectivityTestRespVO> testConnectivity(@RequestParam("id") String id) {

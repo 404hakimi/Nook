@@ -13,7 +13,7 @@ import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
 import com.nook.common.web.exception.BusinessException;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -28,10 +28,10 @@ import java.util.List;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ResourceServerInfoServiceImpl implements ResourceServerInfoService {
 
-    @Resource
-    private ServerProbe serverProbe;
+    private final ServerProbe serverProbe;
 
     @Override
     public ConnectivityTestRespVO testConnectivity(String serverId) {

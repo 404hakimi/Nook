@@ -9,7 +9,7 @@ import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.common.web.exception.BusinessException;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ServerProbe {
 
     /** 日志默认行数 / 上限; 上限 5000 防止前端误传超大值把 journalctl 拖死. */
@@ -39,8 +40,7 @@ public class ServerProbe {
      */
     private static final Pattern LOG_KEYWORD_PATTERN = Pattern.compile("^[\\p{L}\\p{N} ._\\-:/@]{1,128}$");
 
-    @Resource
-    private ServerOpsProperties serverOpsProperties;
+    private final ServerOpsProperties serverOpsProperties;
 
     /**
      * 在已 acquire 的 session 上跑 'true' 验证 shell 通道; 与"无法连"区分由业务侧捕获 acquire 异常.

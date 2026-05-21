@@ -7,7 +7,7 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.common.web.exception.BusinessException;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,12 +16,12 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
+@RequiredArgsConstructor
 public class XrayClientValidator {
 
     private static final int MAX_LIMIT_IP = 100;
 
-    @Resource
-    private XrayClientMapper xrayClientMapper;
+    private final XrayClientMapper xrayClientMapper;
 
     /**
      * 校验客户端存在.

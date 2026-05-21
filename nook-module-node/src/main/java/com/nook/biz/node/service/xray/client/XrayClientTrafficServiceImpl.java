@@ -13,7 +13,7 @@ import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.api.spi.OpOrchestrator;
 import com.nook.framework.security.stp.StpSystemUtil;
 import cn.hutool.core.util.StrUtil;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -27,16 +27,13 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class XrayClientTrafficServiceImpl implements XrayClientTrafficService {
 
-    @Resource
-    private XrayClientValidator clientValidator;
-    @Resource
-    private XrayClientTrafficMapper xrayClientTrafficMapper;
-    @Resource
-    private OpOrchestrator opOrchestrator;
-    @Resource
-    private OpConfigResolver opConfigResolver;
+    private final XrayClientValidator clientValidator;
+    private final XrayClientTrafficMapper xrayClientTrafficMapper;
+    private final OpOrchestrator opOrchestrator;
+    private final OpConfigResolver opConfigResolver;
 
     @Override
     public XrayClientTrafficRespVO getXrayClientTraffic(String id) {

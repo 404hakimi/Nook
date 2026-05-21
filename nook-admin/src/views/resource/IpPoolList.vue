@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
+  ArrowRightLeft,
   Copy,
   Eye,
   FileText,
@@ -19,6 +20,7 @@ import {
   NButton,
   NCard,
   NDataTable,
+  NDropdown,
   NIcon,
   NInput,
   NSelect,
@@ -29,13 +31,19 @@ import {
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import {
+  IP_POOL_LIFECYCLE_LABELS,
+  IP_POOL_LIFECYCLE_OPTIONS,
+  IP_POOL_LIFECYCLE_TAG_TYPE,
   IP_POOL_STATUS_LABELS,
+  IP_POOL_STATUS_OPTIONS,
   deleteIpPool,
   pageIpPool,
   releaseIpPool,
+  transitionIpPoolLifecycle,
   type ResourceIpPool,
   type ResourceIpPoolQuery
 } from '@/api/resource/ip-pool'
+import { listEnabledRegions, type ResourceRegion } from '@/api/resource/region'
 import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/resource/ip-type'
 import { formatDateTime } from '@/utils/date'
 import IpPoolFormDialog from './IpPoolFormDialog.vue'
@@ -48,27 +56,29 @@ import IpPoolLogDialog from './IpPoolLogDialog.vue'
 const message = useMessage()
 const { confirm } = useConfirm()
 
-// ===== 列表 + 查询 =====
-const STATUS_OPTIONS = [
-  { label: '全部', value: undefined as number | undefined },
-  { label: '可分配', value: 1 },
-  { label: '已占用', value: 2 },
-  { label: '测试中', value: 3 },
-  { label: '黑名单', value: 4 },
-  { label: '冷却中', value: 5 },
-  { label: '降级', value: 6 }
-]
-
 const ipTypes = ref<ResourceIpType[]>([])
 const ipTypeOptions = computed(() => [
   { label: '全部类型', value: '' },
   ...ipTypes.value.map((t) => ({ label: t.name + (IP_TYPE_CODE_LABELS[t.code] ? ` (${IP_TYPE_CODE_LABELS[t.code]})` : ''), value: t.id }))
 ])
 
+const regions = ref<ResourceRegion[]>([])
+const regionOptions = computed(() => [
+  { label: '全部', value: '' },
+  ...regions.value.map((r) => ({ label: `${r.flagEmoji || ''} ${r.displayName}`, value: r.code }))
+])
+
+function regionDisplay(code?: string): string {
+  if (!code) return '-'
+  const r = regions.value.find((x) => x.code === code)
+  return r ? `${r.flagEmoji || ''} ${r.displayName}` : code
+}
+
 const query = reactive<Required<Pick<ResourceIpPoolQuery, 'pageNo' | 'pageSize'>> & ResourceIpPoolQuery>({
   pageNo: 1,
   pageSize: 10,
   keyword: '',
+  lifecycleState: undefined,
   status: undefined,
   region: '',
   ipTypeId: ''
@@ -88,6 +98,14 @@ async function loadIpTypes() {
   }
 }
 
+async function loadRegions() {
+  try {
+    regions.value = await listEnabledRegions()
+  } catch {
+    /* */
+  }
+}
+
 async function loadList() {
   loading.value = true
   try {
@@ -95,6 +113,7 @@ async function loadList() {
       pageNo: query.pageNo,
       pageSize: query.pageSize,
       keyword: query.keyword || undefined,
+      lifecycleState: query.lifecycleState,
       status: query.status,
       region: query.region || undefined,
       ipTypeId: query.ipTypeId || undefined
@@ -118,6 +137,7 @@ async function loadList() {
 function resetQuery() {
   query.pageNo = 1
   query.keyword = ''
+  query.lifecycleState = undefined
   query.status = undefined
   query.region = ''
   query.ipTypeId = ''
@@ -136,16 +156,40 @@ function ipTypeName(typeId: string) {
   return `${t.name} · ${label}`
 }
 
-// 状态 → NTag 颜色映射 (替代 daisy 的 IP_POOL_STATUS_BADGE_CLASS)
-function statusTagType(status: number): 'success' | 'info' | 'warning' | 'error' | 'default' {
+/** 状态 → NTag 颜色映射. */
+function statusTagType(status: string): 'success' | 'info' | 'warning' | 'default' {
   switch (status) {
-    case 1: return 'success'
-    case 2: return 'info'
-    case 3: return 'warning'
-    case 4: return 'error'
-    case 5: return 'warning'
-    case 6: return 'default'
+    case 'AVAILABLE': return 'success'
+    case 'RESERVED': return 'warning'
+    case 'OCCUPIED': return 'info'
+    case 'COOLING': return 'default'
     default: return 'default'
+  }
+}
+
+// ===== lifecycle 流转 =====
+const LIFECYCLE_DROPDOWN_OPTIONS = [
+  { label: '装机中 INSTALLING', key: 'INSTALLING' },
+  { label: '待上线 READY', key: 'READY' },
+  { label: '运行中 LIVE', key: 'LIVE' },
+  { label: '已退役 RETIRED', key: 'RETIRED' }
+]
+
+async function onLifecycleSelect(ip: ResourceIpPool, target: string) {
+  if (ip.lifecycleState === target) return
+  const targetLabel = IP_POOL_LIFECYCLE_LABELS[target] || target
+  const ok = await confirm({
+    title: '切换生命周期',
+    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS[ip.lifecycleState]} 切到 ${targetLabel}?`,
+    confirmText: '切换'
+  })
+  if (!ok) return
+  try {
+    await transitionIpPoolLifecycle(ip.id, target)
+    message.success(`已切换到 ${targetLabel}`)
+    loadList()
+  } catch {
+    /* */
   }
 }
 
@@ -355,7 +399,7 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
         h('span', { class: 'font-mono' }, row.ipAddress)
       ])
   },
-  { title: '区域', key: 'region', render: (row) => row.region || '-' },
+  { title: '区域', key: 'region', width: 140, render: (row) => regionDisplay(row.region) },
   { title: '类型', key: 'ipTypeId', render: (row) => ipTypeName(row.ipTypeId) },
   {
     title: 'SOCKS5',
@@ -409,8 +453,20 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
     }
   },
   {
-    title: '状态',
+    title: '生命周期',
+    key: 'lifecycleState',
+    width: 90,
+    render: (row) =>
+      h(
+        NTag,
+        { size: 'small', type: IP_POOL_LIFECYCLE_TAG_TYPE[row.lifecycleState] || 'default' },
+        { default: () => IP_POOL_LIFECYCLE_LABELS[row.lifecycleState] || row.lifecycleState }
+      )
+  },
+  {
+    title: '占用状态',
     key: 'status',
+    width: 90,
     render: (row) =>
       h(
         NTag,
@@ -419,7 +475,6 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
       )
   },
   {
-    // 账面采购规格 (Mbps / GB); 不参与运行时分配, 只给运营对账 + 后续套餐组合参考
     title: '带宽/流量',
     key: 'spec',
     width: 130,
@@ -435,9 +490,9 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
   { title: '分配次数', key: 'assignCount', render: (row) => row.assignCount ?? 0 },
   {
     title: '当前会员',
-    key: 'assignedMemberId',
+    key: 'occupiedByMemberId',
     render: (row) =>
-      h('span', { class: 'font-mono text-xs text-zinc-500' }, row.assignedMemberId || '-')
+      h('span', { class: 'font-mono text-xs text-zinc-500' }, row.occupiedByMemberId || '-')
   },
   {
     title: '创建时间',
@@ -508,6 +563,25 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
             default: () => '编辑'
           }
         ),
+        h(
+          NDropdown,
+          {
+            trigger: 'click',
+            options: LIFECYCLE_DROPDOWN_OPTIONS,
+            onSelect: (key: string) => onLifecycleSelect(row, key)
+          },
+          {
+            default: () =>
+              h(
+                NButton,
+                { size: 'tiny', quaternary: true, type: 'info', title: '切换 lifecycle' },
+                {
+                  icon: () => h(NIcon, null, { default: () => h(ArrowRightLeft) }),
+                  default: () => '流转'
+                }
+              )
+          }
+        ),
         // 同步凭据: 仅自部署 (provisionMode=1) 且 SOCKS5 配齐的 IP 才显示
         row.provisionMode === 1 && canTest(row)
           ? h(
@@ -525,8 +599,8 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
               }
             )
           : null,
-        // 退订: 仅"已占用"(status=2) 才有意义, 其它状态隐藏
-        row.status === 2
+        // 退订: 仅"已占用" (OCCUPIED) 才有意义, 其它状态隐藏
+        row.status === 'OCCUPIED'
           ? h(
               NButton,
               {
@@ -571,7 +645,7 @@ const pagination = computed(() => ({
 }))
 
 onMounted(async () => {
-  await loadIpTypes()
+  await Promise.all([loadIpTypes(), loadRegions()])
   await loadList()
 })
 </script>
@@ -593,22 +667,31 @@ onMounted(async () => {
           />
         </div>
         <div>
-          <div class="text-xs text-zinc-500 mb-1">状态</div>
+          <div class="text-xs text-zinc-500 mb-1">生命周期</div>
+          <NSelect
+            v-model:value="query.lifecycleState"
+            :options="IP_POOL_LIFECYCLE_OPTIONS"
+            size="small"
+            class="w-28"
+          />
+        </div>
+        <div>
+          <div class="text-xs text-zinc-500 mb-1">占用状态</div>
           <NSelect
             v-model:value="query.status"
-            :options="STATUS_OPTIONS"
+            :options="IP_POOL_STATUS_OPTIONS"
             size="small"
             class="w-28"
           />
         </div>
         <div>
           <div class="text-xs text-zinc-500 mb-1">区域</div>
-          <NInput
+          <NSelect
             v-model:value="query.region"
+            :options="regionOptions"
             size="small"
-            placeholder="us-west / jp / ..."
-            class="w-32"
-            @keyup.enter="onSearch"
+            class="w-40"
+            placeholder="选区域"
           />
         </div>
         <div>

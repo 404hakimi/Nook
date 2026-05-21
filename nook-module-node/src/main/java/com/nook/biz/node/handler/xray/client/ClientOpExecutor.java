@@ -31,7 +31,7 @@ import com.nook.common.web.exception.BusinessException;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,41 +42,25 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
 
-/**
- * Xray Client 操作执行体 —— op queue handler 调度的 SSH + DB 真正执行点.
- *
- * @author nook
- */
+/** Xray client 操作执行体: op queue handler 调度的 SSH + DB 真正执行点. */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ClientOpExecutor {
 
-    @Resource
-    private XrayClientMapper xrayClientMapper;
-    @Resource
-    private XrayClientTrafficMapper xrayClientTrafficMapper;
-    @Resource
-    private XrayInboundCli inboundCli;
-    @Resource
-    private XrayOutboundCli outboundCli;
-    @Resource
-    private XrayRoutingCli routingCli;
-    @Resource
-    private XrayStatsCli statsCli;
-    @Resource
-    private XrayNodeService xrayNodeService;
-    @Resource
-    private ResourceIpPoolService resourceIpPoolService;
-    @Resource
-    private XrayClientValidator clientValidator;
-    @Resource
-    private XrayNodeValidator xrayNodeValidator;
-    @Resource
-    private ResourceIpPoolValidator ipPoolValidator;
-    @Resource
-    private XrayDaemonProbe xrayDaemonProbe;
-    @Resource
-    private TransactionTemplate transactionTemplate;
+    private final XrayClientMapper xrayClientMapper;
+    private final XrayClientTrafficMapper xrayClientTrafficMapper;
+    private final XrayInboundCli inboundCli;
+    private final XrayOutboundCli outboundCli;
+    private final XrayRoutingCli routingCli;
+    private final XrayStatsCli statsCli;
+    private final XrayNodeService xrayNodeService;
+    private final ResourceIpPoolService resourceIpPoolService;
+    private final XrayClientValidator clientValidator;
+    private final XrayNodeValidator xrayNodeValidator;
+    private final ResourceIpPoolValidator ipPoolValidator;
+    private final XrayDaemonProbe xrayDaemonProbe;
+    private final TransactionTemplate transactionTemplate;
 
     /**
      * 开通客户端.
@@ -368,41 +352,6 @@ public class ClientOpExecutor {
         sink.report("连接服务器", 25);
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
         return replayInternal(session, node, sink);
-    }
-
-    /**
-     * 探测 Xray 是否重启, 重启过则触发一次重放对齐.
-     *
-     * @param serverId resource_server.id
-     * @param progress 进度 sink, 允许为 null
-     */
-    void doReplayIfRestarted(String serverId, OpProgressSink progress) {
-        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
-        sink.report("加载服务器信息", 20);
-        XrayNodeDO node = xrayNodeValidator.validateExists(serverId);
-        SshSession session;
-        try {
-            sink.report("连接服务器", 35);
-            session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
-        } catch (RuntimeException e) {
-            log.warn("[reconciler] SSH 不通 服务器={}, 本轮跳过: {}", serverId, e.getMessage());
-            return;
-        }
-        sink.report("检测 Xray 启动状态", 50);
-        Optional<Instant> currentUptime = xrayDaemonProbe.readUptime(session);
-        // Xray 没起 / unit 缺失时无法判断, 留给下一轮再探
-        if (currentUptime.isEmpty()) return;
-
-        Instant cur = currentUptime.get();
-        Instant last = node.getLastXrayUptime() == null
-                ? null : node.getLastXrayUptime().toInstant(ZoneOffset.UTC);
-        // last 为 null = 首次装好, 视为重启走一次全量重放把 DB 推全
-        if (last != null && !cur.isAfter(last)) return;
-
-        log.info("[reconciler] 检测到 xray 重启 服务器={} 上次启动={} 当前启动={}, 触发回放", serverId, last, cur);
-        sink.report("Xray 已重启, 开始重放", 60);
-        replayInternal(session, node, sink);
-        xrayNodeService.markReplayDone(serverId, LocalDateTime.ofInstant(cur, ZoneOffset.UTC));
     }
 
     /**

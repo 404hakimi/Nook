@@ -28,6 +28,21 @@ public interface XrayClientTrafficSampleService {
     SampleStat sampleServerTraffic(XrayNodeDO node);
 
     /**
+     * 不走 SSH, 直接接收 agent push 过来的 user 计数器累计值; 复用 SSH 模式的 email → clientId 反查 + delta batch upsert.
+     *
+     * <p>跟 {@link #sampleServerTraffic(String)} 的区别仅在数据来源 (agent push vs backend SSH 拉);
+     * ②③ 阶段完全共用. Agent 接入后这是主路径.
+     *
+     * @param serverId 上报的 server
+     * @param stats    email → 当前累计 (upBytes, downBytes); 来自 agent xray statsquery
+     * @return 采样统计
+     */
+    SampleStat applyAgentStats(String serverId, java.util.Map<String, AgentStatSnapshot> stats);
+
+    /** Agent 上报的单条 user 计数器快照. */
+    record AgentStatSnapshot(long upBytes, long downBytes) {}
+
+    /**
      * 单次采样统计; 给 Job 聚合多 server 汇总日志用.
      *
      * @param upserted 实际落库的 client 数 (INSERT + UPDATE 累加)

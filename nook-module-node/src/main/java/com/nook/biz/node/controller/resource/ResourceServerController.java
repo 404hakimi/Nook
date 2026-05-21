@@ -13,8 +13,8 @@ import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.StreamingEndpointSupport;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -38,18 +38,14 @@ import java.time.Duration;
 @RestController
 @RequestMapping("/admin/resource/server")
 @Validated
+@RequiredArgsConstructor
 public class ResourceServerController {
 
-    @Resource
-    private ResourceServerService resourceServerService;
-    @Resource
-    private ResourceServerValidator serverValidator;
-    @Resource
-    private AgentInstallScriptService agentInstallScriptService;
-    @Resource
-    private StreamingEndpointSupport streamingSupport;
-    @Resource
-    private WebStreamingProperties webStreamingProperties;
+    private final ResourceServerService resourceServerService;
+    private final ResourceServerValidator serverValidator;
+    private final AgentInstallScriptService agentInstallScriptService;
+    private final StreamingEndpointSupport streamingSupport;
+    private final WebStreamingProperties webStreamingProperties;
 
     @PostMapping("/create")
     public Result<ResourceServerRespVO> createServer(@Valid @RequestBody ResourceServerSaveReqVO createReqVO) {

@@ -1,7 +1,7 @@
 package com.nook.biz.node.job;
 
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -15,10 +15,10 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ResourceIpPoolCoolingSweepJob {
 
-    @Resource
-    private ResourceIpPoolService resourceIpPoolService;
+    private final ResourceIpPoolService resourceIpPoolService;
 
     /**
      * 默认 5 分钟一轮; 相对最短冷却 30 分钟足够细, 失败重试到下一轮.

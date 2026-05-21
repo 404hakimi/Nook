@@ -9,8 +9,8 @@ import com.nook.biz.node.service.resource.ResourceIpPoolService;
 import com.nook.biz.node.validator.ResourceIpPoolValidator;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,12 +30,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/resource/ip-pool")
 @Validated
+@RequiredArgsConstructor
 public class ResourceIpPoolController {
 
-    @Resource
-    private ResourceIpPoolService resourceIpPoolService;
-    @Resource
-    private ResourceIpPoolValidator ipPoolValidator;
+    private final ResourceIpPoolService resourceIpPoolService;
+    private final ResourceIpPoolValidator ipPoolValidator;
 
     @PostMapping("/create")
     public Result<ResourceIpPoolRespVO> createIpPool(@Valid @RequestBody ResourceIpPoolSaveReqVO createReqVO) {
@@ -73,6 +72,14 @@ public class ResourceIpPoolController {
     @PostMapping("/release")
     public Result<Boolean> releaseIpPool(@RequestParam("id") String id) {
         resourceIpPoolService.releaseToCooling(id);
+        return Result.ok(true);
+    }
+
+    /** 切换 lifecycle_state; admin 上线 / 退役流转用. */
+    @PostMapping("/lifecycle")
+    public Result<Boolean> transitionLifecycle(@RequestParam("id") String id,
+                                               @RequestParam("state") String state) {
+        resourceIpPoolService.transitionLifecycle(id, state);
         return Result.ok(true);
     }
 }

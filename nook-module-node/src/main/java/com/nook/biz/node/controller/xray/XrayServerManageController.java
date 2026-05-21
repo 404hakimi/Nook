@@ -8,8 +8,8 @@ import com.nook.biz.node.service.xray.server.XrayServerManageService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.StreamingEndpointSupport;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,16 +30,13 @@ import java.time.Duration;
 @RestController
 @RequestMapping("/admin/xray/server")
 @Validated
+@RequiredArgsConstructor
 public class XrayServerManageController {
 
-    @Resource
-    private XrayServerManageService xrayServerManageService;
-    @Resource
-    private StreamingEndpointSupport streamingSupport;
-    @Resource
-    private ResourceServerValidator serverValidator;
-    @Resource
-    private WebStreamingProperties webStreamingProperties;
+    private final XrayServerManageService xrayServerManageService;
+    private final StreamingEndpointSupport streamingSupport;
+    private final ResourceServerValidator serverValidator;
+    private final WebStreamingProperties webStreamingProperties;
 
     @GetMapping("/status")
     public Result<XrayServerStatusRespVO> getXrayStatus(@RequestParam("id") String id) {

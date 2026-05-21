@@ -1,10 +1,13 @@
 package com.nook.biz.node.controller.resource.vo;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.nook.biz.node.enums.ResourceIpPoolLifecycleEnum;
 import com.nook.biz.node.enums.ResourceIpPoolProvisionModeEnum;
 import com.nook.biz.node.enums.ResourceIpPoolStatusEnum;
 import lombok.Data;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -16,13 +19,18 @@ import java.time.LocalDateTime;
 public class ResourceIpPoolRespVO {
 
     private String id;
+
+    /** 区域码 (FK → resource_region.code). */
     private String region;
+
     private String ipTypeId;
 
-    /** 部署模式; 取值见 {@link ResourceIpPoolProvisionModeEnum} */
+    /** 装机生命周期; 取值见 {@link ResourceIpPoolLifecycleEnum}. */
+    private String lifecycleState;
+
+    /** 部署模式; 取值见 {@link ResourceIpPoolProvisionModeEnum}. */
     private Integer provisionMode;
 
-    /** 出网真实 IP, 同时作为 SOCKS5 监听地址 */
     private String ipAddress;
 
     private Integer socks5Port;
@@ -31,57 +39,60 @@ public class ResourceIpPoolRespVO {
     /** 明文 SOCKS5 密码; 后台运营受信网络使用, UI 用 type=password 自然遮盖. */
     private String socks5Password;
 
-    /** 状态; 取值见 {@link ResourceIpPoolStatusEnum} */
-    private Integer status;
+    /** 占用状态; 取值见 {@link ResourceIpPoolStatusEnum}. */
+    private String status;
 
-    private String assignedMemberId;
+    /** status=OCCUPIED 时填占用会员 id. */
+    private String occupiedByMemberId;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime assignedAt;
+    private LocalDateTime occupiedAt;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime coolingUntil;
+
+    /** status=RESERVED 时填超时时间. */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime reservedExpiresAt;
 
     private Integer assignCount;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastHealthAt;
 
-    /** dante 日志关键字组合 (空格分隔); 例 'connect disconnect error'. */
     private String logLevel;
 
-    /** dante logoutput 路径. */
     private String logPath;
 
-    /** systemd 开机自启 (1/0). */
     private Integer autostartEnabled;
 
-    /** 部署时是否配 UFW (1/0). */
     private Integer firewallEnabled;
 
-    /** UFW allow 来源 CIDR; NULL = 0.0.0.0/0. */
     private String firewallAllowFrom;
 
-    /** SOCKS5 安装目录; 默认 /home/socks5. */
     private String installDir;
 
-    /** SSH 主机; 留空时业务侧用 ipAddress 兜底. */
     private String sshHost;
 
-    /** SSH 端口 (默认 22). */
     private Integer sshPort;
 
-    /** SSH 用户. */
     private String sshUser;
 
-    /** 明文 SSH 密码; 后台受信网络场景, 跟 SOCKS5 密码同口径下发. UI 用 type=password 自然遮盖. */
     private String sshPassword;
 
-    /** 采购带宽上限 (Mbps); NULL = 不限/未填. */
     private Integer bandwidthMbps;
 
-    /** 采购流量上限 (GB); NULL = 不限/未填. */
     private Integer trafficQuotaGb;
+
+    /** 月度成本 USD. */
+    private BigDecimal costMonthlyUsd;
+
+    /** 账单日 (1-28). */
+    private Integer billingCycleDay;
+
+    /** IP 到期日. */
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate expiresAt;
 
     private String remark;
 

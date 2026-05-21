@@ -10,7 +10,7 @@ import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayNodeMapper;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.common.web.exception.BusinessException;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -23,12 +23,11 @@ import java.util.Objects;
  * @author nook
  */
 @Component
+@RequiredArgsConstructor
 public class XrayNodeValidator {
 
-    @Resource
-    private XrayNodeMapper xrayNodeMapper;
-    @Resource
-    private XrayClientMapper xrayClientMapper;
+    private final XrayNodeMapper xrayNodeMapper;
+    private final XrayClientMapper xrayClientMapper;
 
     /**
      * 校验 xray 节点存在; 不存在抛 SERVER_STATE_NOT_FOUND (语义=该 server 还没通过 nook 部署 xray).

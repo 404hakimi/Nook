@@ -10,7 +10,7 @@ import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.validator.XrayNodeValidator;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -29,14 +29,12 @@ import java.util.Map;
 @RestController
 @RequestMapping("/admin/xray/node")
 @Validated
+@RequiredArgsConstructor
 public class XrayNodeController {
 
-    @Resource
-    private XrayNodeService xrayNodeService;
-    @Resource
-    private XrayNodeValidator xrayNodeValidator;
-    @Resource
-    private ResourceServerService resourceServerService;
+    private final XrayNodeService xrayNodeService;
+    private final XrayNodeValidator xrayNodeValidator;
+    private final ResourceServerService resourceServerService;
 
     @GetMapping("/get")
     public Result<XrayNodeRespVO> getXrayNode(@RequestParam("serverId") String serverId) {

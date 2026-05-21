@@ -10,8 +10,8 @@ import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.dal.dataobject.OpConfigDO;
 import com.nook.biz.operation.service.OpConfigService;
 import com.nook.common.web.response.Result;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,10 +35,10 @@ import java.util.stream.Stream;
 @RestController
 @RequestMapping("/admin/operation/op-config")
 @Validated
+@RequiredArgsConstructor
 public class OpConfigController {
 
-    @Resource
-    private OpConfigService opConfigService;
+    private final OpConfigService opConfigService;
 
     @GetMapping("/list")
     public Result<List<OpConfigRespVO>> getOpConfigList() {

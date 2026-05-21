@@ -18,7 +18,6 @@ export type OpType =
   | 'CLIENT_ROTATE'
   | 'CLIENT_SYNC'
   | 'CLIENT_ALL_SYNC'
-  | 'CLIENT_RECONCILE'
 
 /** 单条 op_log; 列表/详情共用; 列表场景 paramsJson/errorMsg 为 null. */
 export interface OpLog {

@@ -34,7 +34,7 @@ import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -44,31 +44,20 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/**
- * SOCKS5 落地节点 Service 实现类
- *
- * @author nook
- */
+/** SOCKS5 落地节点 (dante + xray outbound 联动): 装机 / 改凭据 / 状态查询. */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
 
-    @Resource
-    private ScriptCatalog scriptCatalog;
-    @Resource
-    private Socks5Prober socks5Prober;
-    @Resource
-    private ResourceIpPoolValidator ipPoolValidator;
-    @Resource
-    private XrayClientMapper xrayClientMapper;
-    @Resource
-    private XrayNodeValidator xrayNodeValidator;
-    @Resource
-    private XrayOutboundCli outboundCli;
-    @Resource
-    private ServerProbe serverProbe;
-    @Resource
-    private ResourceIpPoolMapper resourceIpPoolMapper;
+    private final ScriptCatalog scriptCatalog;
+    private final Socks5Prober socks5Prober;
+    private final ResourceIpPoolValidator ipPoolValidator;
+    private final XrayClientMapper xrayClientMapper;
+    private final XrayNodeValidator xrayNodeValidator;
+    private final XrayOutboundCli outboundCli;
+    private final ServerProbe serverProbe;
+    private final ResourceIpPoolMapper resourceIpPoolMapper;
 
     /** dante 的 systemd unit 名 (apt 包默认), 跟 install / update 脚本里 systemctl 操作的 unit 对齐. */
     private static final String DANTE_UNIT = "danted";

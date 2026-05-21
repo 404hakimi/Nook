@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** 区域字典管理; 仅 admin 查 (起步阶段录入 / 改用 SQL 维护 + Sprint 5+ 补 CRUD). */
+/** 区域字典管理; 仅 admin 查, 增删走 SQL. */
 @RestController
 @RequestMapping("/admin/resource/region")
 @RequiredArgsConstructor

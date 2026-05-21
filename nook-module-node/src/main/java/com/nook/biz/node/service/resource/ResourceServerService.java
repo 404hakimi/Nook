@@ -69,4 +69,13 @@ public interface ResourceServerService {
      * @return Map of serverId → name (name 缺失 fallback host)
      */
     Map<String, String> getServerNameMap(Collection<String> ids);
+
+    /**
+     * 切换 lifecycle_state; 流转规则 INSTALLING ↔ READY ↔ LIVE → RETIRED (RETIRED 可手动复活回 LIVE).
+     * 上线到 LIVE 前必须填 domain.
+     *
+     * @param id       服务器 id
+     * @param newState 目标 lifecycle (INSTALLING / READY / LIVE / RETIRED)
+     */
+    void transitionLifecycle(String id, String newState);
 }

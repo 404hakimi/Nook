@@ -118,4 +118,12 @@ public interface ResourceIpPoolService {
      * @return Map of ipId → ResourceIpPoolDO
      */
     Map<String, ResourceIpPoolDO> getIpPoolMap(Collection<String> ids);
+
+    /**
+     * 切换 lifecycle_state; 流转规则同 server (INSTALLING ↔ READY ↔ LIVE → RETIRED, RETIRED → LIVE 可复活).
+     *
+     * @param id       IP 池编号
+     * @param newState 目标 lifecycle (INSTALLING / READY / LIVE / RETIRED)
+     */
+    void transitionLifecycle(String id, String newState);
 }

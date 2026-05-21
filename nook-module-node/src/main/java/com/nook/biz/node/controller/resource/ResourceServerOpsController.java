@@ -5,8 +5,8 @@ import com.nook.biz.node.controller.resource.vo.EnableSwapReqVO;
 import com.nook.biz.node.service.resource.ResourceServerOpsService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.framework.web.StreamingEndpointSupport;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,16 +26,13 @@ import java.time.Duration;
 @RestController
 @RequestMapping("/admin/resource/server")
 @Validated
+@RequiredArgsConstructor
 public class ResourceServerOpsController {
 
-    @Resource
-    private ResourceServerOpsService resourceServerOpsService;
-    @Resource
-    private StreamingEndpointSupport streamingSupport;
-    @Resource
-    private ResourceServerValidator serverValidator;
-    @Resource
-    private WebStreamingProperties webStreamingProperties;
+    private final ResourceServerOpsService resourceServerOpsService;
+    private final StreamingEndpointSupport streamingSupport;
+    private final ResourceServerValidator serverValidator;
+    private final WebStreamingProperties webStreamingProperties;
 
     @PostMapping(value = "/enable-swap", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter enableSwap(@RequestParam("id") String id,

@@ -8,7 +8,7 @@ import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayNodeMapper;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,10 +25,10 @@ import java.util.Map;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class XrayNodeServiceImpl implements XrayNodeService {
 
-    @Resource
-    private XrayNodeMapper xrayNodeMapper;
+    private final XrayNodeMapper xrayNodeMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)

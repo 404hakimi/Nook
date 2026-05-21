@@ -10,7 +10,7 @@ import com.nook.biz.operation.service.OpLogService;
 import com.nook.biz.system.service.SystemUserService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -32,16 +32,13 @@ import java.util.Set;
 @RestController
 @RequestMapping("/admin/operation/op-log")
 @Validated
+@RequiredArgsConstructor
 public class OpLogController {
 
-    @Resource
-    private OpLogService opLogService;
-    @Resource
-    private ResourceServerService resourceServerService;
-    @Resource
-    private SystemUserService systemUserService;
-    @Resource
-    private XrayClientService xrayClientService;
+    private final OpLogService opLogService;
+    private final ResourceServerService resourceServerService;
+    private final SystemUserService systemUserService;
+    private final XrayClientService xrayClientService;
 
     @GetMapping("/page")
     public Result<PageResult<OpLogRespVO>> getOpLogPage(@ModelAttribute OpLogPageReqVO pageReqVO) {

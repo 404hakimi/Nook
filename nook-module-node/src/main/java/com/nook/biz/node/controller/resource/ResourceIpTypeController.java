@@ -5,7 +5,7 @@ import com.nook.biz.node.convert.resource.ResourceIpPoolConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpTypeDO;
 import com.nook.biz.node.service.resource.ResourceIpTypeService;
 import com.nook.common.web.response.Result;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,10 +21,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/resource/ip-type")
 @Validated
+@RequiredArgsConstructor
 public class ResourceIpTypeController {
 
-    @Resource
-    private ResourceIpTypeService resourceIpTypeService;
+    private final ResourceIpTypeService resourceIpTypeService;
 
     @GetMapping("/list")
     public Result<List<ResourceIpTypeRespVO>> getIpTypeList() {

@@ -1,12 +1,16 @@
 package com.nook.biz.node.controller.resource.vo;
 
-import com.nook.biz.node.enums.ResourceServerStatusEnum;
+import com.nook.biz.node.enums.ResourceServerLifecycleEnum;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * 服务器新增 / 编辑 Request VO.
@@ -33,7 +37,7 @@ public class ResourceServerSaveReqVO {
     @Size(max = 64)
     private String sshUser;
 
-    /** Update 留空 = 保留原值, 故不加 @NotBlank. */
+    /** Update 留空 = 保留原值. */
     @Size(max = 255)
     private String sshPassword;
 
@@ -53,24 +57,49 @@ public class ResourceServerSaveReqVO {
     @Min(value = 60) @Max(value = 3600)
     private Integer installTimeoutSeconds;
 
-    @Min(value = 0) @Max(value = 1_048_576)
-    private Integer monthlyTrafficGb;
-
     @NotNull(message = "带宽峰值不能为空")
     @Min(value = 0)
-    private Integer totalBandwidth;
+    private Integer bandwidthMbps;
+
+    /** 线路机域名 (LIVE 前置必填); 不填可空, 上线时校验. */
+    @Size(max = 128)
+    private String domain;
+
+    /** Cloudflare Zone ID. */
+    @Size(max = 64)
+    private String cfZoneId;
+
+    /** Cloudflare DNS record ID (创建/绑定后回填). */
+    @Size(max = 64)
+    private String cfRecordId;
+
+    /** 月度成本 USD. */
+    private BigDecimal costMonthlyUsd;
+
+    @Min(value = 1, message = "账单日 1-28")
+    @Max(value = 28, message = "账单日 1-28")
+    private Integer billingCycleDay;
+
+    /** 服务器到期日 yyyy-MM-dd. */
+    private LocalDate expiresAt;
+
+    @NotNull(message = "客户数上限不能为空")
+    @Min(value = 1, message = "客户数上限至少 1")
+    @Max(value = 10000, message = "客户数上限不能超过 10000")
+    private Integer maxConcurrentClients;
 
     @Size(max = 64)
     private String idcProvider;
 
-    @Size(max = 64)
+    @NotBlank(message = "区域不能为空")
+    @Size(max = 32, message = "区域码长度不能超过 32")
+    @Pattern(regexp = "^[A-Z][A-Z0-9\\-]+$", message = "区域码须大写, e.g., JP-TYO / US-LAX / HK")
     private String region;
 
-    /** 状态; 取值见 {@link ResourceServerStatusEnum} */
-    @NotNull(message = "状态不能为空")
-    @Min(value = 1, message = "状态值越界")
-    @Max(value = 3, message = "状态值越界")
-    private Integer status;
+    /** 装机生命周期; 创建时一般传 INSTALLING, 上线由专门接口流转. */
+    @NotBlank(message = "lifecycle_state 不能为空")
+    @Pattern(regexp = "INSTALLING|READY|LIVE|RETIRED", message = "lifecycleState 须为 INSTALLING/READY/LIVE/RETIRED")
+    private String lifecycleState;
 
     @Size(max = 512)
     private String remark;

@@ -18,8 +18,8 @@ import com.nook.biz.node.service.xray.client.XrayClientTrafficService;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,18 +43,14 @@ import java.util.Set;
 @RestController
 @RequestMapping("/admin/xray/client")
 @Validated
+@RequiredArgsConstructor
 public class XrayClientController {
 
-    @Resource
-    private XrayClientService xrayClientService;
-    @Resource
-    private XrayClientTrafficService xrayClientTrafficService;
-    @Resource
-    private ResourceIpPoolService resourceIpPoolService;
-    @Resource
-    private ResourceServerService resourceServerService;
-    @Resource
-    private XrayNodeService xrayNodeService;
+    private final XrayClientService xrayClientService;
+    private final XrayClientTrafficService xrayClientTrafficService;
+    private final ResourceIpPoolService resourceIpPoolService;
+    private final ResourceServerService resourceServerService;
+    private final XrayNodeService xrayNodeService;
 
     @GetMapping("/page")
     public Result<PageResult<XrayClientRespVO>> getXrayClientPage(@ModelAttribute XrayClientPageReqVO pageReqVO) {

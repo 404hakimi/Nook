@@ -13,7 +13,7 @@ import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -30,16 +30,13 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSampleService {
 
-    @Resource
-    private XrayClientMapper xrayClientMapper;
-    @Resource
-    private XrayClientTrafficMapper xrayClientTrafficMapper;
-    @Resource
-    private XrayNodeService xrayNodeService;
-    @Resource
-    private XrayStatsCli xrayStatsCli;
+    private final XrayClientMapper xrayClientMapper;
+    private final XrayClientTrafficMapper xrayClientTrafficMapper;
+    private final XrayNodeService xrayNodeService;
+    private final XrayStatsCli xrayStatsCli;
 
     @Override
     public SampleStat sampleServerTraffic(String serverId) {
@@ -51,6 +48,44 @@ public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSamp
             return SampleStat.EMPTY;
         }
         return sampleServerTraffic(node);
+    }
+
+    @Override
+    public SampleStat applyAgentStats(String serverId, java.util.Map<String, AgentStatSnapshot> stats) {
+        if (StrUtil.isBlank(serverId) || stats == null || stats.isEmpty()) return SampleStat.EMPTY;
+
+        Map<String, String> emailToClientId = CollectionUtils.convertMap(
+                CollectionUtils.filterList(
+                        xrayClientMapper.selectByServerId(serverId),
+                        c -> StrUtil.isNotBlank(c.getClientEmail())),
+                XrayClientDO::getClientEmail,
+                XrayClientDO::getId);
+
+        LocalDateTime now = LocalDateTime.now();
+        List<TrafficCounterRow> rows = new ArrayList<>(stats.size());
+        int skipped = 0;
+        for (java.util.Map.Entry<String, AgentStatSnapshot> e : stats.entrySet()) {
+            String clientId = emailToClientId.get(e.getKey());
+            if (clientId == null) {
+                log.debug("[agent-traffic] 服务器={} 孤儿邮箱={}", serverId, e.getKey());
+                skipped++;
+                continue;
+            }
+            long up = Math.max(0L, e.getValue().upBytes());
+            long down = Math.max(0L, e.getValue().downBytes());
+            rows.add(new TrafficCounterRow(
+                    UUID.randomUUID().toString().replace("-", ""),
+                    clientId, serverId, up, down, now));
+        }
+        if (rows.isEmpty()) return new SampleStat(0, skipped);
+        try {
+            xrayClientTrafficMapper.batchUpsertCounter(rows);
+        } catch (Exception ex) {
+            log.warn("[agent-traffic] 批量入库失败 服务器={} 条数={}: {}",
+                    serverId, rows.size(), ex.getMessage());
+            return new SampleStat(0, skipped);
+        }
+        return new SampleStat(rows.size(), skipped);
     }
 
     @Override

@@ -3,7 +3,7 @@ package com.nook.biz.node.handler.xray.server;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OpContext;
 import com.nook.biz.operation.api.spi.OpHandler;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,10 +12,10 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
+@RequiredArgsConstructor
 public class RestartXrayHandler implements OpHandler {
 
-    @Resource
-    private ServerOpExecutor executor;
+    private final ServerOpExecutor executor;
 
     @Override
     public String type() {

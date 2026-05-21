@@ -4,7 +4,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshCredentialApi;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -13,10 +13,10 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
+@RequiredArgsConstructor
 public class ResourceServerSshCredentialApi implements SshCredentialApi {
 
-    @Resource
-    private ResourceServerValidator serverValidator;
+    private final ResourceServerValidator serverValidator;
 
     @Override
     public SessionCredential load(String serverId) {

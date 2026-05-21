@@ -30,7 +30,7 @@ import com.nook.framework.security.stp.StpSystemUtil;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -42,35 +42,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/**
- * Xray 线路服务器管理 Service 实现.
- *
- * @author nook
- */
+/** Xray 线路服务器管理: SSH 装机 / 重启 / 自启 / 日志读取. */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class XrayServerManageServiceImpl implements XrayServerManageService {
 
-    @Resource
-    private RemoteScriptRunner scriptRunner;
-    @Resource
-    private ScriptCatalog scriptCatalog;
-    @Resource
-    private ServerProbe serverProbe;
-    @Resource
-    private XrayDaemonProbe xrayDaemonProbe;
-    @Resource
-    private XrayNodeService xrayNodeService;
-    @Resource
-    private XrayNodeValidator xrayNodeValidator;
-    @Resource
-    private OpOrchestrator opOrchestrator;
-    @Resource
-    private OpConfigResolver opConfigResolver;
-    @Resource
-    private CloudflareApiClient cloudflareApiClient;
-    @Resource
-    private ResourceServerValidator resourceServerValidator;
+    private final RemoteScriptRunner scriptRunner;
+    private final ScriptCatalog scriptCatalog;
+    private final ServerProbe serverProbe;
+    private final XrayDaemonProbe xrayDaemonProbe;
+    private final XrayNodeService xrayNodeService;
+    private final XrayNodeValidator xrayNodeValidator;
+    private final OpOrchestrator opOrchestrator;
+    private final OpConfigResolver opConfigResolver;
+    private final CloudflareApiClient cloudflareApiClient;
+    private final ResourceServerValidator resourceServerValidator;
 
     @Override
     public void installStreaming(String serverId, XrayServerInstallReqVO reqVO, Consumer<String> lineSink) {

@@ -64,7 +64,6 @@ public class AgentReportServiceImpl implements AgentReportService {
                 String.format("%.2fGB", req.getTxBytes() / GB_BYTES),
                 String.format("%.2fGB", total / GB_BYTES),
                 req.getPeriodStart());
-        // TODO: 写 resource_server_traffic 历史表 (Sprint 1 拆按周期 UPSERT)
     }
 
     @Override

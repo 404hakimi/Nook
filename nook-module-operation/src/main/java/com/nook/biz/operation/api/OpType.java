@@ -21,8 +21,7 @@ public enum OpType {
     CLIENT_SYNC,
     CLIENT_RESET_TRAFFIC,
 
-    // ===== 一致性: ALL_SYNC = 手动一键同步全部; RECONCILE = 调度自动检 + 按需同步 =====
+    /** 手动一键同步全部客户端到指定 server. */
     CLIENT_ALL_SYNC,
-    CLIENT_RECONCILE,
     ;
 }

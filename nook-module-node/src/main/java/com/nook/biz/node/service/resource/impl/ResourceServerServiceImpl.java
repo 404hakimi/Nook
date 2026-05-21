@@ -1,17 +1,25 @@
 package com.nook.biz.node.service.resource.impl;
 
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerSaveReqVO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
+import com.nook.biz.node.enums.ResourceErrorCode;
+import com.nook.biz.node.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
+import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,9 +27,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 资源服务器 Service 实现类
@@ -34,32 +44,54 @@ import java.util.Map;
 public class ResourceServerServiceImpl implements ResourceServerService {
 
     private final ResourceServerMapper resourceServerMapper;
+    private final ResourceServerCapacityMapper resourceServerCapacityMapper;
+    private final ResourceServerRuntimeMapper resourceServerRuntimeMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ResourceServerValidator serverValidator;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String createServer(ResourceServerSaveReqVO createReqVO) {
-        // 校验别名唯一
         serverValidator.validateNameUnique(null, createReqVO.getName());
-        // 校验主机唯一
         serverValidator.validateHostUnique(null, createReqVO.getHost());
+        // domain 可空, 只有非空时才查重 (LIVE 前置才必填)
+        serverValidator.validateDomainUnique(null, createReqVO.getDomain());
 
-        // 插入服务器
         ResourceServerDO entity = BeanUtils.toBean(createReqVO, ResourceServerDO.class);
         resourceServerMapper.insert(entity);
+        // 同步创建子表占位行 (capacity 中频 / runtime 高频); 没有 INSERT 就 SELECT JOIN 拿不到
+        initCapacityAndRuntime(entity.getId());
         return entity.getId();
+    }
+
+    /** 新建 server 时初始化 capacity + runtime 子表; 默认 NORMAL / 心跳 null. */
+    private void initCapacityAndRuntime(String serverId) {
+        LocalDateTime now = LocalDateTime.now();
+
+        ResourceServerCapacityDO capacity = new ResourceServerCapacityDO();
+        capacity.setServerId(serverId);
+        capacity.setUsedTrafficBytes(0L);
+        capacity.setQuotaResetPolicy("CALENDAR_MONTH");
+        capacity.setThrottleState("NORMAL");
+        capacity.setCreatedAt(now);
+        capacity.setUpdatedAt(now);
+        resourceServerCapacityMapper.insert(capacity);
+
+        ResourceServerRuntimeDO runtime = new ResourceServerRuntimeDO();
+        runtime.setServerId(serverId);
+        runtime.setTempUnhealthy(0);
+        runtime.setConsecutiveMiss(0);
+        runtime.setUpdatedAt(now);
+        resourceServerRuntimeMapper.insert(runtime);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateServer(String id, ResourceServerSaveReqVO updateReqVO) {
-        // 校验服务器存在
         serverValidator.validateExists(id);
-        // 校验别名唯一
         serverValidator.validateNameUnique(id, updateReqVO.getName());
-        // 校验主机唯一
         serverValidator.validateHostUnique(id, updateReqVO.getHost());
+        serverValidator.validateDomainUnique(id, updateReqVO.getDomain());
 
         // 更新服务器
         ResourceServerDO updateObj = BeanUtils.toBean(updateReqVO, ResourceServerDO.class);
@@ -106,5 +138,37 @@ public class ResourceServerServiceImpl implements ResourceServerService {
                 ResourceServerDO::getId,
                 // name 缺失时 fallback host, 不让 UI 出现空白
                 e -> e.getName() != null ? e.getName() : e.getHost());
+    }
+
+    // 允许的双向流转表; 命名按 from→to, 没列出的组合都拒
+    private static final Set<String> ALLOWED_LIFECYCLE_TRANSITIONS = Set.of(
+            "INSTALLING→READY", "READY→INSTALLING",  // 装机回退
+            "READY→LIVE", "LIVE→READY",              // 上下线
+            "LIVE→RETIRED", "READY→RETIRED",         // 退役
+            "RETIRED→LIVE"                            // 退役复活回 LIVE; 不允许 RETIRED→READY 等
+    );
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void transitionLifecycle(String id, String newState) {
+        ResourceServerDO srv = serverValidator.validateExists(id);
+        if (ResourceServerLifecycleEnum.fromState(newState) == null) {
+            throw new BusinessException(ResourceErrorCode.SERVER_LIFECYCLE_INVALID_TRANSITION,
+                    srv.getLifecycleState(), newState);
+        }
+        if (StrUtil.equals(srv.getLifecycleState(), newState)) {
+            return;  // 幂等: 目标态等于当前态直接 no-op
+        }
+        String key = srv.getLifecycleState() + "→" + newState;
+        if (!ALLOWED_LIFECYCLE_TRANSITIONS.contains(key)) {
+            throw new BusinessException(ResourceErrorCode.SERVER_LIFECYCLE_INVALID_TRANSITION,
+                    srv.getLifecycleState(), newState);
+        }
+        // LIVE 前置: domain 必填 (用户连接的子域名 / DNS 切换都靠它)
+        if (ResourceServerLifecycleEnum.LIVE.matches(newState) && StrUtil.isBlank(srv.getDomain())) {
+            throw new BusinessException(ResourceErrorCode.SERVER_LIVE_DOMAIN_REQUIRED);
+        }
+        resourceServerMapper.updateLifecycleState(id, newState);
+        log.info("[server] LIFECYCLE id={} {} → {}", id, srv.getLifecycleState(), newState);
     }
 }

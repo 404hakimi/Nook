@@ -6,10 +6,10 @@ import lombok.Getter;
 import java.util.Arrays;
 
 /**
- * IP 池条目状态枚举.
+ * IP 占用状态 (allocator 视角); DB 字段 resource_ip_pool.status.
  *
- * <p>状态机: available → occupied → cooling → available (冷却到期后由调度器 sweep 回收).
- * 人工干预: testing / blacklisted / degraded.
+ * <p>状态机: AVAILABLE → (RESERVED → OCCUPIED) → COOLING → AVAILABLE.
+ * 仅 lifecycle_state=LIVE 期间 status 才有意义.
  *
  * @author nook
  */
@@ -17,32 +17,27 @@ import java.util.Arrays;
 @AllArgsConstructor
 public enum ResourceIpPoolStatusEnum {
 
-    AVAILABLE(1, "可分配"),
-    OCCUPIED(2, "已占用"),
-    TESTING(3, "测试中"),
-    BLACKLISTED(4, "拉黑"),
-    COOLING(5, "冷却中"),
-    DEGRADED(6, "降级"),
+    AVAILABLE("AVAILABLE", "可分配"),
+    RESERVED("RESERVED", "预占中"),
+    OCCUPIED("OCCUPIED", "已占用"),
+    COOLING("COOLING", "冷却中"),
     ;
 
-    public static final Integer[] ARRAYS = Arrays.stream(values())
-            .map(ResourceIpPoolStatusEnum::getStatus).toArray(Integer[]::new);
+    public static final String[] ARRAYS = Arrays.stream(values())
+            .map(ResourceIpPoolStatusEnum::getState).toArray(String[]::new);
 
-    public static final Integer MIN_VALUE = AVAILABLE.status;
-    public static final Integer MAX_VALUE = DEGRADED.status;
-
-    private final Integer status;
+    private final String state;
     private final String label;
 
-    public static ResourceIpPoolStatusEnum fromStatus(Integer status) {
-        if (status == null) return null;
+    public static ResourceIpPoolStatusEnum fromState(String state) {
+        if (state == null) return null;
         for (ResourceIpPoolStatusEnum e : values()) {
-            if (e.status.equals(status)) return e;
+            if (e.state.equals(state)) return e;
         }
         return null;
     }
 
-    public boolean matches(Integer status) {
-        return this.status.equals(status);
+    public boolean matches(String state) {
+        return this.state.equals(state);
     }
 }

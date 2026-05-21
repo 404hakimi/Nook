@@ -30,7 +30,7 @@ import com.nook.framework.security.stp.StpSystemUtil;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -42,38 +42,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Xray Client Service 实现类 — 仅 controller-facing 入口.
- *
- * <p>所有写远端的真正业务执行体在 {@link com.nook.biz.node.handler.xray.client.ClientOpExecutor};
- * 本类只做"入队 + DB 查 + convert", 通过 OpOrchestrator 把 op 投到队列, handler 拉起 executor.
- *
- * @author nook
- */
+/** Xray client controller-facing 入口; 写远端的业务执行体在 ClientOpExecutor, 本类只入队 + 查 + convert. */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class XrayClientServiceImpl implements XrayClientService {
 
-    @Resource
-    private XrayClientMapper xrayClientMapper;
-    @Resource
-    private XrayInboundCli inboundCli;
-    @Resource
-    private XrayOutboundCli outboundCli;
-    @Resource
-    private XrayRoutingCli routingCli;
-    @Resource
-    private XrayNodeService xrayNodeService;
-    @Resource
-    private XrayNodeValidator xrayNodeValidator;
-    @Resource
-    private ResourceServerValidator serverValidator;
-    @Resource
-    private XrayClientValidator clientValidator;
-    @Resource
-    private OpConfigResolver opConfigResolver;
-    @Resource
-    private OpOrchestrator opOrchestrator;
+    private final XrayClientMapper xrayClientMapper;
+    private final XrayInboundCli inboundCli;
+    private final XrayOutboundCli outboundCli;
+    private final XrayRoutingCli routingCli;
+    private final XrayNodeService xrayNodeService;
+    private final XrayNodeValidator xrayNodeValidator;
+    private final ResourceServerValidator serverValidator;
+    private final XrayClientValidator clientValidator;
+    private final OpConfigResolver opConfigResolver;
+    private final OpOrchestrator opOrchestrator;
 
     @Override
     public XrayClientDO getXrayClient(String id) {
@@ -292,22 +276,7 @@ public class XrayClientServiceImpl implements XrayClientService {
         return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_ALL_SYNC.name()), XrayClientReplayReportRespVO.class);
     }
 
-    @Override
-    public void replayIfRestarted(String serverId) {
-        // 异步入队: reconciler 不关心结果, 让 worker pool 后台跑; 同步 submitAndWait 会让 @Scheduled
-        // 单线程串行扫节点时被慢 server 拖死整轮 (timeout 比 cron 大时根本跑不完一遍)
-        OpEnqueueRequest req = OpEnqueueRequest.builder()
-                .serverId(serverId)
-                .opType(OpType.CLIENT_RECONCILE.name())
-                .operator("SCHEDULER")
-                .build();
-        opOrchestrator.enqueue(req);
-    }
-
-    /**
-     * 取当前后台登录的 admin id 作 operator; 没有登录态 (定时器 / 系统调用) 退回 "SYSTEM".
-     * 同步路径需在请求线程内直接读 ThreadLocal, 不能延后到 worker 线程.
-     */
+    /** 取当前后台登录的 admin id 作 operator; 无登录态 (定时器 / 系统调用) 退回 "SYSTEM". */
     private static String currentOperator() {
         try {
             String id = StpSystemUtil.getLoginIdAsString();

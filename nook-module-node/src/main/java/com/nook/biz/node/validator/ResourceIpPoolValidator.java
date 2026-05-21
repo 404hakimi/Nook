@@ -7,7 +7,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceIpTypeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpTypeMapper;
 import com.nook.common.web.exception.BusinessException;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,12 +16,11 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
+@RequiredArgsConstructor
 public class ResourceIpPoolValidator {
 
-    @Resource
-    private ResourceIpPoolMapper resourceIpPoolMapper;
-    @Resource
-    private ResourceIpTypeMapper resourceIpTypeMapper;
+    private final ResourceIpPoolMapper resourceIpPoolMapper;
+    private final ResourceIpTypeMapper resourceIpTypeMapper;
 
     /**
      * 校验 IP 池条目存在.

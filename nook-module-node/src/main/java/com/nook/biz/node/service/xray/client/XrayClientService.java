@@ -91,15 +91,6 @@ public interface XrayClientService {
     XrayClientReplayReportRespVO replayServer(String serverId);
 
     /**
-     * Reconciler 调度入口: 探 xray uptime, 检测到重启 (uptime 比 last_xray_uptime 新) 才 replay 该 server
-     *
-     * <p>平时仅 1 次 SSH 探活, 重启后才 ADI/RMI; 不可达时静默跳过.
-     *
-     * @param serverId resource_server.id
-     */
-    void replayIfRestarted(String serverId);
-
-    /**
      * 批量取 clientEmail (list enrich 用); 走 selectBatchIds 避免 N+1; 已物理删的 client 不进结果 map
      *
      * @param clientIds id 集合; null / 空返空 map

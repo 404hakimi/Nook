@@ -15,6 +15,7 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpTypeMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.enums.ResourceErrorCode;
+import com.nook.biz.node.enums.ResourceIpPoolLifecycleEnum;
 import com.nook.biz.node.enums.ResourceIpPoolStatusEnum;
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
 import com.nook.biz.node.validator.ResourceIpPoolValidator;
@@ -32,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * IP 池 Service 实现类
@@ -118,9 +120,9 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
             int affected = resourceIpPoolMapper.markOccupied(candidate.getId(), memberUserId, LocalDateTime.now());
             if (affected > 0) {
                 // 内存对象同步 DB 状态, 上游不再二次查
-                candidate.setStatus(ResourceIpPoolStatusEnum.OCCUPIED.getStatus());
-                candidate.setAssignedMemberId(memberUserId);
-                candidate.setAssignedAt(LocalDateTime.now());
+                candidate.setStatus(ResourceIpPoolStatusEnum.OCCUPIED.getState());
+                candidate.setOccupiedByMemberId(memberUserId);
+                candidate.setOccupiedAt(LocalDateTime.now());
                 candidate.setAssignCount(candidate.getAssignCount() + 1);
                 return candidate;
             }
@@ -141,9 +143,9 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
                     exist.getIpAddress(), exist.getStatus());
         }
         // 内存对象同步 DB 状态, 上游不再二次查
-        exist.setStatus(ResourceIpPoolStatusEnum.OCCUPIED.getStatus());
-        exist.setAssignedMemberId(memberUserId);
-        exist.setAssignedAt(now);
+        exist.setStatus(ResourceIpPoolStatusEnum.OCCUPIED.getState());
+        exist.setOccupiedByMemberId(memberUserId);
+        exist.setOccupiedAt(now);
         int newCount = (exist.getAssignCount() == null ? 0 : exist.getAssignCount()) + 1;
         exist.setAssignCount(newCount);
         log.info("[ip-pool] OCCUPY ipId={} ip={} member={} count={}",
@@ -225,5 +227,34 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
         if (CollectionUtils.isAnyEmpty(ids)) return Collections.emptyMap();
         return CollectionUtils.convertMap(
                 resourceIpPoolMapper.selectBatchIds(ids), ResourceIpPoolDO::getId);
+    }
+
+    // 跟 server 一致的双向流转表
+    private static final Set<String> ALLOWED_LIFECYCLE_TRANSITIONS = Set.of(
+            "INSTALLING→READY", "READY→INSTALLING",
+            "READY→LIVE", "LIVE→READY",
+            "LIVE→RETIRED", "READY→RETIRED",
+            "RETIRED→LIVE"
+    );
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void transitionLifecycle(String id, String newState) {
+        ResourceIpPoolDO ip = ipPoolValidator.validateExists(id);
+        if (ResourceIpPoolLifecycleEnum.fromState(newState) == null) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_LIFECYCLE_INVALID_TRANSITION,
+                    ip.getLifecycleState(), newState);
+        }
+        if (StrUtil.equals(ip.getLifecycleState(), newState)) {
+            return;
+        }
+        String key = ip.getLifecycleState() + "→" + newState;
+        if (!ALLOWED_LIFECYCLE_TRANSITIONS.contains(key)) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_LIFECYCLE_INVALID_TRANSITION,
+                    ip.getLifecycleState(), newState);
+        }
+        resourceIpPoolMapper.updateLifecycleState(id, newState);
+        log.info("[ip-pool] LIFECYCLE id={} ip={} {} → {}",
+                id, ip.getIpAddress(), ip.getLifecycleState(), newState);
     }
 }

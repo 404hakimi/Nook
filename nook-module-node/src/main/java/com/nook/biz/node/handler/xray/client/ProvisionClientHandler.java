@@ -5,7 +5,7 @@ import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OpContext;
 import com.nook.biz.operation.api.spi.OpHandler;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,10 +14,10 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
+@RequiredArgsConstructor
 public class ProvisionClientHandler implements OpHandler {
 
-    @Resource
-    private ClientOpExecutor executor;
+    private final ClientOpExecutor executor;
 
     @Override
     public String type() {

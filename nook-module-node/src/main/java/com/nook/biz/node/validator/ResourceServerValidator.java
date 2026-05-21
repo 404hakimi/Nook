@@ -1,11 +1,12 @@
 package com.nook.biz.node.validator;
 
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.enums.ResourceErrorCode;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.common.web.exception.BusinessException;
-import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,10 +15,10 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
+@RequiredArgsConstructor
 public class ResourceServerValidator {
 
-    @Resource
-    private ResourceServerMapper resourceServerMapper;
+    private final ResourceServerMapper resourceServerMapper;
 
     /**
      * 校验服务器存在; 不存在抛 SERVER_NOT_FOUND.
@@ -60,6 +61,24 @@ public class ResourceServerValidator {
                 : resourceServerMapper.existsByHostExcludingId(host, id);
         if (dup) {
             throw new BusinessException(ResourceErrorCode.SERVER_HOST_DUPLICATE, host);
+        }
+    }
+
+    /**
+     * 校验线路机域名唯一; domain 为空跳过校验 (LIVE 前置才必填).
+     *
+     * @param id     当前行 id (Update 传, Create 传 null)
+     * @param domain 线路机域名 (e.g., jp-01.nook.com)
+     */
+    public void validateDomainUnique(String id, String domain) {
+        if (StrUtil.isBlank(domain)) {
+            return;
+        }
+        boolean dup = id == null
+                ? resourceServerMapper.existsByDomain(domain)
+                : resourceServerMapper.existsByDomainExcludingId(domain, id);
+        if (dup) {
+            throw new BusinessException(ResourceErrorCode.SERVER_DOMAIN_DUPLICATE, domain);
         }
     }
 }

@@ -11,8 +11,8 @@ import com.nook.biz.node.controller.resource.vo.Socks5StatusRespVO;
 import com.nook.biz.node.service.resource.ResourceIpSocksService;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.StreamingEndpointSupport;
-import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,16 +33,13 @@ import java.time.Duration;
 @RestController
 @RequestMapping("/admin/resource/ip-pool")
 @Validated
+@RequiredArgsConstructor
 public class ResourceIpSocksController {
 
-    @Resource
-    private ResourceIpSocksService resourceIpSocksService;
-    @Resource
-    private StreamingEndpointSupport streamingSupport;
-    @Resource
-    private WebStreamingProperties webStreamingProperties;
-    @Resource
-    private Socks5Properties socks5Properties;
+    private final ResourceIpSocksService resourceIpSocksService;
+    private final StreamingEndpointSupport streamingSupport;
+    private final WebStreamingProperties webStreamingProperties;
+    private final Socks5Properties socks5Properties;
 
     @PostMapping(value = "/install-socks5", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter installSocks5(@Valid @RequestBody ResourceIpSocksInstallReqVO reqVO) {
