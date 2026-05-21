@@ -220,7 +220,8 @@ function defaultForm(): AgentInstallDTO {
     heartbeatIntervalSeconds: 60,
     nicIntervalSeconds: 300,
     nicInterface: 'auto',
-    pollerIntervalSeconds: 30
+    // 60s: admin 派任务后最差等 1min 才被 agent 拾取; 比 30s 省一半 backend 请求, 体感无差
+    pollerIntervalSeconds: 60
   }
 }
 const form = reactive<AgentInstallDTO>(defaultForm())
