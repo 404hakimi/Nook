@@ -62,11 +62,25 @@ export interface AgentTaskHistoryItem {
   updatedAt?: string
 }
 
-/** 取某 server 最近 N 条 task. */
-export function listAgentTasks(serverId: string, limit = 20) {
-  return request.get<unknown, AgentTaskHistoryItem[]>(`/admin/agent/${serverId}/tasks`, {
-    params: { limit }
-  })
+export interface AgentTaskPageQuery {
+  pageNo?: number
+  pageSize?: number
+  /** agent_upgrade / config_reload / truncate_log / xray_* / ping; 空 = 全部. */
+  taskType?: string
+  /** PENDING / PICKED / SUCCESS / FAILED; 空 = 全部. */
+  status?: string
+}
+
+export interface PageResultT<T> {
+  total: number
+  records: T[]
+}
+
+/** 取某 server task 历史 分页. */
+export function pageAgentTasks(serverId: string, params: AgentTaskPageQuery) {
+  return request.get<unknown, PageResultT<AgentTaskHistoryItem>>(
+    `/admin/agent/${serverId}/tasks/page`, { params }
+  )
 }
 
 /** 派清日志 task; 返回 taskId. */

@@ -1,7 +1,10 @@
 package com.nook.biz.node.dal.mysql.mapper;
 
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.nook.biz.node.controller.agent.admin.vo.AdminAgentTaskPageReqVO;
 import com.nook.biz.node.dal.dataobject.agent.AgentTaskDO;
 import org.apache.ibatis.annotations.Mapper;
 
@@ -40,11 +43,14 @@ public interface AgentTaskMapper extends BaseMapper<AgentTaskDO> {
                 .eq(AgentTaskDO::getId, id));
     }
 
-    /** Admin 看某 server 最近 N 条 task (倒序); UI 任务历史用. */
-    default List<AgentTaskDO> selectRecentByServer(String serverId, int limit) {
-        return selectList(Wrappers.<AgentTaskDO>lambdaQuery()
+    /** Admin 看某 server 的 task 分页 (倒序); 支持类型 + 状态可选筛选. */
+    default IPage<AgentTaskDO> selectPageByServer(IPage<AgentTaskDO> page,
+                                                  String serverId,
+                                                  AdminAgentTaskPageReqVO reqVO) {
+        return selectPage(page, Wrappers.<AgentTaskDO>lambdaQuery()
                 .eq(AgentTaskDO::getServerId, serverId)
-                .orderByDesc(AgentTaskDO::getCreatedAt)
-                .last("LIMIT " + Math.max(1, Math.min(limit, 200))));
+                .eq(StrUtil.isNotBlank(reqVO.getTaskType()), AgentTaskDO::getTaskType, reqVO.getTaskType())
+                .eq(StrUtil.isNotBlank(reqVO.getStatus()), AgentTaskDO::getStatus, reqVO.getStatus())
+                .orderByDesc(AgentTaskDO::getCreatedAt));
     }
 }

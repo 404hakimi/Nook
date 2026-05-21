@@ -2,10 +2,13 @@ package com.nook.biz.node.service.agent.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentListItemRespVO;
-import com.nook.biz.node.controller.agent.admin.vo.AdminAgentTaskRespVO;
+import com.nook.biz.node.controller.agent.admin.vo.AdminAgentTaskPageReqVO;
 import com.nook.biz.node.controller.agent.admin.vo.AdminTruncateLogReqVO;
+import com.nook.common.web.response.PageResult;
 import com.nook.biz.node.dal.dataobject.agent.AgentRuntimeConfigDO;
 import com.nook.biz.node.dal.dataobject.agent.AgentTaskDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
@@ -143,21 +146,11 @@ public class AdminAgentServiceImpl implements AdminAgentService {
     }
 
     @Override
-    public List<AdminAgentTaskRespVO> recentTasks(String serverId, int limit) {
+    public PageResult<AgentTaskDO> pageTasks(String serverId, AdminAgentTaskPageReqVO reqVO) {
         serverValidator.validateExists(serverId);
-        return agentTaskMapper.selectRecentByServer(serverId, limit).stream().map(t -> {
-            AdminAgentTaskRespVO vo = new AdminAgentTaskRespVO();
-            vo.setId(t.getId());
-            vo.setTaskType(t.getTaskType());
-            vo.setStatus(t.getStatus());
-            vo.setTaskPayload(t.getTaskPayload());
-            vo.setResultPayload(t.getResultPayload());
-            vo.setRetryCount(t.getRetryCount());
-            vo.setCreatedAt(t.getCreatedAt());
-            vo.setPickedAt(t.getPickedAt());
-            vo.setUpdatedAt(t.getUpdatedAt());
-            return vo;
-        }).toList();
+        IPage<AgentTaskDO> page = agentTaskMapper.selectPageByServer(
+                Page.of(reqVO.getPageNo(), reqVO.getPageSize()), serverId, reqVO);
+        return PageResult.of(page.getTotal(), page.getRecords());
     }
 
     @Override

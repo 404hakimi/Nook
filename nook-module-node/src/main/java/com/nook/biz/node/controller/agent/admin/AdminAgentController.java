@@ -2,19 +2,22 @@ package com.nook.biz.node.controller.agent.admin;
 
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentListItemRespVO;
+import com.nook.biz.node.controller.agent.admin.vo.AdminAgentTaskPageReqVO;
 import com.nook.biz.node.controller.agent.admin.vo.AdminAgentTaskRespVO;
 import com.nook.biz.node.controller.agent.admin.vo.AdminTruncateLogReqVO;
+import com.nook.biz.node.convert.agent.AgentTaskConvert;
 import com.nook.biz.node.service.agent.AdminAgentService;
+import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -53,11 +56,12 @@ public class AdminAgentController {
         return Result.ok(adminAgentService.dispatchTruncateLog(serverId, reqVO));
     }
 
-    /** 某 server 最近 N 条 task 历史; UI 任务历史用. limit 默认 20, 上限 200. */
-    @GetMapping("/{serverId}/tasks")
-    public Result<List<AdminAgentTaskRespVO>> recentTasks(
+    /** 某 server task 历史 分页 (倒序; 含 taskType / status 可选筛选). */
+    @GetMapping("/{serverId}/tasks/page")
+    public Result<PageResult<AdminAgentTaskRespVO>> pageTasks(
             @PathVariable String serverId,
-            @RequestParam(defaultValue = "20") int limit) {
-        return Result.ok(adminAgentService.recentTasks(serverId, limit));
+            @Valid @ModelAttribute AdminAgentTaskPageReqVO reqVO) {
+        return Result.ok(AgentTaskConvert.INSTANCE.convertPage(
+                adminAgentService.pageTasks(serverId, reqVO)));
     }
 }

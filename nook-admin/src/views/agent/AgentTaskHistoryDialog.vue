@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue'
+import { computed, h, reactive, ref, watch } from 'vue'
 import { RefreshCcw } from 'lucide-vue-next'
 import {
   NButton,
@@ -7,10 +7,12 @@ import {
   NDataTable,
   NIcon,
   NModal,
+  NSelect,
   NTag,
-  type DataTableColumns
+  type DataTableColumns,
+  type PaginationProps
 } from 'naive-ui'
-import { listAgentTasks, type AgentTaskHistoryItem } from '@/api/agent/agent'
+import { pageAgentTasks, type AgentTaskHistoryItem } from '@/api/agent/agent'
 import { formatDateTime } from '@/utils/date'
 
 const props = defineProps<{
@@ -27,21 +29,69 @@ const open = computed({
 
 const tasks = ref<AgentTaskHistoryItem[]>([])
 const loading = ref(false)
+const total = ref(0)
+
+const query = reactive({
+  pageNo: 1,
+  pageSize: 20,
+  taskType: undefined as string | undefined,
+  status: undefined as string | undefined
+})
+
+const TASK_TYPE_OPTIONS = [
+  { label: '全部类型', value: undefined as string | undefined },
+  { label: 'agent_upgrade', value: 'agent_upgrade' },
+  { label: 'config_reload', value: 'config_reload' },
+  { label: 'truncate_log', value: 'truncate_log' },
+  { label: 'ping', value: 'ping' }
+]
+const STATUS_OPTIONS = [
+  { label: '全部状态', value: undefined as string | undefined },
+  { label: 'PENDING', value: 'PENDING' },
+  { label: 'PICKED', value: 'PICKED' },
+  { label: 'SUCCESS', value: 'SUCCESS' },
+  { label: 'FAILED', value: 'FAILED' }
+]
 
 async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    tasks.value = await listAgentTasks(props.serverId, 50)
+    const r = await pageAgentTasks(props.serverId, { ...query })
+    tasks.value = r.records
+    total.value = r.total
   } catch { /* */ } finally {
     loading.value = false
   }
 }
 
 watch(open, (v) => {
-  if (v) load()
-  else tasks.value = []
+  if (v) {
+    query.pageNo = 1
+    query.taskType = undefined
+    query.status = undefined
+    load()
+  } else {
+    tasks.value = []
+    total.value = 0
+  }
 })
+
+watch(() => [query.taskType, query.status], () => {
+  query.pageNo = 1
+  load()
+})
+
+const pagination = computed<PaginationProps>(() => ({
+  page: query.pageNo,
+  pageSize: query.pageSize,
+  itemCount: total.value,
+  showSizePicker: true,
+  pageSizes: [10, 20, 50],
+  prefix: ({ itemCount }) => `共 ${itemCount} 条`,
+  onChange: (p: number) => { query.pageNo = p; load() },
+  onUpdatePageSize: (s: number) => { query.pageSize = s; query.pageNo = 1; load() }
+}))
 
 const STATUS_TAG: Record<string, 'success' | 'warning' | 'error' | 'info' | 'default'> = {
   SUCCESS: 'success',
@@ -50,14 +100,7 @@ const STATUS_TAG: Record<string, 'success' | 'warning' | 'error' | 'info' | 'def
   FAILED: 'error'
 }
 
-const STATUS_ICON: Record<string, string> = {
-  SUCCESS: '✅',
-  PICKED: '⏳',
-  PENDING: '○',
-  FAILED: '❌'
-}
-
-/** 计算时长 (派发 → 完成); 未完成显示 "-". */
+/** 派发 → 完成 时长; 未完成显示 "-". */
 function duration(row: AgentTaskHistoryItem): string {
   if (!row.createdAt) return '-'
   if (row.status !== 'SUCCESS' && row.status !== 'FAILED') return '-'
@@ -71,7 +114,6 @@ function duration(row: AgentTaskHistoryItem): string {
   return `${Math.floor(s / 3600)}h${Math.floor((s % 3600) / 60)}m`
 }
 
-/** 把可能是字符串或对象的 payload 转成漂亮的 JSON. */
 function prettyJson(s?: string): string {
   if (!s) return ''
   try {
@@ -81,16 +123,15 @@ function prettyJson(s?: string): string {
   }
 }
 
-/** 结果摘要 — 解析常见字段; 失败时显示原文截断. */
+/** 结果摘要: 按 taskType 出友好字符串; 失败原文截断 60 字. */
 function summary(row: AgentTaskHistoryItem): string {
   if (!row.resultPayload) {
-    if (row.status === 'PENDING') return '等待 agent 拾取...'
-    if (row.status === 'PICKED') return 'agent 已拾取, 处理中...'
+    if (row.status === 'PENDING') return '等待 agent 拾取…'
+    if (row.status === 'PICKED') return 'agent 已拾取, 处理中…'
     return '—'
   }
   try {
     const r = JSON.parse(row.resultPayload)
-    // 各类型友好摘要
     if (row.taskType === 'agent_upgrade' && r.version) return `→ v${r.version}`
     if (row.taskType === 'config_reload' && r.md5) return `md5=${r.md5.slice(0, 8)}… (${r.bytes}B)`
     if (row.taskType === 'truncate_log' && r.results) {
@@ -118,7 +159,7 @@ const columns = computed<DataTableColumns<AgentTaskHistoryItem>>(() => [
             h('div', { class: 'detail-code' }, [
               row.taskPayload
                 ? h(NCode, { code: prettyJson(row.taskPayload), language: 'json', wordWrap: true })
-                : h('span', { class: 'text-zinc-400' }, '无')
+                : h('span', { class: 'detail-empty' }, '无')
             ])
           ]),
           h('div', null, [
@@ -126,18 +167,18 @@ const columns = computed<DataTableColumns<AgentTaskHistoryItem>>(() => [
             h('div', { class: 'detail-code' }, [
               row.resultPayload
                 ? h(NCode, { code: prettyJson(row.resultPayload), language: 'json', wordWrap: true })
-                : h('span', { class: 'text-zinc-400' }, '尚未上报')
+                : h('span', { class: 'detail-empty' }, '尚未上报')
             ])
           ])
         ]),
         h('div', { class: 'detail-meta' }, [
-          h('span', null, [h('b', null, 'Task ID: '), h('code', { class: 'font-mono' }, row.id)]),
-          h('span', null, [h('b', null, '派发: '), formatDateTime(row.createdAt)]),
-          row.pickedAt ? h('span', null, [h('b', null, 'Agent 拾取: '), formatDateTime(row.pickedAt)]) : null,
+          h('span', null, [h('b', null, 'Task ID '), h('code', null, row.id)]),
+          h('span', null, [h('b', null, '派发 '), formatDateTime(row.createdAt)]),
+          row.pickedAt ? h('span', null, [h('b', null, '拾取 '), formatDateTime(row.pickedAt)]) : null,
           (row.status === 'SUCCESS' || row.status === 'FAILED')
-            ? h('span', null, [h('b', null, '完成: '), formatDateTime(row.updatedAt)])
+            ? h('span', null, [h('b', null, '完成 '), formatDateTime(row.updatedAt)])
             : null,
-          row.retryCount ? h('span', null, [h('b', null, '重试: '), `${row.retryCount} 次`]) : null
+          row.retryCount ? h('span', null, [h('b', null, '重试 '), `${row.retryCount} 次`]) : null
         ].filter(Boolean))
       ])
   },
@@ -145,27 +186,27 @@ const columns = computed<DataTableColumns<AgentTaskHistoryItem>>(() => [
     title: '类型',
     key: 'taskType',
     width: 150,
-    render: (row) => h('code', { class: 'font-mono text-xs' }, row.taskType)
+    render: (row) => h('code', { class: 'cell-type' }, row.taskType)
   },
   {
     title: '状态',
     key: 'status',
-    width: 100,
+    width: 110,
     render: (row) =>
-      h(NTag, { size: 'small', type: STATUS_TAG[row.status] || 'default' },
-        { default: () => `${STATUS_ICON[row.status] || ''} ${row.status}` })
+      h(NTag, { size: 'small', type: STATUS_TAG[row.status] || 'default', bordered: false },
+        { default: () => row.status })
   },
   {
     title: '派发时间',
     key: 'createdAt',
-    width: 160,
-    render: (row) => h('span', { class: 'font-mono text-xs' }, formatDateTime(row.createdAt))
+    width: 165,
+    render: (row) => h('span', { class: 'cell-time' }, formatDateTime(row.createdAt))
   },
   {
     title: '时长',
     key: 'duration',
-    width: 80,
-    render: (row) => h('span', { class: 'font-mono text-xs text-zinc-500' }, duration(row))
+    width: 90,
+    render: (row) => h('span', { class: 'cell-duration' }, duration(row))
   },
   {
     title: '摘要',
@@ -174,7 +215,7 @@ const columns = computed<DataTableColumns<AgentTaskHistoryItem>>(() => [
       const s = summary(row)
       const isErr = s.startsWith('❌')
       return h('span', {
-        class: isErr ? 'text-xs text-red-600' : 'text-xs',
+        class: isErr ? 'cell-summary cell-summary-err' : 'cell-summary',
         title: row.resultPayload || row.taskPayload || ''
       }, s)
     }
@@ -186,17 +227,29 @@ const columns = computed<DataTableColumns<AgentTaskHistoryItem>>(() => [
   <NModal
     :show="open"
     preset="card"
-    :title="`任务历史: ${serverName ?? ''} (最近 50 条; 点行展开看 payload)`"
+    :title="`任务历史: ${serverName ?? ''}`"
     style="width: 90vw; max-width: 80rem"
     :bordered="false"
     :mask-closable="true"
     @update:show="(v: boolean) => (open = v)"
   >
     <div class="space-y-3">
-      <div class="flex items-center gap-2">
-        <span class="text-xs text-zinc-500">
-          含: agent_upgrade / config_reload / truncate_log / xray_* / ping
-        </span>
+      <div class="flex items-center gap-2 flex-wrap">
+        <NSelect
+          v-model:value="query.taskType"
+          :options="TASK_TYPE_OPTIONS"
+          size="small"
+          class="w-40"
+          placeholder="类型筛选"
+        />
+        <NSelect
+          v-model:value="query.status"
+          :options="STATUS_OPTIONS"
+          size="small"
+          class="w-32"
+          placeholder="状态筛选"
+        />
+        <span class="text-xs text-zinc-500">点行展开看 payload</span>
         <div class="flex-1"></div>
         <NButton size="small" quaternary :loading="loading" @click="load">
           <template #icon><NIcon><RefreshCcw /></NIcon></template>
@@ -210,8 +263,10 @@ const columns = computed<DataTableColumns<AgentTaskHistoryItem>>(() => [
         :loading="loading"
         :bordered="false"
         :row-key="(row: AgentTaskHistoryItem) => row.id"
+        :pagination="pagination"
+        remote
         size="small"
-        :max-height="600"
+        :max-height="560"
       />
     </div>
 
@@ -224,9 +279,32 @@ const columns = computed<DataTableColumns<AgentTaskHistoryItem>>(() => [
 </template>
 
 <style scoped>
+.cell-type {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #475569;
+}
+html[data-theme='dark'] .cell-type { color: #cbd5e1; }
+.cell-time {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+.cell-duration {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #71717a;
+}
+.cell-summary {
+  font-size: 12px;
+}
+.cell-summary-err {
+  color: #dc2626;
+}
+html[data-theme='dark'] .cell-summary-err { color: #f87171; }
+
 .task-detail {
   padding: 12px 8px;
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(127, 127, 127, 0.04);
   border-radius: 4px;
 }
 .detail-grid {
@@ -240,27 +318,39 @@ const columns = computed<DataTableColumns<AgentTaskHistoryItem>>(() => [
   color: #64748b;
   font-weight: 600;
   margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 .detail-code {
-  background: var(--n-color);
-  border: 1px solid var(--n-border-color);
+  background: rgba(127, 127, 127, 0.06);
+  border: 1px solid rgba(127, 127, 127, 0.2);
   border-radius: 4px;
   padding: 8px;
   max-height: 240px;
   overflow: auto;
   font-size: 11px;
 }
+.detail-empty {
+  color: #94a3b8;
+  font-size: 12px;
+}
 .detail-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 18px;
   font-size: 11px;
   color: #64748b;
-  border-top: 1px solid var(--n-border-color);
+  border-top: 1px solid rgba(127, 127, 127, 0.2);
   padding-top: 8px;
 }
 .detail-meta b {
   color: #475569;
   font-weight: 600;
+  margin-right: 4px;
 }
+.detail-meta code {
+  font-family: 'JetBrains Mono', monospace;
+}
+html[data-theme='dark'] .detail-meta { color: #a1a1aa; }
+html[data-theme='dark'] .detail-meta b { color: #d4d4d8; }
 </style>
