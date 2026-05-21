@@ -1,0 +1,30 @@
+package com.nook.biz.node.controller.agent.admin.vo;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+/** Admin Agent 详情. */
+@Data
+public class AdminAgentDetailRespVO {
+
+    private String serverId;
+    private String serverName;
+    private String host;
+    private String lifecycleState;
+
+    private String agentVersion;
+    private String lastAgentSeenIp;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime lastHeartbeatAt;
+
+    private Integer tempUnhealthy;
+    private Integer consecutiveMiss;
+    private Long elapsedSec;
+    private String onlineState;
+
+    /** agent_token 末 8 位 (脱敏). */
+    private String agentTokenSuffix;
+}
