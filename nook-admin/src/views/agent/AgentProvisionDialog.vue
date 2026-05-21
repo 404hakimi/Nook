@@ -202,7 +202,8 @@ async function loadNicOptions(serverId: string) {
 function defaultForm(): AgentInstallDTO {
   return {
     role: selectedRole.value,
-    backendTimeoutSeconds: 30,
+    // 120s 覆盖跨境 binary 下载 (~60s 实测) + 余量; 常态心跳/poll 实际秒级返回, 不会真吃满
+    backendTimeoutSeconds: 120,
     heartbeatIntervalSeconds: 60,
     nicIntervalSeconds: 300,
     nicInterface: 'auto',
