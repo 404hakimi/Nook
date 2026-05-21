@@ -242,21 +242,21 @@ function appendLog(t: string) {
   })
 }
 
-async function runDeploy() {
+function runDeploy() {
   const a = currentAgent.value
   if (!a) return
   if (a.onlineState !== 'NEVER') {
-    return new Promise<void>((resolve) => {
-      dialog.error({
-        title: '重新部署 = 重置 token + 覆盖 config.yml',
-        content: '日常更新走"升级" tab. 确认继续?',
-        positiveText: '继续', negativeText: '取消',
-        onPositiveClick: async () => { await actuallyDeploy(); resolve() },
-        onNegativeClick: () => resolve()
-      })
+    dialog.warning({
+      title: '确认重新部署',
+      content: '覆盖远端 config.yml + 重写 systemd unit + 重启 agent (~60s). '
+             + 'agent_token / xray / socks5 不动. 日常版本更新走「升级二进制包」tab.',
+      positiveText: '继续', negativeText: '取消',
+      // 不 await, 让确认框立即关闭, 部署在后台跑
+      onPositiveClick: () => { actuallyDeploy() }
     })
+    return
   }
-  await actuallyDeploy()
+  actuallyDeploy()
 }
 
 async function actuallyDeploy() {
@@ -271,6 +271,8 @@ async function actuallyDeploy() {
     appendLog('\n[nook-admin] ✅ 装机流完成\n')
     emit('dispatched')
     await loadData()
+    // 装好后 agent 已在线, 跳到升级 tab (后续 admin 想升 binary 直接走)
+    activeTab.value = 'upgrade'
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     appendLog(`\n[nook-admin] ❌ 失败: ${msg}\n`)
