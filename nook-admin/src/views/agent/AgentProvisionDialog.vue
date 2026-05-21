@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ArrowUp, Rocket } from 'lucide-vue-next'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { ArrowUp, Rocket, RefreshCcw } from 'lucide-vue-next'
 import {
+  NAlert,
   NButton,
   NIcon,
   NModal,
@@ -15,7 +16,12 @@ import {
   useDialog,
   useMessage
 } from 'naive-ui'
-import { agentInstallStream, pageServers } from '@/api/resource/server'
+import {
+  agentInstallStream,
+  getAgentInstallYamlTemplate,
+  pageServers,
+  type AgentInstallDTO
+} from '@/api/resource/server'
 import {
   AGENT_ONLINE_LABELS,
   AGENT_ONLINE_TAG_TYPE,
@@ -127,7 +133,7 @@ async function doUpgrade() {
   }
   dialog.warning({
     title: '确认升级',
-    content: `${a.serverName}: ${a.agentVersion ?? '?'} → backend 当前版本`,
+    content: `${a.serverName}: ${a.agentVersion ?? '?'} → backend 当前版本. 重启窗口 ~10-20 秒, 期间断 1 次心跳; 服务器上 xray/socks5 不动.`,
     positiveText: '升级', negativeText: '取消',
     onPositiveClick: async () => {
       upgrading.value = true
@@ -169,24 +175,55 @@ function startUpgradePolling(serverId: string, oldVersion: string) {
 // ---------- SSH 自动部署 (流式) ----------
 const deploying = ref(false)
 const deployLog = ref('')
-const logRef = ref<HTMLPreElement | null>(null)
+const deployLogRef = ref<HTMLPreElement | null>(null)
 let deployAbort: AbortController | null = null
+
+// yaml 编辑器
+const yamlDraft = ref('')
+const yamlLoading = ref(false)
+const yamlLineNumsRef = ref<HTMLElement | null>(null)
+const yamlTaRef = ref<HTMLTextAreaElement | null>(null)
+const yamlLineNumbers = computed(() => {
+  const n = (yamlDraft.value.match(/\n/g)?.length ?? 0) + 1
+  return Array.from({ length: n }, (_, i) => String(i + 1).padStart(3, ' ')).join('\n')
+})
+const yamlStats = computed(() => {
+  const lines = (yamlDraft.value.match(/\n/g)?.length ?? 0) + 1
+  const bytes = new TextEncoder().encode(yamlDraft.value).length
+  return { lines, bytes }
+})
+function onYamlScroll(e: Event) {
+  const ta = e.target as HTMLTextAreaElement
+  if (yamlLineNumsRef.value) yamlLineNumsRef.value.scrollTop = ta.scrollTop
+}
+
+async function loadYamlTemplate() {
+  yamlLoading.value = true
+  try {
+    yamlDraft.value = await getAgentInstallYamlTemplate(selectedRole.value)
+  } catch { /* */ } finally {
+    yamlLoading.value = false
+  }
+}
 
 function appendLog(t: string) {
   deployLog.value += t
-  // 自动滚到底
-  requestAnimationFrame(() => {
-    if (logRef.value) logRef.value.scrollTop = logRef.value.scrollHeight
+  nextTick(() => {
+    if (deployLogRef.value) deployLogRef.value.scrollTop = deployLogRef.value.scrollHeight
   })
 }
 
 async function runDeploy() {
   const a = currentAgent.value
   if (!a) return
+  if (!yamlDraft.value.includes('{{AGENT_TOKEN}}')) {
+    message.error('yaml 必须含 {{AGENT_TOKEN}} 占位符 (api_token 行); 已被你删掉, 重新加载模板?')
+    return
+  }
   if (a.onlineState !== 'NEVER') {
     return new Promise<void>((resolve) => {
       dialog.error({
-        title: '重新部署会重置 token + 覆盖 config.yml',
+        title: '重新部署 = 重置 token + 覆盖 config.yml',
         content: '日常更新走"升级" tab. 确认继续?',
         positiveText: '继续', negativeText: '取消',
         onPositiveClick: async () => { await actuallyDeploy(); resolve() },
@@ -204,10 +241,13 @@ async function actuallyDeploy() {
   deploying.value = true
   deployAbort = new AbortController()
   try {
-    await agentInstallStream(a.serverId, selectedRole.value, appendLog, deployAbort.signal)
+    const dto: AgentInstallDTO = {
+      role: selectedRole.value,
+      configYaml: yamlDraft.value
+    }
+    await agentInstallStream(a.serverId, dto, appendLog, deployAbort.signal)
     appendLog('\n[nook-admin] ✅ 装机流完成\n')
     emit('dispatched')
-    // 刷一下 agent 列表
     await loadData()
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -224,7 +264,7 @@ function cancelDeploy() {
 }
 
 // ---------- 生命周期 ----------
-watch(open, (v) => {
+watch(open, async (v) => {
   if (v) {
     loadData()
     selectedRole.value = props.initialRole ?? 'frontline'
@@ -233,19 +273,22 @@ watch(open, (v) => {
     dispatchedTaskId.value = null
     upgradeStatus.value = 'WAITING'
     upgradeElapsed.value = 0
+    await loadYamlTemplate()
   } else {
     stopPolling()
     if (deployAbort) deployAbort.abort()
   }
 })
 
-watch(selectedRole, () => {
+watch(selectedRole, async () => {
   if (selectedServerId.value) {
     const r = serverRole(selectedServerId.value)
     if (r !== 'unprovisioned' && r !== selectedRole.value) {
       selectedServerId.value = null
     }
   }
+  // role 切换重新拉对应模板 (frontline/landing yaml 不一样)
+  if (open.value) await loadYamlTemplate()
 })
 
 onMounted(() => { if (props.modelValue) loadData() })
@@ -257,7 +300,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
     :show="open"
     preset="card"
     title="部署 / 升级 Agent"
-    style="max-width: 56rem"
+    style="max-width: 64rem"
     :bordered="false"
     :mask-closable="false"
     @update:show="(v: boolean) => (open = v)"
@@ -281,7 +324,6 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
           />
         </div>
 
-        <!-- 当前 agent 状态 (一行 tag) -->
         <div v-if="currentAgent" class="flex items-center gap-2 text-xs flex-wrap">
           <NTag size="small" :type="AGENT_ONLINE_TAG_TYPE[currentAgent.onlineState]">
             {{ AGENT_ONLINE_LABELS[currentAgent.onlineState] }}
@@ -295,6 +337,10 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
           <!-- ============ 升级 ============ -->
           <NTabPane name="upgrade" tab="升级 binary">
             <div class="space-y-2 mt-2">
+              <NAlert type="info" :show-icon="false" size="small">
+                仅替换 binary; <b>agent_token / config.yml / systemd unit 全保留</b>.
+                重启窗口 ~10-20 秒, 期间断 1 次心跳 + 1-2 次任务轮询; xray / socks5 不动.
+              </NAlert>
               <div v-if="!dispatchedTaskId || lastDispatchedFor !== currentAgent.serverName">
                 <NButton
                   type="primary"
@@ -307,9 +353,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                   一键升级
                 </NButton>
                 <span v-if="currentAgent.onlineState === 'OFFLINE' || currentAgent.onlineState === 'NEVER'"
-                      class="ml-3 text-xs text-zinc-500">
-                  agent 不在线
-                </span>
+                      class="ml-3 text-xs text-zinc-500">agent 不在线</span>
               </div>
               <div v-else class="text-xs">
                 <NTag size="small" :type="upgradeStatus === 'COMPLETED' ? 'success' : upgradeStatus === 'TIMEOUT' ? 'error' : 'info'">
@@ -326,18 +370,46 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
           <!-- ============ 部署 ============ -->
           <NTabPane name="deploy" tab="重新部署">
             <div class="space-y-2 mt-2">
-              <div class="flex gap-2">
+              <NAlert type="warning" :show-icon="false" size="small">
+                <b>重置 agent_token</b> (旧心跳立刻失效) + 覆盖 <code>/home/nook-agent/etc/config.yml</code> (下面的 yaml).
+                日常更新用"升级"; 此 tab 用于新机 / 救灾 / 改 yaml 字段集.
+              </NAlert>
+
+              <!-- yaml 编辑器 -->
+              <NSpin :show="yamlLoading">
+                <div class="flex items-center gap-2 text-xs mb-1">
+                  <span class="text-zinc-500">config.yml (装机时 SSH 写到远端)</span>
+                  <div class="flex-1"></div>
+                  <NButton size="tiny" quaternary :disabled="yamlLoading || deploying" @click="loadYamlTemplate">
+                    <template #icon><NIcon><RefreshCcw /></NIcon></template>
+                    重置为默认模板
+                  </NButton>
+                </div>
+                <div class="yaml-editor-wrap">
+                  <pre ref="yamlLineNumsRef" class="yaml-line-nums">{{ yamlLineNumbers }}</pre>
+                  <textarea
+                    ref="yamlTaRef"
+                    v-model="yamlDraft"
+                    class="yaml-editor-ta"
+                    placeholder="yaml..."
+                    spellcheck="false"
+                    :disabled="deploying"
+                    @scroll="onYamlScroll"
+                  ></textarea>
+                </div>
+                <div class="text-right text-xs text-zinc-500 font-mono mt-1">
+                  {{ yamlStats.lines }} 行 · {{ yamlStats.bytes }} 字节
+                </div>
+              </NSpin>
+
+              <div class="flex gap-2 pt-1">
                 <NButton type="primary" size="small" :loading="deploying" @click="runDeploy">
                   <template #icon><NIcon><Rocket /></NIcon></template>
                   SSH 自动装机
                 </NButton>
                 <NButton v-if="deploying" size="small" @click="cancelDeploy">中止</NButton>
               </div>
-              <pre
-                v-if="deployLog"
-                ref="logRef"
-                class="deploy-log"
-              >{{ deployLog }}</pre>
+              <pre v-if="deployLog" ref="deployLogRef" class="deploy-log">{{ deployLog }}</pre>
             </div>
           </NTabPane>
         </NTabs>
@@ -354,6 +426,62 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
 </template>
 
 <style scoped>
+.yaml-editor-wrap {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fafafc;
+  height: 18rem;
+}
+.yaml-line-nums {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #94a3b8;
+  background: rgba(127, 127, 127, 0.08);
+  padding: 8px 6px 8px 8px;
+  margin: 0;
+  user-select: none;
+  white-space: pre;
+  text-align: right;
+  border-right: 1px solid rgba(127, 127, 127, 0.25);
+  line-height: 1.5;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.yaml-editor-ta {
+  flex: 1;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 8px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  background: transparent;
+  color: #1e293b;
+  caret-color: #1e293b;
+  overflow: auto;
+  min-width: 0;
+  tab-size: 2;
+  white-space: pre;
+  word-wrap: normal;
+  overflow-wrap: normal;
+}
+html[data-theme='dark'] .yaml-editor-wrap {
+  background: #1c1c20;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+html[data-theme='dark'] .yaml-line-nums {
+  background: rgba(255, 255, 255, 0.04);
+  color: #71717a;
+  border-right-color: rgba(255, 255, 255, 0.12);
+}
+html[data-theme='dark'] .yaml-editor-ta {
+  color: #e4e4e7;
+  caret-color: #e4e4e7;
+}
 .deploy-log {
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
@@ -362,7 +490,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
   color: #e4e4e7;
   padding: 8px 10px;
   border-radius: 4px;
-  height: 22rem;
+  height: 16rem;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;

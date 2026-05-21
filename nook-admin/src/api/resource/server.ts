@@ -149,21 +149,39 @@ export function transitionServerLifecycle(id: string, state: string) {
   )
 }
 
+export interface AgentInstallDTO {
+  role: 'frontline' | 'landing'
+  /** 完整 agent yaml; 必须含 {{AGENT_TOKEN}} 占位符 (backend splice). */
+  configYaml: string
+}
+
+/** 取默认 agent yaml 模板 (api_url 已填好, api_token 留占位符). */
+export function getAgentInstallYamlTemplate(role: 'frontline' | 'landing') {
+  return request.get<unknown, string>(
+    '/admin/resource/server/agent-install-yaml-template',
+    { params: { role } }
+  )
+}
+
 /**
  * SSH 自动装 nook-agent (流式日志); 复用 resource_server 已存 SSH 凭据.
- * 调一次重置 agent_token + SSH 跑装机脚本 → agent active.
+ * 调一次重置 agent_token + 把 token splice 进 dto.configYaml → SSH 跑装机脚本 → agent active.
  */
 export function agentInstallStream(
   id: string,
-  role: 'frontline' | 'landing',
+  dto: AgentInstallDTO,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
   const userStore = useUserStore()
-  const url = `/api/admin/resource/server/agent-install?id=${encodeURIComponent(id)}&role=${role}`
+  const url = `/api/admin/resource/server/agent-install?id=${encodeURIComponent(id)}`
   return fetch(url, {
     method: 'POST',
-    headers: { Authorization: userStore.token },
+    headers: {
+      Authorization: userStore.token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(dto),
     signal
   }).then(async (res) => {
     if (res.status === 401) { userStore.clear(); throw new Error('登录已过期') }

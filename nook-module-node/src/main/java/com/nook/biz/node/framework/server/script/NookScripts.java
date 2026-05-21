@@ -34,7 +34,7 @@ public class NookScripts {
             "scripts/install/nook-agent.sh.tmpl",
             "nook-install-agent",
             "Nook agent (frontline / landing) 一键装机, 含 vnstat / journald 限大小 / systemd unit",
-            Set.of("SERVER_NAME", "ROLE", "BACKEND_URL", "AGENT_TOKEN"));
+            Set.of("SERVER_NAME", "ROLE", "BACKEND_URL", "AGENT_TOKEN", "CONFIG_YAML"));
 
     /** SOCKS5 落地 (dante-server + PAM). */
     public static final ScriptModule SOCKS5_INSTALL = new ScriptModule(

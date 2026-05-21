@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # nook-{{ROLE}}-agent 装机 (server={{SERVER_NAME}})
-# 规范: 时区上海 / 目录 /home/nook-agent / 从 backend FS 拉 binary / role-specific yaml
+# 时区 Asia/Shanghai / 目录 /home/nook-agent / 从 backend FS 拉 binary / yaml 由 admin 在 dialog 里填好
 set -euo pipefail
 
 NOOK_HOME=/home/nook-agent
@@ -30,55 +30,12 @@ curl -fSL -H "X-Agent-Token: $AGENT_TOKEN" \
 chmod +x $NOOK_HOME/bin/nook-agent.new
 mv $NOOK_HOME/bin/nook-agent.new $NOOK_HOME/bin/nook-agent
 
-echo "=== 5. 写配置 (${ROLE} 角色专用) ==="
-cat > $NOOK_HOME/etc/config.yml <<EOF
-# ============================================================================
-# nook-${ROLE}-agent 配置; 装机时 backend 渲染, 后续可在管理端"改配置"热改
-# ----------------------------------------------------------------------------
-
-# === backend 通信 ===
-backend:
-  api_url: $BACKEND_URL
-  # X-Agent-Token: 装机时一次性签发, 每台 server 不同; 重装会重置
-  api_token: $AGENT_TOKEN
-  timeout_seconds: 30
-
-# === 心跳 (backend 60s 没收到 WARN, 300s OFFLINE) ===
-heartbeat:
-  interval_seconds: 60
-
-# === NIC 流量 (vnstat) ===
-nic:
-  interval_seconds: 300
-  # auto = agent 自动用默认路由出口网卡; 多网卡可填 eth0/ens5
-  interface: auto
-
-# === 任务轮询 ===
-poller:
-  interval_seconds: 30
-
-EOF
-
-if [ "$ROLE" = "frontline" ]; then
-    cat >> $NOOK_HOME/etc/config.yml <<EOF
-# === Xray 集成 (frontline 专属) ===
-# agent 启动自检 /usr/local/bin/xray 是否存在 → 存在则挂 xray collector
-xray:
-  bin: /usr/local/bin/xray
-  api_port: 10085
-  stats_interval_seconds: 300
-EOF
-else
-    cat >> $NOOK_HOME/etc/config.yml <<EOF
-# === Socks5 集成 (landing 专属; 当前空壳) ===
-EOF
-fi
-
-cat >> $NOOK_HOME/etc/config.yml <<EOF
-# === 运行时路径 (agent_upgrade 用; 不要手改, 跟 systemd unit 解耦) ===
-runtime:
-  bin_path: $NOOK_HOME/bin/nook-agent
-EOF
+# === 5. 写配置 (admin 在 dialog 里填的完整 yaml, agent_token 已 splice 进去) ===
+# heredoc 用 NOOK_CONFIG_EOF__ (双下划线) 做 sentinel, yaml 里不太可能撞
+echo "=== 5. 写配置 ==="
+cat > $NOOK_HOME/etc/config.yml <<'NOOK_CONFIG_EOF__'
+{{CONFIG_YAML}}
+NOOK_CONFIG_EOF__
 
 echo "=== 6. 写 systemd unit (静默) ==="
 cat > /etc/systemd/system/nook-agent.service <<'EOF'

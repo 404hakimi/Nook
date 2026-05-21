@@ -1,6 +1,7 @@
 package com.nook.biz.node.controller.resource;
 
 import com.nook.biz.node.config.WebStreamingProperties;
+import com.nook.biz.node.controller.resource.vo.AgentInstallReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerSaveReqVO;
@@ -92,14 +93,21 @@ public class ResourceServerController {
 
     /**
      * SSH 自动装 nook-agent; 复用 resource_server 已存 SSH 凭据, 流式日志走 ResponseBodyEmitter.
-     * 重置 agent_token 后跑 install/nook-agent.sh.tmpl → agent active.
+     * 重置 agent_token + 把 token splice 进 reqVO.configYaml → SSH 跑 install/nook-agent.sh.tmpl → agent active.
      */
     @PostMapping(value = "/agent-install", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter agentInstall(@RequestParam("id") String id,
-                                            @RequestParam(value = "role", defaultValue = "frontline") String role) {
+                                            @Valid @RequestBody AgentInstallReqVO reqVO) {
         int installTimeout = serverValidator.validateExists(id).getInstallTimeoutSeconds();
         Duration emitterTimeout = Duration.ofSeconds(installTimeout).plus(webStreamingProperties.getEmitterBuffer());
         return streamingSupport.stream("agent-install:" + id, emitterTimeout,
-                lineSink -> agentInstallScriptService.installStreaming(id, role, lineSink));
+                lineSink -> agentInstallScriptService.installStreaming(id, reqVO, lineSink));
+    }
+
+    /** 取默认 agent yaml 模板; dialog 打开时预填给 admin 编辑. */
+    @GetMapping("/agent-install-yaml-template")
+    public Result<String> agentInstallYamlTemplate(
+            @RequestParam(value = "role", defaultValue = "frontline") String role) {
+        return Result.ok(agentInstallScriptService.defaultConfigYaml(role));
     }
 }
