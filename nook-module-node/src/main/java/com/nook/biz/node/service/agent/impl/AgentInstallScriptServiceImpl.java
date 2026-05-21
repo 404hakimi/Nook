@@ -1,11 +1,9 @@
 package com.nook.biz.node.service.agent.impl;
 
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.node.controller.resource.vo.AgentInstallReqVO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayNodeMapper;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.framework.server.script.NookScripts;
@@ -22,13 +20,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.security.MessageDigest;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Consumer;
 
 /** Agent SSH 自动装机: 表单字段拼 yaml, frontline 必须先装 xray. */
@@ -37,7 +31,6 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class AgentInstallScriptServiceImpl implements AgentInstallScriptService {
 
-    private final ResourceServerMapper resourceServerMapper;
     private final ResourceServerValidator serverValidator;
     private final XrayNodeMapper xrayNodeMapper;
     private final ScriptCatalog scriptCatalog;
@@ -50,12 +43,16 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
     private static final int XRAY_STATS_INTERVAL_SECONDS = 300;
 
     @Override
-    // 不加 @Transactional: agent_token UPDATE 要立即 commit, 否则 SSH 脚本里 curl 拉 binary 时 X-Agent-Token 校验拿不到新值
     public void installStreaming(String serverId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
         ResourceServerDO srv = serverValidator.validateExists(serverId);
         if (StrUtil.isBlank(backendPublicUrl)) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
                     "nook.backend.public-url 未配置, agent 无法回拉 binary");
+        }
+        // agent_token 由 createServer 一次性签发, 装机/重装/升级永远复用; 缺失说明是历史 server 漏签
+        if (StrUtil.isBlank(srv.getAgentToken())) {
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
+                    "server " + srv.getName() + " 缺 agent_token; 用 UPDATE resource_server SET agent_token=... 补一个");
         }
 
         XrayNodeDO xrayNode = null;
@@ -68,13 +65,9 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
                     + " apiPort=" + xrayNode.getXrayApiPort() + "\n");
         }
 
-        String newToken = generateAgentToken(serverId);
-        String configYaml = buildYaml(reqVO, backendPublicUrl, newToken, xrayNode);
-        resourceServerMapper.update(null, Wrappers.<ResourceServerDO>lambdaUpdate()
-                .set(ResourceServerDO::getAgentToken, newToken)
-                .set(ResourceServerDO::getUpdatedAt, LocalDateTime.now())
-                .eq(ResourceServerDO::getId, serverId));
-        lineSink.accept("[nook] agent_token 已重置: " + StrUtil.subPre(newToken, 12) + "…\n");
+        String token = srv.getAgentToken();
+        String configYaml = buildYaml(reqVO, backendPublicUrl, token, xrayNode);
+        lineSink.accept("[nook] agent_token: " + StrUtil.subPre(token, 12) + "… (复用 server 入库时签发)\n");
         lineSink.accept("[nook] role: " + reqVO.getRole() + " / server: " + srv.getName() + "\n");
         lineSink.accept("[nook] 渲染 yaml: " + configYaml.length() + " 字节\n");
 
@@ -83,7 +76,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         vars.put("SERVER_NAME", srv.getName());
         vars.put("ROLE", reqVO.getRole());
         vars.put("BACKEND_URL", backendPublicUrl);
-        vars.put("AGENT_TOKEN", newToken);
+        vars.put("AGENT_TOKEN", token);
         vars.put("CONFIG_YAML", configYaml);
         Duration installTimeout = Duration.ofSeconds(session.cred().getInstallTimeoutSeconds());
         scriptCatalog.run(session, NookScripts.NOOK_AGENT_INSTALL, vars, installTimeout, lineSink);
@@ -97,7 +90,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
      *
      * @param r        表单字段 (各间隔 + nic interface)
      * @param apiUrl   backend 公网 URL
-     * @param token    新签发的 agent_token
+     * @param token    server 的 agent_token
      * @param xrayNode frontline 时非 null (含 bin / api_port); landing 时 null
      * @return 完整 yaml 字符串
      */
@@ -124,16 +117,5 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         sb.append("runtime:\n");
         sb.append("  bin_path: /home/nook-agent/bin/nook-agent\n");
         return sb.toString();
-    }
-
-    /** SHA256(UUID + UUID + serverId) → 64 char hex; 跟 DB CHAR(64) 长度对齐. */
-    private String generateAgentToken(String serverId) {
-        String raw = UUID.randomUUID() + UUID.randomUUID().toString() + serverId;
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(md.digest(raw.getBytes()));
-        } catch (Exception e) {
-            throw new RuntimeException("SHA-256 不可用", e);
-        }
     }
 }

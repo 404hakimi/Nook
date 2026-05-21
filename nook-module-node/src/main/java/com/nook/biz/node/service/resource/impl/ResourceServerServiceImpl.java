@@ -27,11 +27,14 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * 资源服务器 Service 实现类
@@ -58,10 +61,23 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         serverValidator.validateDomainUnique(null, createReqVO.getDomain());
 
         ResourceServerDO entity = BeanUtils.toBean(createReqVO, ResourceServerDO.class);
+        // agent_token 入库时一次性签发, install / reinstall / upgrade 都复用 (永不刷新)
+        entity.setAgentToken(generateAgentToken());
         resourceServerMapper.insert(entity);
         // 同步创建子表占位行 (capacity 中频 / runtime 高频); 没有 INSERT 就 SELECT JOIN 拿不到
         initCapacityAndRuntime(entity.getId());
         return entity.getId();
+    }
+
+    /** SHA256(UUID + UUID) → 64 char hex; 跟 DB CHAR(64) 长度对齐. */
+    private static String generateAgentToken() {
+        String raw = UUID.randomUUID() + UUID.randomUUID().toString();
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(md.digest(raw.getBytes()));
+        } catch (Exception e) {
+            throw new RuntimeException("SHA-256 不可用", e);
+        }
     }
 
     /** 新建 server 时初始化 capacity + runtime 子表; 默认 NORMAL / 心跳 null. */
