@@ -34,13 +34,6 @@ export const CONFIG_SYNC_TAG_TYPE: Record<ConfigSyncState, 'default' | 'success'
   PENDING: 'warning'
 }
 
-export interface AgentDetail extends AgentListItem {
-  lastAgentSeenIp?: string
-  consecutiveMiss?: number
-  /** agent_token 末 8 位脱敏. */
-  agentTokenSuffix?: string
-}
-
 /** 清日志入参; path 必须落白名单 (/var/log /home/socks5/logs /home/xray/logs). */
 export interface TruncateLogReq {
   paths: string[]
@@ -48,10 +41,6 @@ export interface TruncateLogReq {
 
 export function listAgents() {
   return request.get<unknown, AgentListItem[]>('/admin/agent/list')
-}
-
-export function getAgentDetail(serverId: string) {
-  return request.get<unknown, AgentDetail>(`/admin/agent/${serverId}`)
 }
 
 /** 派升级 task; agent 拉 backend 当前部署的 binary, 无版本选择. 返 taskId. */

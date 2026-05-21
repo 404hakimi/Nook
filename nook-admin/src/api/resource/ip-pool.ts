@@ -1,24 +1,35 @@
 import request from '@/api/request'
 import { useUserStore } from '@/stores/user'
 
-/** IP 池条目: SOCKS5 落地节点 (基于 dante-server + PAM 用户认证); ip_address 即用户对外暴露的"独享 IP", 同时也是 SOCKS5 服务监听地址. */
+/**
+ * IP 池条目 (v3): SOCKS5 落地节点; ip_address 即用户独享对外 IP.
+ *
+ * - lifecycleState (装机): INSTALLING/READY/LIVE/RETIRED
+ * - status (占用): AVAILABLE/RESERVED/OCCUPIED/COOLING (旧 6 值 TINYINT → 新 4 值字符串 ENUM)
+ * - assignedMemberId/assignedAt → occupiedByMemberId/occupiedAt (v3 改名)
+ * - region 改为字典码 (FK → resource_region.code)
+ */
 export interface ResourceIpPool {
   id: string
+  /** 区域码 (FK → resource_region.code). */
   region: string
   ipTypeId: string
+  /** 装机生命周期: INSTALLING/READY/LIVE/RETIRED. */
+  lifecycleState: string
   ipAddress: string
   socks5Port?: number
   socks5Username?: string
-  /** 明文 SOCKS5 密码 — DB 明文存储, 后台受信场景直接下发, 编辑时 fill 进 type=password 输入框 */
+  /** 明文 SOCKS5 密码; DB 明文存储, 编辑时 fill 进 type=password. */
   socks5Password?: string
-  /** 1=available 2=occupied 3=testing 4=blacklisted 5=cooling 6=degraded */
-  status: number
-  assignedMemberId?: string
-  assignedAt?: string
+  /** 占用状态: AVAILABLE / RESERVED / OCCUPIED / COOLING. */
+  status: string
+  occupiedByMemberId?: string
+  occupiedAt?: string
   coolingUntil?: string
+  reservedExpiresAt?: string
   assignCount?: number
   lastHealthAt?: string
-  /** 部署模式: 1=自部署 2=第三方; 详情接口下发, 编辑表单 fill 回填. */
+  /** 部署模式: 1=自部署 2=第三方. */
   provisionMode?: number
   /** dante 日志关键字组合 (空格分隔); 例 'connect disconnect error'. */
   logLevel?: string
@@ -40,10 +51,16 @@ export interface ResourceIpPool {
   sshUser?: string
   /** 明文 SSH 密码; 后台受信网络场景下发. */
   sshPassword?: string
-  /** 采购带宽上限 (Mbps); null = 不限/未填; 仅账面记录, 后续套餐侧消费. */
+  /** 采购带宽上限 (Mbps); 仅账面记录. */
   bandwidthMbps?: number
-  /** 采购流量上限 (GB); null = 不限/未填; 仅账面记录. */
+  /** 采购流量上限 (GB); 仅账面记录. */
   trafficQuotaGb?: number
+  /** 月度成本 USD. */
+  costMonthlyUsd?: number
+  /** 账单日 1-28. */
+  billingCycleDay?: number
+  /** IP 到期日 YYYY-MM-DD. */
+  expiresAt?: string
   remark?: string
   createdAt?: string
   updatedAt?: string
@@ -53,7 +70,10 @@ export interface ResourceIpPoolQuery {
   pageNo?: number
   pageSize?: number
   keyword?: string
-  status?: number
+  /** 装机生命周期过滤. */
+  lifecycleState?: string
+  /** 占用状态过滤. */
+  status?: string
   region?: string
   ipTypeId?: string
 }
@@ -61,11 +81,11 @@ export interface ResourceIpPoolQuery {
 export interface ResourceIpPoolSaveDTO {
   region?: string
   ipTypeId?: string
+  lifecycleState?: string
   ipAddress?: string
   socks5Port?: number
   socks5Username?: string
   socks5Password?: string
-  status?: number
   /** 部署模式: 1=SELF_DEPLOY 自部署, 2=EXTERNAL 第三方; 后端 @NotNull, create/update 都必填. */
   provisionMode?: number
   /** dante 日志 (空格分隔关键字); 留空走默认 'connect disconnect error'. */
@@ -92,6 +112,12 @@ export interface ResourceIpPoolSaveDTO {
   bandwidthMbps?: number
   /** 采购流量上限 (GB); 留空 = 不限/未填. */
   trafficQuotaGb?: number
+  /** 月度成本 USD. */
+  costMonthlyUsd?: number
+  /** 账单日 1-28. */
+  billingCycleDay?: number
+  /** IP 到期日 YYYY-MM-DD. */
+  expiresAt?: string
   remark?: string
 }
 
@@ -124,15 +150,44 @@ export interface PageResult<T> {
   records: T[]
 }
 
-/** 状态码 → 中文展示标签; UI 端用此映射, 颜色映射由 view 自行决定 (IpPoolList.statusTagType). */
-export const IP_POOL_STATUS_LABELS: Record<number, string> = {
-  1: '可分配',
-  2: '已占用',
-  3: '测试中',
-  4: '黑名单',
-  5: '冷却中',
-  6: '降级'
+/** 装机生命周期 → 中文标签 + 颜色. */
+export const IP_POOL_LIFECYCLE_LABELS: Record<string, string> = {
+  INSTALLING: '装机中',
+  READY: '待上线',
+  LIVE: '运行中',
+  RETIRED: '已退役'
 }
+
+export const IP_POOL_LIFECYCLE_TAG_TYPE: Record<string, 'info' | 'warning' | 'success' | 'default'> = {
+  INSTALLING: 'info',
+  READY: 'warning',
+  LIVE: 'success',
+  RETIRED: 'default'
+}
+
+export const IP_POOL_LIFECYCLE_OPTIONS = [
+  { label: '全部', value: undefined as string | undefined },
+  { label: '装机中', value: 'INSTALLING' },
+  { label: '待上线', value: 'READY' },
+  { label: '运行中', value: 'LIVE' },
+  { label: '已退役', value: 'RETIRED' }
+]
+
+/** 占用状态 → 中文标签 (v3: 4 值 ENUM, 不再是 number). */
+export const IP_POOL_STATUS_LABELS: Record<string, string> = {
+  AVAILABLE: '可分配',
+  RESERVED: '预占中',
+  OCCUPIED: '已占用',
+  COOLING: '冷却中'
+}
+
+export const IP_POOL_STATUS_OPTIONS = [
+  { label: '全部', value: undefined as string | undefined },
+  { label: '可分配', value: 'AVAILABLE' },
+  { label: '预占中', value: 'RESERVED' },
+  { label: '已占用', value: 'OCCUPIED' },
+  { label: '冷却中', value: 'COOLING' }
+]
 
 export function pageIpPool(params: ResourceIpPoolQuery) {
   return request.get<unknown, PageResult<ResourceIpPool>>('/admin/resource/ip-pool/page', { params })
@@ -157,6 +212,15 @@ export function deleteIpPool(id: string) {
 /** 退订: occupied → cooling, 一段时间后由调度器扫回 available. */
 export function releaseIpPool(id: string) {
   return request.post<unknown, void>('/admin/resource/ip-pool/release', null, { params: { id } })
+}
+
+/** 切换 lifecycle_state; admin 上线 / 退役流转用. */
+export function transitionIpPoolLifecycle(id: string, state: string) {
+  return request.post<unknown, boolean>(
+    '/admin/resource/ip-pool/lifecycle',
+    null,
+    { params: { id, state } }
+  )
 }
 
 // ===== SOCKS5 落地节点 运维 (走 IP 池条目存储的 SSH 凭据, 不再问用户) =====

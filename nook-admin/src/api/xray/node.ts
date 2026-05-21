@@ -46,6 +46,3 @@ export function pageXrayNode(params: XrayNodePageQuery) {
   return request.get<unknown, PageResult<XrayNode>>('/admin/xray/node/page', { params })
 }
 
-export function getXrayNodeDetail(serverId: string) {
-  return request.get<unknown, XrayNode>('/admin/xray/node/get', { params: { serverId } })
-}

@@ -18,7 +18,3 @@ export function listEnabledRegions() {
   return request.get<unknown, ResourceRegion[]>('/admin/resource/region/enabled')
 }
 
-/** 全量列表 (含已停用); admin 管理用. */
-export function listRegions(params?: { keyword?: string; enabled?: number }) {
-  return request.get<unknown, ResourceRegion[]>('/admin/resource/region/list', { params })
-}

@@ -12,8 +12,3 @@ export function formatDateTime(s?: string | null): string {
   return s.slice(0, 16)
 }
 
-/** "yyyy-MM-dd HH:mm:ss" → "yyyy-MM-dd"。 */
-export function formatDate(s?: string | null): string {
-  if (!s || s.length < 10) return EMPTY_PLACEHOLDER
-  return s.slice(0, 10)
-}

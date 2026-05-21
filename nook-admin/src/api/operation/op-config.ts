@@ -60,10 +60,6 @@ export function listOpTypeOptions() {
   return request.get<unknown, OpTypeOption[]>('/admin/operation/op-config/op-type-list')
 }
 
-export function getOpConfigDetail(id: string) {
-  return request.get<unknown, OpConfig>('/admin/operation/op-config/get', { params: { id } })
-}
-
 /** 新建; 同 opType 重复后端会抛 OP_CONFIG_DUPLICATE */
 export function createOpConfig(body: OpConfigCreateReq) {
   return request.post<unknown, string>('/admin/operation/op-config/create', body)

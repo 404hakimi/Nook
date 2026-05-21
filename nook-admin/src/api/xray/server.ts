@@ -49,14 +49,6 @@ export interface HostInfo {
   timezone?: string
 }
 
-/** 通用 systemd 状态 (后端 SystemdStatusRespVO); 不含 service 专属字段. */
-export interface SystemdStatus {
-  unit?: string
-  active?: string
-  uptimeFrom?: string
-  enabled?: string
-}
-
 /** 日志级别过滤 (journalctl -p 语义). */
 export type XrayLogLevel = 'all' | 'warning' | 'err'
 
@@ -80,12 +72,6 @@ export function testServerConnectivity(serverId: string) {
 /** 拉服务器系统基本信息 (hostname / 内存 / 磁盘 / 时区 等). */
 export function getServerSystemInfo(serverId: string) {
   return request.get<unknown, ServerSystemInfo>('/admin/resource/server/system-info', { params: { id: serverId } })
-}
-
-/** 拉指定 systemd unit 的通用运行状态 (不含 service 专属字段如 version/listening). */
-export function getSystemdStatus(serverId: string, unit: string) {
-  return request.get<unknown, SystemdStatus>('/admin/resource/server/systemd-status',
-    { params: { id: serverId, unit } })
 }
 
 /**

@@ -134,10 +134,6 @@ export function pageClients(params: XrayClientQuery) {
   return request.get<unknown, PageResult<XrayClient>>('/admin/xray/client/page', { params })
 }
 
-export function getClientDetail(id: string) {
-  return request.get<unknown, XrayClient>('/admin/xray/client/get', { params: { id } })
-}
-
 export function provisionClient(dto: XrayClientProvisionDTO) {
   return request.post<unknown, XrayClient>('/admin/xray/client/create', dto)
 }

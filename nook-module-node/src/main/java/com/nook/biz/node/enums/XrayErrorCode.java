@@ -9,16 +9,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum XrayErrorCode implements ErrorCode {
 
-    SERVER_CREDENTIAL_INVALID(6002, "服务器 %s 的 backend 凭据不完整"),
-    BACKEND_UNREACHABLE(6003, "无法连接到服务器 %s"),
-    BACKEND_AUTH_FAILED(6004, "服务器 %s 鉴权失败"),
-    BACKEND_RESPONSE_INVALID(6005, "服务器 %s 响应非法: %s"),
     BACKEND_OPERATION_FAILED(6006, "服务器 %s 操作失败: %s"),
-    REMOTE_INBOUND_NOT_FOUND(6007, "远端 inbound %s 不存在或未关联到任何 IP"),
     /** 远端 xray inbound 上找不到目标 client (rmi/rmu/lsi 阶段); 跟 DB 视角的 CLIENT_ENTITY_NOT_FOUND 区分 */
     CLIENT_NOT_FOUND(6008, "远端 xray 客户端 %s 不存在"),
     CLIENT_DUPLICATE(6009, "客户端 %s 已存在"),
-    GRPC_NOT_IMPLEMENTED(6010, "gRPC backend 该操作未实现: %s"),
     /** 业务侧 (DB) 找不到该客户端; 用户通过 id 查询/操作但 id 错或已删 */
     CLIENT_ENTITY_NOT_FOUND(6011, "客户端 %s 不存在"),
     /** server 落地数已达 touchdownSize 上限, 不能再开新客户 */
