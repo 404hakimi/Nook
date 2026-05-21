@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { ArrowUp, Rocket } from 'lucide-vue-next'
+import { ArrowUp, HelpCircle, Rocket } from 'lucide-vue-next'
 import {
   NAlert,
   NButton,
@@ -17,6 +17,7 @@ import {
   NTabs,
   NTabPane,
   NTag,
+  NTooltip,
   useDialog,
   useMessage
 } from 'naive-ui'
@@ -391,16 +392,52 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
               </NAlert>
 
               <NForm :model="form" label-placement="left" label-width="auto" size="small">
-                <NFormItem label="backend 超时 (s)" path="backendTimeoutSeconds">
+                <NFormItem path="backendTimeoutSeconds">
+                  <template #label>
+                    backend 超时 (s)
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      agent → backend HTTP 客户端超时. 跨境抖动 / natapp 隧道场景可调大到 60-120.
+                    </NTooltip>
+                  </template>
                   <NInputNumber v-model:value="form.backendTimeoutSeconds" :min="5" :max="600" class="w-40" />
                 </NFormItem>
-                <NFormItem label="心跳间隔 (s)" path="heartbeatIntervalSeconds">
+                <NFormItem path="heartbeatIntervalSeconds">
+                  <template #label>
+                    心跳间隔 (s)
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      agent → backend 心跳频率. backend 60s 无心跳 → WARN, 180s → TEMP_UNHEALTHY, 300s → OFFLINE.
+                    </NTooltip>
+                  </template>
                   <NInputNumber v-model:value="form.heartbeatIntervalSeconds" :min="10" :max="3600" class="w-40" />
                 </NFormItem>
-                <NFormItem label="NIC 上报间隔 (s)" path="nicIntervalSeconds">
+                <NFormItem path="nicIntervalSeconds">
+                  <template #label>
+                    NIC 上报间隔 (s)
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      vnstat 网卡流量上报频率. 越短数据越实时, 但 backend 请求量越大; 默认 5min.
+                    </NTooltip>
+                  </template>
                   <NInputNumber v-model:value="form.nicIntervalSeconds" :min="60" :max="3600" class="w-40" />
                 </NFormItem>
-                <NFormItem label="NIC 网卡" path="nicInterface">
+                <NFormItem path="nicInterface">
+                  <template #label>
+                    NIC 网卡
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      vnstat 采样的网卡名. auto = agent 自动用 /proc/net/route 默认路由出口网卡; 多网卡场景可选具体网卡名.
+                    </NTooltip>
+                  </template>
                   <NSelect
                     v-model:value="form.nicInterface"
                     :options="nicOptions"
@@ -411,7 +448,16 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                     placeholder="选 server 后自动拉取"
                   />
                 </NFormItem>
-                <NFormItem label="任务轮询间隔 (s)" path="pollerIntervalSeconds">
+                <NFormItem path="pollerIntervalSeconds">
+                  <template #label>
+                    任务轮询间隔 (s)
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      agent 轮询 backend 任务队列频率 (升级 / 改配置 / 清日志 等 task 走这条路). 越短任务越及时, backend 请求量越大.
+                    </NTooltip>
+                  </template>
                   <NInputNumber v-model:value="form.pollerIntervalSeconds" :min="5" :max="600" class="w-40" />
                 </NFormItem>
               </NForm>
@@ -444,6 +490,15 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
 </template>
 
 <style scoped>
+.hint-icon {
+  margin-left: 4px;
+  vertical-align: middle;
+  color: #a1a1aa;
+  cursor: help;
+}
+.hint-icon:hover {
+  color: #6366f1;
+}
 .deploy-log {
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
