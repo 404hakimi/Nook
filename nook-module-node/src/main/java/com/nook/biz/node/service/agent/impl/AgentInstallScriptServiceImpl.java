@@ -115,7 +115,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
             sb.append("  stats_interval_seconds: ").append(XRAY_STATS_INTERVAL_SECONDS).append("\n\n");
         }
         sb.append("runtime:\n");
-        sb.append("  bin_path: /home/nook-agent/bin/nook-agent\n");
+        sb.append("  bin_path: /home/nook-agent/nook-agent\n");
         return sb.toString();
     }
 }

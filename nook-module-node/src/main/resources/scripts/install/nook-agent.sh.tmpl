@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # nook-{{ROLE}}-agent 装机 (server={{SERVER_NAME}})
-# 时区 Asia/Shanghai / 目录 /home/nook-agent / 从 backend FS 拉 binary / yaml 由 admin 在 dialog 里填好
+# 时区 Asia/Shanghai / 目录 /home/nook-agent (平铺) / binary + yaml 直接放根
 set -euo pipefail
 
 NOOK_HOME=/home/nook-agent
@@ -21,19 +21,18 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq vnstat ca-certificates cur
 systemctl enable --now vnstat
 
 echo "=== 3. 建标准目录 ==="
-mkdir -p $NOOK_HOME/bin $NOOK_HOME/etc
+mkdir -p $NOOK_HOME
 
 echo "=== 4. 从 backend 拉 ${ROLE} binary ==="
 curl -fSL -H "X-Agent-Token: $AGENT_TOKEN" \
     "$BACKEND_URL/admin/agent-dist/bin?role=$ROLE" \
-    -o $NOOK_HOME/bin/nook-agent.new
-chmod +x $NOOK_HOME/bin/nook-agent.new
-mv $NOOK_HOME/bin/nook-agent.new $NOOK_HOME/bin/nook-agent
+    -o $NOOK_HOME/nook-agent.new
+chmod +x $NOOK_HOME/nook-agent.new
+mv $NOOK_HOME/nook-agent.new $NOOK_HOME/nook-agent
 
-# === 5. 写配置 (admin 在 dialog 里填的完整 yaml, agent_token 已 splice 进去) ===
-# heredoc 用 NOOK_CONFIG_EOF__ (双下划线) 做 sentinel, yaml 里不太可能撞
 echo "=== 5. 写配置 ==="
-cat > $NOOK_HOME/etc/config.yml <<'NOOK_CONFIG_EOF__'
+# heredoc 用 NOOK_CONFIG_EOF__ (双下划线) 做 sentinel, yaml 里不太可能撞
+cat > $NOOK_HOME/config.yml <<'NOOK_CONFIG_EOF__'
 {{CONFIG_YAML}}
 NOOK_CONFIG_EOF__
 
@@ -45,7 +44,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/nook-agent/bin/nook-agent -c /home/nook-agent/etc/config.yml
+ExecStart=/home/nook-agent/nook-agent -c /home/nook-agent/config.yml
 Restart=always
 RestartSec=10s
 User=root
@@ -66,10 +65,12 @@ SystemMaxFileSize=10M
 EOF
 systemctl restart systemd-journald
 
-echo "=== 8. 启动 agent ==="
+echo "=== 8. 清理老路径残留 (老装机的 bin/ etc/ 子目录 + /usr/local/bin/nook-agent) ==="
+rm -rf $NOOK_HOME/bin $NOOK_HOME/etc /usr/local/bin/nook-agent 2>/dev/null || true
+
+echo "=== 9. 启动 agent ==="
 systemctl daemon-reload
 systemctl enable nook-agent
-# restart 而不是 enable --now: 老进程 (可能跑的是历史路径 /usr/local/bin/nook-agent) 一定要被替换
 systemctl restart nook-agent
 sleep 3
 if systemctl is-active --quiet nook-agent; then

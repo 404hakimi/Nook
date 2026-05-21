@@ -1,29 +1,25 @@
-# nook-agent 配置示例; 默认部署到 /home/nook-agent/etc/config.yml.
-# 装机时由 backend 渲染填好 api_url / api_token 后写到目标 server; 不要手动改 token.
+# nook-agent 配置示例; 装机时由 backend 渲染 + SSH 写到 /home/nook-agent/config.yml.
 
 backend:
   api_url: http://backend.example.com:8080
   api_token: <由 backend 装机时生成的 64 char hex>
-  timeout_seconds: 30
+  timeout_seconds: 120
 
 heartbeat:
-  interval_seconds: 60         # 1 min; 0 = 禁用 (一般不动)
-  # agent_version 已废弃 — 编译 ldflags -X main.Version=x.y.z 优先, 仅作 fallback
+  interval_seconds: 60
 
 nic:
-  interval_seconds: 300        # 5 min; 0 = 禁用 (vnstat 未装时)
-  interface: eth0
+  interval_seconds: 300
+  interface: auto
 
 poller:
-  interval_seconds: 30         # 任务队列轮询; 0 = 禁用 (无 admin 推任务需求时)
+  interval_seconds: 30
 
+# Xray 段仅 frontline role 出现; landing role 无此段
 xray:
-  enabled: false               # 装好 xray + admin 上线后 admin 改 true; 重启 agent 生效
   bin: /usr/local/bin/xray
   api_port: 10085
-  stats_interval_seconds: 300  # 5 min; xray.enabled=true 时启用
+  stats_interval_seconds: 300
 
 runtime:
-  # binary 安装路径; 默认 /home/nook-agent/bin/nook-agent (跟 /home/socks5 / /home/xray 同级)
-  # 老装机用 /usr/local/bin/nook-agent 兼容继续工作 — 显式给绝对路径覆盖默认
-  bin_path: /home/nook-agent/bin/nook-agent
+  bin_path: /home/nook-agent/nook-agent

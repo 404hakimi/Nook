@@ -388,8 +388,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
           <NTabPane name="deploy" tab="重新部署">
             <div class="space-y-3 mt-2">
               <NAlert type="warning" :show-icon="false" size="small">
-                重置 agent_token + 覆盖 <code>/home/nook-agent/etc/config.yml</code>.
-                字段全必填, 后端不持兜底默认.
+                覆盖 <code>/home/nook-agent/config.yml</code>; 字段全必填, 后端不持兜底默认.
               </NAlert>
 
               <NForm :model="form" label-placement="left" label-width="auto" size="small">

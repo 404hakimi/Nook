@@ -12,7 +12,7 @@ import java.util.function.Consumer;
 public interface AgentInstallScriptService {
 
     /**
-     * SSH 自动装机 (流式). 表单字段 → backend 拼 yaml → 写到远端 /home/nook-agent/etc/config.yml.
+     * SSH 自动装机 (流式). 表单字段 → backend 拼 yaml → 写到远端 /home/nook-agent/config.yml.
      *
      * @param serverId resource_server.id
      * @param reqVO    表单字段 (role + 各间隔 + xray)
