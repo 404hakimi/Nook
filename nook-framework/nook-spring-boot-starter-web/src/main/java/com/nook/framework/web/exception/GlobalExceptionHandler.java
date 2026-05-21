@@ -69,9 +69,11 @@ public class GlobalExceptionHandler {
         return Result.fail(CommonErrorCode.PARAM_INVALID, "缺少参数: " + e.getParameterName());
     }
 
-    /** 请求体格式错误(如 JSON 解析失败)。 */
+    /** 请求体格式错误(如 JSON 解析失败); 日志记根因方便排查 Jackson 反序列化问题. */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public Result<Void> handleNotReadable(HttpMessageNotReadableException e) {
+        log.warn("[请求体解析失败] cause={} msg={}",
+                e.getMostSpecificCause().getClass().getName(), e.getMessage(), e);
         return Result.fail(CommonErrorCode.PARAM_INVALID, "请求体格式错误");
     }
 
