@@ -12,20 +12,11 @@ import java.util.function.Consumer;
 public interface AgentInstallScriptService {
 
     /**
-     * SSH 自动装机 (流式).
-     *
-     * <p>复用 resource_server 已存的 SSH 凭据 (SshSessionScope.INSTALL).
-     * 装机过程: 重置 agent_token → 把 token 拼入用户传的 configYaml → SSH 跑装机脚本 → agent 上线.
+     * SSH 自动装机 (流式). 表单字段 → backend 拼 yaml → 写到远端 /home/nook-agent/etc/config.yml.
      *
      * @param serverId resource_server.id
-     * @param reqVO    role + 用户填的完整 agent yaml (含 {{AGENT_TOKEN}} 占位符)
+     * @param reqVO    表单字段 (role + 各间隔 + xray)
      * @param lineSink 日志逐行回调
      */
     void installStreaming(String serverId, AgentInstallReqVO reqVO, Consumer<String> lineSink);
-
-    /**
-     * 取默认 agent yaml 模板; dialog 打开时预填给用户编辑.
-     * api_url 用 nook.backend.public-url 填好, api_token 留 {{AGENT_TOKEN}} 占位.
-     */
-    String defaultConfigYaml(String role);
 }

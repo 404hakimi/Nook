@@ -151,16 +151,16 @@ export function transitionServerLifecycle(id: string, state: string) {
 
 export interface AgentInstallDTO {
   role: 'frontline' | 'landing'
-  /** 完整 agent yaml; 必须含 {{AGENT_TOKEN}} 占位符 (backend splice). */
-  configYaml: string
-}
-
-/** 取默认 agent yaml 模板 (api_url 已填好, api_token 留占位符). */
-export function getAgentInstallYamlTemplate(role: 'frontline' | 'landing') {
-  return request.get<unknown, string>(
-    '/admin/resource/server/agent-install-yaml-template',
-    { params: { role } }
-  )
+  backendTimeoutSeconds: number
+  heartbeatIntervalSeconds: number
+  nicIntervalSeconds: number
+  /** auto | eth0 | ens5 ... */
+  nicInterface: string
+  pollerIntervalSeconds: number
+  // Frontline 专属 (role=landing 时后端忽略)
+  xrayBin?: string
+  xrayApiPort?: number
+  xrayStatsIntervalSeconds?: number
 }
 
 /**

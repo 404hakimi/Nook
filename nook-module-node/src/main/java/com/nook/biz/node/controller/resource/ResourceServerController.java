@@ -104,10 +104,4 @@ public class ResourceServerController {
                 lineSink -> agentInstallScriptService.installStreaming(id, reqVO, lineSink));
     }
 
-    /** 取默认 agent yaml 模板; dialog 打开时预填给 admin 编辑. */
-    @GetMapping("/agent-install-yaml-template")
-    public Result<String> agentInstallYamlTemplate(
-            @RequestParam(value = "role", defaultValue = "frontline") String role) {
-        return Result.ok(agentInstallScriptService.defaultConfigYaml(role));
-    }
 }
