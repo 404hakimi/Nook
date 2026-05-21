@@ -6,8 +6,10 @@ import com.nook.biz.node.controller.resource.vo.HostInfoRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
-import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
-import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
+import com.nook.biz.node.framework.server.script.NookScripts;
+import com.nook.framework.ssh.script.RemoteScriptRunner;
+import com.nook.framework.ssh.script.ScriptCatalog;
+import com.nook.framework.ssh.script.ScriptModule;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
@@ -36,6 +38,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -50,6 +53,8 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
 
     @Resource
     private RemoteScriptRunner scriptRunner;
+    @Resource
+    private ScriptCatalog scriptCatalog;
     @Resource
     private ServerProbe serverProbe;
     @Resource
@@ -96,7 +101,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         scriptRunner.runScriptStreaming(
                 session,
                 script,
-                RemoteScriptPaths.INSTALL_XRAY_TMP,
+                NookScripts.INSTALL_XRAY_TMP_PREFIX,
                 installTimeout,
                 lineSink);
 
@@ -238,36 +243,15 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
      * swap / bbr 等通用 OS 调优不在此链路, 走 ServerOps 接口独立触发.
      */
     private String assembleInstallScript(XrayServerInstallReqVO r, Map<String, String> vars) {
-        StringBuilder sb = new StringBuilder(8192);
-        // 公共 header: bash + set -euo pipefail (各模块不再重复写)
-        sb.append("#!/usr/bin/env bash\n");
-        sb.append("# nook server 模块化部署脚本, 渲染于 ").append(vars.get("RENDER_AT")).append("\n");
-        sb.append("# server: ").append(vars.get("SERVER_NAME")).append("\n");
-        sb.append("set -euo pipefail\n\n");
-
-        appendModule(sb, "00-prepare-env.sh.tmpl", vars);
-
-        if (Boolean.TRUE.equals(r.getSetTimezone())) {
-            appendModule(sb, "10-timezone.sh.tmpl", vars);
-        }
-        if (Boolean.TRUE.equals(r.getInstallUfw())) {
-            appendModule(sb, "40-ufw.sh.tmpl", vars);
-        }
-        if (Boolean.TRUE.equals(r.getUseTls())) {
-            appendModule(sb, "45-acme-tls.sh.tmpl", vars);
-        }
-        if (Boolean.TRUE.equals(r.getLogRotate())) {
-            appendModule(sb, "47-logrotate.sh.tmpl", vars);
-        }
-
-        appendModule(sb, "50-xray.sh.tmpl", vars);
-        appendModule(sb, "99-finalize.sh.tmpl", vars);
-
-        return sb.toString();
-    }
-
-    private void appendModule(StringBuilder sb, String moduleFile, Map<String, String> vars) {
-        sb.append(scriptRunner.renderTemplate(RemoteScriptPaths.INSTALL_MODULES_DIR + moduleFile, vars)).append("\n");
+        List<ScriptModule> modules = new java.util.ArrayList<>();
+        modules.add(NookScripts.MODULE_PREPARE_ENV);
+        if (Boolean.TRUE.equals(r.getSetTimezone())) modules.add(NookScripts.MODULE_TIMEZONE);
+        if (Boolean.TRUE.equals(r.getInstallUfw()))  modules.add(NookScripts.MODULE_UFW);
+        if (Boolean.TRUE.equals(r.getUseTls()))      modules.add(NookScripts.MODULE_ACME_TLS);
+        if (Boolean.TRUE.equals(r.getLogRotate()))   modules.add(NookScripts.MODULE_LOGROTATE);
+        modules.add(NookScripts.MODULE_XRAY);
+        modules.add(NookScripts.MODULE_FINALIZE);
+        return scriptCatalog.assemble(modules, vars);
     }
 
     /**

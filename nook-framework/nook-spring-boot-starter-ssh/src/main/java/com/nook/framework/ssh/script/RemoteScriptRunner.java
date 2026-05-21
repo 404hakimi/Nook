@@ -1,13 +1,12 @@
-package com.nook.biz.node.framework.server.script;
+package com.nook.framework.ssh.script;
 
 import cn.hutool.core.io.resource.ResourceUtil;
-import com.nook.biz.node.config.ServerOpsProperties;
-import com.nook.biz.node.enums.XrayErrorCode;
-import com.nook.framework.ssh.core.SshSession;
 import com.nook.common.web.exception.BusinessException;
-import jakarta.annotation.Resource;
+import com.nook.framework.ssh.core.SshSession;
+import com.nook.framework.ssh.script.config.ScriptProperties;
+import com.nook.framework.ssh.script.internal.ScriptErrorCode;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Map;
@@ -16,24 +15,19 @@ import java.util.function.Consumer;
 /**
  * 远端脚本执行: classpath 模板渲染 → 上传 /tmp → 执行 → 收集输出.
  *
+ * <p>无业务耦合; 由 SshAutoConfiguration 注册 bean, 业务模块直接 @Resource 注入或经
+ * {@link ScriptCatalog} 间接使用.
+ *
  * @author nook
  */
 @Slf4j
-@Component
+@RequiredArgsConstructor
 public class RemoteScriptRunner {
 
-    @Resource
-    private ServerOpsProperties serverOpsProperties;
+    private final ScriptProperties scriptProperties;
 
     /**
      * 渲染 classpath 模板 + 流式跑, 每行 stdout 回调; 单文件模板专用.
-     *
-     * @param session      已就绪 SSH 会话
-     * @param classpath    classpath 上的脚本模板
-     * @param vars         模板变量表 ({{KEY}} → value)
-     * @param tmpPrefix    远端 /tmp 文件名前缀
-     * @param runTimeout   脚本运行超时
-     * @param lineConsumer 每行 stdout 的消费回调
      */
     public void runFromTemplateStreaming(SshSession session,
                                          String classpath,
@@ -47,12 +41,6 @@ public class RemoteScriptRunner {
 
     /**
      * 流式跑预先拼好的脚本; 模块化 install 用, 调用方负责拼接 + 渲染占位.
-     *
-     * @param session      已就绪 SSH 会话
-     * @param scriptBody   完整脚本内容
-     * @param tmpPrefix    远端 /tmp 文件名前缀
-     * @param runTimeout   脚本运行超时
-     * @param lineConsumer 每行 stdout 的消费回调
      */
     public void runScriptStreaming(SshSession session,
                                    String scriptBody,
@@ -77,16 +65,12 @@ public class RemoteScriptRunner {
             lineConsumer.accept("[nook] ────────────────────────────────────────");
             lineConsumer.accept("[nook] 远端脚本已结束, 临时文件已清理");
         } finally {
-            cleanupQuietly(session, remote, serverOpsProperties.getScriptCleanupTimeout());
+            cleanupQuietly(session, remote, scriptProperties.getCleanupTimeout());
         }
     }
 
     /**
-     * classpath 读模板 + {{KEY}} 占位替换; 模板找不到抛 BACKEND_OPERATION_FAILED.
-     *
-     * @param classpath classpath 上的模板路径
-     * @param vars      占位变量表
-     * @return 渲染后的脚本字符串
+     * classpath 读模板 + {{KEY}} 占位替换; 模板找不到抛 TEMPLATE_NOT_FOUND.
      */
     public String renderTemplate(String classpath, Map<String, String> vars) {
         String tmpl;
@@ -94,8 +78,7 @@ public class RemoteScriptRunner {
             tmpl = ResourceUtil.readUtf8Str(classpath);
         } catch (Exception e) {
             log.error("读取脚本模板失败: {}", classpath, e);
-            throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
-                    "<template>", "无法读取模板 " + classpath);
+            throw new BusinessException(ScriptErrorCode.TEMPLATE_NOT_FOUND, classpath);
         }
         for (Map.Entry<String, String> v : vars.entrySet()) {
             tmpl = tmpl.replace("{{" + v.getKey() + "}}", v.getValue());

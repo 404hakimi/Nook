@@ -18,8 +18,8 @@ import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.enums.ResourceErrorCode;
 import com.nook.biz.node.enums.XrayErrorCode;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
-import com.nook.biz.node.framework.server.script.RemoteScriptRunner;
-import com.nook.biz.node.framework.server.script.config.RemoteScriptPaths;
+import com.nook.biz.node.framework.server.script.NookScripts;
+import com.nook.framework.ssh.script.ScriptCatalog;
 import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
@@ -54,7 +54,7 @@ import java.util.function.Consumer;
 public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
 
     @Resource
-    private RemoteScriptRunner scriptRunner;
+    private ScriptCatalog scriptCatalog;
     @Resource
     private Socks5Prober socks5Prober;
     @Resource
@@ -80,9 +80,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         Map<String, String> vars = buildVars(reqVO);
         Duration installTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
         SshSessions.runAdHocVoid(cred, session ->
-                scriptRunner.runFromTemplateStreaming(
-                        session, RemoteScriptPaths.SOCKS5_INSTALL_TMPL, vars,
-                        RemoteScriptPaths.INSTALL_SOCKS5_TMP, installTimeout, lineSink));
+                scriptCatalog.run(session, NookScripts.SOCKS5_INSTALL, vars, installTimeout, lineSink));
     }
 
     @Override
@@ -125,9 +123,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         Map<String, String> vars = buildSyncVars(ip, reqVO.getSshPort());
         Duration scriptTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
         SshSessions.runAdHocVoid(landingCred, session ->
-                scriptRunner.runFromTemplateStreaming(
-                        session, RemoteScriptPaths.SOCKS5_UPDATE_CREDS_TMPL, vars,
-                        RemoteScriptPaths.UPDATE_SOCKS5_CREDS_TMP, scriptTimeout, lineSink));
+                scriptCatalog.run(session, NookScripts.SOCKS5_UPDATE_CREDS, vars, scriptTimeout, lineSink));
 
         // 反查 xray_client (IP 跟 client 一一对应, 至多 1 行); 没绑 client 就完事
         lineSink.accept("\n[nook] === 阶段 2/2: 重建 fra-line outbound (新凭据生效) ===\n");

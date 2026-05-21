@@ -4,6 +4,9 @@ import com.nook.framework.ssh.config.SshSessionProperties;
 import com.nook.framework.ssh.core.SshCredentialApi;
 import com.nook.framework.ssh.core.SshSessionManager;
 import com.nook.framework.ssh.core.SshSessions;
+import com.nook.framework.ssh.script.RemoteScriptRunner;
+import com.nook.framework.ssh.script.ScriptCatalog;
+import com.nook.framework.ssh.script.config.ScriptProperties;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.keyverifier.AcceptAllServerKeyVerifier;
 import org.apache.sshd.core.CoreModuleProperties;
@@ -19,7 +22,7 @@ import org.springframework.context.annotation.Bean;
  * @author nook
  */
 @AutoConfiguration
-@EnableConfigurationProperties(SshSessionProperties.class)
+@EnableConfigurationProperties({SshSessionProperties.class, ScriptProperties.class})
 public class SshAutoConfiguration {
 
     /**
@@ -75,5 +78,19 @@ public class SshAutoConfiguration {
                                               @Autowired(required = false) SshCredentialApi credentialApi) {
         SshSessions.init(sessionManager, credentialApi);
         return new SshSessions();
+    }
+
+    /** 远端脚本执行器: 渲染 + 上传 + 流式跑. */
+    @Bean
+    @ConditionalOnMissingBean
+    public RemoteScriptRunner remoteScriptRunner(ScriptProperties props) {
+        return new RemoteScriptRunner(props);
+    }
+
+    /** 脚本注册 + 执行 facade; 业务模块启动时调 register() 把自家 ScriptModule 注入. */
+    @Bean
+    @ConditionalOnMissingBean
+    public ScriptCatalog scriptCatalog(RemoteScriptRunner runner) {
+        return new ScriptCatalog(runner);
     }
 }

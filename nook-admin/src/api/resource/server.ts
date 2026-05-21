@@ -1,10 +1,13 @@
 import request from '@/api/request'
+import { useUserStore } from '@/stores/user'
 
 /**
- * 服务器列表/详情响应; 纯硬件 + SSH 凭据 + 三档 SSH/install 超时 (按地区差异化).
+ * 服务器实体 (v3): 主表存基础信息 + 装机生命周期; capacity / runtime 高频字段拆到子表.
  *
- * <p>SSH 密码以明文下发 (DB 明文存, 后台受信场景), 编辑时 fill 进 type=password 输入框.
- * <p>Xray 配置 (api 端口 / 落地池等) 不在本响应里, 走 xray_node 接口单独取.
+ * - lifecycleState 替代旧的 status (1=运行/2=维护/3=下线 → INSTALLING/READY/LIVE/RETIRED)
+ * - region 改为字典码 (FK → resource_region.code), 表单走 listEnabledRegions 下拉
+ * - 新增 v3 字段: domain / cfZoneId / cfRecordId / costMonthlyUsd / billingCycleDay / expiresAt / maxConcurrentClients
+ * - monthlyTrafficGb 已迁到 resource_server_capacity 子表, 不在 server 主表
  */
 export interface ResourceServer {
   id: string
@@ -13,23 +16,44 @@ export interface ResourceServer {
   sshPort?: number
   sshUser?: string
   sshPassword?: string
-  /** SSH 会话握手超时(秒); 5-300, 默认 30 */
   sshTimeoutSeconds?: number
-  /** SSH 单条命令最大耗时(秒); 5-300, 默认 30; xray api/systemctl/journalctl 共用 */
   sshOpTimeoutSeconds?: number
-  /** SCP 上传单文件超时(秒); 5-600, 默认 30 */
   sshUploadTimeoutSeconds?: number
-  /** 一次安装脚本最大耗时(秒); 60-3600, 默认 600 */
   installTimeoutSeconds?: number
-  /** 带宽峰值速率 Mbps */
-  totalBandwidth?: number
-  /** 月流量额度 GB; null/0 表示不限或未配置 */
-  monthlyTrafficGb?: number
+
+  /** 运营商承诺峰值带宽 Mbps; 仅账面展示. */
+  bandwidthMbps?: number
+
+  /** 线路机域名 (e.g., jp-01.nook.com); LIVE 前置必填. */
+  domain?: string
+
+  /** Cloudflare Zone ID. */
+  cfZoneId?: string
+
+  /** Cloudflare DNS record ID. */
+  cfRecordId?: string
+
+  /** 月度成本 USD (内部成本核算). */
+  costMonthlyUsd?: number
+
+  /** 账单日 1-28; 月度流量重置参考. */
+  billingCycleDay?: number
+
+  /** 服务器到期日 (机房续费) YYYY-MM-DD. */
+  expiresAt?: string
+
+  /** allocator 硬上限; 1C1G=50-100, 2C2G=200, 4C4G=500, 8C8G=1000. */
+  maxConcurrentClients?: number
+
+  /** 装机生命周期; 取值 INSTALLING / READY / LIVE / RETIRED. */
+  lifecycleState: string
+
   totalIpCount?: number
   idcProvider?: string
+
+  /** 区域码 (FK → resource_region.code). */
   region?: string
-  /** 1=运行 2=维护 3=下线 */
-  status: number
+
   remark?: string
   createdAt?: string
   updatedAt?: string
@@ -39,7 +63,8 @@ export interface ResourceServerQuery {
   pageNo?: number
   pageSize?: number
   keyword?: string
-  status?: number
+  /** 装机生命周期过滤 (INSTALLING/READY/LIVE/RETIRED); 空=全部. */
+  lifecycleState?: string
   region?: string
 }
 
@@ -53,11 +78,17 @@ export interface ResourceServerSaveDTO {
   sshOpTimeoutSeconds?: number
   sshUploadTimeoutSeconds?: number
   installTimeoutSeconds?: number
-  totalBandwidth?: number
-  monthlyTrafficGb?: number
+  bandwidthMbps?: number
+  domain?: string
+  cfZoneId?: string
+  cfRecordId?: string
+  costMonthlyUsd?: number
+  billingCycleDay?: number
+  expiresAt?: string
+  maxConcurrentClients?: number
   idcProvider?: string
   region?: string
-  status?: number
+  lifecycleState?: string
   remark?: string
 }
 
@@ -66,11 +97,28 @@ export interface PageResult<T> {
   records: T[]
 }
 
-export const SERVER_STATUS_LABELS: Record<number, string> = {
-  1: '运行',
-  2: '维护',
-  3: '下线'
+/** 装机生命周期 → 中文标签 + 颜色; UI 用 Tag 展示. */
+export const SERVER_LIFECYCLE_LABELS: Record<string, string> = {
+  INSTALLING: '装机中',
+  READY: '待上线',
+  LIVE: '运行中',
+  RETIRED: '已退役'
 }
+
+export const SERVER_LIFECYCLE_TAG_TYPE: Record<string, 'info' | 'warning' | 'success' | 'default'> = {
+  INSTALLING: 'info',
+  READY: 'warning',
+  LIVE: 'success',
+  RETIRED: 'default'
+}
+
+export const SERVER_LIFECYCLE_OPTIONS = [
+  { label: '全部', value: undefined as string | undefined },
+  { label: '装机中', value: 'INSTALLING' },
+  { label: '待上线', value: 'READY' },
+  { label: '运行中', value: 'LIVE' },
+  { label: '已退役', value: 'RETIRED' }
+]
 
 export function pageServers(params: ResourceServerQuery) {
   return request.get<unknown, PageResult<ResourceServer>>('/admin/resource/server/page', { params })
@@ -90,4 +138,46 @@ export function updateServer(id: string, dto: ResourceServerSaveDTO) {
 
 export function deleteServer(id: string) {
   return request.delete<unknown, void>('/admin/resource/server/delete', { params: { id } })
+}
+
+/** 切换 lifecycle_state; admin 上线 / 退役流转用. */
+export function transitionServerLifecycle(id: string, state: string) {
+  return request.post<unknown, boolean>(
+    '/admin/resource/server/lifecycle',
+    null,
+    { params: { id, state } }
+  )
+}
+
+/**
+ * SSH 自动装 nook-agent (流式日志); 复用 resource_server 已存 SSH 凭据.
+ * 调一次重置 agent_token + SSH 跑装机脚本 → agent active.
+ */
+export function agentInstallStream(
+  id: string,
+  role: 'frontline' | 'landing',
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const userStore = useUserStore()
+  const url = `/api/admin/resource/server/agent-install?id=${encodeURIComponent(id)}&role=${role}`
+  return fetch(url, {
+    method: 'POST',
+    headers: { Authorization: userStore.token },
+    signal
+  }).then(async (res) => {
+    if (res.status === 401) { userStore.clear(); throw new Error('登录已过期') }
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()) || res.statusText}`)
+    if (!res.body) throw new Error('浏览器不支持流式响应')
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const t = decoder.decode(value, { stream: true })
+      if (t) onChunk(t)
+    }
+    const tail = decoder.decode()
+    if (tail) onChunk(tail)
+  })
 }

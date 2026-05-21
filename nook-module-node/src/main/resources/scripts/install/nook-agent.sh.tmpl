@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# nook-{{ROLE}}-agent 装机 (server={{SERVER_NAME}})
+# 规范: 时区上海 / 目录 /home/nook-agent / 从 backend FS 拉 binary / role-specific yaml
+set -euo pipefail
+
+NOOK_HOME=/home/nook-agent
+BACKEND_URL='{{BACKEND_URL}}'
+AGENT_TOKEN='{{AGENT_TOKEN}}'
+ROLE='{{ROLE}}'
+
+echo "=== 1. 系统时区 Asia/Shanghai + UTF-8 locale ==="
+timedatectl set-timezone Asia/Shanghai
+if ! locale -a 2>/dev/null | grep -qi 'en_US.utf'; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq locales || true
+    locale-gen en_US.UTF-8 || true
+fi
+
+echo "=== 2. 装依赖 (vnstat + ca-certificates) ==="
+DEBIAN_FRONTEND=noninteractive apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq vnstat ca-certificates curl
+systemctl enable --now vnstat
+
+echo "=== 3. 建标准目录 ==="
+mkdir -p $NOOK_HOME/bin $NOOK_HOME/etc
+
+echo "=== 4. 从 backend 拉 ${ROLE} binary ==="
+curl -fSL -H "X-Agent-Token: $AGENT_TOKEN" \
+    "$BACKEND_URL/admin/agent-dist/bin?role=$ROLE" \
+    -o $NOOK_HOME/bin/nook-agent.new
+chmod +x $NOOK_HOME/bin/nook-agent.new
+mv $NOOK_HOME/bin/nook-agent.new $NOOK_HOME/bin/nook-agent
+
+echo "=== 5. 写配置 (${ROLE} 角色专用) ==="
+cat > $NOOK_HOME/etc/config.yml <<EOF
+# ============================================================================
+# nook-${ROLE}-agent 配置; 装机时 backend 渲染, 后续可在管理端"改配置"热改
+# ----------------------------------------------------------------------------
+
+# === backend 通信 ===
+backend:
+  api_url: $BACKEND_URL
+  # X-Agent-Token: 装机时一次性签发, 每台 server 不同; 重装会重置
+  api_token: $AGENT_TOKEN
+  timeout_seconds: 30
+
+# === 心跳 (backend 60s 没收到 WARN, 300s OFFLINE) ===
+heartbeat:
+  interval_seconds: 60
+
+# === NIC 流量 (vnstat) ===
+nic:
+  interval_seconds: 300
+  # auto = agent 自动用默认路由出口网卡; 多网卡可填 eth0/ens5
+  interface: auto
+
+# === 任务轮询 ===
+poller:
+  interval_seconds: 30
+
+EOF
+
+if [ "$ROLE" = "frontline" ]; then
+    cat >> $NOOK_HOME/etc/config.yml <<EOF
+# === Xray 集成 (frontline 专属) ===
+# agent 启动自检 /usr/local/bin/xray 是否存在 → 存在则挂 xray collector
+xray:
+  bin: /usr/local/bin/xray
+  api_port: 10085
+  stats_interval_seconds: 300
+EOF
+else
+    cat >> $NOOK_HOME/etc/config.yml <<EOF
+# === Socks5 集成 (landing 专属; 当前空壳) ===
+EOF
+fi
+
+cat >> $NOOK_HOME/etc/config.yml <<EOF
+# === 运行时路径 (agent_upgrade 用; 不要手改, 跟 systemd unit 解耦) ===
+runtime:
+  bin_path: $NOOK_HOME/bin/nook-agent
+EOF
+
+echo "=== 6. 写 systemd unit (静默) ==="
+cat > /etc/systemd/system/nook-agent.service <<'EOF'
+[Unit]
+Description=Nook Agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/nook-agent/bin/nook-agent -c /home/nook-agent/etc/config.yml
+Restart=always
+RestartSec=10s
+User=root
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "=== 7. journald 限大小 ==="
+mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/nook-cap.conf <<'EOF'
+[Journal]
+SystemMaxUse=50M
+SystemKeepFree=200M
+SystemMaxFileSize=10M
+EOF
+systemctl restart systemd-journald
+
+echo "=== 8. 启动 agent ==="
+systemctl daemon-reload
+systemctl enable nook-agent
+# restart 而不是 enable --now: 老进程 (可能跑的是历史路径 /usr/local/bin/nook-agent) 一定要被替换
+systemctl restart nook-agent
+sleep 3
+if systemctl is-active --quiet nook-agent; then
+    echo '装机完成: agent active (PID '$(systemctl show -p MainPID --value nook-agent)')'
+else
+    echo '启动失败, 看 journalctl -u nook-agent -n 30 --no-pager'
+    journalctl -u nook-agent -n 30 --no-pager || true
+    exit 1
+fi
