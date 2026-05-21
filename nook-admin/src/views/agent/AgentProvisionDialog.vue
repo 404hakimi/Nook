@@ -190,10 +190,7 @@ function defaultForm(): AgentInstallDTO {
     heartbeatIntervalSeconds: 60,
     nicIntervalSeconds: 300,
     nicInterface: 'auto',
-    pollerIntervalSeconds: 30,
-    xrayBin: '/usr/local/bin/xray',
-    xrayApiPort: 10085,
-    xrayStatsIntervalSeconds: 300
+    pollerIntervalSeconds: 30
   }
 }
 const form = reactive<AgentInstallDTO>(defaultForm())
@@ -391,20 +388,11 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                 <NFormItem label="任务轮询间隔 (s)" path="pollerIntervalSeconds">
                   <NInputNumber v-model:value="form.pollerIntervalSeconds" :min="5" :max="600" class="w-40" />
                 </NFormItem>
-
-                <template v-if="selectedRole === 'frontline'">
-                  <div class="text-xs text-zinc-500 mt-2 mb-1">— Xray (frontline 专属) —</div>
-                  <NFormItem label="xray 路径" path="xrayBin">
-                    <NInput v-model:value="form.xrayBin" placeholder="/usr/local/bin/xray" class="w-60" />
-                  </NFormItem>
-                  <NFormItem label="xray API 端口" path="xrayApiPort">
-                    <NInputNumber v-model:value="form.xrayApiPort" :min="1" :max="65535" class="w-40" />
-                  </NFormItem>
-                  <NFormItem label="xray stats 间隔 (s)" path="xrayStatsIntervalSeconds">
-                    <NInputNumber v-model:value="form.xrayStatsIntervalSeconds" :min="60" :max="3600" class="w-40" />
-                  </NFormItem>
-                </template>
               </NForm>
+              <div v-if="selectedRole === 'frontline'" class="text-xs text-zinc-500">
+                ℹ️ xray bin / API 端口 / stats 间隔 由 backend 自动从已部署 xray 配置读取
+                (没装 xray 走默认 <code>/usr/local/bin/xray:10085</code>, agent 启动自检不存在不挂 collector).
+              </div>
 
               <div class="flex gap-2 pt-1">
                 <NButton type="primary" size="small" :loading="deploying" @click="runDeploy">

@@ -33,6 +33,8 @@ public enum XrayErrorCode implements ErrorCode {
     TOUCHDOWN_SHRINK_BLOCKED(6016, "server %s 缩容受阻: 当前已用 %s 个落地 > 新上限 %s, 请先 revoke 多余客户再重装"),
     /** 重装 xray 时改了客户面连接参数 (port / wsPath / domain), 现有客户 URL 会失效, 拒绝变更 */
     NODE_PARAM_CHANGE_BLOCKED(6017, "server %s 有 %s 个活客户, 客户面参数变更被拒: %s; 请先 revoke 全部客户或保持参数不变"),
+    /** frontline agent 装机前必须先装 xray (要拿 xray bin / api_port 拼进 yaml) */
+    XRAY_NOT_INSTALLED(6018, "server %s 还没装 xray, 请先到 xray 管理装上再装 frontline agent"),
     ;
 
     private final int code;

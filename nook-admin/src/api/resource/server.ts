@@ -157,10 +157,7 @@ export interface AgentInstallDTO {
   /** auto | eth0 | ens5 ... */
   nicInterface: string
   pollerIntervalSeconds: number
-  // Frontline 专属 (role=landing 时后端忽略)
-  xrayBin?: string
-  xrayApiPort?: number
-  xrayStatsIntervalSeconds?: number
+  // xray 三件套 backend 自动从 xray_node 表读 (没装就兜底), 不在 dialog 表单里
 }
 
 /**

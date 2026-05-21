@@ -17,27 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-/**
- * 脚本通用注册 + 执行 facade; 框架不持有具体模块常量, 业务模块在启动时 register 进来.
- *
- * <p>典型用法 (业务侧):
- * <pre>
- *   {@code
- *   @Component
- *   public class NookScripts {
- *     public static final ScriptModule NOOK_AGENT_INSTALL = new ScriptModule(...);
- *     @Resource ScriptCatalog catalog;
- *     @PostConstruct void register() {
- *       catalog.register(NOOK_AGENT_INSTALL);
- *     }
- *   }
- *   }
- * </pre>
- *
- * <p>调用方拿 ScriptModule 常量 (类型安全), 不要传 classpath 字符串.
- *
- * @author nook
- */
+/** 脚本注册 + 执行 facade; 框架不持模块常量, 业务侧 @PostConstruct 调 register/registerAll 注入. */
 @Slf4j
 @RequiredArgsConstructor
 public class ScriptCatalog {

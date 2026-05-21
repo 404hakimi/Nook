@@ -12,14 +12,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/**
- * 远端脚本执行: classpath 模板渲染 → 上传 /tmp → 执行 → 收集输出.
- *
- * <p>无业务耦合; 由 SshAutoConfiguration 注册 bean, 业务模块直接 @Resource 注入或经
- * {@link ScriptCatalog} 间接使用.
- *
- * @author nook
- */
+/** 远端脚本执行: classpath 模板渲染 → 上传 /tmp → 流式执行. 业务侧一般经 {@link ScriptCatalog} 用. */
 @Slf4j
 @RequiredArgsConstructor
 public class RemoteScriptRunner {
