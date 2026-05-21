@@ -139,7 +139,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.XRAY_RESTART.name())
-                .operator(currentOperator())
+                .operator(StpSystemUtil.getLoginIdOrSystem())
                 .build();
         return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.XRAY_RESTART.name()), String.class);
     }
@@ -216,7 +216,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.SERVER_AUTOSTART.name())
-                .operator(currentOperator())
+                .operator(StpSystemUtil.getLoginIdOrSystem())
                 .paramsJson(params.toJSONString())
                 .build();
         return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_AUTOSTART.name()), String.class);
@@ -239,18 +239,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         modules.add(NookScripts.MODULE_XRAY);
         modules.add(NookScripts.MODULE_FINALIZE);
         return scriptCatalog.assemble(modules, vars);
-    }
-
-    /**
-     * 取当前后台登录的 admin id 作 operator; 没有登录态 (定时器 / 系统调用) 退回 "SYSTEM".
-     */
-    private static String currentOperator() {
-        try {
-            String id = StpSystemUtil.getLoginIdAsString();
-            return StrUtil.blankToDefault(id, "SYSTEM");
-        } catch (Exception ignore) {
-            return "SYSTEM";
-        }
     }
 
     /**

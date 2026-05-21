@@ -416,8 +416,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                 </NFormItem>
               </NForm>
               <div v-if="selectedRole === 'frontline'" class="text-xs text-zinc-500">
-                ℹ️ xray bin / API 端口 / stats 间隔 由 backend 自动从已部署 xray 配置读取
-                (没装 xray 走默认 <code>/usr/local/bin/xray:10085</code>, agent 启动自检不存在不挂 collector).
+                ℹ️ frontline 必须先装 xray; xray 路径 / API 端口由 backend 从 xray_node 读取.
               </div>
 
               <div class="flex gap-2 pt-1">

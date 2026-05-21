@@ -41,6 +41,16 @@ public final class StpSystemUtil {
         return STP_LOGIC.getLoginIdAsString();
     }
 
+    /** 当前登录 admin id; 无登录态 (定时器 / 异步调用) 返 "SYSTEM" 占位入库. */
+    public static String getLoginIdOrSystem() {
+        try {
+            String id = STP_LOGIC.getLoginIdAsString();
+            return (id == null || id.isBlank()) ? "SYSTEM" : id;
+        } catch (Exception ignore) {
+            return "SYSTEM";
+        }
+    }
+
     /** 当前请求是否已登录。 */
     public static boolean isLogin() {
         return STP_LOGIC.isLogin();

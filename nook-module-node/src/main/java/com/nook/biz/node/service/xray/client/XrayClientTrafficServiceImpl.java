@@ -12,7 +12,6 @@ import com.nook.biz.operation.api.dto.OpEnqueueRequest;
 import com.nook.biz.operation.api.spi.OpConfigResolver;
 import com.nook.biz.operation.api.spi.OpOrchestrator;
 import com.nook.framework.security.stp.StpSystemUtil;
-import cn.hutool.core.util.StrUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -59,19 +58,9 @@ public class XrayClientTrafficServiceImpl implements XrayClientTrafficService {
                 .serverId(client.getServerId())
                 .opType(OpType.CLIENT_RESET_TRAFFIC.name())
                 .targetId(id)
-                .operator(currentOperator())
+                .operator(StpSystemUtil.getLoginIdOrSystem())
                 .paramsJson("{\"clientId\":\"" + id + "\"}")
                 .build();
         opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_RESET_TRAFFIC.name()), Void.class);
-    }
-
-    private static String currentOperator() {
-        try {
-            String id = StpSystemUtil.getLoginIdAsString();
-            return StrUtil.blankToDefault(id, "SYSTEM");
-        } catch (Exception ignore) {
-            // 未登录 / 无 token 上下文 — sa-token 抛 NotLoginException; 入库 SYSTEM 占位
-            return "SYSTEM";
-        }
     }
 }

@@ -1,4 +1,4 @@
-// nook-frontline-agent: 线路机 agent. 自带 xray executor + stats collector (启动自检 xray 是否真装了).
+// nook-frontline-agent: 线路机 agent. xray executor + stats collector (启动校验 yaml 里 xray 块齐).
 //
 // 编译: go build -ldflags '-X main.Version=frontline-0.7.0 -s -w' -o nook-frontline-0.7.0-linux-amd64 ./cmd/frontline
 package main
@@ -7,8 +7,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"os/exec"
-	"strings"
 
 	"nook-agent/internal/agentcore"
 	"nook-agent/internal/client"
@@ -24,39 +22,23 @@ func main() {
 	agentcore.Run(Version, registerFrontline)
 }
 
-// 角色注册器: 自检 xray 装没装, 装了才挂 xray 相关.
+// registerFrontline: frontline 角色挂 xray executor + stats collector; yaml 里 xray 段必填.
 func registerFrontline(disp *internalExec.Dispatcher, cfg *config.Config, cli *client.Client) []agentcore.Goroutine {
-	// yaml 里 xray.bin 优先; 缺省 /usr/local/bin/xray
 	bin := cfg.Xray.Bin
-	if bin == "" {
-		bin = "/usr/local/bin/xray"
-	}
 	apiPort := cfg.Xray.APIPort
-	if apiPort == 0 {
-		apiPort = 10085
+	statsInterval := cfg.XrayStatsInterval()
+	if bin == "" || apiPort == 0 || statsInterval == 0 {
+		log.Fatalf("[frontline] yaml xray 段不完整: bin=%q api_port=%d stats_interval=%v; backend 装机时应已填", bin, apiPort, statsInterval)
 	}
-	if !xrayInstalled(bin) {
-		log.Printf("[frontline] xray 未装 (bin=%s 不存在 或 systemctl 不 active), 不挂 xray collector", bin)
+	if _, err := os.Stat(bin); err != nil {
+		log.Printf("[frontline] xray bin %s 文件不存在 (%v), 不挂 collector", bin, err)
 		return nil
 	}
 	log.Printf("[frontline] xray 已装 (bin=%s apiPort=%d), 挂载 executor + stats collector", bin, apiPort)
 	internalExec.NewXrayExecutor(bin, apiPort).Register(disp)
 	xrayCli := xray.New(bin, apiPort)
-	statsInterval := cfg.XrayStatsInterval()
 	statsRep := xray.NewStatsReporter(cli, xrayCli, statsInterval)
 	return []agentcore.Goroutine{
 		func(ctx context.Context) { statsRep.Run(ctx) },
 	}
-}
-
-// xrayInstalled 自检: 文件存在 即认为装了 (systemd unit name 可能多样, 不强求 active).
-// 起停由其他 task 控制; 这里只决定"agent 要不要挂 xray collector".
-func xrayInstalled(binPath string) bool {
-	if _, err := os.Stat(binPath); err != nil {
-		return false
-	}
-	out, err := exec.Command("systemctl", "is-active", "xray").CombinedOutput()
-	state := strings.TrimSpace(string(out))
-	log.Printf("[frontline] xray 自检: bin=%s 在; systemctl is-active xray = %s (err=%v)", binPath, state, err)
-	return true
 }

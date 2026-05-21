@@ -76,7 +76,7 @@ public class XrayClientServiceImpl implements XrayClientService {
         OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(reqVO.getServerId())
                 .opType(OpType.CLIENT_PROVISION.name())
-                .operator(currentOperator())
+                .operator(StpSystemUtil.getLoginIdOrSystem())
                 .paramsJson(JSON.toJSONString(reqVO))
                 .allowDuplicate(true) // 新建资源, 多个并发 provision 应排队 FIFO 跑而非互斥
                 .build();
@@ -90,7 +90,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .serverId(e.getServerId())
                 .opType(OpType.CLIENT_REVOKE.name())
                 .targetId(inboundEntityId)
-                .operator(currentOperator())
+                .operator(StpSystemUtil.getLoginIdOrSystem())
                 .paramsJson("{\"clientId\":\"" + inboundEntityId + "\"}")
                 .build();
         opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_REVOKE.name()), Void.class);
@@ -103,7 +103,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .serverId(e.getServerId())
                 .opType(OpType.CLIENT_ROTATE.name())
                 .targetId(inboundEntityId)
-                .operator(currentOperator())
+                .operator(StpSystemUtil.getLoginIdOrSystem())
                 .paramsJson("{\"clientId\":\"" + inboundEntityId + "\"}")
                 .build();
         return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_ROTATE.name()), XrayClientDO.class);
@@ -260,7 +260,7 @@ public class XrayClientServiceImpl implements XrayClientService {
                 .serverId(c.getServerId())
                 .opType(OpType.CLIENT_SYNC.name())
                 .targetId(clientId)
-                .operator(currentOperator())
+                .operator(StpSystemUtil.getLoginIdOrSystem())
                 .paramsJson("{\"clientId\":\"" + clientId + "\"}")
                 .build();
         opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_SYNC.name()), Void.class);
@@ -271,20 +271,9 @@ public class XrayClientServiceImpl implements XrayClientService {
         OpEnqueueRequest req = OpEnqueueRequest.builder()
                 .serverId(serverId)
                 .opType(OpType.CLIENT_ALL_SYNC.name())
-                .operator(currentOperator())
+                .operator(StpSystemUtil.getLoginIdOrSystem())
                 .build();
         return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_ALL_SYNC.name()), XrayClientReplayReportRespVO.class);
-    }
-
-    /** 取当前后台登录的 admin id 作 operator; 无登录态 (定时器 / 系统调用) 退回 "SYSTEM". */
-    private static String currentOperator() {
-        try {
-            String id = StpSystemUtil.getLoginIdAsString();
-            return StrUtil.blankToDefault(id, "SYSTEM");
-        } catch (Exception ignore) {
-            // 未登录 / 无 token 上下文 — sa-token 抛 NotLoginException
-            return "SYSTEM";
-        }
     }
 
     @Override
