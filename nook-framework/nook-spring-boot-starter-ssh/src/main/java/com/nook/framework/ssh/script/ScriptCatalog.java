@@ -17,7 +17,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-/** 脚本注册 + 执行 facade; 框架不持模块常量, 业务侧 @PostConstruct 调 register/registerAll 注入. */
+/**
+ * 脚本注册与执行 Catalog
+ *
+ * @author nook
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class ScriptCatalog {

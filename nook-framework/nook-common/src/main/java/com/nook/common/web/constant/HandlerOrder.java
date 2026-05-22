@@ -1,8 +1,9 @@
 package com.nook.common.web.constant;
 
 /**
- * 全局处理器执行顺序常量；值越小优先级越高，统一在此管理避免散落。
- * 新增 @RestControllerAdvice / 拦截器 / Filter 时必须从这里取值，禁止硬编码 @Order(数字)。
+ * 全局处理器执行顺序常量
+ *
+ * @author nook
  */
 public final class HandlerOrder {
 

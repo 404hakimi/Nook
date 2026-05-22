@@ -10,7 +10,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** MyBatis-Plus 全局配置：分页、乐观锁、Mapper 扫描、编程式事务模板。 */
+/**
+ * MyBatis-Plus 配置
+ *
+ * @author nook
+ */
 @Configuration
 @MapperScan("com.nook.**.mapper")
 public class MybatisPlusConfig {

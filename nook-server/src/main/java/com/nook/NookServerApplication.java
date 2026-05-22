@@ -5,9 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * Nook 启动入口。
+ * Nook 应用启动入口
  *
- * 扫描包覆盖全部 biz 模块（com.nook 下所有子包）。
+ * @author nook
  */
 @SpringBootApplication(scanBasePackages = "com.nook")
 @EnableScheduling

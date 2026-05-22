@@ -3,8 +3,9 @@ package com.nook.framework.security.stp;
 import cn.dev33.satoken.stp.StpLogic;
 
 /**
- * 会员的 sa-token 工具类，loginType="member"，与后台体系隔离。
- * 现阶段会员前台未上线，预留供后续 nook-portal 使用。
+ * 会员 sa-token 工具类
+ *
+ * @author nook
  */
 public final class StpMemberUtil {
 

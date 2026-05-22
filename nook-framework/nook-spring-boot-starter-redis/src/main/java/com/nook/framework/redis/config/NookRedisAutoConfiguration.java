@@ -11,7 +11,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
 
 /**
- * Redis 配置类
+ * Redis 自动配置
+ *
+ * @author nook
  */
 @AutoConfiguration(before = RedissonAutoConfigurationV2.class) // 目的：使用自己定义的 RedisTemplate Bean
 public class NookRedisAutoConfiguration {

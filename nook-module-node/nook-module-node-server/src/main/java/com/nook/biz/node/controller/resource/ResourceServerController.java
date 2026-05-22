@@ -1,12 +1,16 @@
 package com.nook.biz.node.controller.resource;
 
+import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerSaveReqVO;
 import com.nook.biz.node.convert.resource.ResourceServerConvert;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
+import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
@@ -35,6 +39,7 @@ public class ResourceServerController {
 
     private final ResourceServerService resourceServerService;
     private final ResourceServerValidator serverValidator;
+    private final ResourceServerCapacityMapper resourceServerCapacityMapper;
 
     @PostMapping("/create")
     public Result<ResourceServerRespVO> createServer(@Valid @RequestBody ResourceServerSaveReqVO createReqVO) {
@@ -74,6 +79,14 @@ public class ResourceServerController {
                                                @RequestParam("state") String state) {
         resourceServerService.transitionLifecycle(id, state);
         return Result.ok(true);
+    }
+
+    /** 取 server 流量配额 + 已用 (监控面板用); 未上报过 NIC 时返 null. */
+    @GetMapping("/capacity")
+    public Result<ResourceServerCapacityRespVO> getCapacity(@RequestParam("id") String id) {
+        serverValidator.validateExists(id);
+        ResourceServerCapacityDO row = resourceServerCapacityMapper.selectById(id);
+        return Result.ok(row == null ? null : BeanUtils.toBean(row, ResourceServerCapacityRespVO.class));
     }
 
 }

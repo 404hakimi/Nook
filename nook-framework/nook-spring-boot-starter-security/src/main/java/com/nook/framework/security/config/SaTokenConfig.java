@@ -9,8 +9,9 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * sa-token 路由鉴权：按 URL 前缀分发到 system / member 两个体系。
- * 鉴权失败抛 NotLoginException，由 SaTokenExceptionHandler 转 Result。
+ * sa-token 路由鉴权配置
+ *
+ * @author nook
  */
 @Configuration
 public class SaTokenConfig implements WebMvcConfigurer {

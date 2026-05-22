@@ -1,6 +1,10 @@
 package com.nook.framework.ssh.script;
 
-/** 远端脚本分类; 给 catalog 列表 / admin 端筛选用. */
+/**
+ * 远端脚本分类枚举
+ *
+ * @author nook
+ */
 public enum ScriptCategory {
     /** 一键装机. */
     INSTALL,

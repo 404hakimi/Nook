@@ -11,7 +11,11 @@ import org.springframework.core.annotation.Order;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/** sa-token 鉴权异常映射为 Result，优先级高于 GlobalExceptionHandler 抢先匹配。 */
+/**
+ * sa-token 鉴权异常处理器
+ *
+ * @author nook
+ */
 @Slf4j
 @Order(HandlerOrder.SA_TOKEN_EXCEPTION)
 @RestControllerAdvice

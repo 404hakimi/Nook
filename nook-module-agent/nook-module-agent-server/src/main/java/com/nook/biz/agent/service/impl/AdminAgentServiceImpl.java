@@ -21,7 +21,9 @@ import com.nook.biz.agent.service.AdminAgentService;
 import com.nook.biz.agent.framework.binary.AgentBinaryResolver;
 import com.nook.biz.agent.service.AgentTaskDispatchService;
 import com.nook.biz.node.api.resource.ResourceServerApi;
+import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
+import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
 import com.nook.common.utils.collection.CollectionUtils;
@@ -50,6 +52,7 @@ public class AdminAgentServiceImpl implements AdminAgentService {
 
     private final ResourceServerApi resourceServerApi;
     private final ResourceServerRuntimeApi resourceServerRuntimeApi;
+    private final ResourceServerCapacityApi resourceServerCapacityApi;
     private final AgentTaskDispatchService agentTaskDispatchService;
     private final AgentBinaryResolver agentBinaryResolver;
     private final AgentRuntimeConfigMapper agentRuntimeConfigMapper;
@@ -62,20 +65,23 @@ public class AdminAgentServiceImpl implements AdminAgentService {
         if (CollUtil.isEmpty(servers)) return List.of();
         Set<String> ids = CollectionUtils.convertSet(servers, ResourceServerRespDTO::getId);
         Map<String, ResourceServerRuntimeRespDTO> runtimeMap = resourceServerRuntimeApi.listByServerIds(ids);
+        Map<String, ResourceServerCapacityRespDTO> capacityMap = resourceServerCapacityApi.listByServerIds(ids);
         Map<String, AgentRuntimeConfigDO> cfgMap = CollectionUtils.convertMap(
                 agentRuntimeConfigMapper.selectBatchIds(ids),
                 AgentRuntimeConfigDO::getServerId);
         LocalDateTime now = LocalDateTime.now();
         List<AdminAgentListItemRespVO> result = new ArrayList<>(servers.size());
         for (ResourceServerRespDTO s : servers) {
-            result.add(buildListItem(s, runtimeMap.get(s.getId()), cfgMap.get(s.getId()), now));
+            result.add(buildListItem(s, runtimeMap.get(s.getId()), capacityMap.get(s.getId()),
+                    cfgMap.get(s.getId()), now));
         }
         return result;
     }
 
-    /** 单行列表项: 拼 server + runtime + 配置同步状态. */
+    /** 单行列表项: 拼 server + runtime + 配置同步 + NIC 流量容量. */
     private static AdminAgentListItemRespVO buildListItem(ResourceServerRespDTO s,
                                                           ResourceServerRuntimeRespDTO rt,
+                                                          ResourceServerCapacityRespDTO cap,
                                                           AgentRuntimeConfigDO cfg,
                                                           LocalDateTime now) {
         AdminAgentListItemRespVO vo = new AdminAgentListItemRespVO();
@@ -98,6 +104,11 @@ public class AdminAgentServiceImpl implements AdminAgentService {
         vo.setOnlineState(AgentOnlineState.classify(elapsedSec, tempUnhealthy).name());
         AgentConfigSyncState syncState = AgentRuntimeConfigConvert.INSTANCE.classifySyncState(cfg);
         vo.setConfigSyncState(syncState.name());
+        if (cap != null) {
+            vo.setMonthlyTrafficGb(cap.getMonthlyTrafficGb());
+            vo.setUsedTrafficBytes(cap.getUsedTrafficBytes());
+            vo.setThrottleState(cap.getThrottleState());
+        }
         return vo;
     }
 

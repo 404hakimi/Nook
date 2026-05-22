@@ -7,7 +7,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.List;
 
-/** 解析客户端真实 IP，按代理头 → RemoteAddr 顺序回退。 */
+/**
+ * 客户端 IP 解析器
+ *
+ * @author nook
+ */
 public final class ClientIpResolver {
 
     // 顺序参考 Cloudflare → Nginx → 默认；优先取最可信的 CF-Connecting-IP

@@ -1,6 +1,10 @@
 package com.nook.common.web.error;
 
-/** 错误码契约，由各模块的枚举实现；段位划分见后端开发规范 §4.2。 */
+/**
+ * 错误码契约接口
+ *
+ * @author nook
+ */
 public interface ErrorCode {
 
     /** 数字错误码。0=成功；其它见各模块定义。 */

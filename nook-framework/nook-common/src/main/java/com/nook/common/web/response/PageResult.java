@@ -9,7 +9,11 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 
-/** 分页结构对象 */
+/**
+ * 分页响应结果
+ *
+ * @author nook
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -18,6 +18,13 @@ export interface AgentListItem {
 
   /** 运行时配置: NEVER_CONFIGURED / SYNCED / PENDING. */
   configSyncState?: ConfigSyncState
+
+  /** 月度流量配额 GB; 0/null = 不限. */
+  monthlyTrafficGb?: number
+  /** 已用流量字节 (NIC 月累计). */
+  usedTrafficBytes?: number
+  /** NORMAL / THROTTLED. */
+  throttleState?: string
 }
 
 export type ConfigSyncState = 'NEVER_CONFIGURED' | 'SYNCED' | 'PENDING'

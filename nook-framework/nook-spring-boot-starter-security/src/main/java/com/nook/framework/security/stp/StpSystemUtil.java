@@ -3,8 +3,9 @@ package com.nook.framework.security.stp;
 import cn.dev33.satoken.stp.StpLogic;
 
 /**
- * 后台用户的 sa-token 工具类，loginType="system"，与会员体系隔离。
- * 业务代码统一通过本类访问 sa-token，不要直接用 StpUtil。
+ * 后台 sa-token 工具类
+ *
+ * @author nook
  */
 public final class StpSystemUtil {
 

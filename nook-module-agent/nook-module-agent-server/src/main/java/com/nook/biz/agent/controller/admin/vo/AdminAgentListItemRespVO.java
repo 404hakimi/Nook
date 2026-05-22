@@ -39,4 +39,13 @@ public class AdminAgentListItemRespVO {
      * 运行时配置同步状态: NEVER_CONFIGURED (没改过) / SYNCED (agent 已应用最新) / PENDING (admin 改了 agent 还没应用).
      */
     private String configSyncState;
+
+    /** 月度流量配额 GB; 0/null = 不限. */
+    private Integer monthlyTrafficGb;
+
+    /** 已用流量字节 (vnstat 月累计). */
+    private Long usedTrafficBytes;
+
+    /** 限流状态: NORMAL / THROTTLED. */
+    private String throttleState;
 }

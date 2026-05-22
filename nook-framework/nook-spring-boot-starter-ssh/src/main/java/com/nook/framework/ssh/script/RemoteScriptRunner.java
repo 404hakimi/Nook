@@ -12,7 +12,11 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/** 远端脚本执行: classpath 模板渲染 → 上传 /tmp → 流式执行. 业务侧一般经 {@link ScriptCatalog} 用. */
+/**
+ * 远端脚本执行器
+ *
+ * @author nook
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class RemoteScriptRunner {

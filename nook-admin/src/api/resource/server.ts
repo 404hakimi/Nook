@@ -124,6 +124,19 @@ export function pageServers(params: ResourceServerQuery) {
   return request.get<unknown, PageResult<ResourceServer>>('/admin/resource/server/page', { params })
 }
 
+/** Server NIC 流量配额 + 已用 (监控面板用); 未上报过 NIC 时返 null. */
+export interface ServerCapacity {
+  serverId: string
+  monthlyTrafficGb?: number
+  usedTrafficBytes?: number
+  quotaResetPolicy?: string
+  throttleState?: string
+}
+
+export function getServerCapacity(id: string) {
+  return request.get<unknown, ServerCapacity | null>('/admin/resource/server/capacity', { params: { id } })
+}
+
 /** SSH 列出远端网卡 (排除 lo); 失败返空 list, 前端 fallback 到 "auto". */
 export function listNetworkInterfaces(id: string) {
   return request.get<unknown, string[]>('/admin/resource/server/network-interfaces', { params: { id } })

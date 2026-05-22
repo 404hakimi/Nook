@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 
 /**
  * 实体基类
+ *
+ * @author nook
  */
 @Data
 @SuperBuilder

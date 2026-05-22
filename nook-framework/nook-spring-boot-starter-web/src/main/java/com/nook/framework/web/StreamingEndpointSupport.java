@@ -12,7 +12,11 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 import java.time.Duration;
 import java.util.function.Consumer;
 
-/** 流式 chunked transfer-encoding 接口的胶水: 异步执行 + 行级 send + 异常 → completeWithError. */
+/**
+ * 流式接口辅助类
+ *
+ * @author nook
+ */
 @Slf4j
 @Component
 public class StreamingEndpointSupport {

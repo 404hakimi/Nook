@@ -6,7 +6,11 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 
-/** 流式接口参数 (yaml 前缀 nook.web.streaming); ResponseBodyEmitter 比 install/op 端多留的余量, 留给 service 主动报错 / 收尾的时间窗口. */
+/**
+ * Web 流式接口配置项
+ *
+ * @author nook
+ */
 @Data
 @Component
 @ConfigurationProperties(prefix = "nook.web.streaming")

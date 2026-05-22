@@ -3,7 +3,11 @@ package com.nook.common.web.error;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** 通用错误码（1xxx 段位，跨模块共用）。 */
+/**
+ * 通用错误码枚举
+ *
+ * @author nook
+ */
 @Getter
 @RequiredArgsConstructor
 public enum CommonErrorCode implements ErrorCode {

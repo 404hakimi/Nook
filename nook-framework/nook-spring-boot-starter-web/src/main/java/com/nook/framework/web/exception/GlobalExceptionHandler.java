@@ -23,7 +23,11 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.stream.Collectors;
 
-/** 全局异常处理器，把所有 Controller 抛出的异常统一转为 Result。 */
+/**
+ * 全局异常处理器
+ *
+ * @author nook
+ */
 @Slf4j
 @Order(HandlerOrder.GLOBAL_EXCEPTION)
 @RestControllerAdvice

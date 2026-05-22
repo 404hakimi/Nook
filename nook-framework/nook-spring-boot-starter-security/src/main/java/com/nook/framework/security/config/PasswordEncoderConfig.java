@@ -4,7 +4,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-/** 注册 BCryptPasswordEncoder 单例供业务注入；cost=12 兼顾安全与性能。 */
+/**
+ * 密码编码器配置
+ *
+ * @author nook
+ */
 @Configuration
 public class PasswordEncoderConfig {
 

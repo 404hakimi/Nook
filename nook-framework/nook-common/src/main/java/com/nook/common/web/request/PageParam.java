@@ -9,7 +9,11 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 
-/** 分页查询请求参数基类；所有 PageReqVO 继承此类。 */
+/**
+ * 分页查询请求参数基类
+ *
+ * @author nook
+ */
 @Data
 public class PageParam implements Serializable {
 

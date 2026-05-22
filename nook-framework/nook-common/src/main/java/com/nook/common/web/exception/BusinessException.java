@@ -5,7 +5,11 @@ import lombok.Getter;
 
 import java.io.Serial;
 
-/** 业务异常，由 GlobalExceptionHandler 统一转为 Result 返回。 */
+/**
+ * 业务异常
+ *
+ * @author nook
+ */
 @Getter
 public class BusinessException extends RuntimeException {
 

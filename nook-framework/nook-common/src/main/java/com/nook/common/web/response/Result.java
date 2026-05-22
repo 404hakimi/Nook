@@ -7,7 +7,11 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 
-/** Controller 统一返回结构: { code, message, data }。 */
+/**
+ * Controller 统一响应结果
+ *
+ * @author nook
+ */
 @Data
 public class Result<T> implements Serializable {
 
