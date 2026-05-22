@@ -9,7 +9,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-/** Agent push 接口的轻量鉴权: 按 X-Agent-Token Header → server. */
+/**
+ * Agent 鉴权 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -18,10 +22,10 @@ public class AgentAuthService {
     private final ResourceServerApi resourceServerApi;
 
     /**
-     * 校验 token 并返回 server; 失败抛 UNAUTHORIZED.
+     * 校验 token 并获得 server
      *
-     * @param agentToken X-Agent-Token header 值
-     * @return server DTO (含 agent_token / SSH 凭据等供 agent 装机/心跳使用)
+     * @param agentToken X-Agent-Token header
+     * @return server 对象
      */
     public ResourceServerRespDTO verifyAndGetServer(String agentToken) {
         if (StrUtil.isBlank(agentToken)) {

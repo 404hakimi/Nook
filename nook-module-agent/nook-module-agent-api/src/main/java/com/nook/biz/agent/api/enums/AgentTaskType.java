@@ -4,8 +4,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Agent task 类型枚举; 跟 go agent 端 executor.Register 的字符串 key 一一对应.
- * Backend dispatch / agent 端反序列化都按此 code 路由.
+ * Agent 任务类型枚举
+ *
+ * @author nook
  */
 @Getter
 @RequiredArgsConstructor

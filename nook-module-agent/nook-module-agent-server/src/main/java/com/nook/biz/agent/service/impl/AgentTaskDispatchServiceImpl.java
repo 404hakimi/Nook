@@ -8,6 +8,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+/**
+ * Agent 任务派发 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor

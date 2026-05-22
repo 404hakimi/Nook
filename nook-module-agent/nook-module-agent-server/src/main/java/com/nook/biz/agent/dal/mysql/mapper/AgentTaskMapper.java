@@ -12,7 +12,11 @@ import org.apache.ibatis.annotations.Mapper;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** AgentTask 数据访问 (任务队列). */
+/**
+ * Agent 任务 Mapper
+ *
+ * @author nook
+ */
 @Mapper
 public interface AgentTaskMapper extends BaseMapper<AgentTaskDO> {
 

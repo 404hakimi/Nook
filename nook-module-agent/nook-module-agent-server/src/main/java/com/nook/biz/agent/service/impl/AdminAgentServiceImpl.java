@@ -1,20 +1,24 @@
 package com.nook.biz.agent.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.agent.api.enums.AgentConfigSyncState;
 import com.nook.biz.agent.api.enums.AgentOnlineState;
+import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentListItemRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskPageReqVO;
+import com.nook.biz.agent.convert.AgentRuntimeConfigConvert;
 import com.nook.biz.agent.dal.dataobject.AgentRuntimeConfigDO;
 import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentRuntimeConfigMapper;
 import com.nook.biz.agent.dal.mysql.mapper.AgentTaskMapper;
+import com.nook.biz.agent.framework.config.AgentProperties;
 import com.nook.biz.agent.service.AdminAgentService;
-import com.nook.biz.agent.service.AgentBinaryResolver;
+import com.nook.biz.agent.framework.binary.AgentBinaryResolver;
 import com.nook.biz.agent.service.AgentTaskDispatchService;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
@@ -22,20 +26,24 @@ import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
-import com.nook.common.web.response.PageResult;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
+import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.util.DigestUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+/**
+ * Admin Agent 管理 Service 实现类
+ *
+ * @author nook
+ */
 @Service
 @RequiredArgsConstructor
 public class AdminAgentServiceImpl implements AdminAgentService {
@@ -46,59 +54,51 @@ public class AdminAgentServiceImpl implements AdminAgentService {
     private final AgentBinaryResolver agentBinaryResolver;
     private final AgentRuntimeConfigMapper agentRuntimeConfigMapper;
     private final AgentTaskMapper agentTaskMapper;
-
-    /** Backend 公网 URL; agent 调下载接口用. application.yml 配 nook.backend.public-url. */
-    @Value("${nook.backend.public-url:}")
-    private String backendPublicUrl;
+    private final AgentProperties agentProperties;
 
     @Override
     public List<AdminAgentListItemRespVO> list() {
         List<ResourceServerRespDTO> servers = resourceServerApi.listAll();
-        if (CollectionUtils.isAnyEmpty(servers)) return List.of();
-        var ids = CollectionUtils.convertSet(servers, ResourceServerRespDTO::getId);
+        if (CollUtil.isEmpty(servers)) return List.of();
+        Set<String> ids = CollectionUtils.convertSet(servers, ResourceServerRespDTO::getId);
         Map<String, ResourceServerRuntimeRespDTO> runtimeMap = resourceServerRuntimeApi.listByServerIds(ids);
         Map<String, AgentRuntimeConfigDO> cfgMap = CollectionUtils.convertMap(
                 agentRuntimeConfigMapper.selectBatchIds(ids),
                 AgentRuntimeConfigDO::getServerId);
         LocalDateTime now = LocalDateTime.now();
-        return servers.stream().map(s -> {
-            AdminAgentListItemRespVO vo = new AdminAgentListItemRespVO();
-            vo.setServerId(s.getId());
-            vo.setServerName(s.getName());
-            vo.setHost(s.getHost());
-            vo.setLifecycleState(s.getLifecycleState());
-            ResourceServerRuntimeRespDTO rt = runtimeMap.get(s.getId());
-            Long elapsedSec = null;
-            Integer tempUnhealthy = null;
-            if (rt != null) {
-                vo.setAgentVersion(rt.getAgentVersion());
-                vo.setLastHeartbeatAt(rt.getLastHeartbeatAt());
-                vo.setTempUnhealthy(rt.getTempUnhealthy());
-                tempUnhealthy = rt.getTempUnhealthy();
-                if (rt.getLastHeartbeatAt() != null) {
-                    elapsedSec = Duration.between(rt.getLastHeartbeatAt(), now).getSeconds();
-                    vo.setElapsedSec(elapsedSec);
-                }
-            }
-            vo.setOnlineState(AgentOnlineState.classify(elapsedSec, tempUnhealthy).name());
-            vo.setConfigSyncState(classifyConfigSync(cfgMap.get(s.getId())).name());
-            return vo;
-        }).toList();
+        List<AdminAgentListItemRespVO> result = new ArrayList<>(servers.size());
+        for (ResourceServerRespDTO s : servers) {
+            result.add(buildListItem(s, runtimeMap.get(s.getId()), cfgMap.get(s.getId()), now));
+        }
+        return result;
     }
 
-    /**
-     * 算配置同步状态.
-     *
-     * @param row agent_runtime_config 行 (null 表示从未配过)
-     * @return 状态枚举
-     */
-    private static AgentConfigSyncState classifyConfigSync(AgentRuntimeConfigDO row) {
-        if (row == null) return AgentConfigSyncState.NEVER_CONFIGURED;
-        String storedMd5 = DigestUtils.md5DigestAsHex(
-                (row.getConfigYaml() == null ? "" : row.getConfigYaml()).getBytes(StandardCharsets.UTF_8));
-        return storedMd5.equals(row.getAppliedYamlMd5())
-                ? AgentConfigSyncState.SYNCED
-                : AgentConfigSyncState.PENDING;
+    /** 单行列表项: 拼 server + runtime + 配置同步状态. */
+    private static AdminAgentListItemRespVO buildListItem(ResourceServerRespDTO s,
+                                                          ResourceServerRuntimeRespDTO rt,
+                                                          AgentRuntimeConfigDO cfg,
+                                                          LocalDateTime now) {
+        AdminAgentListItemRespVO vo = new AdminAgentListItemRespVO();
+        vo.setServerId(s.getId());
+        vo.setServerName(s.getName());
+        vo.setHost(s.getHost());
+        vo.setLifecycleState(s.getLifecycleState());
+        Long elapsedSec = null;
+        Integer tempUnhealthy = null;
+        if (rt != null) {
+            vo.setAgentVersion(rt.getAgentVersion());
+            vo.setLastHeartbeatAt(rt.getLastHeartbeatAt());
+            vo.setTempUnhealthy(rt.getTempUnhealthy());
+            tempUnhealthy = rt.getTempUnhealthy();
+            if (rt.getLastHeartbeatAt() != null) {
+                elapsedSec = Duration.between(rt.getLastHeartbeatAt(), now).getSeconds();
+                vo.setElapsedSec(elapsedSec);
+            }
+        }
+        vo.setOnlineState(AgentOnlineState.classify(elapsedSec, tempUnhealthy).name());
+        AgentConfigSyncState syncState = AgentRuntimeConfigConvert.INSTANCE.classifySyncState(cfg);
+        vo.setConfigSyncState(syncState.name());
+        return vo;
     }
 
     @Override
@@ -132,14 +132,14 @@ public class AdminAgentServiceImpl implements AdminAgentService {
     @Override
     public String dispatchUpgrade(String serverId) {
         resourceServerApi.validateExists(serverId);
-        if (StrUtil.isBlank(backendPublicUrl)) {
+        if (StrUtil.isBlank(agentProperties.getBackendPublicUrl())) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
-                    "nook.backend.public-url 未配置, agent 无法回拉 binary");
+                    "nook.agent.backend-public-url 未配置, agent 无法回拉 binary");
         }
         ResourceServerRuntimeRespDTO rt = resourceServerRuntimeApi.getByServerId(serverId);
-        String role = AgentBinaryResolver.extractRole(rt == null ? null : rt.getAgentVersion());
+        String role = AgentRole.extractCodeFromAgentVersion(rt == null ? null : rt.getAgentVersion());
         AgentBinaryResolver.AgentBinary bin = agentBinaryResolver.resolve(role, "linux", "amd64");
-        String url = backendPublicUrl + "/admin/agent-dist/bin?role=" + role;
+        String url = agentProperties.getBackendPublicUrl() + "/admin/agent-dist/bin?role=" + role;
         String fullVersion = role + "-" + bin.version();
         String payload = String.format("{\"url\":\"%s\",\"sha256\":\"%s\",\"version\":\"%s\"}",
                 escape(url), escape(bin.sha256()), escape(fullVersion));

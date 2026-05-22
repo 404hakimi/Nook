@@ -5,7 +5,11 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** Admin Agent 列表项. */
+/**
+ * 管理后台 - Agent 列表项 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class AdminAgentListItemRespVO {
 

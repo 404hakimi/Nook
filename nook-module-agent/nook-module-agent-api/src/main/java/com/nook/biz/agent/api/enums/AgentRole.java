@@ -4,8 +4,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Agent 角色枚举; 跟 nook-agent 二进制 + Go cmd/* 子命令对齐.
- * code 字段是落库 / 跨进程线协议形式 (lowercase), enum name 是 Java 代码内部用.
+ * Agent 角色枚举
+ *
+ * @author nook
  */
 @Getter
 @RequiredArgsConstructor
@@ -43,6 +44,20 @@ public enum AgentRole {
             if (r.code.equals(code)) return true;
         }
         return false;
+    }
+
+    /**
+     * 从 agentVersion (e.g. "frontline-0.7.0") 提取 role code; 解析失败默认 frontline.
+     *
+     * @param agentVersion runtime.agent_version 字段
+     * @return role code (frontline / landing)
+     */
+    public static String extractCodeFromAgentVersion(String agentVersion) {
+        if (agentVersion == null || agentVersion.isBlank()) return FRONTLINE.code;
+        int i = agentVersion.indexOf('-');
+        if (i <= 0) return FRONTLINE.code;
+        String r = agentVersion.substring(0, i);
+        return isValid(r) ? r : FRONTLINE.code;
     }
 
     /** 给 @RequestParam(defaultValue=...) / @Pattern(regexp=...) 等编译期常量用; 普通代码用 enum.code(). */

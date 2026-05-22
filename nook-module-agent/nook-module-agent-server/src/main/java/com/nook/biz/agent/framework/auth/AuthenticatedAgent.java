@@ -7,9 +7,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标 Controller 方法参数: 由 AuthenticatedAgentArgumentResolver 读 X-Agent-Token Header,
- * 调 AgentAuthService.verifyAndGetServer 验完按参数类型注入 (String → serverId, ResourceServerDO → 完整 DO).
- * 校验失败抛 UNAUTHORIZED.
+ * Agent 鉴权参数注解
+ *
+ * @author nook
  */
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)

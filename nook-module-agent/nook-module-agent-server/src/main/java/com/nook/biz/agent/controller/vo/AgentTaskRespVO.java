@@ -2,7 +2,11 @@ package com.nook.biz.agent.controller.vo;
 
 import lombok.Data;
 
-/** 派给 agent 的单个任务 (GET /api/agent/tasks 返回列表). */
+/**
+ * Agent 任务 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class AgentTaskRespVO {
 

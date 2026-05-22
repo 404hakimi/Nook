@@ -3,7 +3,11 @@ package com.nook.biz.agent.controller.vo;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/** Agent 心跳上报入参. */
+/**
+ * Agent 心跳上报 Request VO
+ *
+ * @author nook
+ */
 @Data
 public class AgentHeartbeatReqVO {
 

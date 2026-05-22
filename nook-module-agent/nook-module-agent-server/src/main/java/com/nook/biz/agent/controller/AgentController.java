@@ -22,7 +22,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** Agent push / pull 接口, 走 X-Agent-Token Header 鉴权 (@AuthenticatedAgent 解析); 跟 admin sa-token 体系隔离. */
+/**
+ * Agent 上报 / 拉取任务 Controller
+ *
+ * @author nook
+ */
 @RestController
 @RequestMapping("/api/agent")
 @RequiredArgsConstructor

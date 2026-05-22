@@ -1,8 +1,9 @@
 package com.nook.biz.agent.api.enums;
 
 /**
- * Agent 在线状态分类; 由 last_heartbeat_at 距今秒数 + temp_unhealthy 标志推导.
- * 阈值跟 AgentHeartbeatTimeoutJob 对齐, 改一处就同步改这里.
+ * Agent 在线状态枚举
+ *
+ * @author nook
  */
 public enum AgentOnlineState {
     /** 心跳距今 < 60s, 健康. */

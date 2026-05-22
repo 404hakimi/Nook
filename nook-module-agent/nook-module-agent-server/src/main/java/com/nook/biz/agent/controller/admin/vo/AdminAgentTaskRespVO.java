@@ -5,7 +5,11 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** Admin 看某 server 的 task 历史; 用来排查升级/改配置/清日志 task. */
+/**
+ * 管理后台 - Agent 任务 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class AdminAgentTaskRespVO {
 

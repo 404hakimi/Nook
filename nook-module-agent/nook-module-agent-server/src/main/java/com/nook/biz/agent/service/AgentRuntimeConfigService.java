@@ -2,21 +2,36 @@ package com.nook.biz.agent.service;
 
 import com.nook.biz.agent.dal.dataobject.AgentRuntimeConfigDO;
 
-/** Agent 运行时配置: admin 改整段 yaml → config_reload task 推给 agent. */
+/**
+ * Agent 运行时配置 Service 接口
+ *
+ * @author nook
+ */
 public interface AgentRuntimeConfigService {
 
-    /** 取某 server 配置; 未配置返 null. */
+    /**
+     * 获得 Agent 运行时配置
+     *
+     * @param serverId server 编号
+     * @return 配置对象 (未配置返 null)
+     */
     AgentRuntimeConfigDO get(String serverId);
 
     /**
-     * Admin 保存 yaml 并派 config_reload task.
+     * 保存 yaml 并派发 config_reload 任务
      *
-     * @param yaml       完整 yaml; 仅做语法校验, 字段语义 agent 端处理
-     * @param operatorId 操作 admin 的 id
-     * @return 派发的 task id
+     * @param serverId   server 编号
+     * @param yaml       yaml 内容
+     * @param operatorId 操作人编号
+     * @return 任务编号
      */
     String save(String serverId, String yaml, String operatorId);
 
-    /** config_reload task SUCCESS 回调: 写 applied_at + applied_yaml_md5. */
+    /**
+     * config_reload 成功回调: 回写 applied 时间与 md5
+     *
+     * @param serverId       server 编号
+     * @param appliedYamlMd5 已应用 yaml 的 md5
+     */
     void onConfigReloadSuccess(String serverId, String appliedYamlMd5);
 }

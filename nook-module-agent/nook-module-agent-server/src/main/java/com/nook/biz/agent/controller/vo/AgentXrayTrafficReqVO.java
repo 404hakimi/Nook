@@ -9,7 +9,11 @@ import lombok.Data;
 
 import java.util.List;
 
-/** Agent 上报 xray user 累计流量 (每 5min 一次, 来自 xray api statsquery). */
+/**
+ * Agent xray 流量上报 Request VO
+ *
+ * @author nook
+ */
 @Data
 public class AgentXrayTrafficReqVO {
 

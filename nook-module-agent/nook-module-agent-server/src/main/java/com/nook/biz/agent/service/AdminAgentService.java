@@ -8,16 +8,42 @@ import com.nook.common.web.response.PageResult;
 
 import java.util.List;
 
-/** Admin Agent 管理 service; 拼接 server + runtime + capacity 数据. */
+/**
+ * Admin Agent 管理 Service 接口
+ *
+ * @author nook
+ */
 public interface AdminAgentService {
 
+    /**
+     * 获得 Agent 总览列表
+     *
+     * @return Agent 列表
+     */
     List<AdminAgentListItemRespVO> list();
 
+    /**
+     * 获得 Agent 详情
+     *
+     * @param serverId server 编号
+     * @return Agent 详情
+     */
     AdminAgentDetailRespVO detail(String serverId);
 
-    /** 派 agent_upgrade task; agent 拉 backend 当前 FS 上的 binary. 返回 taskId. */
+    /**
+     * 派发升级任务
+     *
+     * @param serverId server 编号
+     * @return 任务编号
+     */
     String dispatchUpgrade(String serverId);
 
-    /** Admin 查某 server task 分页 (倒序, 含类型/状态筛选). */
+    /**
+     * 获得 Agent 任务分页
+     *
+     * @param serverId server 编号
+     * @param reqVO    分页 + 筛选条件
+     * @return 任务分页
+     */
     PageResult<AgentTaskDO> pageTasks(String serverId, AdminAgentTaskPageReqVO reqVO);
 }

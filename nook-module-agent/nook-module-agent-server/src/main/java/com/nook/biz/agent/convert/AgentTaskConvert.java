@@ -1,6 +1,7 @@
 package com.nook.biz.agent.convert;
 
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskRespVO;
+import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
 import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.Mapper;
@@ -8,7 +9,11 @@ import org.mapstruct.factory.Mappers;
 
 import java.util.List;
 
-/** AgentTaskDO ↔ AdminAgentTaskRespVO. */
+/**
+ * Agent 任务 Convert
+ *
+ * @author nook
+ */
 @Mapper
 public interface AgentTaskConvert {
 
@@ -21,4 +26,9 @@ public interface AgentTaskConvert {
     default PageResult<AdminAgentTaskRespVO> convertPage(PageResult<AgentTaskDO> page) {
         return PageResult.of(page.getTotal(), convertList(page.getRecords()));
     }
+
+    /** Agent 推接口用的精简 VO (仅 id / taskType / taskPayload). */
+    AgentTaskRespVO convertAgent(AgentTaskDO entity);
+
+    List<AgentTaskRespVO> convertAgentList(List<AgentTaskDO> list);
 }

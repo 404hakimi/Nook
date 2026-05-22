@@ -4,20 +4,19 @@ import cn.hutool.core.util.StrUtil;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.controller.vo.AgentInstallMetaRespVO;
 import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
+import com.nook.biz.agent.framework.config.AgentProperties;
 import com.nook.biz.agent.framework.script.AgentScripts;
 import com.nook.biz.agent.service.AgentInstallScriptService;
+import com.nook.biz.agent.validator.AgentInstallValidator;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.xray.XrayNodeApi;
 import com.nook.biz.node.api.xray.dto.XrayNodeRespDTO;
-import com.nook.common.web.error.CommonErrorCode;
-import com.nook.common.web.exception.BusinessException;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSessions;
 import com.nook.framework.ssh.script.ScriptCatalog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -25,39 +24,30 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/** Agent SSH 自动装机: 表单字段拼 yaml, frontline 必须先装 xray. */
+/**
+ * Agent SSH 自动装机 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AgentInstallScriptServiceImpl implements AgentInstallScriptService {
 
+    /** xray stats 上报间隔; agent-side 轮询率, 装机时统一值, 后续 ConfigEditDialog 可改. */
+    private static final int XRAY_STATS_INTERVAL_SECONDS = 300;
+
     private final ResourceServerApi resourceServerApi;
     private final XrayNodeApi xrayNodeApi;
     private final ScriptCatalog scriptCatalog;
-
-    /** Backend 公网 URL; agent 装机后回拉 binary / heartbeat. */
-    @Value("${nook.backend.public-url:}")
-    private String backendPublicUrl;
-
-    /** xray stats 上报间隔; agent-side 轮询率, 装机时统一值, 后续 ConfigEditDialog 可改. */
-    private static final int XRAY_STATS_INTERVAL_SECONDS = 300;
+    private final AgentInstallValidator agentInstallValidator;
+    private final AgentProperties agentProperties;
 
     @Override
     public void installStreaming(String serverId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
         ResourceServerRespDTO srv = resourceServerApi.validateExists(serverId);
-        // agent_token 由 createServer 一次性签发, 装机/重装/升级永远复用; 缺失说明是历史 server 漏签
-        if (StrUtil.isBlank(srv.getAgentToken())) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
-                    "server " + srv.getName() + " 缺 agent_token; 用 UPDATE resource_server SET agent_token=... 补一个");
-        }
-
-        // frontline 装机必须带 xray bin + api_port (前端从 /agent/install-meta 读 xray_node 后回塞);
-        // 不再后端重查, 但强制非空校验避免前端漏传
+        agentInstallValidator.validateInstallPrerequisite(srv, reqVO);
         if (AgentRole.FRONTLINE.getCode().equals(reqVO.getRole())) {
-            if (StrUtil.isBlank(reqVO.getXrayBin()) || reqVO.getXrayApiPort() == null) {
-                throw new BusinessException(CommonErrorCode.PARAM_INVALID,
-                        "frontline 装机必须传 xrayBin + xrayApiPort (server " + srv.getName() + " 可能未装 xray)");
-            }
             lineSink.accept("[nook] xray: bin=" + reqVO.getXrayBin() + " apiPort=" + reqVO.getXrayApiPort() + "\n");
         }
 
@@ -99,12 +89,10 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
 
     @Override
     public AgentInstallMetaRespVO getInstallMeta(String role, String serverId) {
-        if (!AgentRole.isValid(role)) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "role 只能是 frontline / landing");
-        }
+        agentInstallValidator.validateRole(role);
         // meta 只返 "backend 已知数据" (admin 前端拿去 prefill, 用户可改); 路径默认由前端持有, 此处不下发
         AgentInstallMetaRespVO vo = new AgentInstallMetaRespVO();
-        vo.setBackendUrl(StrUtil.blankToDefault(backendPublicUrl, ""));
+        vo.setBackendUrl(StrUtil.blankToDefault(agentProperties.getBackendPublicUrl(), ""));
         if (StrUtil.isNotBlank(serverId)) {
             ResourceServerRespDTO srv = resourceServerApi.validateExists(serverId);
             // SSH 默认从 resource_server 读

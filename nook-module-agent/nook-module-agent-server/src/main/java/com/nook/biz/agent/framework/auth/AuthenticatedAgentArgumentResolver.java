@@ -11,9 +11,9 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
 /**
- * 解析 @AuthenticatedAgent 参数: 读 X-Agent-Token Header → verifyAndGetServer.
- * 按参数类型分发: String → server.id (绝大多数 controller 只需要 id);
- * ResourceServerRespDTO → 完整 DTO (需要其它字段时用).
+ * Agent 鉴权参数解析器
+ *
+ * @author nook
  */
 @Component
 @RequiredArgsConstructor

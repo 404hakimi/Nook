@@ -1,8 +1,9 @@
 package com.nook.biz.agent.api.enums;
 
 /**
- * Agent task 队列状态机; agent_task.status 列 + 上下行接口 status 字段同一组值.
- * enum name 即 code (uppercase), 直接 .name() 即可序列化.
+ * Agent 任务状态枚举
+ *
+ * @author nook
  */
 public enum AgentTaskStatus {
     /** 待 agent 拾取; backend INSERT 时初始状态. */

@@ -4,7 +4,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/** Admin 保存 yaml 入参; 直接整段覆盖. */
+/**
+ * 管理后台 - Agent 运行时配置保存 Request VO
+ *
+ * @author nook
+ */
 @Data
 public class AgentRuntimeConfigSaveReqVO {
 

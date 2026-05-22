@@ -1,10 +1,10 @@
-package com.nook.biz.agent.service;
+package com.nook.biz.agent.framework.binary;
 
-import com.nook.biz.agent.api.enums.AgentRole;
+import com.nook.biz.agent.framework.config.AgentProperties;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -19,25 +19,31 @@ import java.util.HexFormat;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** 从 nook.agent.bin-dir 目录按 nook-{role}-{ver}-{os}-{arch} 文件名解析当前 agent binary, mtime 最新优先. */
+/**
+ * Agent binary 解析
+ *
+ * @author nook
+ */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class AgentBinaryResolver {
-
-    /** agent binary 所在目录; 相对路径以 backend 启动 CWD 为基准. */
-    @Value("${nook.agent.bin-dir:agent}")
-    private String binDir;
 
     /** 文件名 pattern: nook-{role}-{version}-{os}-{arch}; role = frontline / landing. */
     private static final Pattern FILE_PATTERN = Pattern.compile(
             "^nook-(?<role>frontline|landing)-(?<version>.+)-(?<os>linux|darwin|windows)-(?<arch>amd64|arm64)$");
+
+    private final AgentProperties agentProperties;
 
     public record AgentBinary(Path path, String role, String version, String os, String arch, long sizeBytes, String sha256) {}
 
     /**
      * 找指定 role + os/arch 的当前 binary; 多个匹配按 mtime 取最新.
      *
-     * @param role frontline / landing (跟 binary 文件名 + agent 自报的 version prefix 一致)
+     * @param role frontline / landing
+     * @param os   操作系统
+     * @param arch CPU 架构
+     * @return binary 元信息 (Path + version + size + sha256)
      */
     public AgentBinary resolve(String role, String os, String arch) {
         if (role == null || role.isBlank()) {
@@ -71,22 +77,9 @@ public class AgentBinaryResolver {
                 m.group("os"), m.group("arch"), chosen.length(), sha256(chosen.toPath()));
     }
 
-    /**
-     * 从 agentVersion 字符串 (e.g., "frontline-0.7.0") 提取 role; 未知 / null 返默认 frontline.
-     *
-     * @param agentVersion runtime.agent_version 字段
-     * @return role code (frontline / landing)
-     */
-    public static String extractRole(String agentVersion) {
-        if (agentVersion == null || agentVersion.isBlank()) return AgentRole.FRONTLINE.getCode();
-        int i = agentVersion.indexOf('-');
-        if (i <= 0) return AgentRole.FRONTLINE.getCode();
-        String r = agentVersion.substring(0, i);
-        return AgentRole.isValid(r) ? r : AgentRole.FRONTLINE.getCode();
-    }
-
     /** 解析 binDir; 绝对路径直接用, 相对路径找 CWD 或上一级 (兼容 IntelliJ 在子 module 跑). */
     private File resolveDir() {
+        String binDir = agentProperties.getBinDir();
         File f = new File(binDir);
         if (f.isAbsolute()) return f;
         Path cwd = Paths.get(System.getProperty("user.dir"));

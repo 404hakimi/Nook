@@ -9,10 +9,9 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 /**
- * Agent SSH 装机请求; 字段不入库, 仅本次装机用. 前端 dialog 表单 → backend 拼 yaml → SSH 写到远端.
+ * 管理后台 - Agent 装机 Request VO
  *
- * <p>xray 两个字段 (bin / apiPort) 前端从 /agent-install-meta 拿到后回塞; frontline role 时 backend
- * 强校验非空. stats_interval 是 agent-side 轮询率, 装机时统一用 300s, 后续 ConfigEditDialog 可改.
+ * @author nook
  */
 @Data
 public class AgentInstallReqVO {

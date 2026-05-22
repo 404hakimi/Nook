@@ -36,7 +36,7 @@ public class XrayClientTrafficServiceImpl implements XrayClientTrafficService {
 
     @Override
     public XrayClientTrafficRespVO getXrayClientTraffic(String id) {
-        // 新鲜度 ≤ 一个采样周期 (默认 30min, 见 nook.traffic.sample-interval-ms)
+        // 流量来源: agent 每 5min push xray statsquery → xray_client_traffic 表; 这里读最新累计
         XrayClientDO client = clientValidator.validateExists(id);
         XrayClientTrafficDO row = xrayClientTrafficMapper.selectByClientId(id);
         long dbUp = row == null || row.getUplinkBytes() == null ? 0L : row.getUplinkBytes();

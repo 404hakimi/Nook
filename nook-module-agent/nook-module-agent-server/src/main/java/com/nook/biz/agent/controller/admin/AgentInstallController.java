@@ -23,7 +23,11 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 
 import java.time.Duration;
 
-/** Admin 端 Agent 装机: SSH 流式装机 + 装机元信息查询 (前端 ProvisionDialog prefill 用). 走 admin sa-token 拦截. */
+/**
+ * 管理后台 - Agent 装机 Controller
+ *
+ * @author nook
+ */
 @RestController
 @RequestMapping("/admin/agent")
 @RequiredArgsConstructor

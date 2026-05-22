@@ -5,7 +5,11 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/** Agent 上报任务执行结果. */
+/**
+ * Agent 任务结果上报 Request VO
+ *
+ * @author nook
+ */
 @Data
 public class AgentTaskResultReqVO {
 

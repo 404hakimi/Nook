@@ -20,7 +20,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** Admin 端 Agent 管理: 列表 / 详情 / 升级 / 任务历史; 走 admin sa-token 拦截. */
+/**
+ * 管理后台 - Agent 管理 Controller
+ *
+ * @author nook
+ */
 @RestController
 @RequestMapping("/admin/agent")
 @RequiredArgsConstructor

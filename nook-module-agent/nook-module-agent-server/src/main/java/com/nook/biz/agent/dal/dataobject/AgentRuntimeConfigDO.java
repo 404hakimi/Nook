@@ -6,7 +6,11 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** Agent 运行时配置: 每台 server 一份 yaml, admin 改后派 config_reload task. */
+/**
+ * Agent 运行时配置 DO
+ *
+ * @author nook
+ */
 @Data
 @TableName("agent_runtime_config")
 public class AgentRuntimeConfigDO {

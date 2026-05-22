@@ -8,7 +8,7 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * Agent 任务队列条目 (backend 写, agent 轮询拉).
+ * Agent 任务 DO
  *
  * @author nook
  */

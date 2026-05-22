@@ -4,7 +4,11 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Data;
 
-/** Agent 上报机房 NIC 流量 (从 vnstat 取). */
+/**
+ * Agent NIC 流量上报 Request VO
+ *
+ * @author nook
+ */
 @Data
 public class AgentNicTrafficReqVO {
 

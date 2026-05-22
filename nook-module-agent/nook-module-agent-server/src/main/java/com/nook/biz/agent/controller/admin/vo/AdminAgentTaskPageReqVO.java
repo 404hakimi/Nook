@@ -4,7 +4,11 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.Data;
 
-/** Admin 看 server task 历史 分页入参. */
+/**
+ * 管理后台 - Agent 任务分页 Request VO
+ *
+ * @author nook
+ */
 @Data
 public class AdminAgentTaskPageReqVO {
 

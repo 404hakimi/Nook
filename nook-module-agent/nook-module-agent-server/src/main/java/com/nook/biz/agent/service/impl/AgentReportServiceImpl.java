@@ -1,17 +1,19 @@
 package com.nook.biz.agent.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nook.biz.agent.api.enums.AgentTaskStatus;
+import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskResultReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
 import com.nook.biz.agent.controller.vo.AgentXrayTrafficReqVO;
+import com.nook.biz.agent.convert.AgentTaskConvert;
 import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentTaskMapper;
-import com.nook.biz.agent.api.enums.AgentTaskStatus;
-import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.agent.service.AgentRuntimeConfigService;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
@@ -19,17 +21,22 @@ import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
 import com.nook.biz.node.api.xray.XrayClientTrafficSampleApi;
 import com.nook.biz.node.api.xray.dto.AgentStatSnapshotDTO;
 import com.nook.biz.node.api.xray.dto.SampleStatDTO;
-import com.nook.common.utils.collection.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Agent 上报数据 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -71,21 +78,16 @@ public class AgentReportServiceImpl implements AgentReportService {
     @Transactional(rollbackFor = Exception.class)
     public List<AgentTaskRespVO> pullPendingTasks(String serverId, int limit) {
         List<AgentTaskDO> pending = agentTaskMapper.selectPending(serverId, limit);
-        if (CollectionUtils.isAnyEmpty(pending)) {
+        if (CollUtil.isEmpty(pending)) {
             return List.of();
         }
         LocalDateTime now = LocalDateTime.now();
         // markPicked 是 CAS WHERE status=PENDING; 防多 agent 并发拉同一任务 (理论上一 server 只跑一 agent, 防御性)
-        return pending.stream()
-                .filter(t -> agentTaskMapper.markPicked(t.getId(), now) > 0)
-                .map(t -> {
-                    AgentTaskRespVO vo = new AgentTaskRespVO();
-                    vo.setId(t.getId());
-                    vo.setTaskType(t.getTaskType());
-                    vo.setTaskPayload(t.getTaskPayload());
-                    return vo;
-                })
-                .toList();
+        List<AgentTaskDO> picked = new ArrayList<>(pending.size());
+        for (AgentTaskDO t : pending) {
+            if (agentTaskMapper.markPicked(t.getId(), now) > 0) picked.add(t);
+        }
+        return AgentTaskConvert.INSTANCE.convertAgentList(picked);
     }
 
     @Override
@@ -108,7 +110,7 @@ public class AgentReportServiceImpl implements AgentReportService {
 
     @Override
     public void receiveXrayTraffic(String serverId, AgentXrayTrafficReqVO req) {
-        if (req.getStats() == null || req.getStats().isEmpty()) {
+        if (CollUtil.isEmpty(req.getStats())) {
             log.debug("[receiveXrayTraffic] serverId={} 空 stats, 跳过", serverId);
             return;
         }

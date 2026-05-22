@@ -10,7 +10,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
-/** Agent 模块脚本常量 + 启动注册进框架 ScriptCatalog. */
+/**
+ * Agent 模块脚本注册
+ *
+ * @author nook
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor

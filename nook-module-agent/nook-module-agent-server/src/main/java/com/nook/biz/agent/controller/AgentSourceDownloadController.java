@@ -2,11 +2,11 @@ package com.nook.biz.agent.controller;
 
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.framework.auth.AuthenticatedAgent;
-import com.nook.biz.agent.service.AgentBinaryResolver;
+import com.nook.biz.agent.framework.config.AgentProperties;
+import com.nook.biz.agent.framework.binary.AgentBinaryResolver;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -20,7 +20,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-/** Agent binary / 源码下载: /bin 走 X-Agent-Token (@AuthenticatedAgent), /agent-src.tar.gz 走 admin sa-token. */
+/**
+ * Agent binary / 源码下载 Controller
+ *
+ * @author nook
+ */
 @Slf4j
 @RestController
 @RequestMapping("/admin/agent-dist")
@@ -28,10 +32,7 @@ import java.nio.file.Paths;
 public class AgentSourceDownloadController {
 
     private final AgentBinaryResolver agentBinaryResolver;
-
-    /** Agent 源码根目录 (相对 backend CWD); 默认 nook-agent. */
-    @Value("${nook.agent.src-dir:nook-agent}")
-    private String agentSrcDir;
+    private final AgentProperties agentProperties;
 
     /**
      * 装机 / 升级时 agent 回拉 binary; AgentBinaryResolver 按 role/os/arch 解析 nook.agent.bin-dir 下最新文件.
@@ -107,12 +108,13 @@ public class AgentSourceDownloadController {
      * @return 解析后的源码目录 Path (不保证一定存在, 调用方自检)
      */
     private Path resolveSrcDir() {
-        File f = new File(agentSrcDir);
+        String srcDir = agentProperties.getSrcDir();
+        File f = new File(srcDir);
         if (f.isAbsolute()) return f.toPath();
         Path cwd = Paths.get(System.getProperty("user.dir"));
-        Path direct = cwd.resolve(agentSrcDir);
+        Path direct = cwd.resolve(srcDir);
         if (direct.toFile().isDirectory()) return direct;
-        Path parent = cwd.getParent() == null ? direct : cwd.getParent().resolve(agentSrcDir);
+        Path parent = cwd.getParent() == null ? direct : cwd.getParent().resolve(srcDir);
         return parent.toFile().isDirectory() ? parent : direct;
     }
 }

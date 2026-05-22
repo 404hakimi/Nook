@@ -5,7 +5,11 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** Admin 拿某 server 的 agent 运行时配置 + 同步状态. */
+/**
+ * 管理后台 - Agent 运行时配置 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class AgentRuntimeConfigRespVO {
 

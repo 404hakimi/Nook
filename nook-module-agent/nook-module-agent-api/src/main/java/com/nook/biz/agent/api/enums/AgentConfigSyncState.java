@@ -1,6 +1,10 @@
 package com.nook.biz.agent.api.enums;
 
-/** Agent 运行时配置同步状态; 由 agent_runtime_config 当前 yaml md5 vs applied_md5 推导. */
+/**
+ * Agent 运行时配置同步状态枚举
+ *
+ * @author nook
+ */
 public enum AgentConfigSyncState {
     /** agent_runtime_config 表无该 server 行; 装机时由后端首次写入. */
     NEVER_CONFIGURED,
