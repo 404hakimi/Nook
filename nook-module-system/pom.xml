@@ -12,21 +12,11 @@
     </parent>
 
     <artifactId>nook-module-system</artifactId>
-    <description>后台用户体系: system_user / system_user_log + 登录 + 操作日志 + Controller</description>
+    <packaging>pom</packaging>
+    <description>System 模块聚合 (admin 用户 + 鉴权 + 字典等): api (对外契约) + server (实现).</description>
 
-    <dependencies>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-spring-boot-starter-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-spring-boot-starter-mybatis</artifactId>
-        </dependency>
-        <!-- 提供 OpLogEnricher SPI; system 模块给 op_log 补 operator (admin) realName/username -->
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-module-operation</artifactId>
-        </dependency>
-    </dependencies>
+    <modules>
+        <module>nook-module-system-api</module>
+        <module>nook-module-system-server</module>
+    </modules>
 </project>
