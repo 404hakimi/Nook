@@ -17,11 +17,11 @@
     <dependencies>
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-module-system</artifactId>
+            <artifactId>nook-module-system-server</artifactId>
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-module-member</artifactId>
+            <artifactId>nook-module-member-server</artifactId>
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>

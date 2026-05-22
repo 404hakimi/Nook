@@ -29,7 +29,7 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- 框架 starter (controller / service / dal / SSH script catalog 用) -->
+        <!-- 框架 starter -->
         <dependency>
             <groupId>com.nook</groupId>
             <artifactId>nook-spring-boot-starter-web</artifactId>

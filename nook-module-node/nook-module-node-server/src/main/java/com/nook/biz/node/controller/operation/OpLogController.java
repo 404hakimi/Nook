@@ -7,7 +7,7 @@ import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.client.XrayClientService;
 import com.nook.biz.operation.dal.dataobject.OpLogDO;
 import com.nook.biz.operation.service.OpLogService;
-import com.nook.biz.system.service.SystemUserService;
+import com.nook.biz.system.api.user.SystemUserApi;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +37,7 @@ public class OpLogController {
 
     private final OpLogService opLogService;
     private final ResourceServerService resourceServerService;
-    private final SystemUserService systemUserService;
+    private final SystemUserApi systemUserApi;
     private final XrayClientService xrayClientService;
 
     @GetMapping("/page")
@@ -51,7 +51,7 @@ public class OpLogController {
         Set<String> operatorIds = OpLogConvert.extractOperatorIds(rows);
         Set<String> targetIds = OpLogConvert.extractTargetIds(rows);
         Map<String, String> serverNames = resourceServerService.getServerNameMap(serverIds);
-        Map<String, String> operatorNames = systemUserService.loadUserNameMap(operatorIds);
+        Map<String, String> operatorNames = systemUserApi.getUserNameMap(operatorIds);
         Map<String, String> targetNames = xrayClientService.getEmailMap(targetIds);
 
         return Result.ok(OpLogConvert.INSTANCE.convertPageWithInfo(pageResult,
@@ -63,7 +63,7 @@ public class OpLogController {
         OpLogDO entity = opLogService.findById(id);
         List<OpLogDO> single = Collections.singletonList(entity);
         Map<String, String> serverNames = resourceServerService.getServerNameMap(OpLogConvert.extractServerIds(single));
-        Map<String, String> operatorNames = systemUserService.loadUserNameMap(OpLogConvert.extractOperatorIds(single));
+        Map<String, String> operatorNames = systemUserApi.getUserNameMap(OpLogConvert.extractOperatorIds(single));
         Map<String, String> targetNames = xrayClientService.getEmailMap(OpLogConvert.extractTargetIds(single));
         return Result.ok(OpLogConvert.INSTANCE.convertForDetailWithInfo(entity,
                 serverNames, operatorNames, targetNames));

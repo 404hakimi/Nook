@@ -12,14 +12,17 @@
     </parent>
 
     <artifactId>nook-module-node-server</artifactId>
-    <description>Node 模块实现</description>
+    <description>Node 模块实现 (controller + service + dal).</description>
 
     <dependencies>
+        <!-- 本模块对外契约 -->
         <dependency>
             <groupId>com.nook</groupId>
             <artifactId>nook-module-node-api</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <!-- 框架 starter -->
         <dependency>
             <groupId>com.nook</groupId>
             <artifactId>nook-spring-boot-starter-web</artifactId>
@@ -36,15 +39,17 @@
             <groupId>com.nook</groupId>
             <artifactId>nook-spring-boot-starter-ssh</artifactId>
         </dependency>
+
+        <!-- 跨业务模块: op_log 服务 + 通过 system-api 拿 admin realName/username -->
         <dependency>
             <groupId>com.nook</groupId>
             <artifactId>nook-module-operation</artifactId>
         </dependency>
-        <!-- op_log.operator 回填 admin realName/username -->
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-module-system</artifactId>
+            <artifactId>nook-module-system-api</artifactId>
         </dependency>
+
         <dependency>
             <groupId>jakarta.annotation</groupId>
             <artifactId>jakarta.annotation-api</artifactId>
