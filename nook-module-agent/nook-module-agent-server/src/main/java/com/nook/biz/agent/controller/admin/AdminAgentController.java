@@ -2,6 +2,7 @@ package com.nook.biz.agent.controller.admin;
 
 import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentListItemRespVO;
+import com.nook.biz.agent.controller.admin.vo.AdminAgentPageReqVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskPageReqVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskRespVO;
 import com.nook.biz.agent.convert.AgentTaskConvert;
@@ -18,8 +19,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
  * 管理后台 - Agent 管理 Controller
  *
@@ -34,13 +33,14 @@ public class AdminAgentController {
     private final AdminAgentService adminAgentService;
 
     /**
-     * Agent 总览列表 (resource_server + runtime + config 同步状态拼接).
+     * Agent 总览分页 (resource_server + runtime + config 同步状态拼接).
      *
-     * @return 每行含 onlineState / agentVersion / configSyncState 等汇总字段
+     * @param reqVO 分页 + 筛选
+     * @return 每行含 onlineState / agentVersion / configSyncState / 流量 等汇总字段
      */
-    @GetMapping("/list")
-    public Result<List<AdminAgentListItemRespVO>> list() {
-        return Result.ok(adminAgentService.list());
+    @GetMapping("/page")
+    public Result<PageResult<AdminAgentListItemRespVO>> page(@Valid @ModelAttribute AdminAgentPageReqVO reqVO) {
+        return Result.ok(adminAgentService.page(reqVO));
     }
 
     /**

@@ -13,12 +13,13 @@ import java.util.Map;
 public interface ResourceServerCapacityApi {
 
     /**
-     * 累加 NIC 流量字节数到 resource_server_capacity.used_traffic_bytes.
+     * 覆盖写入 NIC 周期累计字节 (vnstat 报绝对值; 内部同步刷 used_traffic_bytes = rx + tx).
      *
      * @param serverId server 主键
-     * @param bytes    本周期新增字节 (rxBytes + txBytes)
+     * @param rxBytes  当周期下行累计
+     * @param txBytes  当周期上行累计
      */
-    void addUsedTrafficBytes(String serverId, long bytes);
+    void applyNicTraffic(String serverId, long rxBytes, long txBytes);
 
     /**
      * 批量查容量.

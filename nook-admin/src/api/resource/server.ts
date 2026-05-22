@@ -128,6 +128,11 @@ export function pageServers(params: ResourceServerQuery) {
 export interface ServerCapacity {
   serverId: string
   monthlyTrafficGb?: number
+  /** 当周期下行字节. */
+  rxBytes?: number
+  /** 当周期上行字节. */
+  txBytes?: number
+  /** 当周期已用字节 = rx + tx. */
   usedTrafficBytes?: number
   quotaResetPolicy?: string
   throttleState?: string

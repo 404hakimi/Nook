@@ -10,3 +10,133 @@ body,
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
+
+/* ===== Nook design tokens (字号 / 颜色 / 字体族) =====
+   规范化 num / unit / kbd / muted / section-header / info-row 等通用样式; 各 Vue scoped 不再重复定义.
+*/
+:root {
+  --nook-fg: #18181b;
+  --nook-fg-muted: #71717a;
+  --nook-fg-faint: #a1a1aa;
+  --nook-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --nook-accent: #6366f1;
+
+  --nook-fs-num: 13px;
+  --nook-fs-num-sm: 12px;
+  --nook-fs-unit: 12px;
+  --nook-fs-unit-sm: 10px;
+  --nook-fs-section: 13px;
+  --nook-fs-kbd: 12px;
+}
+html[data-theme='dark'] {
+  --nook-fg: #e4e4e7;
+  --nook-fg-muted: #a1a1aa;
+  --nook-fg-faint: #71717a;
+}
+
+/* ----- 数值 (等宽 mono + 500); 默认 13px, 紧凑场景用 .num-sm ----- */
+.num {
+  font-family: var(--nook-mono);
+  font-size: var(--nook-fs-num);
+  font-weight: 500;
+  color: var(--nook-fg);
+}
+.num-sm {
+  font-family: var(--nook-mono);
+  font-size: var(--nook-fs-num-sm);
+  font-weight: 500;
+  color: var(--nook-fg);
+}
+
+/* ----- 单位 (灰色, 紧贴 num) ----- */
+.unit {
+  font-size: var(--nook-fs-unit);
+  color: var(--nook-fg-muted);
+  margin-left: 3px;
+}
+.unit-sm {
+  font-size: var(--nook-fs-unit-sm);
+  color: var(--nook-fg-muted);
+  margin-left: 2px;
+}
+
+/* ----- 缺值占位 ----- */
+.muted {
+  font-size: var(--nook-fs-num);
+  color: var(--nook-fg-faint);
+}
+
+/* ----- 行内 code (host / IP / token / path) ----- */
+.kbd {
+  font-family: var(--nook-mono);
+  font-size: var(--nook-fs-kbd);
+  background: rgba(127, 127, 127, 0.08);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--nook-fg);
+}
+html[data-theme='dark'] .kbd {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ----- NCard 段头 (info-section 内置 NCard #header 用) ----- */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--nook-fs-section);
+  font-weight: 600;
+  color: var(--nook-fg);
+}
+.section-icon {
+  color: var(--nook-accent);
+}
+
+/* ----- info-section: 收紧 NCard 内边距 + 浅色段头条 (覆盖 Naive UI 内部类) ----- */
+.info-section .n-card-header {
+  padding: 6px 12px;
+  background: rgba(127, 127, 127, 0.04);
+  border-bottom: 1px solid rgba(127, 127, 127, 0.08);
+}
+.info-section .n-card__content {
+  padding: 10px 12px;
+}
+.info-section .n-descriptions-table-content,
+.info-section .n-descriptions-table-header {
+  font-size: var(--nook-fs-num);
+}
+
+/* ----- info-row (XrayTab/AgentTab k:v 风格) ----- */
+.info-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.info-row .k {
+  color: var(--nook-fg-muted);
+  min-width: 7rem;
+  font-size: var(--nook-fs-num);
+}
+.info-row .v {
+  color: var(--nook-fg);
+  background: none;
+  padding: 0;
+  font-size: var(--nook-fs-num);
+}
+.info-row code.v {
+  font-family: var(--nook-mono);
+  font-size: var(--nook-fs-kbd);
+  word-break: break-all;
+}
+html[data-theme='dark'] .info-row .v {
+  color: #d4d4d8;
+}
+
+/* ----- 操作栏 (info/ssh/mon 共享) ----- */
+.action-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 4px;
+}

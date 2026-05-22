@@ -1,6 +1,8 @@
 package com.nook.biz.node.api.resource;
 
+import com.nook.biz.node.api.resource.dto.ResourceServerPageReqDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
+import com.nook.common.web.response.PageResult;
 
 import java.util.List;
 
@@ -28,9 +30,17 @@ public interface ResourceServerApi {
     ResourceServerRespDTO getByAgentToken(String agentToken);
 
     /**
-     * 拉所有未软删的 server (agent 列表展示用).
+     * 拉所有未软删的 server (内部 batch 取名 / 跨表用; UI 列表请用 page).
      *
      * @return server 列表; 空表返空 list
      */
     List<ResourceServerRespDTO> listAll();
+
+    /**
+     * 分页查 server (agent 模块拼 admin 列表用).
+     *
+     * @param reqDTO 分页 + 筛选
+     * @return PageResult; records 元素是 server 视图
+     */
+    PageResult<ResourceServerRespDTO> page(ResourceServerPageReqDTO reqDTO);
 }

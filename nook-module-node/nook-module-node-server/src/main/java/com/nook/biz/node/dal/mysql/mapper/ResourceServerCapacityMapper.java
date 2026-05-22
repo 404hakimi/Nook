@@ -15,10 +15,14 @@ import java.time.LocalDateTime;
 @Mapper
 public interface ResourceServerCapacityMapper extends BaseMapper<ResourceServerCapacityDO> {
 
-    /** 更新 NIC 已用流量 (Agent 上报字节数); 显式 set updated_at. */
-    default int updateUsedTrafficBytes(String serverId, Long usedBytes) {
+    /**
+     * 覆盖写入 NIC 周期累计 (vnstat 报绝对值, 非增量); 同步刷 used_traffic_bytes = rx + tx 兼容老查询.
+     */
+    default int applyNicTraffic(String serverId, long rxBytes, long txBytes) {
         return update(null, Wrappers.<ResourceServerCapacityDO>lambdaUpdate()
-                .set(ResourceServerCapacityDO::getUsedTrafficBytes, usedBytes)
+                .set(ResourceServerCapacityDO::getRxBytes, rxBytes)
+                .set(ResourceServerCapacityDO::getTxBytes, txBytes)
+                .set(ResourceServerCapacityDO::getUsedTrafficBytes, rxBytes + txBytes)
                 .set(ResourceServerCapacityDO::getUpdatedAt, LocalDateTime.now())
                 .eq(ResourceServerCapacityDO::getServerId, serverId));
     }

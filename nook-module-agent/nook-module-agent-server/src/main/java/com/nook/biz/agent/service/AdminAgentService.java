@@ -2,11 +2,10 @@ package com.nook.biz.agent.service;
 
 import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentListItemRespVO;
+import com.nook.biz.agent.controller.admin.vo.AdminAgentPageReqVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskPageReqVO;
 import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.common.web.response.PageResult;
-
-import java.util.List;
 
 /**
  * Admin Agent 管理 Service 接口
@@ -16,11 +15,12 @@ import java.util.List;
 public interface AdminAgentService {
 
     /**
-     * 获得 Agent 总览列表
+     * Agent 总览分页 (resource_server + runtime + capacity + config 同步状态拼接).
      *
-     * @return Agent 列表
+     * @param reqVO 分页 + 筛选
+     * @return 列表项分页
      */
-    List<AdminAgentListItemRespVO> list();
+    PageResult<AdminAgentListItemRespVO> page(AdminAgentPageReqVO reqVO);
 
     /**
      * 获得 Agent 详情

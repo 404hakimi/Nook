@@ -22,7 +22,13 @@ public class ResourceServerCapacityDO {
     /** 机房 NIC 月配额 GB; 0/null=不限. */
     private Integer monthlyTrafficGb;
 
-    /** 当周期已用 NIC 流量 (字节; Agent push vnstat 月度累计写入). UI 展示前自行换算 GB/MB. */
+    /** 当周期下行字节 (vnstat rx 累计; Agent push). */
+    private Long rxBytes;
+
+    /** 当周期上行字节 (vnstat tx 累计; Agent push). */
+    private Long txBytes;
+
+    /** 当周期已用流量 = rx + tx (Agent push 时同步更新; 老查询继续可用). UI 换算 GB/MB. */
     private Long usedTrafficBytes;
 
     /**

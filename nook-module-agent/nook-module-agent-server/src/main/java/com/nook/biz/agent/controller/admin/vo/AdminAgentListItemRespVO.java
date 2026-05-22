@@ -17,6 +17,9 @@ public class AdminAgentListItemRespVO {
     private String serverName;
     private String host;
 
+    /** 区域码 (e.g., JP-TYO); 前端按 code 查字典拿 flagEmoji / displayName. */
+    private String region;
+
     /** INSTALLING / READY / LIVE / RETIRED. */
     private String lifecycleState;
 
@@ -43,7 +46,13 @@ public class AdminAgentListItemRespVO {
     /** 月度流量配额 GB; 0/null = 不限. */
     private Integer monthlyTrafficGb;
 
-    /** 已用流量字节 (vnstat 月累计). */
+    /** 当周期下行字节. */
+    private Long rxBytes;
+
+    /** 当周期上行字节. */
+    private Long txBytes;
+
+    /** 当周期已用流量字节 = rx + tx. */
     private Long usedTrafficBytes;
 
     /** 限流状态: NORMAL / THROTTLED. */

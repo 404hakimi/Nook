@@ -23,8 +23,8 @@ public class ResourceServerCapacityApiImpl implements ResourceServerCapacityApi 
     private final ResourceServerCapacityMapper resourceServerCapacityMapper;
 
     @Override
-    public void addUsedTrafficBytes(String serverId, long bytes) {
-        resourceServerCapacityMapper.updateUsedTrafficBytes(serverId, bytes);
+    public void applyNicTraffic(String serverId, long rxBytes, long txBytes) {
+        resourceServerCapacityMapper.applyNicTraffic(serverId, rxBytes, txBytes);
     }
 
     @Override

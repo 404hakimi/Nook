@@ -4,26 +4,26 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.nook.biz.agent.api.enums.AgentConfigSyncState;
-import com.nook.biz.agent.api.enums.AgentOnlineState;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentListItemRespVO;
+import com.nook.biz.agent.controller.admin.vo.AdminAgentPageReqVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskPageReqVO;
-import com.nook.biz.agent.convert.AgentRuntimeConfigConvert;
+import com.nook.biz.agent.convert.AdminAgentConvert;
 import com.nook.biz.agent.dal.dataobject.AgentRuntimeConfigDO;
 import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentRuntimeConfigMapper;
 import com.nook.biz.agent.dal.mysql.mapper.AgentTaskMapper;
+import com.nook.biz.agent.framework.binary.AgentBinaryResolver;
 import com.nook.biz.agent.framework.config.AgentProperties;
 import com.nook.biz.agent.service.AdminAgentService;
-import com.nook.biz.agent.framework.binary.AgentBinaryResolver;
 import com.nook.biz.agent.service.AgentTaskDispatchService;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
+import com.nook.biz.node.api.resource.dto.ResourceServerPageReqDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
 import com.nook.common.utils.collection.CollectionUtils;
@@ -34,9 +34,7 @@ import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,84 +58,30 @@ public class AdminAgentServiceImpl implements AdminAgentService {
     private final AgentProperties agentProperties;
 
     @Override
-    public List<AdminAgentListItemRespVO> list() {
-        List<ResourceServerRespDTO> servers = resourceServerApi.listAll();
-        if (CollUtil.isEmpty(servers)) return List.of();
-        Set<String> ids = CollectionUtils.convertSet(servers, ResourceServerRespDTO::getId);
+    public PageResult<AdminAgentListItemRespVO> page(AdminAgentPageReqVO reqVO) {
+        ResourceServerPageReqDTO dto = BeanUtils.toBean(reqVO, ResourceServerPageReqDTO.class);
+        PageResult<ResourceServerRespDTO> page = resourceServerApi.page(dto);
+        if (CollUtil.isEmpty(page.getRecords())) return PageResult.of(page.getTotal(), List.of());
+        Set<String> ids = CollectionUtils.convertSet(page.getRecords(), ResourceServerRespDTO::getId);
         Map<String, ResourceServerRuntimeRespDTO> runtimeMap = resourceServerRuntimeApi.listByServerIds(ids);
         Map<String, ResourceServerCapacityRespDTO> capacityMap = resourceServerCapacityApi.listByServerIds(ids);
         Map<String, AgentRuntimeConfigDO> cfgMap = CollectionUtils.convertMap(
                 agentRuntimeConfigMapper.selectBatchIds(ids),
                 AgentRuntimeConfigDO::getServerId);
         LocalDateTime now = LocalDateTime.now();
-        List<AdminAgentListItemRespVO> result = new ArrayList<>(servers.size());
-        for (ResourceServerRespDTO s : servers) {
-            result.add(buildListItem(s, runtimeMap.get(s.getId()), capacityMap.get(s.getId()),
-                    cfgMap.get(s.getId()), now));
-        }
-        return result;
-    }
-
-    /** 单行列表项: 拼 server + runtime + 配置同步 + NIC 流量容量. */
-    private static AdminAgentListItemRespVO buildListItem(ResourceServerRespDTO s,
-                                                          ResourceServerRuntimeRespDTO rt,
-                                                          ResourceServerCapacityRespDTO cap,
-                                                          AgentRuntimeConfigDO cfg,
-                                                          LocalDateTime now) {
-        AdminAgentListItemRespVO vo = new AdminAgentListItemRespVO();
-        vo.setServerId(s.getId());
-        vo.setServerName(s.getName());
-        vo.setHost(s.getHost());
-        vo.setLifecycleState(s.getLifecycleState());
-        Long elapsedSec = null;
-        Integer tempUnhealthy = null;
-        if (rt != null) {
-            vo.setAgentVersion(rt.getAgentVersion());
-            vo.setLastHeartbeatAt(rt.getLastHeartbeatAt());
-            vo.setTempUnhealthy(rt.getTempUnhealthy());
-            tempUnhealthy = rt.getTempUnhealthy();
-            if (rt.getLastHeartbeatAt() != null) {
-                elapsedSec = Duration.between(rt.getLastHeartbeatAt(), now).getSeconds();
-                vo.setElapsedSec(elapsedSec);
-            }
-        }
-        vo.setOnlineState(AgentOnlineState.classify(elapsedSec, tempUnhealthy).name());
-        AgentConfigSyncState syncState = AgentRuntimeConfigConvert.INSTANCE.classifySyncState(cfg);
-        vo.setConfigSyncState(syncState.name());
-        if (cap != null) {
-            vo.setMonthlyTrafficGb(cap.getMonthlyTrafficGb());
-            vo.setUsedTrafficBytes(cap.getUsedTrafficBytes());
-            vo.setThrottleState(cap.getThrottleState());
-        }
-        return vo;
+        List<AdminAgentListItemRespVO> records = page.getRecords().stream()
+                .map(s -> AdminAgentConvert.INSTANCE.toListItem(
+                        s, runtimeMap.get(s.getId()), capacityMap.get(s.getId()),
+                        cfgMap.get(s.getId()), now))
+                .toList();
+        return PageResult.of(page.getTotal(), records);
     }
 
     @Override
     public AdminAgentDetailRespVO detail(String serverId) {
         ResourceServerRespDTO s = resourceServerApi.validateExists(serverId);
         ResourceServerRuntimeRespDTO rt = resourceServerRuntimeApi.getByServerId(serverId);
-        AdminAgentDetailRespVO vo = BeanUtils.toBean(s, AdminAgentDetailRespVO.class);
-        vo.setServerId(s.getId());
-        vo.setLifecycleState(s.getLifecycleState());
-        if (StrUtil.isNotBlank(s.getAgentToken()) && s.getAgentToken().length() >= 8) {
-            vo.setAgentTokenSuffix("..." + s.getAgentToken().substring(s.getAgentToken().length() - 8));
-        }
-        Long elapsedSec = null;
-        Integer tempUnhealthy = null;
-        if (rt != null) {
-            vo.setAgentVersion(rt.getAgentVersion());
-            vo.setLastAgentSeenIp(rt.getLastAgentSeenIp());
-            vo.setLastHeartbeatAt(rt.getLastHeartbeatAt());
-            vo.setTempUnhealthy(rt.getTempUnhealthy());
-            vo.setConsecutiveMiss(rt.getConsecutiveMiss());
-            tempUnhealthy = rt.getTempUnhealthy();
-            if (rt.getLastHeartbeatAt() != null) {
-                elapsedSec = Duration.between(rt.getLastHeartbeatAt(), LocalDateTime.now()).getSeconds();
-                vo.setElapsedSec(elapsedSec);
-            }
-        }
-        vo.setOnlineState(AgentOnlineState.classify(elapsedSec, tempUnhealthy).name());
-        return vo;
+        return AdminAgentConvert.INSTANCE.toDetail(s, rt, LocalDateTime.now());
     }
 
     @Override

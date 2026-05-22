@@ -64,13 +64,11 @@ public class AgentReportServiceImpl implements AgentReportService {
 
     @Override
     public void receiveNicTraffic(String serverId, AgentNicTrafficReqVO req) {
-        long total = req.getRxBytes() + req.getTxBytes();
-        resourceServerCapacityApi.addUsedTrafficBytes(serverId, total);
-        log.info("[receiveNicTraffic] serverId={} rx={} tx={} total={} period={}",
+        resourceServerCapacityApi.applyNicTraffic(serverId, req.getRxBytes(), req.getTxBytes());
+        log.info("[receiveNicTraffic] serverId={} rx={} tx={} period={}",
                 serverId,
                 String.format("%.2fGB", req.getRxBytes() / GB_BYTES),
                 String.format("%.2fGB", req.getTxBytes() / GB_BYTES),
-                String.format("%.2fGB", total / GB_BYTES),
                 req.getPeriodStart());
     }
 

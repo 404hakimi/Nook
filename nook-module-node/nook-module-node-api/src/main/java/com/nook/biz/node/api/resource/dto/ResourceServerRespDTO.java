@@ -43,6 +43,9 @@ public class ResourceServerRespDTO {
     /** Server lifecycle 状态 (INSTALLING / READY / LIVE / RETIRED). */
     private String lifecycleState;
 
+    /** 区域码 (FK → resource_region.code; e.g., JP-TYO). */
+    private String region;
+
     /** Agent 鉴权 token; createServer 时一次性签发. */
     private String agentToken;
 }
