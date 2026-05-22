@@ -47,7 +47,7 @@ public interface AgentReportService {
     void receiveTaskResult(String serverId, AgentTaskResultReqVO req);
 
     /**
-     * Agent 上报 xray user 流量累计值, 转交 XrayClientTrafficSampleService.applyAgentStats.
+     * Agent 上报 xray user 流量累计值, 转交 node-api XrayClientTrafficSampleApi.applyAgentStats.
      *
      * @param serverId 已认证 server id
      * @param req      xray statsquery 快照 (email → up/down bytes)

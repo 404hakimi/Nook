@@ -4,11 +4,11 @@ import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.controller.vo.AgentInstallMetaRespVO;
 import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
 import com.nook.biz.agent.service.AgentInstallScriptService;
-import com.nook.biz.node.config.WebStreamingProperties;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.validator.ResourceServerValidator;
+import com.nook.biz.node.api.resource.ResourceServerApi;
+import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.StreamingEndpointSupport;
+import com.nook.framework.web.WebStreamingProperties;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -31,7 +31,7 @@ import java.time.Duration;
 public class AgentInstallController {
 
     private final AgentInstallScriptService agentInstallScriptService;
-    private final ResourceServerValidator serverValidator;
+    private final ResourceServerApi resourceServerApi;
     private final StreamingEndpointSupport streamingSupport;
     private final WebStreamingProperties webStreamingProperties;
 
@@ -45,7 +45,7 @@ public class AgentInstallController {
     @PostMapping(value = "/install", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter install(@RequestParam("id") String id,
                                        @Valid @RequestBody AgentInstallReqVO reqVO) {
-        ResourceServerDO srv = serverValidator.validateExists(id);
+        ResourceServerRespDTO srv = resourceServerApi.validateExists(id);
         Duration emitterTimeout = Duration.ofSeconds(srv.getInstallTimeoutSeconds())
                 .plus(webStreamingProperties.getEmitterBuffer());
         return streamingSupport.stream("agent-install:" + id, emitterTimeout,

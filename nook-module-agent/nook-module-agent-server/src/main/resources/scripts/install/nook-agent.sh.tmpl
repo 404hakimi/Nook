@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# nook-{{ROLE}}-agent 装机 (server={{SERVER_NAME}})
+# 时区 Asia/Shanghai; 所有路径走变量, frontend 可定制
+set -euo pipefail
+
+NOOK_HOME='{{NOOK_HOME}}'
+BIN_PATH='{{BIN_PATH}}'
+CONFIG_PATH='{{CONFIG_PATH}}'
+SYSTEMD_UNIT_PATH='{{SYSTEMD_UNIT_PATH}}'
+BACKEND_URL='{{BACKEND_URL}}'
+AGENT_TOKEN='{{AGENT_TOKEN}}'
+ROLE='{{ROLE}}'
+
+echo "=== 1. 系统时区 Asia/Shanghai + UTF-8 locale ==="
+timedatectl set-timezone Asia/Shanghai
+if ! locale -a 2>/dev/null | grep -qi 'en_US.utf'; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq locales || true
+    locale-gen en_US.UTF-8 || true
+fi
+
+echo "=== 2. 装依赖 (vnstat + ca-certificates) ==="
+DEBIAN_FRONTEND=noninteractive apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq vnstat ca-certificates curl
+systemctl enable --now vnstat
+
+echo "=== 3. 建标准目录 ==="
+mkdir -p $NOOK_HOME
+
+echo "=== 4. 从 backend 拉 ${ROLE} binary ==="
+curl -fSL -H "X-Agent-Token: $AGENT_TOKEN" \
+    "$BACKEND_URL/admin/agent-dist/bin?role=$ROLE" \
+    -o $BIN_PATH.new
+chmod +x $BIN_PATH.new
+mv $BIN_PATH.new $BIN_PATH
+
+echo "=== 5. 写配置 ==="
+# heredoc 用 NOOK_CONFIG_EOF__ (双下划线) 做 sentinel, yaml 里不太可能撞
+cat > $CONFIG_PATH <<'NOOK_CONFIG_EOF__'
+{{CONFIG_YAML}}
+NOOK_CONFIG_EOF__
+
+echo "=== 6. 写 systemd unit (静默) ==="
+# 非 quoted heredoc → $BIN_PATH / $CONFIG_PATH 由 shell 替换
+cat > $SYSTEMD_UNIT_PATH <<EOF
+[Unit]
+Description=Nook Agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$BIN_PATH -c $CONFIG_PATH
+Restart=always
+RestartSec=10s
+User=root
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "=== 7. journald 限大小 ==="
+mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/nook-cap.conf <<'EOF'
+[Journal]
+SystemMaxUse=50M
+SystemKeepFree=200M
+SystemMaxFileSize=10M
+EOF
+systemctl restart systemd-journald
+
+echo "=== 8. 启动 agent ==="
+systemctl daemon-reload
+systemctl enable nook-agent
+systemctl restart nook-agent
+sleep 3
+if systemctl is-active --quiet nook-agent; then
+    echo '装机完成: agent active (PID '$(systemctl show -p MainPID --value nook-agent)')'
+else
+    echo '启动失败, 看 journalctl -u nook-agent -n 30 --no-pager'
+    journalctl -u nook-agent -n 30 --no-pager || true
+    exit 1
+fi

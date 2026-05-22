@@ -8,7 +8,7 @@ import com.nook.biz.agent.dal.mysql.mapper.AgentRuntimeConfigMapper;
 import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.service.AgentRuntimeConfigService;
 import com.nook.biz.agent.service.AgentTaskDispatchService;
-import com.nook.biz.node.validator.ResourceServerValidator;
+import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,7 @@ import java.util.Map;
 public class AgentRuntimeConfigServiceImpl implements AgentRuntimeConfigService {
 
     private final AgentRuntimeConfigMapper mapper;
-    private final ResourceServerValidator serverValidator;
+    private final ResourceServerApi resourceServerApi;
     private final AgentTaskDispatchService agentTaskDispatchService;
     private static final Yaml YAML = new Yaml();
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -40,7 +40,7 @@ public class AgentRuntimeConfigServiceImpl implements AgentRuntimeConfigService 
 
     @Override
     public String save(String serverId, String yaml, String operatorId) {
-        serverValidator.validateExists(serverId);
+        resourceServerApi.validateExists(serverId);
         if (yaml == null || yaml.isBlank()) {
             throw new BusinessException(CommonErrorCode.PARAM_INVALID, "yaml 不能为空");
         }

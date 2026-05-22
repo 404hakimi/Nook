@@ -12,13 +12,13 @@ import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentTaskMapper;
 import com.nook.biz.agent.api.enums.AgentTaskStatus;
 import com.nook.biz.agent.api.enums.AgentTaskType;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.agent.service.AgentRuntimeConfigService;
-import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService;
-import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService.AgentStatSnapshot;
-import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService.SampleStat;
+import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
+import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
+import com.nook.biz.node.api.xray.XrayClientTrafficSampleApi;
+import com.nook.biz.node.api.xray.dto.AgentStatSnapshotDTO;
+import com.nook.biz.node.api.xray.dto.SampleStatDTO;
 import com.nook.common.utils.collection.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,15 +38,15 @@ public class AgentReportServiceImpl implements AgentReportService {
     private static final double GB_BYTES = 1024.0 * 1024 * 1024;
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private final ResourceServerRuntimeMapper resourceServerRuntimeMapper;
-    private final ResourceServerCapacityMapper resourceServerCapacityMapper;
+    private final ResourceServerRuntimeApi resourceServerRuntimeApi;
+    private final ResourceServerCapacityApi resourceServerCapacityApi;
     private final AgentTaskMapper agentTaskMapper;
-    private final XrayClientTrafficSampleService xrayClientTrafficSampleService;
+    private final XrayClientTrafficSampleApi xrayClientTrafficSampleApi;
     private final AgentRuntimeConfigService agentRuntimeConfigService;
 
     @Override
     public void receiveHeartbeat(String serverId, AgentHeartbeatReqVO req, String clientIp) {
-        int affected = resourceServerRuntimeMapper.onHeartbeat(
+        int affected = resourceServerRuntimeApi.onHeartbeat(
                 serverId, LocalDateTime.now(),
                 StrUtil.blankToDefault(req.getAgentVersion(), null),
                 clientIp);
@@ -58,7 +58,7 @@ public class AgentReportServiceImpl implements AgentReportService {
     @Override
     public void receiveNicTraffic(String serverId, AgentNicTrafficReqVO req) {
         long total = req.getRxBytes() + req.getTxBytes();
-        resourceServerCapacityMapper.updateUsedTrafficBytes(serverId, total);
+        resourceServerCapacityApi.addUsedTrafficBytes(serverId, total);
         log.info("[receiveNicTraffic] serverId={} rx={} tx={} total={} period={}",
                 serverId,
                 String.format("%.2fGB", req.getRxBytes() / GB_BYTES),
@@ -112,11 +112,11 @@ public class AgentReportServiceImpl implements AgentReportService {
             log.debug("[receiveXrayTraffic] serverId={} 空 stats, 跳过", serverId);
             return;
         }
-        Map<String, AgentStatSnapshot> snapshot = new HashMap<>(req.getStats().size());
+        Map<String, AgentStatSnapshotDTO> snapshot = new HashMap<>(req.getStats().size());
         for (AgentXrayTrafficReqVO.Row row : req.getStats()) {
-            snapshot.put(row.getEmail(), new AgentStatSnapshot(row.getUpBytes(), row.getDownBytes()));
+            snapshot.put(row.getEmail(), new AgentStatSnapshotDTO(row.getUpBytes(), row.getDownBytes()));
         }
-        SampleStat stat = xrayClientTrafficSampleService.applyAgentStats(serverId, snapshot);
+        SampleStatDTO stat = xrayClientTrafficSampleApi.applyAgentStats(serverId, snapshot);
         log.info("[receiveXrayTraffic] serverId={} 上报={} 入库={} 孤儿={}",
                 serverId, req.getStats().size(), stat.upserted(), stat.skipped());
     }

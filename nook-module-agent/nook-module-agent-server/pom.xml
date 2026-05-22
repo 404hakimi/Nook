@@ -22,10 +22,33 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- 复用 ResourceServer / XrayNode 等 node 域实体 + service; 顺带传递 web/security/mybatis/ssh/fastjson 等 starter -->
+        <!-- 跨模块业务调用走 node-api (ResourceServerApi / XrayNodeApi / ...); 不再 import node-server 内部 -->
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-module-node</artifactId>
+            <artifactId>nook-module-node-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- 框架 starter (controller / service / dal / SSH script catalog 用) -->
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-mybatis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-spring-boot-starter-ssh</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
         </dependency>
     </dependencies>
 </project>

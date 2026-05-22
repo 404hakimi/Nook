@@ -1,15 +1,15 @@
 package com.nook.biz.agent.service.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.controller.vo.AgentInstallMetaRespVO;
 import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
-import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.mysql.mapper.XrayNodeMapper;
-import com.nook.biz.agent.api.enums.AgentRole;
-import com.nook.biz.node.framework.server.script.NookScripts;
+import com.nook.biz.agent.framework.script.AgentScripts;
 import com.nook.biz.agent.service.AgentInstallScriptService;
-import com.nook.biz.node.validator.ResourceServerValidator;
+import com.nook.biz.node.api.resource.ResourceServerApi;
+import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
+import com.nook.biz.node.api.xray.XrayNodeApi;
+import com.nook.biz.node.api.xray.dto.XrayNodeRespDTO;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.framework.ssh.core.SessionCredential;
@@ -31,8 +31,8 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class AgentInstallScriptServiceImpl implements AgentInstallScriptService {
 
-    private final ResourceServerValidator serverValidator;
-    private final XrayNodeMapper xrayNodeMapper;
+    private final ResourceServerApi resourceServerApi;
+    private final XrayNodeApi xrayNodeApi;
     private final ScriptCatalog scriptCatalog;
 
     /** Backend 公网 URL; agent 装机后回拉 binary / heartbeat. */
@@ -44,18 +44,19 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
 
     @Override
     public void installStreaming(String serverId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
-        ResourceServerDO srv = serverValidator.validateExists(serverId);
+        ResourceServerRespDTO srv = resourceServerApi.validateExists(serverId);
         // agent_token 由 createServer 一次性签发, 装机/重装/升级永远复用; 缺失说明是历史 server 漏签
         if (StrUtil.isBlank(srv.getAgentToken())) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
                     "server " + srv.getName() + " 缺 agent_token; 用 UPDATE resource_server SET agent_token=... 补一个");
         }
 
-        // frontline 装机必须带 xray bin + api_port (前端从 /agent-install-meta 读 xray_node 后回塞);
+        // frontline 装机必须带 xray bin + api_port (前端从 /agent/install-meta 读 xray_node 后回塞);
         // 不再后端重查, 但强制非空校验避免前端漏传
         if (AgentRole.FRONTLINE.getCode().equals(reqVO.getRole())) {
             if (StrUtil.isBlank(reqVO.getXrayBin()) || reqVO.getXrayApiPort() == null) {
-                throw new BusinessException(CommonErrorCode.PARAM_INVALID, "frontline 装机必须传 xrayBin + xrayApiPort (server " + srv.getName() + " 可能未装 xray)");
+                throw new BusinessException(CommonErrorCode.PARAM_INVALID,
+                        "frontline 装机必须传 xrayBin + xrayApiPort (server " + srv.getName() + " 可能未装 xray)");
             }
             lineSink.accept("[nook] xray: bin=" + reqVO.getXrayBin() + " apiPort=" + reqVO.getXrayApiPort() + "\n");
         }
@@ -90,7 +91,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
                 .build();
         Duration installTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
         SshSessions.runAdHocVoid(cred, session ->
-                scriptCatalog.run(session, NookScripts.NOOK_AGENT_INSTALL, vars, installTimeout, lineSink));
+                scriptCatalog.run(session, AgentScripts.NOOK_AGENT_INSTALL, vars, installTimeout, lineSink));
 
         log.info("[installStreaming] 装机完成 serverId={} name={} role={}",
                 serverId, srv.getName(), reqVO.getRole());
@@ -105,7 +106,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         AgentInstallMetaRespVO vo = new AgentInstallMetaRespVO();
         vo.setBackendUrl(StrUtil.blankToDefault(backendPublicUrl, ""));
         if (StrUtil.isNotBlank(serverId)) {
-            ResourceServerDO srv = serverValidator.validateExists(serverId);
+            ResourceServerRespDTO srv = resourceServerApi.validateExists(serverId);
             // SSH 默认从 resource_server 读
             vo.setSshTimeoutSeconds(srv.getSshTimeoutSeconds());
             vo.setSshOpTimeoutSeconds(srv.getSshOpTimeoutSeconds());
@@ -113,7 +114,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
             vo.setInstallTimeoutSeconds(srv.getInstallTimeoutSeconds());
             // frontline 额外读 xray_node: bin/api_port
             if (AgentRole.FRONTLINE.getCode().equals(role)) {
-                XrayNodeDO xrayNode = xrayNodeMapper.selectById(serverId);
+                XrayNodeRespDTO xrayNode = xrayNodeApi.getByServerId(serverId);
                 if (xrayNode != null) {
                     vo.setXrayBin(xrayNode.getXrayBinaryPath());
                     vo.setXrayApiPort(xrayNode.getXrayApiPort());
@@ -123,9 +124,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         return vo;
     }
 
-    /**
-     * 拼 nook-agent config.yml. 所有值 (URL / 路径 / xray) 都来自 DTO, backend 不兜底.
-     */
+    /** 拼 nook-agent config.yml. 所有值 (URL / 路径 / xray) 都来自 DTO, backend 不兜底. */
     private String buildYaml(AgentInstallReqVO r, String token) {
         StringBuilder sb = new StringBuilder(1024);
         sb.append("# nook-").append(r.getRole()).append("-agent 配置 (装机时 backend 渲染; ConfigEditDialog 可热改)\n\n");
