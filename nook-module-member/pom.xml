@@ -12,16 +12,11 @@
     </parent>
 
     <artifactId>nook-module-member</artifactId>
-    <description>会员体系: member_user / member_device / member_log / member_subscription + Controller</description>
+    <packaging>pom</packaging>
+    <description>Member 模块聚合 (前台会员账号 + 鉴权): api (对外契约) + server (实现).</description>
 
-    <dependencies>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-spring-boot-starter-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-spring-boot-starter-mybatis</artifactId>
-        </dependency>
-    </dependencies>
+    <modules>
+        <module>nook-module-member-api</module>
+        <module>nook-module-member-server</module>
+    </modules>
 </project>
