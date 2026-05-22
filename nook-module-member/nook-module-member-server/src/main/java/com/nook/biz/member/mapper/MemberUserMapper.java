@@ -11,7 +11,11 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
 
-/** MemberUser 数据访问层; 查询 / 更新 Wrapper 统一在此封装, Service 不直接构造 Wrapper. */
+/**
+ * 会员 Mapper
+ *
+ * @author nook
+ */
 @Mapper
 public interface MemberUserMapper extends BaseMapper<MemberUser> {
 

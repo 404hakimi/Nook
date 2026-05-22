@@ -17,6 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+/**
+ * 管理后台 - 会员管理 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor

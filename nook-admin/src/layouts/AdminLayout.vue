@@ -10,8 +10,6 @@ import {
   Package,
   Server,
   Globe2,
-  Cable,
-  Cpu,
   Bell,
   ChevronDown,
   Menu,
@@ -74,18 +72,9 @@ const menuOptions: MenuOption[] = [
     ]
   },
   { key: '/business/plans', label: routerLabel('/business/plans', '套餐与 CDK'), icon: icon(Package) },
-  {
-    key: 'resource-group',
-    label: '资源管理',
-    icon: icon(Server),
-    children: [
-      { key: '/resource/servers', label: routerLabel('/resource/servers', '服务器'), icon: icon(Server) },
-      { key: '/resource/ip-pool', label: routerLabel('/resource/ip-pool', 'IP代理池'), icon: icon(Globe2) },
-      // Xray 节点行展开即可看到该 server 的客户列表; 独立"客户端"页保留路由但不在侧栏显示
-      { key: '/xray/nodes', label: routerLabel('/xray/nodes', 'Xray 节点'), icon: icon(Cable) }
-    ]
-  },
-  { key: '/agent/list', label: routerLabel('/agent/list', 'Agent 管理'), icon: icon(Cpu) },
+  // 服务器统一入口 (B 方案): 卡片总览, 点卡片进详情 tab (基本/Xray/Agent/任务); Xray节点 + Agent 不再独立 menu
+  { key: '/servers', label: routerLabel('/servers', '服务器'), icon: icon(Server) },
+  { key: '/resource/ip-pool', label: routerLabel('/resource/ip-pool', 'IP 代理池'), icon: icon(Globe2) },
   {
     key: 'operation-group',
     label: '运维管理',

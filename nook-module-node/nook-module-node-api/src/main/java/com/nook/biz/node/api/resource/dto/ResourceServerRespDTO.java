@@ -2,7 +2,11 @@ package com.nook.biz.node.api.resource.dto;
 
 import lombok.Data;
 
-/** ResourceServer 跨模块视图; 暴露 agent 装机 / 心跳 / SSH 连接需要的字段 (不含产品 / 计费 / CF 这类无关字段). */
+/**
+ * 资源服务器 Response DTO
+ *
+ * @author nook
+ */
 @Data
 public class ResourceServerRespDTO {
 

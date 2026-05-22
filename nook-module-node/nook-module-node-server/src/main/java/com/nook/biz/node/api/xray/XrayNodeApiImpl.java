@@ -6,7 +6,11 @@ import com.nook.biz.node.dal.mysql.mapper.XrayNodeMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-/** node-api {@link XrayNodeApi} 实现. */
+/**
+ * Xray 节点 Api 实现类
+ *
+ * @author nook
+ */
 @Service
 @RequiredArgsConstructor
 public class XrayNodeApiImpl implements XrayNodeApi {

@@ -4,7 +4,11 @@ import com.nook.biz.member.controller.admin.vo.AdminMemberPageReqVO;
 import com.nook.biz.member.entity.MemberUser;
 import com.nook.common.web.response.PageResult;
 
-/** Admin 后台对会员的管理操作: 列表 / 详情 / 禁用 / 启用 / 备注. */
+/**
+ * 管理后台 - 会员管理 Service 接口
+ *
+ * @author nook
+ */
 public interface AdminMemberService {
 
     /** 列表分页查询. */

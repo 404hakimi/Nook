@@ -42,7 +42,11 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
 
-/** Xray client 操作执行体: op queue handler 调度的 SSH + DB 真正执行点. */
+/**
+ * Xray 客户端操作执行器
+ *
+ * @author nook
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor

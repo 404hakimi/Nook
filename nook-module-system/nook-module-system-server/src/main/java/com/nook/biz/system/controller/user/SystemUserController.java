@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 管理后台 - 系统用户
+ * 管理后台 - 后台用户 Controller
  *
  * @author nook
  */

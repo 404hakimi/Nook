@@ -5,7 +5,11 @@ import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-/** IP 类型(ISP / 机房 / 家宽)；初始数据由 99_seed.sql 提供，运营一般不动。 */
+/**
+ * 资源 IP 类型 DO
+ *
+ * @author nook
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("resource_ip_type")

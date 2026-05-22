@@ -22,7 +22,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 管理后台 - 资源服务器 (server 元数据 CRUD + lifecycle 流转; agent 装机端点见 AgentInstallController). */
+/**
+ * 管理后台 - 资源服务器 Controller
+ *
+ * @author nook
+ */
 @RestController
 @RequestMapping("/admin/resource/server")
 @Validated

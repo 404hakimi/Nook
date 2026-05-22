@@ -9,7 +9,11 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;
 
-/** ResourceRegion 字典数据访问. */
+/**
+ * 资源区域 Mapper
+ *
+ * @author nook
+ */
 @Mapper
 public interface ResourceRegionMapper extends BaseMapper<ResourceRegionDO> {
 

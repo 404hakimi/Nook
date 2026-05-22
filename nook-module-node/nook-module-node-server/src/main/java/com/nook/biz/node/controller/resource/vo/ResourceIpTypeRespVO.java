@@ -3,7 +3,9 @@ package com.nook.biz.node.controller.resource.vo;
 import lombok.Data;
 
 /**
- * IP 类型响应; 只读, 由 99_seed.sql 初始化(isp/datacenter/residential 三档)。
+ * 管理后台 - IP 类型 Response VO
+ *
+ * @author nook
  */
 @Data
 public class ResourceIpTypeRespVO {

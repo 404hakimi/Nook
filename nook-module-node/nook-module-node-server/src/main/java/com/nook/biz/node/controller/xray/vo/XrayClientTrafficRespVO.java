@@ -3,7 +3,9 @@ package com.nook.biz.node.controller.xray.vo;
 import lombok.Data;
 
 /**
- * 客户端实时流量出参; 字节原值 + 人读字符串都下发, 前端 0 计算 (展示直接用 *Text, 比较/排序仍可用 *Bytes).
+ * 管理后台 - Xray 客户端流量 Response VO
+ *
+ * @author nook
  */
 @Data
 public class XrayClientTrafficRespVO {

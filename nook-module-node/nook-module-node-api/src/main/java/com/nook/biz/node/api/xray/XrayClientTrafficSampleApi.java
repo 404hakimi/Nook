@@ -5,7 +5,11 @@ import com.nook.biz.node.api.xray.dto.SampleStatDTO;
 
 import java.util.Map;
 
-/** Agent → backend xray user 流量上报契约. */
+/**
+ * Xray 用户流量上报 Api 接口
+ *
+ * @author nook
+ */
 public interface XrayClientTrafficSampleApi {
 
     /**

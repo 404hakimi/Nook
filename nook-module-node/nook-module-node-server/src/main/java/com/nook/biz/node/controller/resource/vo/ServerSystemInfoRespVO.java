@@ -2,7 +2,11 @@ package com.nook.biz.node.controller.resource.vo;
 
 import lombok.Data;
 
-/** 远端服务器系统信息快照; 不依赖 Xray 进程, 字段是 SSH 命令原样输出. */
+/**
+ * 管理后台 - 服务器系统信息 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class ServerSystemInfoRespVO {
 

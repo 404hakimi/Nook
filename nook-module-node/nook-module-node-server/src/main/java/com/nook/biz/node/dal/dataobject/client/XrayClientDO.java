@@ -10,7 +10,11 @@ import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 
-/** Xray 客户端凭据 (会员 × 线路 × 落地 IP); 对应表 xray_client. */
+/**
+ * Xray 客户端 DO
+ *
+ * @author nook
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("xray_client")

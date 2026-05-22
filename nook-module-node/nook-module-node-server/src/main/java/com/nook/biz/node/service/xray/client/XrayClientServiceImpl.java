@@ -42,7 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Xray client controller-facing 入口; 写远端的业务执行体在 ClientOpExecutor, 本类只入队 + 查 + convert. */
+/**
+ * Xray 客户端 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor

@@ -12,7 +12,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/** node-api {@link ResourceServerApi} 实现: 薄壳 facade 委托 validator + mapper. */
+/**
+ * 资源服务器 Api 实现类
+ *
+ * @author nook
+ */
 @Service
 @RequiredArgsConstructor
 public class ResourceServerApiImpl implements ResourceServerApi {

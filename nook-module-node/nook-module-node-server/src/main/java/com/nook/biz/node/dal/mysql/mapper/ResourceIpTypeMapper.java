@@ -7,6 +7,11 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;
 
+/**
+ * 资源 IP 类型 Mapper
+ *
+ * @author nook
+ */
 @Mapper
 public interface ResourceIpTypeMapper extends BaseMapper<ResourceIpTypeDO> {
 

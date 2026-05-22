@@ -13,7 +13,11 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Map;
 
-/** node-api {@link ResourceServerRuntimeApi} 实现. */
+/**
+ * 资源服务器运行时 Api 实现类
+ *
+ * @author nook
+ */
 @Service
 @RequiredArgsConstructor
 public class ResourceServerRuntimeApiImpl implements ResourceServerRuntimeApi {

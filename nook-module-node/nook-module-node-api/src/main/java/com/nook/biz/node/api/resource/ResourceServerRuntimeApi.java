@@ -6,7 +6,11 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Map;
 
-/** Server 运行时状态契约: agent 心跳上报 + admin 拉运行时拼接列表. */
+/**
+ * 资源服务器运行时 Api 接口
+ *
+ * @author nook
+ */
 public interface ResourceServerRuntimeApi {
 
     /**

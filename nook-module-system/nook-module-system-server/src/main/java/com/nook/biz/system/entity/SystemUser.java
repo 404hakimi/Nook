@@ -8,7 +8,11 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
-/** 后台系统用户(管理员/运营/运维)。 */
+/**
+ * 后台用户 DO
+ *
+ * @author nook
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("system_user")

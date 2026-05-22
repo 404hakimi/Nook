@@ -4,7 +4,11 @@ import com.nook.common.web.error.ErrorCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** Resource 模块错误码 (5xxx 段位)。 */
+/**
+ * Resource 模块错误码枚举
+ *
+ * @author nook
+ */
 @Getter
 @RequiredArgsConstructor
 public enum ResourceErrorCode implements ErrorCode {

@@ -4,7 +4,11 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceRegionDO;
 
 import java.util.List;
 
-/** 区域字典 service; admin 维护 + 表单下拉. */
+/**
+ * 资源区域 Service 接口
+ *
+ * @author nook
+ */
 public interface ResourceRegionService {
 
     /** 已启用区域列表; 表单下拉用. */

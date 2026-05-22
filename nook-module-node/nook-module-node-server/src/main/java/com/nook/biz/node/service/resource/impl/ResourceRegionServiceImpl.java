@@ -8,6 +8,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 资源区域 Service 实现类
+ *
+ * @author nook
+ */
 @Service
 @RequiredArgsConstructor
 public class ResourceRegionServiceImpl implements ResourceRegionService {

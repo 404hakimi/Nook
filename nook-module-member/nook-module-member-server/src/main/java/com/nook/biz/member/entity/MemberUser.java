@@ -8,7 +8,11 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
-/** 会员用户 (Nook 客户端账户; 跟后台 system_user 体系隔离). */
+/**
+ * 会员 DO
+ *
+ * @author nook
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("member_user")

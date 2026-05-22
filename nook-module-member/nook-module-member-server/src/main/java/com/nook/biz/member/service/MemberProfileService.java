@@ -3,7 +3,11 @@ package com.nook.biz.member.service;
 import com.nook.biz.member.controller.portal.vo.PortalChangePasswordReqVO;
 import com.nook.biz.member.controller.portal.vo.PortalMemberRespVO;
 
-/** 会员自助资料维护: 改密 / 重置 sub_token / 查个人信息. */
+/**
+ * 会员资料 Service 接口
+ *
+ * @author nook
+ */
 public interface MemberProfileService {
 
     /**

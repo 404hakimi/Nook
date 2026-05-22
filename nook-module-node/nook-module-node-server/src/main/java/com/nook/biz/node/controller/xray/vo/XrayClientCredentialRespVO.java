@@ -2,7 +2,11 @@ package com.nook.biz.node.controller.xray.vo;
 
 import lombok.Data;
 
-/** Client 协议级凭据明文出参; 仅"分享给会员"等场景按需拉, 列表/详情接口 mask UUID. */
+/**
+ * 管理后台 - Xray 客户端凭据 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class XrayClientCredentialRespVO {
 

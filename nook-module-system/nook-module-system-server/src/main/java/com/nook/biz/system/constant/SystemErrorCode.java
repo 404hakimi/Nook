@@ -4,7 +4,11 @@ import com.nook.common.web.error.ErrorCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** 后台系统模块错误码（2xxx 段位）。 */
+/**
+ * 后台系统模块错误码枚举
+ *
+ * @author nook
+ */
 @Getter
 @RequiredArgsConstructor
 public enum SystemErrorCode implements ErrorCode {

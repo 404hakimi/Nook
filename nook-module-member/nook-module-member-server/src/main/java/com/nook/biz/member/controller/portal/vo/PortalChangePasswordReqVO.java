@@ -4,7 +4,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/** 会员修改密码入参. */
+/**
+ * 客户端 - 会员修改密码 Request VO
+ *
+ * @author nook
+ */
 @Data
 public class PortalChangePasswordReqVO {
 

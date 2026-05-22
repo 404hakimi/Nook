@@ -1,5 +1,9 @@
 package com.nook.biz.node.api.xray.dto;
 
-/** Xray statsquery 单 user 流量快照 (上下行字节累计). */
+/**
+ * Agent 上报的 Xray 用户流量快照 DTO
+ *
+ * @author nook
+ */
 public record AgentStatSnapshotDTO(long upBytes, long downBytes) {
 }

@@ -3,7 +3,9 @@ package com.nook.biz.node.controller.resource.vo;
 import lombok.Data;
 
 /**
- * 指定 systemd unit 的 journalctl 日志快照; 由 ServerInspector 按 unit / 行数 / 级别拉取。
+ * 管理后台 - 服务日志 Response VO
+ *
+ * @author nook
  */
 @Data
 public class ServiceLogRespVO {

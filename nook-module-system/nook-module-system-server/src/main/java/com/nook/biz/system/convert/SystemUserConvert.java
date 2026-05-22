@@ -9,8 +9,9 @@ import org.mapstruct.factory.Mappers;
 import java.util.List;
 
 /**
- * SystemUser 实体 ↔ VO 之间的对象转换；MapStruct 在编译期生成实现。
- * 业务侧通过静态字段 {@link #INSTANCE} 调用，例如 {@code SystemUserConvert.INSTANCE.convert(user)}，不走 Spring 注入。
+ * 后台用户 Convert
+ *
+ * @author nook
  */
 @Mapper
 public interface SystemUserConvert {

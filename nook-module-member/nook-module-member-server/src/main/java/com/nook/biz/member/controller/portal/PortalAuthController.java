@@ -14,7 +14,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 会员注册 / 登录 / 登出; 跟 SaTokenConfig 的 /portal/member/auth/** 放行规则对齐. */
+/**
+ * 客户端 - 会员认证 Controller
+ *
+ * @author nook
+ */
 @RestController
 @RequestMapping("/portal/member/auth")
 @RequiredArgsConstructor

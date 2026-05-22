@@ -3,7 +3,11 @@ package com.nook.biz.node.controller.xray.vo;
 import com.nook.biz.node.controller.resource.vo.HostInfoRespVO;
 import lombok.Data;
 
-/** Xray systemd 服务运行状态 + xray 专属字段 (version / 监听端口); 由 XrayServerManageService.status 返回. */
+/**
+ * 管理后台 - Xray 服务状态 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class XrayServerStatusRespVO {
 

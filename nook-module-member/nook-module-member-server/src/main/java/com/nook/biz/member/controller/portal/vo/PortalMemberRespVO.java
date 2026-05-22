@@ -5,7 +5,11 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** 会员自查信息出参; 不返回 passwordHash / deleted 等敏感字段. */
+/**
+ * 客户端 - 会员 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class PortalMemberRespVO {
 

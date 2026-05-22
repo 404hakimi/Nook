@@ -2,7 +2,11 @@ package com.nook.biz.node.api.xray;
 
 import com.nook.biz.node.api.xray.dto.XrayNodeRespDTO;
 
-/** Xray 部署信息跨模块查询契约. */
+/**
+ * Xray 节点 Api 接口
+ *
+ * @author nook
+ */
 public interface XrayNodeApi {
 
     /**

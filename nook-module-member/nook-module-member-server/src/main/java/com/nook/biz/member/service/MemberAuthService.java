@@ -4,7 +4,11 @@ import com.nook.biz.member.controller.portal.vo.PortalAuthLoginRespVO;
 import com.nook.biz.member.controller.portal.vo.PortalLoginReqVO;
 import com.nook.biz.member.controller.portal.vo.PortalRegisterReqVO;
 
-/** 会员认证: 注册 / 登录 / 登出. */
+/**
+ * 会员认证 Service 接口
+ *
+ * @author nook
+ */
 public interface MemberAuthService {
 
     /**

@@ -7,7 +7,11 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
 
-/** ResourceServerRuntime 数据访问. */
+/**
+ * 资源服务器运行时 Mapper
+ *
+ * @author nook
+ */
 @Mapper
 public interface ResourceServerRuntimeMapper extends BaseMapper<ResourceServerRuntimeDO> {
 

@@ -32,34 +32,34 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '会员账户' }
       },
       {
-        path: 'agent/list',
-        name: 'agent-list',
-        component: () => import('@/views/agent/AgentList.vue'),
-        meta: { title: 'Agent 管理' }
-      },
-      {
         path: 'member/logs',
         name: 'member-logs',
         component: () => import('@/views/member/OperationLog.vue'),
         meta: { title: '操作日志' }
       },
+      // ===== 服务器统一入口 (B 方案 P1): 卡片总览 + 详情 tab =====
       {
-        path: 'resource/servers',
-        name: 'resource-servers',
-        component: () => import('@/views/resource/ServerList.vue'),
-        meta: { title: '服务器管理' }
+        path: 'servers',
+        name: 'server-overview',
+        component: () => import('@/views/server/ServerOverview.vue'),
+        meta: { title: '服务器' }
       },
+      {
+        path: 'servers/:id',
+        name: 'server-detail',
+        component: () => import('@/views/server/ServerDetail.vue'),
+        meta: { title: '服务器详情' }
+      },
+      // 老路由保留 redirect, 避免外部书签 / 历史链接 404
+      { path: 'resource/servers', redirect: '/servers' },
+      { path: 'agent/list', redirect: '/servers' },
+      { path: 'xray/nodes', redirect: '/servers' },
+
       {
         path: 'resource/ip-pool',
         name: 'resource-ip-pool',
         component: () => import('@/views/resource/IpPoolList.vue'),
         meta: { title: 'IP代理池' }
-      },
-      {
-        path: 'xray/nodes',
-        name: 'xray-nodes',
-        component: () => import('@/views/xray/XrayNodeList.vue'),
-        meta: { title: 'Xray 节点' }
       },
       {
         path: 'xray/clients',

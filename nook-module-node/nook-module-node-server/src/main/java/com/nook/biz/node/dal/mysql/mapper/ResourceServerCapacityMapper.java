@@ -7,6 +7,11 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
 
+/**
+ * 资源服务器容量 Mapper
+ *
+ * @author nook
+ */
 @Mapper
 public interface ResourceServerCapacityMapper extends BaseMapper<ResourceServerCapacityDO> {
 

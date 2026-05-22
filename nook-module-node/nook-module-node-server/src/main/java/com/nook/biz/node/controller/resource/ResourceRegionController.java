@@ -14,7 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** 区域字典管理; 仅 admin 查, 增删走 SQL. */
+/**
+ * 管理后台 - 资源区域 Controller
+ *
+ * @author nook
+ */
 @RestController
 @RequestMapping("/admin/resource/region")
 @RequiredArgsConstructor

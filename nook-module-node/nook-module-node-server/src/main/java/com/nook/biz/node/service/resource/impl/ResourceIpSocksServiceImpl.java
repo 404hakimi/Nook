@@ -44,7 +44,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/** SOCKS5 落地节点 (dante + xray outbound 联动): 装机 / 改凭据 / 状态查询. */
+/**
+ * 资源 IP SOCKS5 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor

@@ -3,7 +3,11 @@ package com.nook.biz.member.controller.admin.vo;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/** Admin 编辑会员备注. */
+/**
+ * 管理后台 - 会员备注更新 Request VO
+ *
+ * @author nook
+ */
 @Data
 public class AdminMemberUpdateRemarkReqVO {
 

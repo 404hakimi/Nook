@@ -1,5 +1,9 @@
 package com.nook.biz.node.api.xray.dto;
 
-/** 一次 agent 上报样本入库结果统计. */
+/**
+ * 流量样本入库结果 DTO
+ *
+ * @author nook
+ */
 public record SampleStatDTO(int upserted, int skipped) {
 }

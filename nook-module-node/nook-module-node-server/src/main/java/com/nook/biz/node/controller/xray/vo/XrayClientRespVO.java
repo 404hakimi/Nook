@@ -5,6 +5,11 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 管理后台 - Xray 客户端 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class XrayClientRespVO {
 

@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 编辑后台用户入参; username/password 不在此修改 (密码走 PUT /{id}/password); 字段为 null = 保留原值.
+ * 管理后台 - 后台用户更新 Request VO
  *
  * @author nook
  */

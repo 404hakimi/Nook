@@ -11,7 +11,11 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Set;
 
-/** Nook 业务侧脚本常量 + 启动注册进框架 ScriptCatalog. 新增脚本见 scripts/README.md. */
+/**
+ * Nook 模块脚本注册
+ *
+ * @author nook
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor

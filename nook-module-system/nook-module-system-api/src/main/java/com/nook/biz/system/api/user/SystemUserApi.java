@@ -3,7 +3,11 @@ package com.nook.biz.system.api.user;
 import java.util.Collection;
 import java.util.Map;
 
-/** System 模块对外契约: admin 用户跨模块查询 (op_log 补 operator 名等). */
+/**
+ * 后台用户 Api 接口
+ *
+ * @author nook
+ */
 public interface SystemUserApi {
 
     /**

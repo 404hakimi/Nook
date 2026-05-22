@@ -4,7 +4,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/** 重置后台用户密码入参。 */
+/**
+ * 管理后台 - 后台用户重置密码 Request VO
+ *
+ * @author nook
+ */
 @Data
 public class SystemUserUpdatePasswordReqVO {
 

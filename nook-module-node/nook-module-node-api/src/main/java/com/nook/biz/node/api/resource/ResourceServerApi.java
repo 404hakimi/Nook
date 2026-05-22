@@ -4,7 +4,11 @@ import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 
 import java.util.List;
 
-/** ResourceServer 跨模块查询契约; 其它模块只走此接口, 不直接碰 ResourceServerMapper. */
+/**
+ * 资源服务器 Api 接口
+ *
+ * @author nook
+ */
 public interface ResourceServerApi {
 
     /**

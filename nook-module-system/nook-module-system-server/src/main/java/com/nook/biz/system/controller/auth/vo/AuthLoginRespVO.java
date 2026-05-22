@@ -5,7 +5,11 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/** 登录成功响应：token + 当前用户基础信息。 */
+/**
+ * 管理后台 - 后台登录 Response VO
+ *
+ * @author nook
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

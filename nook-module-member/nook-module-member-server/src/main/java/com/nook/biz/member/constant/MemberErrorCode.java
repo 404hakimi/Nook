@@ -4,7 +4,11 @@ import com.nook.common.web.error.ErrorCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** 会员体系错误码 (3xxx 段位). */
+/**
+ * 会员模块错误码枚举
+ *
+ * @author nook
+ */
 @Getter
 @RequiredArgsConstructor
 public enum MemberErrorCode implements ErrorCode {

@@ -7,7 +7,11 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-/** Admin 端会员分页查询入参. */
+/**
+ * 管理后台 - 会员分页 Request VO
+ *
+ * @author nook
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class AdminMemberPageReqVO extends PageParam {

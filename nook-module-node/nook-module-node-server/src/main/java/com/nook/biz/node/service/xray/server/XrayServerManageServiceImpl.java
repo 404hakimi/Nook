@@ -42,7 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/** Xray 线路服务器管理: SSH 装机 / 重启 / 自启 / 日志读取. */
+/**
+ * Xray 服务器管理 Service 实现类
+ *
+ * @author nook
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor

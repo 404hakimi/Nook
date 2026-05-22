@@ -13,7 +13,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 会员自助资料维护; 路径不在 SaTokenConfig 放行清单内, 默认要求 member 登录. */
+/**
+ * 客户端 - 会员资料 Controller
+ *
+ * @author nook
+ */
 @RestController
 @RequestMapping("/portal/member/profile")
 @RequiredArgsConstructor

@@ -4,7 +4,11 @@ import com.nook.common.web.request.PageParam;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-/** 后台用户列表分页查询参数。 */
+/**
+ * 管理后台 - 后台用户分页 Request VO
+ *
+ * @author nook
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class SystemUserPageReqVO extends PageParam {

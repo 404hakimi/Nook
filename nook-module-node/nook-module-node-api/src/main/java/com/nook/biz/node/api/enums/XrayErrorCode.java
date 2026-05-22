@@ -4,7 +4,11 @@ import com.nook.common.web.error.ErrorCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** Xray 模块错误码 (6xxx 段位)。 */
+/**
+ * Xray 模块错误码枚举
+ *
+ * @author nook
+ */
 @Getter
 @RequiredArgsConstructor
 public enum XrayErrorCode implements ErrorCode {

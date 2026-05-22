@@ -10,8 +10,9 @@ import org.mapstruct.factory.Mappers;
 import java.util.List;
 
 /**
- * MemberUser 实体 ↔ VO 之间的对象转换; MapStruct 在编译期生成实现.
- * 业务侧通过静态字段 {@link #INSTANCE} 调用, 不走 Spring 注入.
+ * 会员 Convert
+ *
+ * @author nook
  */
 @Mapper
 public interface MemberUserConvert {

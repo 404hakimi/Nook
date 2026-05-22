@@ -22,6 +22,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 管理后台 - 后台认证 Controller
+ *
+ * @author nook
+ */
 @RestController
 @RequestMapping("/admin/system/auth")
 @RequiredArgsConstructor

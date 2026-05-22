@@ -19,7 +19,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Admin 后台会员管理; 路径走 /admin/** → SaTokenConfig 强制 system 登录. */
+/**
+ * 管理后台 - 会员管理 Controller
+ *
+ * @author nook
+ */
 @RestController
 @RequestMapping("/admin/member/users")
 @RequiredArgsConstructor

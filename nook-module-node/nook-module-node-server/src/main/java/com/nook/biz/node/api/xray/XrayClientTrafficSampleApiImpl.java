@@ -12,7 +12,11 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.Map;
 
-/** node-api {@link XrayClientTrafficSampleApi} 实现; DTO ↔ 内部 record 互转后委托给 service. */
+/**
+ * Xray 用户流量上报 Api 实现类
+ *
+ * @author nook
+ */
 @Service
 @RequiredArgsConstructor
 public class XrayClientTrafficSampleApiImpl implements XrayClientTrafficSampleApi {

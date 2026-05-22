@@ -13,7 +13,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/** IP 池条目 (出口 IP + SOCKS5 凭据); lifecycleState 装机视角, status allocator 占用视角. */
+/**
+ * 资源 IP 池 DO
+ *
+ * @author nook
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("resource_ip_pool")

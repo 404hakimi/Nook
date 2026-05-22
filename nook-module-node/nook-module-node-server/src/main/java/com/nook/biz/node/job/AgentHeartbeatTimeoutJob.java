@@ -15,7 +15,11 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** Agent 心跳超时分级判定: 1-3min WARN, 3-5min temp_unhealthy (allocator 跳过), ≥5min failover. */
+/**
+ * Agent 心跳超时判定 Job
+ *
+ * @author nook
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor

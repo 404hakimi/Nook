@@ -4,6 +4,11 @@ import com.nook.common.web.request.PageParam;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+/**
+ * 管理后台 - Xray 客户端分页 Request VO
+ *
+ * @author nook
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class XrayClientPageReqVO extends PageParam {

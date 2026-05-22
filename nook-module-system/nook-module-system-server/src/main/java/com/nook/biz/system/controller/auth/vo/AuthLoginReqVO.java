@@ -4,7 +4,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/** 后台登录入参。 */
+/**
+ * 管理后台 - 后台登录 Request VO
+ *
+ * @author nook
+ */
 @Data
 public class AuthLoginReqVO {
 

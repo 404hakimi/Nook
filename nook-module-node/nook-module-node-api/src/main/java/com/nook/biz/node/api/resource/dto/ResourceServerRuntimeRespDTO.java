@@ -4,7 +4,11 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** Server 运行时状态 (心跳 / agent 版本 / 健康标志). */
+/**
+ * 资源服务器运行时 Response DTO
+ *
+ * @author nook
+ */
 @Data
 public class ResourceServerRuntimeRespDTO {
 

@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 新增后台用户入参; 业务校验 (用户名唯一 / 邮箱唯一) 由 SystemUserValidator 完成.
+ * 管理后台 - 后台用户创建 Request VO
  *
  * @author nook
  */

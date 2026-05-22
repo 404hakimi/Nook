@@ -7,7 +7,11 @@ import org.springframework.stereotype.Service;
 import java.util.Collection;
 import java.util.Map;
 
-/** system-api {@link SystemUserApi} 实现: 委托 SystemUserService. */
+/**
+ * 后台用户 Api 实现类
+ *
+ * @author nook
+ */
 @Service
 @RequiredArgsConstructor
 public class SystemUserApiImpl implements SystemUserApi {

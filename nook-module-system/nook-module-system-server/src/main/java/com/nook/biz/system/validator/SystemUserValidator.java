@@ -10,7 +10,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * 后台用户业务校验.
+ * 后台用户业务校验
  *
  * @author nook
  */

@@ -1,6 +1,10 @@
 package com.nook.biz.node.api.resource;
 
-/** Server 容量 (NIC 流量累计字节数) 上报契约. */
+/**
+ * 资源服务器容量 Api 接口
+ *
+ * @author nook
+ */
 public interface ResourceServerCapacityApi {
 
     /**

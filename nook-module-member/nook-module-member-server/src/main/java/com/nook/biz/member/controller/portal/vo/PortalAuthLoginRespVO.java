@@ -4,7 +4,11 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/** 注册 / 登录成功响应: token + 会员基础信息. */
+/**
+ * 客户端 - 会员登录 Response VO
+ *
+ * @author nook
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -5,7 +5,11 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-/** node-api {@link ResourceServerCapacityApi} 实现. */
+/**
+ * 资源服务器容量 Api 实现类
+ *
+ * @author nook
+ */
 @Service
 @RequiredArgsConstructor
 public class ResourceServerCapacityApiImpl implements ResourceServerCapacityApi {

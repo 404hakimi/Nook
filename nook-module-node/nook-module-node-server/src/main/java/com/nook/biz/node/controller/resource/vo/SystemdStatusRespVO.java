@@ -2,7 +2,11 @@ package com.nook.biz.node.controller.resource.vo;
 
 import lombok.Data;
 
-/** 指定 systemd unit 的通用运行状态; 给 ServerInspector 通用查询用 (sshd / nginx / xray 等任意 unit). */
+/**
+ * 管理后台 - Systemd 服务状态 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class SystemdStatusRespVO {
 

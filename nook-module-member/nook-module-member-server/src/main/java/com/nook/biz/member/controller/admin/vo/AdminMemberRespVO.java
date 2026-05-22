@@ -5,7 +5,11 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** Admin 端会员展示视图; 含管理字段 (last_login_ip / remark). 同样不返回 passwordHash. */
+/**
+ * 管理后台 - 会员 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class AdminMemberRespVO {
 

@@ -10,7 +10,7 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * 后台用户基础读写 + CRUD.
+ * 后台用户 Service 接口
  *
  * @author nook
  */

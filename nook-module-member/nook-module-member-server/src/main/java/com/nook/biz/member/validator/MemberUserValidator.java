@@ -10,7 +10,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.regex.Pattern;
 
-/** 会员业务校验. */
+/**
+ * 会员业务校验
+ *
+ * @author nook
+ */
 @Component
 @RequiredArgsConstructor
 public class MemberUserValidator {

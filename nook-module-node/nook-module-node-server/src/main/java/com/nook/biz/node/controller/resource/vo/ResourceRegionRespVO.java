@@ -2,7 +2,11 @@ package com.nook.biz.node.controller.resource.vo;
 
 import lombok.Data;
 
-/** 区域字典 RespVO. */
+/**
+ * 管理后台 - 资源区域 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class ResourceRegionRespVO {
 

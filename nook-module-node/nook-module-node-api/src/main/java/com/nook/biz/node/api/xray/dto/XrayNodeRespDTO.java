@@ -2,7 +2,11 @@ package com.nook.biz.node.api.xray.dto;
 
 import lombok.Data;
 
-/** Xray 部署信息跨模块视图; 暴露 agent 装机 yaml 需要的两个字段 (bin / api_port). */
+/**
+ * Xray 节点 Response DTO
+ *
+ * @author nook
+ */
 @Data
 public class XrayNodeRespDTO {
 

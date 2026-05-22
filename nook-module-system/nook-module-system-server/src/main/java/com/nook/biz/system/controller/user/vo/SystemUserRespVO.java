@@ -5,7 +5,11 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** 后台用户对外展示视图，剔除密码哈希等敏感字段。entity → vo 由 SystemUserConvert 统一处理。 */
+/**
+ * 管理后台 - 后台用户 Response VO
+ *
+ * @author nook
+ */
 @Data
 public class SystemUserRespVO {
 
