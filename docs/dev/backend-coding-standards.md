@@ -47,7 +47,7 @@ Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查
 - `nook-module-<name>-server` — 实现 + 私有内部. 内含:
   - `controller/<feature>/{XxxController.java, vo/*}`
   - `service/{XxxService.java, impl/XxxServiceImpl.java}` — 本模块内部 service 接口
-  - `service/impl/XxxApiImpl.java` — 若 -api 有 XxxApi, 这里写实现 (`@Service`, 实现 -api 的接口)
+  - `api/<feature>/XxxApiImpl.java` — 若 -api 有 XxxApi 接口, 这里写实现 (跟接口同包, 跨 jar split-package, 参考 yudao-cloud)
   - `dal/{dataobject/XxxDO.java, mysql/mapper/XxxMapper.java}`
   - `convert/XxxConvert.java`
   - `framework/<feature>/*` — 模块私有的 Spring config / arg-resolver / interceptor 等
@@ -513,8 +513,11 @@ nook-module-<name>/
 │               ├── XxxRespDTO.java
 │               └── XxxSaveReqDTO.java
 └── nook-module-<name>-server/
-    ├── pom.xml                     # 依赖 -api + nook-spring-boot-starter-* + 跨模块依赖 (其它模块的 -api)
+    ├── pom.xml                     # 依赖 -api + nook-spring-boot-starter-* (web/security/mybatis 等按需) + 跨模块的 -api
     └── src/main/java/com/nook/biz/<name>/
+        ├── api/                        # XxxApi 接口的实现, 跟接口同包 (跨 jar split-package)
+        │   └── <feature>/
+        │       └── XxxApiImpl.java     # @Service, implements XxxApi
         ├── controller/
         │   ├── <feature>/              # 每个 feature 一个子包
         │   │   ├── XxxController.java  # admin/portal 在路径前缀区分

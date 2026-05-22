@@ -103,12 +103,22 @@
             </dependency>
             <dependency>
                 <groupId>com.nook</groupId>
-                <artifactId>nook-module-system</artifactId>
+                <artifactId>nook-module-system-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.nook</groupId>
-                <artifactId>nook-module-member</artifactId>
+                <artifactId>nook-module-system-server</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nook</groupId>
+                <artifactId>nook-module-member-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nook</groupId>
+                <artifactId>nook-module-member-server</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
