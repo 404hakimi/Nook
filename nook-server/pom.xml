@@ -29,7 +29,11 @@
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-module-node</artifactId>
+            <artifactId>nook-module-node-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-module-agent-server</artifactId>
         </dependency>
     </dependencies>
 

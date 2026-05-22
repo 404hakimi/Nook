@@ -63,13 +63,11 @@ const submitting = ref(false)
 const loadingDetail = ref(false)
 const errors = reactive<Record<string, string>>({})
 
-const STATUS_OPTIONS = [
-  { label: '可分配', value: 1 },
-  { label: '已占用', value: 2 },
-  { label: '测试中', value: 3 },
-  { label: '黑名单', value: 4 },
-  { label: '冷却中', value: 5 },
-  { label: '降级', value: 6 }
+const LIFECYCLE_OPTIONS = [
+  { label: '装机中', value: 'INSTALLING' },
+  { label: '待上线', value: 'READY' },
+  { label: '运行中', value: 'LIVE' },
+  { label: '已退役', value: 'RETIRED' }
 ]
 
 const PROVISION_MODE_OPTIONS = Object.entries(IP_POOL_PROVISION_MODE_LABELS).map(
@@ -88,7 +86,8 @@ const form = reactive({
   socks5Port: undefined as number | undefined,
   socks5Username: '',
   socks5Password: '',
-  status: 1,
+  /** 装机生命周期; v3 字段, 默认 INSTALLING. 占用状态 (AVAILABLE/RESERVED/OCCUPIED/COOLING) 由系统流转, 不在表单. */
+  lifecycleState: 'INSTALLING',
   /** 部署模式 1=自部署 2=第三方; 后端必填, 由用户选 (部署接力进入时预填 1). */
   provisionMode: undefined as number | undefined,
   /** dante 日志级别预设值 (实际是事件关键字组合, 见 DANTE_LOG_LEVEL_OPTIONS). */
@@ -131,7 +130,7 @@ function fill(ip: ResourceIpPool) {
   form.socks5Username = ip.socks5Username ?? ''
   // 接口下发明文密码, 直接 fill 进密码框 (UI 自然遮盖); 用户改一字会立即覆盖, 不改就保持
   form.socks5Password = ip.socks5Password ?? ''
-  form.status = ip.status
+  form.lifecycleState = ip.lifecycleState ?? 'INSTALLING'
   form.provisionMode = ip.provisionMode
   form.logLevel = ip.logLevel ?? DANTE_LOG_LEVEL_DEFAULT
   form.logPath = ip.logPath ?? ''
@@ -155,7 +154,7 @@ function reset() {
   form.socks5Port = undefined
   form.socks5Username = ''
   form.socks5Password = ''
-  form.status = 1
+  form.lifecycleState = 'INSTALLING'
   form.provisionMode = undefined
   form.logLevel = DANTE_LOG_LEVEL_DEFAULT
   form.logPath = ''
@@ -245,7 +244,7 @@ async function onSubmit() {
       socks5Port: form.socks5Port,
       socks5Username: form.socks5Username.trim() || undefined,
       socks5Password: form.socks5Password || undefined,
-      status: form.status,
+      lifecycleState: form.lifecycleState,
       provisionMode: form.provisionMode,
       logLevel: form.logLevel.trim() || undefined,
       // 留空 → 用 placeholder 的兜底 (installDir/logs/sockd.log) 填回, 后端 @NotBlank 校验直接拒空
@@ -343,8 +342,8 @@ function close() {
             />
           </NFormItem>
 
-          <NFormItem label="状态">
-            <NSelect v-model:value="form.status" :options="STATUS_OPTIONS" />
+          <NFormItem label="生命周期">
+            <NSelect v-model:value="form.lifecycleState" :options="LIFECYCLE_OPTIONS" />
           </NFormItem>
 
           <NFormItem

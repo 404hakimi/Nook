@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   NButton,
+  NDatePicker,
   NForm,
   NFormItem,
   NInput,
@@ -15,10 +16,12 @@ import {
 import {
   createServer,
   getServerDetail,
+  SERVER_LIFECYCLE_LABELS,
   updateServer,
   type ResourceServer,
   type ResourceServerSaveDTO
 } from '@/api/resource/server'
+import { listEnabledRegions, type ResourceRegion } from '@/api/resource/region'
 
 interface Props {
   modelValue: boolean
@@ -36,12 +39,17 @@ const submitting = ref(false)
 const loadingDetail = ref(false)
 const errors = reactive<Record<string, string>>({})
 
-const STATUS_OPTIONS = [
-  { label: '运行', value: 1 },
-  { label: '维护', value: 2 },
-  { label: '下线', value: 3 }
-]
+const LIFECYCLE_OPTIONS = (['INSTALLING', 'READY', 'LIVE', 'RETIRED'] as const).map((v) => ({
+  label: SERVER_LIFECYCLE_LABELS[v],
+  value: v
+}))
 
+const regions = ref<ResourceRegion[]>([])
+const regionOptions = computed(() =>
+  regions.value.map((r) => ({ label: `${r.flagEmoji || ''} ${r.displayName} (${r.code})`, value: r.code }))
+)
+
+// expiresAt 跟 NDatePicker (timestamp ms) 双向绑定; 提交前转 'yyyy-MM-dd'
 const form = reactive({
   name: '',
   host: '',
@@ -52,11 +60,17 @@ const form = reactive({
   sshOpTimeoutSeconds: 30 as number | null,
   sshUploadTimeoutSeconds: 30 as number | null,
   installTimeoutSeconds: 600 as number | null,
-  totalBandwidth: 1000 as number | null,
-  monthlyTrafficGb: null as number | null,
+  bandwidthMbps: 1000 as number | null,
+  domain: '',
+  cfZoneId: '',
+  cfRecordId: '',
+  costMonthlyUsd: null as number | null,
+  billingCycleDay: null as number | null,
+  expiresAtTs: null as number | null,
+  maxConcurrentClients: 50 as number | null,
   idcProvider: '',
   region: '',
-  status: 1,
+  lifecycleState: 'INSTALLING',
   remark: ''
 })
 
@@ -67,17 +81,22 @@ function fill(s: ResourceServer) {
   form.host = s.host
   form.sshPort = s.sshPort ?? 22
   form.sshUser = s.sshUser ?? 'root'
-  // 接口下发明文凭据, 直接 fill 进密码框 (UI 遮盖); 不改就保留, 改了就覆盖
   form.sshPassword = s.sshPassword ?? ''
   form.sshTimeoutSeconds = s.sshTimeoutSeconds ?? 30
   form.sshOpTimeoutSeconds = s.sshOpTimeoutSeconds ?? 30
   form.sshUploadTimeoutSeconds = s.sshUploadTimeoutSeconds ?? 30
   form.installTimeoutSeconds = s.installTimeoutSeconds ?? 600
-  form.totalBandwidth = s.totalBandwidth ?? 1000
-  form.monthlyTrafficGb = s.monthlyTrafficGb ?? null
+  form.bandwidthMbps = s.bandwidthMbps ?? 1000
+  form.domain = s.domain ?? ''
+  form.cfZoneId = s.cfZoneId ?? ''
+  form.cfRecordId = s.cfRecordId ?? ''
+  form.costMonthlyUsd = s.costMonthlyUsd ?? null
+  form.billingCycleDay = s.billingCycleDay ?? null
+  form.expiresAtTs = s.expiresAt ? new Date(s.expiresAt).getTime() : null
+  form.maxConcurrentClients = s.maxConcurrentClients ?? 50
   form.idcProvider = s.idcProvider ?? ''
   form.region = s.region ?? ''
-  form.status = s.status
+  form.lifecycleState = s.lifecycleState ?? 'INSTALLING'
   form.remark = s.remark ?? ''
 }
 
@@ -91,19 +110,38 @@ function reset() {
   form.sshOpTimeoutSeconds = 30
   form.sshUploadTimeoutSeconds = 30
   form.installTimeoutSeconds = 600
-  form.totalBandwidth = 1000
-  form.monthlyTrafficGb = null
+  form.bandwidthMbps = 1000
+  form.domain = ''
+  form.cfZoneId = ''
+  form.cfRecordId = ''
+  form.costMonthlyUsd = null
+  form.billingCycleDay = null
+  form.expiresAtTs = null
+  form.maxConcurrentClients = 50
   form.idcProvider = ''
   form.region = ''
-  form.status = 1
+  form.lifecycleState = 'INSTALLING'
   form.remark = ''
 }
+
+async function loadRegions() {
+  try {
+    regions.value = await listEnabledRegions()
+  } catch {
+    /* */
+  }
+}
+
+onMounted(loadRegions)
 
 watch(
   () => [props.modelValue, props.server, props.mode],
   async ([open]) => {
     if (!open) return
     Object.keys(errors).forEach((k) => delete errors[k])
+    if (regions.value.length === 0) {
+      await loadRegions()
+    }
     if (props.mode === 'edit' && props.server) {
       const id = props.server.id
       fill(props.server)
@@ -139,16 +177,38 @@ function validate(): boolean {
   Object.keys(errors).forEach((k) => delete errors[k])
   if (!form.name.trim()) errors.name = '请输入别名'
   if (!form.host.trim()) errors.host = '请输入主机'
+  if (!form.region.trim()) errors.region = '请选择区域'
 
   validateRange('sshTimeoutSeconds', 'SSH 握手超时', 5, 300)
   validateRange('sshOpTimeoutSeconds', 'SSH 单条命令超时', 5, 300)
   validateRange('sshUploadTimeoutSeconds', 'SCP 上传超时', 5, 600)
   validateRange('installTimeoutSeconds', '安装超时', 60, 3600)
 
+  if (form.maxConcurrentClients == null || form.maxConcurrentClients < 1 || form.maxConcurrentClients > 10000) {
+    errors.maxConcurrentClients = '客户数上限 1-10000'
+  }
+  if (form.bandwidthMbps == null) errors.bandwidthMbps = '请填带宽峰值'
+  if (form.billingCycleDay != null && (form.billingCycleDay < 1 || form.billingCycleDay > 28)) {
+    errors.billingCycleDay = '账单日 1-28'
+  }
+
   if (props.mode === 'create') {
     if (!form.sshPassword) errors.sshPassword = '请填 SSH 密码'
   }
+  // LIVE 前置: domain 必填
+  if (form.lifecycleState === 'LIVE' && !form.domain.trim()) {
+    errors.domain = 'LIVE 状态要求 domain 必填'
+  }
   return Object.keys(errors).length === 0
+}
+
+function tsToDateStr(ts: number | null): string | undefined {
+  if (ts == null) return undefined
+  const d = new Date(ts)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
 }
 
 async function onSubmit() {
@@ -165,11 +225,17 @@ async function onSubmit() {
       sshOpTimeoutSeconds: form.sshOpTimeoutSeconds ?? undefined,
       sshUploadTimeoutSeconds: form.sshUploadTimeoutSeconds ?? undefined,
       installTimeoutSeconds: form.installTimeoutSeconds ?? undefined,
-      totalBandwidth: form.totalBandwidth ?? undefined,
-      monthlyTrafficGb: form.monthlyTrafficGb ?? undefined,
+      bandwidthMbps: form.bandwidthMbps ?? undefined,
+      domain: form.domain.trim() || undefined,
+      cfZoneId: form.cfZoneId.trim() || undefined,
+      cfRecordId: form.cfRecordId.trim() || undefined,
+      costMonthlyUsd: form.costMonthlyUsd ?? undefined,
+      billingCycleDay: form.billingCycleDay ?? undefined,
+      expiresAt: tsToDateStr(form.expiresAtTs),
+      maxConcurrentClients: form.maxConcurrentClients ?? undefined,
       idcProvider: form.idcProvider.trim() || undefined,
       region: form.region.trim() || undefined,
-      status: form.status,
+      lifecycleState: form.lifecycleState,
       remark: form.remark.trim() || undefined
     }
     if (props.mode === 'create') {
@@ -211,7 +277,6 @@ function close() {
         require-mark-placement="right-hanging"
         size="small"
       >
-        <!-- 基本信息 -->
         <div class="text-sm font-semibold text-zinc-500 mb-2">基本信息</div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
           <NFormItem
@@ -220,7 +285,7 @@ function close() {
             :validation-status="errors.name ? 'error' : undefined"
             :feedback="errors.name"
           >
-            <NInput v-model:value="form.name" placeholder="如 us-west-rn-01" />
+            <NInput v-model:value="form.name" placeholder="如 jp-tyo-rn-01" />
           </NFormItem>
           <NFormItem
             label="主机/管理 IP"
@@ -234,8 +299,18 @@ function close() {
               :input-props="{ style: 'font-family: monospace' }"
             />
           </NFormItem>
-          <NFormItem label="区域">
-            <NInput v-model:value="form.region" placeholder="us-west / jp / ..." />
+          <NFormItem
+            label="区域"
+            required
+            :validation-status="errors.region ? 'error' : undefined"
+            :feedback="errors.region"
+          >
+            <NSelect
+              v-model:value="form.region"
+              :options="regionOptions"
+              placeholder="选择区域字典"
+              filterable
+            />
           </NFormItem>
           <NFormItem label="IDC 供应商">
             <NInput
@@ -243,44 +318,86 @@ function close() {
               placeholder="racknerd / hosthatch / dmit"
             />
           </NFormItem>
-          <NFormItem>
-            <template #label>
-              <span>带宽峰值 (Mbps)</span>
-              <span class="text-xs text-zinc-400 ml-2">速率</span>
-            </template>
-            <NInputNumber
-              v-model:value="form.totalBandwidth"
-              :min="0"
-              class="w-full"
-            />
+          <NFormItem
+            label="生命周期"
+            required
+          >
+            <NSelect v-model:value="form.lifecycleState" :options="LIFECYCLE_OPTIONS" />
           </NFormItem>
-          <NFormItem>
-            <template #label>
-              <span>月流量额度 (GB)</span>
-              <span class="text-xs text-zinc-400 ml-2">不限留空</span>
-            </template>
-            <NInputNumber
-              v-model:value="form.monthlyTrafficGb"
-              :min="0"
-              placeholder="例 1000 = 1TB/月"
-              class="w-full"
+          <NFormItem
+            label="线路机域名 (LIVE 前置必填)"
+            :validation-status="errors.domain ? 'error' : undefined"
+            :feedback="errors.domain"
+          >
+            <NInput
+              v-model:value="form.domain"
+              placeholder="jp-01.nook.com"
+              :input-props="{ style: 'font-family: monospace' }"
             />
-          </NFormItem>
-          <NFormItem label="状态">
-            <NSelect v-model:value="form.status" :options="STATUS_OPTIONS" />
           </NFormItem>
         </div>
 
-        <!-- SSH -->
+        <div class="text-sm font-semibold text-zinc-500 mt-4 mb-2">容量 / 账面</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+          <NFormItem
+            label="带宽峰值 (Mbps)"
+            required
+            :validation-status="errors.bandwidthMbps ? 'error' : undefined"
+            :feedback="errors.bandwidthMbps"
+          >
+            <NInputNumber v-model:value="form.bandwidthMbps" :min="0" class="w-full" />
+          </NFormItem>
+          <NFormItem
+            label="客户数上限"
+            required
+            :validation-status="errors.maxConcurrentClients ? 'error' : undefined"
+            :feedback="errors.maxConcurrentClients"
+          >
+            <template #label>
+              <span>客户数上限</span>
+              <span class="text-xs text-zinc-400 ml-2">1C1G=50-100 / 2C2G=200 / 4C4G=500</span>
+            </template>
+            <NInputNumber
+              v-model:value="form.maxConcurrentClients"
+              :min="1"
+              :max="10000"
+              class="w-full"
+            />
+          </NFormItem>
+          <NFormItem label="月度成本 USD">
+            <NInputNumber v-model:value="form.costMonthlyUsd" :min="0" :precision="2" class="w-full" />
+          </NFormItem>
+          <NFormItem
+            label="账单日 (1-28)"
+            :validation-status="errors.billingCycleDay ? 'error' : undefined"
+            :feedback="errors.billingCycleDay"
+          >
+            <NInputNumber v-model:value="form.billingCycleDay" :min="1" :max="28" class="w-full" />
+          </NFormItem>
+          <NFormItem label="服务器到期日">
+            <NDatePicker
+              v-model:value="form.expiresAtTs"
+              type="date"
+              clearable
+              class="w-full"
+            />
+          </NFormItem>
+        </div>
+
+        <div class="text-sm font-semibold text-zinc-500 mt-4 mb-2">Cloudflare</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+          <NFormItem label="Cloudflare Zone ID">
+            <NInput v-model:value="form.cfZoneId" :input-props="{ style: 'font-family: monospace' }" />
+          </NFormItem>
+          <NFormItem label="Cloudflare DNS Record ID">
+            <NInput v-model:value="form.cfRecordId" :input-props="{ style: 'font-family: monospace' }" />
+          </NFormItem>
+        </div>
+
         <div class="text-sm font-semibold text-zinc-500 mt-4 mb-2">SSH 凭据</div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
           <NFormItem label="SSH 端口">
-            <NInputNumber
-              v-model:value="form.sshPort"
-              :min="1"
-              :max="65535"
-              class="w-full"
-            />
+            <NInputNumber v-model:value="form.sshPort" :min="1" :max="65535" class="w-full" />
           </NFormItem>
           <NFormItem label="SSH 用户">
             <NInput v-model:value="form.sshUser" />
@@ -303,9 +420,7 @@ function close() {
           </div>
         </div>
 
-        <div class="text-sm font-semibold text-zinc-500 mt-4 mb-2">
-          超时配置
-        </div>
+        <div class="text-sm font-semibold text-zinc-500 mt-4 mb-2">超时配置</div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
           <NFormItem
             required
@@ -316,12 +431,7 @@ function close() {
               <span>SSH 握手超时 (秒)</span>
               <span class="text-xs text-zinc-400 ml-2">5-300, 默认 30</span>
             </template>
-            <NInputNumber
-              v-model:value="form.sshTimeoutSeconds"
-              :min="5"
-              :max="300"
-              class="w-full"
-            />
+            <NInputNumber v-model:value="form.sshTimeoutSeconds" :min="5" :max="300" class="w-full" />
           </NFormItem>
           <NFormItem
             required
@@ -332,12 +442,7 @@ function close() {
               <span>SSH 单条命令超时 (秒)</span>
               <span class="text-xs text-zinc-400 ml-2">xray api / journalctl</span>
             </template>
-            <NInputNumber
-              v-model:value="form.sshOpTimeoutSeconds"
-              :min="5"
-              :max="300"
-              class="w-full"
-            />
+            <NInputNumber v-model:value="form.sshOpTimeoutSeconds" :min="5" :max="300" class="w-full" />
           </NFormItem>
           <NFormItem
             required
@@ -348,12 +453,7 @@ function close() {
               <span>SCP 上传超时 (秒)</span>
               <span class="text-xs text-zinc-400 ml-2">脚本/模板上传, 5-600</span>
             </template>
-            <NInputNumber
-              v-model:value="form.sshUploadTimeoutSeconds"
-              :min="5"
-              :max="600"
-              class="w-full"
-            />
+            <NInputNumber v-model:value="form.sshUploadTimeoutSeconds" :min="5" :max="600" class="w-full" />
           </NFormItem>
           <NFormItem
             required
@@ -364,21 +464,12 @@ function close() {
               <span>安装超时 (秒)</span>
               <span class="text-xs text-zinc-400 ml-2">一次部署上限, 60-3600</span>
             </template>
-            <NInputNumber
-              v-model:value="form.installTimeoutSeconds"
-              :min="60"
-              :max="3600"
-              class="w-full"
-            />
+            <NInputNumber v-model:value="form.installTimeoutSeconds" :min="60" :max="3600" class="w-full" />
           </NFormItem>
         </div>
 
         <NFormItem label="备注">
-          <NInput
-            v-model:value="form.remark"
-            type="textarea"
-            :autosize="{ minRows: 2, maxRows: 4 }"
-          />
+          <NInput v-model:value="form.remark" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
         </NFormItem>
       </NForm>
     </NSpin>

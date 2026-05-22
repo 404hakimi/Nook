@@ -129,20 +129,25 @@ export function listNetworkInterfaces(id: string) {
   return request.get<unknown, string[]>('/admin/resource/server/network-interfaces', { params: { id } })
 }
 
-/** Agent 装机会动到的路径 + URL 常量; dialog readonly 展示给 admin 看. */
+/** Agent 装机 meta: backend 已知数据, 前端 prefill 表单用; 用户可改. */
 export interface AgentInstallMeta {
-  nookHome: string
-  binPath: string
-  configPath: string
-  systemdUnitPath: string
-  binaryDownloadUrl: string
+  /** Backend 公网 URL (config 读). */
   backendUrl: string
+  /** Frontline + 选了 server 才有: xray binary 绝对路径. */
+  xrayBin?: string
+  /** Frontline + 选了 server 才有: xray api server 端口. */
+  xrayApiPort?: number
+  /** 选了 server 才有: SSH 默认 (resource_server 表读). */
+  sshTimeoutSeconds?: number
+  sshOpTimeoutSeconds?: number
+  sshUploadTimeoutSeconds?: number
+  installTimeoutSeconds?: number
 }
 
-export function getAgentInstallMeta(role: 'frontline' | 'landing') {
+export function getAgentInstallMeta(role: 'frontline' | 'landing', serverId?: string | null) {
   return request.get<unknown, AgentInstallMeta>(
-    '/admin/resource/server/agent-install-meta',
-    { params: { role } }
+    '/admin/agent/install-meta',
+    { params: { role, serverId: serverId || undefined } }
   )
 }
 
@@ -179,7 +184,20 @@ export interface AgentInstallDTO {
   /** auto | eth0 | ens5 ... */
   nicInterface: string
   pollerIntervalSeconds: number
-  // xray 三件套 backend 自动从 xray_node 表读 (没装就兜底), 不在 dialog 表单里
+  /** Frontline 必填; 前端从 /agent-install-meta 拿 xray_node 字段后回塞. landing 可省. */
+  xrayBin?: string
+  xrayApiPort?: number
+  // 路径 + URL (前端默认 + 可改, backend 不兜底)
+  nookHome: string
+  binPath: string
+  configPath: string
+  systemdUnitPath: string
+  backendUrl: string
+  // SSH 参数 (per-install override; 不回写 resource_server)
+  sshTimeoutSeconds: number
+  sshOpTimeoutSeconds: number
+  sshUploadTimeoutSeconds: number
+  installTimeoutSeconds: number
 }
 
 /**
@@ -193,7 +211,7 @@ export function agentInstallStream(
   signal?: AbortSignal
 ): Promise<void> {
   const userStore = useUserStore()
-  const url = `/api/admin/resource/server/agent-install?id=${encodeURIComponent(id)}`
+  const url = `/api/admin/agent/install?id=${encodeURIComponent(id)}`
   return fetch(url, {
     method: 'POST',
     headers: {

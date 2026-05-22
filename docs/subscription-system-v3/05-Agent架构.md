@@ -2,6 +2,16 @@
 
 > v3 Agent 设计 — Go 实现 + 配置驱动 + 任务队列 + 部署流程. Go 开发者必读, 运维参考.
 
+> **实施状态** (2026-05-20):
+>
+> Go agent 骨架已部署到 fra-test (64.118.158.12) 验证通过. 后端 `/api/agent/{heartbeat,nic-traffic,xray-traffic,tasks,task-result}` 全部上线. 仓库 `nook-agent/` 是 Go 项目源码 (~600 行).
+>
+> **已实现 executor**: `ping` / `xray_provision_user` / `xray_remove_user` / `xray_update_outbound`.
+> **已实现 collector**: heartbeat (1min) / nic (5min vnstat) / xray-stats (5min, xray.enabled=true 时启用).
+> **后端 Job**: `AgentHeartbeatTimeoutJob` 分级 1/3/5min 已上线; `XrayTrafficSampleJob` (v2) 已删, agent 主动 push 替代; `XrayClientReconcilerJob` 暂停 @Scheduled, Sprint 1 改派 `xray_full_sync` task.
+>
+> **待补** (P5+): admin agent 管理 UI / agent_upgrade task / agent 无日志 systemd / install_dir 配置 / xray-socks5 一键清日志.
+
 ---
 
 ## 十五、Agent 架构 (v3 新增)

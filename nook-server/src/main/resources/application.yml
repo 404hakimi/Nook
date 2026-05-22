@@ -8,6 +8,16 @@ spring:
   web:
     resources:
       add-mappings: false
+  # multipart 上限提到 64MB; agent binary ~6MB, 后端 service 自带 50MB 兜底
+  servlet:
+    multipart:
+      max-file-size: 64MB
+      max-request-size: 64MB
+  # 全局时区: 所有 JSON 时间序列化按 Asia/Shanghai (+08:00); JVM 启动也建议加 -Duser.timezone=Asia/Shanghai 双保险
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+    locale: zh_CN
 
 # mybatis-plus 配置
 mybatis-plus:

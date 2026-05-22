@@ -12,51 +12,11 @@
     </parent>
 
     <artifactId>nook-module-node</artifactId>
-    <description>
-    </description>
+    <packaging>pom</packaging>
+    <description>Node 模块聚合: api (对外契约) + server (实现 + dal).</description>
 
-    <dependencies>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-spring-boot-starter-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-spring-boot-starter-mybatis</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-module-operation</artifactId>
-        </dependency>
-        <!-- op_log.operator 回填 admin realName/username -->
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-module-system</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>jakarta.annotation</groupId>
-            <artifactId>jakarta.annotation-api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-spring-boot-starter-ssh</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-
-        <!-- JSON 序列化: install 模板渲染 + InboundProtocolMapping 构造 client JSON -->
-        <dependency>
-            <groupId>com.alibaba.fastjson2</groupId>
-            <artifactId>fastjson2</artifactId>
-        </dependency>
-    </dependencies>
+    <modules>
+        <module>nook-module-node-api</module>
+        <module>nook-module-node-server</module>
+    </modules>
 </project>

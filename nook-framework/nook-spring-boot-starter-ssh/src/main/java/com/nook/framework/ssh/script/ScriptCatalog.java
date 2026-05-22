@@ -110,8 +110,4 @@ public class ScriptCatalog {
         }
     }
 
-    /** 给测试 / 调试用; 业务侧不要清空 registry. */
-    public Collection<ScriptModule> raw() {
-        return Collections.unmodifiableCollection(registry.values());
-    }
 }

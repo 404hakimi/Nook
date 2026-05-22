@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
+  ArrowRightLeft,
   Pencil,
   Plus,
   RefreshCcw,
@@ -15,6 +16,7 @@ import {
   NButton,
   NCard,
   NDataTable,
+  NDropdown,
   NIcon,
   NInput,
   NSelect,
@@ -24,12 +26,16 @@ import {
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import {
-  SERVER_STATUS_LABELS,
+  SERVER_LIFECYCLE_LABELS,
+  SERVER_LIFECYCLE_OPTIONS,
+  SERVER_LIFECYCLE_TAG_TYPE,
   deleteServer,
   pageServers,
+  transitionServerLifecycle,
   type ResourceServer,
   type ResourceServerQuery
 } from '@/api/resource/server'
+import { listEnabledRegions, type ResourceRegion } from '@/api/resource/region'
 import { testServerConnectivity } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
 import ServerFormDialog from './ServerFormDialog.vue'
@@ -39,24 +45,31 @@ import ServerOsTuneDialog from './ServerOsTuneDialog.vue'
 const message = useMessage()
 const { confirm } = useConfirm()
 
-// ===== 列表 + 查询 =====
-const STATUS_OPTIONS = [
-  { label: '全部', value: undefined as number | undefined },
-  { label: '运行', value: 1 },
-  { label: '维护', value: 2 },
-  { label: '下线', value: 3 }
-]
-
 const query = reactive<Required<Pick<ResourceServerQuery, 'pageNo' | 'pageSize'>> & ResourceServerQuery>({
   pageNo: 1,
   pageSize: 10,
   keyword: '',
-  status: undefined,
+  lifecycleState: undefined,
   region: ''
 })
 const list = ref<ResourceServer[]>([])
 const total = ref(0)
 const loading = ref(false)
+
+// 区域字典 (表单 + 列表过滤共用)
+const regions = ref<ResourceRegion[]>([])
+const regionOptions = computed(() => [
+  { label: '全部', value: '' },
+  ...regions.value.map((r) => ({ label: `${r.flagEmoji || ''} ${r.displayName}`, value: r.code }))
+])
+
+async function loadRegions() {
+  try {
+    regions.value = await listEnabledRegions()
+  } catch {
+    /* */
+  }
+}
 
 async function loadList() {
   loading.value = true
@@ -65,7 +78,7 @@ async function loadList() {
       pageNo: query.pageNo,
       pageSize: query.pageSize,
       keyword: query.keyword || undefined,
-      status: query.status,
+      lifecycleState: query.lifecycleState,
       region: query.region || undefined
     })
     const maxPage = res.total > 0 ? Math.ceil(res.total / query.pageSize) : 1
@@ -87,7 +100,7 @@ async function loadList() {
 function resetQuery() {
   query.pageNo = 1
   query.keyword = ''
-  query.status = undefined
+  query.lifecycleState = undefined
   query.region = ''
   loadList()
 }
@@ -97,11 +110,12 @@ function onSearch() {
   loadList()
 }
 
-function statusTagType(s: number): 'success' | 'warning' | 'error' | 'default' {
-  return s === 1 ? 'success' : s === 2 ? 'warning' : 'error'
+function regionDisplay(code?: string): string {
+  if (!code) return '-'
+  const r = regions.value.find((x) => x.code === code)
+  return r ? `${r.flagEmoji || ''} ${r.displayName}` : code
 }
 
-// ===== 新增 / 编辑 =====
 const formOpen = ref(false)
 const formMode = ref<'create' | 'edit'>('create')
 const formServer = ref<ResourceServer | null>(null)
@@ -122,7 +136,6 @@ async function onFormSaved() {
   await loadList()
 }
 
-// ===== 删除 =====
 async function onDelete(s: ResourceServer) {
   const ok = await confirm({
     title: '删除服务器',
@@ -140,7 +153,6 @@ async function onDelete(s: ResourceServer) {
   }
 }
 
-// ===== 测试连通性 =====
 const testing = ref<Record<string, boolean>>({})
 
 async function onTest(s: ResourceServer) {
@@ -159,8 +171,6 @@ async function onTest(s: ResourceServer) {
   }
 }
 
-// ===== 服务器信息 (系统级 hostname / 内存 / 磁盘 等) =====
-// Xray 相关操作 (部署 / 重启 / Replay / 对账 / 日志) 已搬到「Xray 节点」菜单
 const opsOpen = ref(false)
 const opsTarget = ref<ResourceServer | null>(null)
 
@@ -169,7 +179,6 @@ function openOps(s: ResourceServer) {
   opsOpen.value = true
 }
 
-// ===== OS 调优 (BBR / swap) - 独立行操作入口 =====
 const osTuneOpen = ref(false)
 const osTuneTarget = ref<ResourceServer | null>(null)
 
@@ -178,14 +187,38 @@ function openOsTune(s: ResourceServer) {
   osTuneOpen.value = true
 }
 
-// ===== 行操作: 平铺一行小按钮 (跟 XrayNodeList / IpPoolList 风格一致) =====
-// "服务器信息" 只看 OS 层 (hostname / 内存 / 磁盘); Xray 相关都在「Xray 节点」菜单. "OS 调优" 管内核 BBR / swap.
 
-// ===== 表格列定义 =====
+// ===== lifecycle 流转 =====
+const LIFECYCLE_DROPDOWN_OPTIONS = [
+  { label: '装机中 INSTALLING', key: 'INSTALLING' },
+  { label: '待上线 READY', key: 'READY' },
+  { label: '运行中 LIVE', key: 'LIVE' },
+  { label: '已退役 RETIRED', key: 'RETIRED' }
+]
+
+async function onLifecycleSelect(s: ResourceServer, target: string) {
+  if (s.lifecycleState === target) return
+  const targetLabel = SERVER_LIFECYCLE_LABELS[target] || target
+  const ok = await confirm({
+    title: '切换生命周期',
+    message: `把服务器 "${s.name}" 从 ${SERVER_LIFECYCLE_LABELS[s.lifecycleState]} 切到 ${targetLabel}?`,
+    confirmText: '切换'
+  })
+  if (!ok) return
+  try {
+    await transitionServerLifecycle(s.id, target)
+    message.success(`已切换到 ${targetLabel}`)
+    loadList()
+  } catch {
+    /* */
+  }
+}
+
 const columns = computed<DataTableColumns<ResourceServer>>(() => [
   {
-    title: 'IDC 供应商',
+    title: 'IDC',
     key: 'idcProvider',
+    width: 110,
     render: (row) =>
       row.idcProvider
         ? h('span', null, row.idcProvider)
@@ -194,8 +227,8 @@ const columns = computed<DataTableColumns<ResourceServer>>(() => [
   {
     title: '区域',
     key: 'region',
-    render: (row) =>
-      row.region ? h('span', null, row.region) : h('span', { class: 'text-zinc-400' }, '-')
+    width: 160,
+    render: (row) => h('span', null, regionDisplay(row.region))
   },
   {
     title: '别名',
@@ -216,30 +249,37 @@ const columns = computed<DataTableColumns<ResourceServer>>(() => [
       ])
   },
   {
+    title: '域名',
+    key: 'domain',
+    render: (row) =>
+      row.domain
+        ? h('span', { class: 'font-mono text-xs' }, row.domain)
+        : h('span', { class: 'text-zinc-400' }, '-')
+  },
+  {
     title: '带宽',
-    key: 'bandwidth',
-    render: (row) => (row.totalBandwidth ? `${row.totalBandwidth} Mbps` : '-')
+    key: 'bandwidthMbps',
+    width: 90,
+    render: (row) => (row.bandwidthMbps ? `${row.bandwidthMbps} Mbps` : '-')
   },
   {
-    title: '月流量',
-    key: 'monthlyTraffic',
-    render: (row) => {
-      if (row.monthlyTrafficGb && row.monthlyTrafficGb > 0) {
-        return row.monthlyTrafficGb >= 1000
-          ? `${(row.monthlyTrafficGb / 1000).toFixed(1)} TB`
-          : `${row.monthlyTrafficGb} GB`
-      }
-      return h('span', { class: 'text-zinc-400' }, '不限')
-    }
+    title: '客户数上限',
+    key: 'maxConcurrentClients',
+    width: 100,
+    render: (row) => (row.maxConcurrentClients ?? '-')
   },
   {
-    title: '状态',
-    key: 'status',
+    title: '生命周期',
+    key: 'lifecycleState',
+    width: 100,
     render: (row) =>
       h(
         NTag,
-        { size: 'small', type: statusTagType(row.status) },
-        { default: () => SERVER_STATUS_LABELS[row.status] || row.status }
+        {
+          size: 'small',
+          type: SERVER_LIFECYCLE_TAG_TYPE[row.lifecycleState] || 'default'
+        },
+        { default: () => SERVER_LIFECYCLE_LABELS[row.lifecycleState] || row.lifecycleState }
       )
   },
   {
@@ -282,6 +322,30 @@ const columns = computed<DataTableColumns<ResourceServer>>(() => [
           {
             icon: () => h(NIcon, null, { default: () => h(Pencil) }),
             default: () => '编辑'
+          }
+        ),
+        h(
+          NDropdown,
+          {
+            trigger: 'click',
+            options: LIFECYCLE_DROPDOWN_OPTIONS,
+            onSelect: (key: string) => onLifecycleSelect(row, key)
+          },
+          {
+            default: () =>
+              h(
+                NButton,
+                {
+                  size: 'tiny',
+                  quaternary: true,
+                  type: 'info',
+                  title: '切换 lifecycle (INSTALLING/READY/LIVE/RETIRED)'
+                },
+                {
+                  icon: () => h(NIcon, null, { default: () => h(ArrowRightLeft) }),
+                  default: () => '流转'
+                }
+              )
           }
         ),
         h(
@@ -345,12 +409,14 @@ const pagination = computed(() => ({
   }
 }))
 
-onMounted(loadList)
+onMounted(() => {
+  loadRegions()
+  loadList()
+})
 </script>
 
 <template>
   <div class="space-y-4">
-    <!-- 顶部搜索栏 -->
     <NCard size="small">
       <div class="flex flex-wrap gap-3 items-end">
         <div>
@@ -358,28 +424,28 @@ onMounted(loadList)
           <NInput
             v-model:value="query.keyword"
             size="small"
-            placeholder="别名 / 主机"
+            placeholder="别名 / 主机 / 域名"
             class="w-56"
             @keyup.enter="onSearch"
           />
         </div>
         <div>
-          <div class="text-xs text-zinc-500 mb-1">状态</div>
+          <div class="text-xs text-zinc-500 mb-1">生命周期</div>
           <NSelect
-            v-model:value="query.status"
-            :options="STATUS_OPTIONS"
+            v-model:value="query.lifecycleState"
+            :options="SERVER_LIFECYCLE_OPTIONS"
             size="small"
-            class="w-28"
+            class="w-32"
           />
         </div>
         <div>
           <div class="text-xs text-zinc-500 mb-1">区域</div>
-          <NInput
+          <NSelect
             v-model:value="query.region"
+            :options="regionOptions"
             size="small"
-            placeholder="us-west / jp / ..."
-            class="w-32"
-            @keyup.enter="onSearch"
+            class="w-40"
+            placeholder="选区域"
           />
         </div>
         <NButton type="primary" size="small" @click="onSearch">
@@ -398,7 +464,6 @@ onMounted(loadList)
       </div>
     </NCard>
 
-    <!-- 表格 + 分页 -->
     <NCard size="small" :content-style="{ padding: 0 }">
       <NDataTable
         :columns="columns"
@@ -412,7 +477,6 @@ onMounted(loadList)
       />
     </NCard>
 
-    <!-- 新增/编辑 弹框 -->
     <ServerFormDialog
       v-model="formOpen"
       :mode="formMode"
@@ -420,10 +484,7 @@ onMounted(loadList)
       @saved="onFormSaved"
     />
 
-    <!-- 服务器信息: 系统级 hostname / 内存 / 磁盘 等 (Xray 操作走「Xray 节点」菜单) -->
     <ServerOpsDialog v-model="opsOpen" :server="opsTarget" />
-
-    <!-- OS 调优: BBR / swap, 独立入口 -->
     <ServerOsTuneDialog v-model="osTuneOpen" :server="osTuneTarget" />
   </div>
 </template>

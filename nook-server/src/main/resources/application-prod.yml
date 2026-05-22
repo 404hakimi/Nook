@@ -33,6 +33,11 @@ sa-token:
   is-print: false
 
 nook:
+  backend:
+    # Agent 装机 / 升级回拉 backend binary 的公网 URL; 生产用真实域名 (e.g. https://api.nook.example.com)
+    public-url: ${NOOK_BACKEND_PUBLIC_URL:}
+  agent:
+    src-dir: nook-agent
   node:
     grpc-local-port-base: 10085
   monitor:
@@ -49,4 +54,13 @@ logging:
   level:
     com.nook: INFO
     cn.dev33.satoken: WARN
-    # com.nook.biz: DEBUG
+    com.nook.biz: INFO
+  file:
+    name: ${user.home}/${spring.application.name}-logs/${spring.application.name}.log
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+  logback:
+    rollingpolicy:
+      max-file-size: 50MB
+      max-history: 7
+      total-size-cap: 500MB

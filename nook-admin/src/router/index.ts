@@ -32,6 +32,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '会员账户' }
       },
       {
+        path: 'agent/list',
+        name: 'agent-list',
+        component: () => import('@/views/agent/AgentList.vue'),
+        meta: { title: 'Agent 管理' }
+      },
+      {
         path: 'member/logs',
         name: 'member-logs',
         component: () => import('@/views/member/OperationLog.vue'),

@@ -67,14 +67,12 @@ function ipTypeName(typeId?: string): string {
   return `${t.name} · ${label}`
 }
 
-function statusTagType(status?: number): 'success' | 'info' | 'warning' | 'error' | 'default' {
+function statusTagType(status?: string): 'success' | 'info' | 'warning' | 'default' {
   switch (status) {
-    case 1: return 'success'
-    case 2: return 'info'
-    case 3: return 'warning'
-    case 4: return 'error'
-    case 5: return 'warning'
-    case 6: return 'default'
+    case 'AVAILABLE': return 'success'
+    case 'RESERVED': return 'warning'
+    case 'OCCUPIED': return 'info'
+    case 'COOLING': return 'default'
     default: return 'default'
   }
 }
@@ -191,9 +189,9 @@ function openIpPoolPage() {
         </NDescriptionsItem>
         <NDescriptionsItem label="分配次数">{{ detail.assignCount ?? 0 }}</NDescriptionsItem>
         <NDescriptionsItem label="当前会员">
-          <span class="font-mono text-xs">{{ detail.assignedMemberId || '-' }}</span>
+          <span class="font-mono text-xs">{{ detail.occupiedByMemberId || '-' }}</span>
         </NDescriptionsItem>
-        <NDescriptionsItem label="分配时间">{{ formatDateTime(detail.assignedAt) }}</NDescriptionsItem>
+        <NDescriptionsItem label="占用时间">{{ formatDateTime(detail.occupiedAt) }}</NDescriptionsItem>
         <NDescriptionsItem v-if="detail.coolingUntil" label="冷却到期">
           {{ formatDateTime(detail.coolingUntil) }}
         </NDescriptionsItem>

@@ -11,6 +11,7 @@ import {
   Server,
   Globe2,
   Cable,
+  Cpu,
   Bell,
   ChevronDown,
   Menu,
@@ -84,6 +85,7 @@ const menuOptions: MenuOption[] = [
       { key: '/xray/nodes', label: routerLabel('/xray/nodes', 'Xray 节点'), icon: icon(Cable) }
     ]
   },
+  { key: '/agent/list', label: routerLabel('/agent/list', 'Agent 管理'), icon: icon(Cpu) },
   {
     key: 'operation-group',
     label: '运维管理',

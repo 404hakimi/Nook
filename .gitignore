@@ -34,3 +34,6 @@ application-local.properties
 # go agent
 /agent/nook-*
 nook-agent/dist/
+
+#
+.claude

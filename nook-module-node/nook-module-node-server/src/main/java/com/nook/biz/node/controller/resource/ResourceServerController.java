@@ -1,0 +1,75 @@
+package com.nook.biz.node.controller.resource;
+
+import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerSaveReqVO;
+import com.nook.biz.node.convert.resource.ResourceServerConvert;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.service.resource.ResourceServerService;
+import com.nook.biz.node.validator.ResourceServerValidator;
+import com.nook.common.web.response.PageResult;
+import com.nook.common.web.response.Result;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/** 管理后台 - 资源服务器 (server 元数据 CRUD + lifecycle 流转; agent 装机端点见 AgentInstallController). */
+@RestController
+@RequestMapping("/admin/resource/server")
+@Validated
+@RequiredArgsConstructor
+public class ResourceServerController {
+
+    private final ResourceServerService resourceServerService;
+    private final ResourceServerValidator serverValidator;
+
+    @PostMapping("/create")
+    public Result<ResourceServerRespVO> createServer(@Valid @RequestBody ResourceServerSaveReqVO createReqVO) {
+        String id = resourceServerService.createServer(createReqVO);
+        ResourceServerDO server = serverValidator.validateExists(id);
+        return Result.ok(ResourceServerConvert.INSTANCE.convert(server));
+    }
+
+    @PutMapping("/update")
+    public Result<Boolean> updateServer(@RequestParam("id") String id,
+                                        @Valid @RequestBody ResourceServerSaveReqVO updateReqVO) {
+        resourceServerService.updateServer(id, updateReqVO);
+        return Result.ok(true);
+    }
+
+    @DeleteMapping("/delete")
+    public Result<Boolean> deleteServer(@RequestParam("id") String id) {
+        resourceServerService.deleteServer(id);
+        return Result.ok(true);
+    }
+
+    @GetMapping("/get")
+    public Result<ResourceServerRespVO> getServer(@RequestParam("id") String id) {
+        ResourceServerDO server = serverValidator.validateExists(id);
+        return Result.ok(ResourceServerConvert.INSTANCE.convert(server));
+    }
+
+    @GetMapping("/page")
+    public Result<PageResult<ResourceServerRespVO>> getServerPage(@ModelAttribute ResourceServerPageReqVO pageReqVO) {
+        PageResult<ResourceServerDO> pageResult = resourceServerService.getServerPage(pageReqVO);
+        return Result.ok(ResourceServerConvert.INSTANCE.convertPage(pageResult));
+    }
+
+    /** 切换 lifecycle_state; admin 上线 / 退役流转用. */
+    @PostMapping("/lifecycle")
+    public Result<Boolean> transitionLifecycle(@RequestParam("id") String id,
+                                               @RequestParam("state") String state) {
+        resourceServerService.transitionLifecycle(id, state);
+        return Result.ok(true);
+    }
+
+}

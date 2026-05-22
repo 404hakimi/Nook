@@ -23,7 +23,7 @@
 | Swagger | 起步**不强制**类/方法注解 (`@Tag` / `@Operation`), 但欢迎补 | 后续接 OpenAPI 时再补 |
 | 多租户 | **不引入** | Nook 是 SaaS 但单租户产品 |
 | 字典体系 | **不引入** | 起步用枚举 + DB 字段 |
-| 跨模块 API | 通过 `com.nook.biz.<module>.api.*` 包暴露; 各模块 `api/package-info.java` 已预留 | 禁止直接注入其他模块的 Service / Mapper |
+| 跨模块 API | 每个业务模块拆 `nook-module-<name>-api` (对外契约: enums / DTO / Api 接口) + `nook-module-<name>-server` (实现); 参考 yudao-cloud simplified | 禁止直接注入其他模块 -server 内部的 Service / Mapper |
 
 ---
 
@@ -39,9 +39,29 @@ Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查
 
 ### 跨模块调用
 
-只能通过 `com.nook.biz.<module>.api.*` 包暴露的接口或 `nook-framework / nook-common` 工具调用其他模块. **禁止**直接注入其他模块的 Service / Mapper.
+每个业务模块拆两 maven 子模块 (yudao-cloud simplified, monolith 单进程不引 Feign):
 
-各模块 `src/main/java/com/nook/biz/<module>/api/` 下已预留 `package-info.java` 作占位.
+- `nook-module-<name>-api` — 对外契约, 零业务依赖 (只允许 jakarta.validation / lombok 这类编译期工具). 内含:
+  - `com.nook.biz.<name>.enums.<feature>.*` — 跨模块共享的枚举
+  - `com.nook.biz.<name>.api.<feature>.{XxxApi, dto.XxxRespDTO, dto.XxxSaveReqDTO}` — 当其它模块需要调用本模块时, 定义 `XxxApi` interface (普通 Java interface, 跑 Spring DI; **不是** Feign / RPC) + 配套 DTO. 不需要跨模块调用就不建这个包
+- `nook-module-<name>-server` — 实现 + 私有内部. 内含:
+  - `controller/<feature>/{XxxController.java, vo/*}`
+  - `service/{XxxService.java, impl/XxxServiceImpl.java}` — 本模块内部 service 接口
+  - `service/impl/XxxApiImpl.java` — 若 -api 有 XxxApi, 这里写实现 (`@Service`, 实现 -api 的接口)
+  - `dal/{dataobject/XxxDO.java, mysql/mapper/XxxMapper.java}`
+  - `convert/XxxConvert.java`
+  - `framework/<feature>/*` — 模块私有的 Spring config / arg-resolver / interceptor 等
+  - `validator/XxxValidator.java` (可选)
+
+**禁止**:
+- 跨模块 import `nook-module-<a>-server` 包内任何类
+- 在 -api 模块放 Spring beans (`@Service` / `@Component` / `@Repository`) 或注解处理逻辑
+
+**允许**:
+- 模块 A 的 -server 依赖模块 B 的 -api (拿 Api 接口 + DTO 走 Spring DI)
+- 任意模块依赖 `nook-common` / `nook-framework`
+
+参考: `nook-module-agent` 的 `-api` / `-server` 拆分.
 
 ### 关联数据拼接 (三步走)
 
@@ -475,38 +495,56 @@ public class SomeAsyncHelper {
 
 ---
 
-## 11. 包结构
+## 11. 模块结构 (maven 双子模块)
+
+每个业务模块 = 1 个父 pom (`packaging=pom`) + 2 个子 maven 模块 (`-api` + `-server`).
 
 ```
 nook-module-<name>/
-└── src/main/java/com/nook/biz/<name>/
-    ├── api/                        # 跨模块 API 暴露 (起步阶段仅 package-info.java 占位)
-    ├── constant/                   # 错误码 / 业务常量
-    ├── controller/
-    │   ├── <feature>/              # 每个 feature 一个子包
-    │   │   ├── XxxController.java
-    │   │   └── vo/
-    │   │       ├── XxxCreateReqVO.java
-    │   │       ├── XxxUpdateReqVO.java
-    │   │       ├── XxxPageReqVO.java
-    │   │       └── XxxRespVO.java
-    ├── convert/
-    │   └── XxxConvert.java
-    ├── entity/
-    │   └── XxxEntity.java          # 注意: Nook 用 `Entity` 后缀, 不是 `DO`
-    ├── mapper/
-    │   └── XxxMapper.java
-    ├── service/
-    │   ├── XxxService.java
-    │   └── impl/
-    │       └── XxxServiceImpl.java
-    └── validator/                  # 可选
-        └── XxxValidator.java
+├── pom.xml                         # 父 pom, packaging=pom, 只声明 modules
+├── nook-module-<name>-api/
+│   ├── pom.xml                     # 极简, 只 jakarta.validation 等编译期依赖
+│   └── src/main/java/com/nook/biz/<name>/
+│       ├── enums/<feature>/        # 跨模块共享的枚举 (5xxx 状态码 / 业务状态机 / 角色 / 类型)
+│       │   └── XxxEnum.java
+│       └── api/<feature>/          # 若需要被其它模块调用, 放 facade Api 接口
+│           ├── XxxApi.java         # 普通 Java interface (非 Feign)
+│           └── dto/
+│               ├── XxxRespDTO.java
+│               └── XxxSaveReqDTO.java
+└── nook-module-<name>-server/
+    ├── pom.xml                     # 依赖 -api + nook-spring-boot-starter-* + 跨模块依赖 (其它模块的 -api)
+    └── src/main/java/com/nook/biz/<name>/
+        ├── controller/
+        │   ├── <feature>/              # 每个 feature 一个子包
+        │   │   ├── XxxController.java  # admin/portal 在路径前缀区分
+        │   │   └── vo/
+        │   │       ├── XxxCreateReqVO.java
+        │   │       ├── XxxUpdateReqVO.java
+        │   │       ├── XxxPageReqVO.java
+        │   │       └── XxxRespVO.java
+        │   └── admin/<feature>/        # admin 后台专用 (可选, 路径在类上区分)
+        ├── service/
+        │   ├── XxxService.java         # 模块内部 service 接口
+        │   ├── impl/
+        │   │   ├── XxxServiceImpl.java
+        │   │   └── XxxApiImpl.java     # 实现 -api 的 XxxApi (若有)
+        ├── dal/
+        │   ├── dataobject/<feature>/
+        │   │   └── XxxDO.java          # MP 实体, 后缀 DO
+        │   └── mysql/mapper/
+        │       └── XxxMapper.java
+        ├── convert/<feature>/
+        │   └── XxxConvert.java
+        ├── framework/<feature>/        # 模块私有 config / arg-resolver / interceptor
+        │   └── XxxConfig.java
+        └── validator/                  # 可选
+            └── XxxValidator.java
 ```
 
-参考 `nook-module-system` 现有结构.
+参考: `nook-module-agent` (已按此结构拆); `nook-module-system` / `nook-module-member` / `nook-module-node` 待逐步拆.
 
-> 实体后缀: Nook 用 `Xxx` 或 `XxxEntity` 都可接受. 现状是直接用业务名 (e.g., `SystemUser`, `XrayClient`). 沿用.
+> 实体后缀: 新代码统一用 `XxxDO` (跟 mybatis-plus 习惯一致). 旧代码 (`SystemUser` / `XrayClient` 等) 沿用, 重构时顺手改。
 
 ---
 

@@ -97,8 +97,8 @@ watch(
 async function loadIpPool() {
   loadingIpPool.value = true
   try {
-    // 仅拉 status=1 (available) 的 IP, 防止误派已占用的; 取 200 条够下拉用
-    const res = await pageIpPool({ pageNo: 1, pageSize: 200, status: 1 })
+    // 仅拉 AVAILABLE 的 IP, 防止误派已占用的; 取 200 条够下拉用
+    const res = await pageIpPool({ pageNo: 1, pageSize: 200, status: 'AVAILABLE' })
     ipPool.value = res.records
   } catch {
     /* */

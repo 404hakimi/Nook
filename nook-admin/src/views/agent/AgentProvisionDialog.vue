@@ -4,6 +4,7 @@ import { ArrowUp, HelpCircle, Rocket } from 'lucide-vue-next'
 import {
   NAlert,
   NButton,
+  NDivider,
   NForm,
   NFormItem,
   NIcon,
@@ -140,7 +141,7 @@ async function doUpgrade() {
   }
   dialog.warning({
     title: '确认升级',
-    content: `${a.serverName}: ${a.agentVersion ?? '?'} → backend 当前版本. 重启窗口 ~10-20 秒, 期间断 1 次心跳; xray/socks5 不动.`,
+    content: '是否确认升级?',
     positiveText: '升级', negativeText: '取消',
     onPositiveClick: async () => {
       upgrading.value = true
@@ -184,11 +185,20 @@ const installMeta = ref<AgentInstallMeta | null>(null)
 
 async function loadInstallMeta() {
   try {
-    installMeta.value = await getAgentInstallMeta(selectedRole.value)
+    installMeta.value = await getAgentInstallMeta(selectedRole.value, selectedServerId.value)
+    // backend 已知数据 (URL + SSH 默认) 覆盖到表单, admin 直接基于真实值改
+    applyMetaToForm(form, installMeta.value)
   } catch {
     installMeta.value = null
   }
 }
+
+/** frontline 选了 server 但 xray_node 没记录 → 装机会失败, 前端拦; landing 永远 false. */
+const xrayMissing = computed(() =>
+  selectedRole.value === 'frontline'
+  && !!selectedServerId.value
+  && (!installMeta.value?.xrayBin || installMeta.value?.xrayApiPort == null)
+)
 
 // ---------- 部署表单 ----------
 // 选 server 后 SSH 拉远端网卡; 失败/未选时只剩 auto
@@ -221,13 +231,43 @@ function defaultForm(): AgentInstallDTO {
     nicIntervalSeconds: 300,
     nicInterface: 'auto',
     // 60s: admin 派任务后最差等 1min 才被 agent 拾取; 比 30s 省一半 backend 请求, 体感无差
-    pollerIntervalSeconds: 60
+    pollerIntervalSeconds: 60,
+    // 路径 + URL 默认 (前端持有, 改了对本次装机生效); backendUrl 选 server 后从 meta 覆盖
+    nookHome: '/home/nook-agent',
+    binPath: '/home/nook-agent/nook-agent',
+    configPath: '/home/nook-agent/config.yml',
+    systemdUnitPath: '/etc/systemd/system/nook-agent.service',
+    backendUrl: '',
+    // SSH 默认 (跟 socks5 deploy 一致); 选了 server 后会被 install-meta 里 resource_server 存值覆盖
+    sshTimeoutSeconds: 60,
+    sshOpTimeoutSeconds: 60,
+    sshUploadTimeoutSeconds: 180,
+    installTimeoutSeconds: 600
   }
 }
 const form = reactive<AgentInstallDTO>(defaultForm())
 
-function resetForm() {
-  Object.assign(form, defaultForm())
+/** 把 meta 里 backend 已知值 (URL + SSH 4 件套) 应用到给定 form 对象上 (in-place). */
+function applyMetaToForm(target: AgentInstallDTO, m: AgentInstallMeta | null) {
+  if (!m) return
+  if (m.backendUrl) target.backendUrl = m.backendUrl
+  if (m.sshTimeoutSeconds != null) target.sshTimeoutSeconds = m.sshTimeoutSeconds
+  if (m.sshOpTimeoutSeconds != null) target.sshOpTimeoutSeconds = m.sshOpTimeoutSeconds
+  if (m.sshUploadTimeoutSeconds != null) target.sshUploadTimeoutSeconds = m.sshUploadTimeoutSeconds
+  if (m.installTimeoutSeconds != null) target.installTimeoutSeconds = m.installTimeoutSeconds
+}
+
+/** Reset: 先拉 meta 算出最终值, 一次性 assign — 避免先 default 后 prefill 的两帧闪烁. */
+async function resetForm() {
+  const fresh = defaultForm()
+  try {
+    const m = await getAgentInstallMeta(selectedRole.value, selectedServerId.value)
+    installMeta.value = m
+    applyMetaToForm(fresh, m)
+  } catch {
+    installMeta.value = null
+  }
+  Object.assign(form, fresh)
 }
 
 // ---------- SSH 部署 (流式) ----------
@@ -249,8 +289,7 @@ function runDeploy() {
   if (a.onlineState !== 'NEVER') {
     dialog.warning({
       title: '确认重新部署',
-      content: '覆盖远端 config.yml + 重写 systemd unit + 重启 agent (~60s). '
-             + 'agent_token / xray / socks5 不动. 日常版本更新走「升级二进制包」tab.',
+      content: '是否确认部署?',
       positiveText: '继续', negativeText: '取消',
       // 不 await, 让确认框立即关闭, 部署在后台跑
       onPositiveClick: () => { actuallyDeploy() }
@@ -267,12 +306,20 @@ async function actuallyDeploy() {
   deploying.value = true
   deployAbort = new AbortController()
   try {
-    const dto: AgentInstallDTO = { ...form, role: selectedRole.value }
+    // frontline 必带 xray bin/api_port (后端从 install-meta 已查过, 这里只是把前端拿到的值回塞)
+    const dto: AgentInstallDTO = {
+      ...form,
+      role: selectedRole.value,
+      xrayBin: selectedRole.value === 'frontline' ? installMeta.value?.xrayBin : undefined,
+      xrayApiPort: selectedRole.value === 'frontline' ? installMeta.value?.xrayApiPort : undefined
+    }
     await agentInstallStream(a.serverId, dto, appendLog, deployAbort.signal)
     appendLog('\n[nook-admin] ✅ 装机流完成\n')
     emit('dispatched')
     await loadData()
-    // 装好后 agent 已在线, 跳到升级 tab (后续 admin 想升 binary 直接走)
+    // loadData 触发 watch(currentAgent) → 把 activeTab 重置成 recommended (新装的还没心跳, recommended='deploy');
+    // 等 watch flush 完再切, 不然立即赋值会被覆盖回去
+    await nextTick()
     activeTab.value = 'upgrade'
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -298,8 +345,8 @@ watch(open, (v) => {
     dispatchedTaskId.value = null
     upgradeStatus.value = 'WAITING'
     upgradeElapsed.value = 0
+    // resetForm 内部已 await meta + 一次性 assign, 不再单独 loadInstallMeta (避免重复请求 + 闪烁)
     resetForm()
-    loadInstallMeta()
   } else {
     stopPolling()
     if (deployAbort) deployAbort.abort()
@@ -317,13 +364,14 @@ watch(selectedRole, () => {
   loadInstallMeta()
 })
 
-// 选 server 后 SSH 拉网卡填下拉
+// 选 server 后 SSH 拉网卡 + 重拉 install-meta (frontline 时附带 xray 信息)
 watch(selectedServerId, (id) => {
   if (id) {
     loadNicOptions(id)
   } else {
     nicOptions.value = [{ label: 'auto (默认路由出口网卡)', value: 'auto' }]
   }
+  loadInstallMeta()
 })
 
 onMounted(() => { if (props.modelValue) loadData() })
@@ -370,12 +418,17 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
 
         <NTabs v-if="currentAgent" v-model:value="activeTab" type="line" size="small">
           <!-- ============ 升级 ============ -->
-          <NTabPane name="upgrade" tab="升级二进制包">
+          <NTabPane name="upgrade">
+            <template #tab>
+              <span>升级二进制包</span>
+              <NTooltip trigger="hover">
+                <template #trigger>
+                  <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                </template>
+                仅替换二进制包; agent_token / config.yml / systemd unit 全保留. 重启窗口 ~10-20 秒, 期间断 1 次心跳 + 1-2 次任务轮询; xray / socks5 不动.
+              </NTooltip>
+            </template>
             <div class="space-y-2 mt-2">
-              <NAlert type="info" :show-icon="false" size="small">
-                仅替换二进制包; <b>agent_token / config.yml / systemd unit 全保留</b>.
-                重启窗口 ~10-20 秒, 期间断 1 次心跳 + 1-2 次任务轮询; xray / socks5 不动.
-              </NAlert>
               <div v-if="!dispatchedTaskId || lastDispatchedFor !== currentAgent.serverName">
                 <NButton
                   type="primary"
@@ -403,25 +456,25 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
           </NTabPane>
 
           <!-- ============ 部署 ============ -->
-          <NTabPane name="deploy" tab="重新部署">
+          <NTabPane name="deploy">
+            <template #tab>
+              <span>重新部署</span>
+              <NTooltip trigger="hover">
+                <template #trigger>
+                  <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                </template>
+                覆盖远端 config.yml + 重写 systemd unit + 重启 agent. 全字段 admin 自定 (前端默认 + 选 server 后 backend 已知值 prefill); 后端不兜底.
+              </NTooltip>
+            </template>
             <div class="space-y-3 mt-2">
-              <NAlert type="warning" :show-icon="false" size="small">
-                覆盖 <code>{{ installMeta?.configPath ?? '/home/nook-agent/config.yml' }}</code>;
-                字段全必填, 后端不持兜底默认.
+              <NAlert v-if="xrayMissing" type="error" :show-icon="false" size="small">
+                ⚠ 该 server 未装 xray (xray_node 表无记录), frontline 装机会失败. 请先到 xray 管理装上.
               </NAlert>
 
-              <!-- 装机元信息 (后端常量, readonly) -->
-              <div v-if="installMeta" class="install-meta">
-                <div class="meta-header">装机元信息 (后端固定, 不可编辑)</div>
-                <div class="meta-row"><span class="k">装机根目录</span><code class="v">{{ installMeta.nookHome }}</code></div>
-                <div class="meta-row"><span class="k">Binary 路径</span><code class="v">{{ installMeta.binPath }}</code></div>
-                <div class="meta-row"><span class="k">Config 路径</span><code class="v">{{ installMeta.configPath }}</code></div>
-                <div class="meta-row"><span class="k">systemd unit</span><code class="v">{{ installMeta.systemdUnitPath }}</code></div>
-                <div class="meta-row"><span class="k">Backend URL</span><code class="v">{{ installMeta.backendUrl || '⚠ 未配置 nook.backend.public-url' }}</code></div>
-                <div class="meta-row"><span class="k">Binary 下载</span><code class="v">{{ installMeta.binaryDownloadUrl }}</code></div>
-              </div>
-
               <NForm :model="form" label-placement="left" label-width="auto" size="small">
+                <NDivider title-placement="left" class="form-section">
+                  <span class="text-xs text-zinc-500">Agent 参数</span>
+                </NDivider>
                 <NFormItem path="backendTimeoutSeconds">
                   <template #label>
                     backend 超时 (s)
@@ -490,13 +543,131 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                   </template>
                   <NInputNumber v-model:value="form.pollerIntervalSeconds" :min="5" :max="600" class="w-40" />
                 </NFormItem>
-              </NForm>
-              <div v-if="selectedRole === 'frontline'" class="text-xs text-zinc-500">
-                ℹ️ frontline 必须先装 xray; xray 路径 / API 端口由 backend 从 xray_node 读取.
-              </div>
 
-              <div class="flex gap-2 pt-1">
-                <NButton type="primary" size="small" :loading="deploying" @click="runDeploy">
+                <NDivider title-placement="left" class="form-section">
+                  <span class="text-xs text-zinc-500">路径 + URL (本次装机生效)</span>
+                </NDivider>
+                <NFormItem path="backendUrl">
+                  <template #label>
+                    Backend URL
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      agent yaml backend.api_url + 装机脚本 curl binary 都用此值. 默认从 backend config 读, 可改 (e.g. 换 natapp 地址).
+                    </NTooltip>
+                  </template>
+                  <NInput v-model:value="form.backendUrl" placeholder="https://your-backend.example.com" class="w-96" />
+                </NFormItem>
+                <NFormItem path="nookHome">
+                  <template #label>
+                    装机根目录
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      agent 文件 (binary + config) 落地的目录; 改路径要确保 server 文件系统已存在或脚本能 mkdir.
+                    </NTooltip>
+                  </template>
+                  <NInput v-model:value="form.nookHome" class="w-96" />
+                </NFormItem>
+                <NFormItem path="binPath">
+                  <template #label>
+                    Binary 路径
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      agent binary 绝对路径; systemd ExecStart + yaml runtime.bin_path 都用此. 默认在 nookHome 下.
+                    </NTooltip>
+                  </template>
+                  <NInput v-model:value="form.binPath" class="w-96" />
+                </NFormItem>
+                <NFormItem path="configPath">
+                  <template #label>
+                    Config 路径
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      agent config.yml 绝对路径; systemd ExecStart 用 -c 指向此. 后续改配置也会写到此处.
+                    </NTooltip>
+                  </template>
+                  <NInput v-model:value="form.configPath" class="w-96" />
+                </NFormItem>
+                <NFormItem path="systemdUnitPath">
+                  <template #label>
+                    systemd unit 路径
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      systemd unit 文件位置; 默认 /etc/systemd/system/nook-agent.service. 改 unit 名也会影响 systemctl 命令.
+                    </NTooltip>
+                  </template>
+                  <NInput v-model:value="form.systemdUnitPath" class="w-96" />
+                </NFormItem>
+
+                <NDivider title-placement="left" class="form-section">
+                  <span class="text-xs text-zinc-500">SSH 参数 (本次装机生效, 不回写表)</span>
+                </NDivider>
+                <NFormItem path="sshTimeoutSeconds">
+                  <template #label>
+                    SSH 握手超时 (s)
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      建 SSH 会话握手阶段超时 (跨境抖动可调大). 默认从 server 表读, 这里改只对本次装机生效.
+                    </NTooltip>
+                  </template>
+                  <NInputNumber v-model:value="form.sshTimeoutSeconds" :min="5" :max="600" class="w-40" />
+                </NFormItem>
+                <NFormItem path="sshOpTimeoutSeconds">
+                  <template #label>
+                    SSH 单条命令超时 (s)
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      装机脚本里单条命令 (apt / curl / systemctl) 最大耗时. 单步卡过这值会中断本次装机.
+                    </NTooltip>
+                  </template>
+                  <NInputNumber v-model:value="form.sshOpTimeoutSeconds" :min="5" :max="300" class="w-40" />
+                </NFormItem>
+                <NFormItem path="sshUploadTimeoutSeconds">
+                  <template #label>
+                    SCP 上传超时 (s)
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      SCP 单文件上传超时 (装机脚本 ~几 KB, 默认 180 余量足). 慢链路或大文件调大.
+                    </NTooltip>
+                  </template>
+                  <NInputNumber v-model:value="form.sshUploadTimeoutSeconds" :min="5" :max="600" class="w-40" />
+                </NFormItem>
+                <NFormItem path="installTimeoutSeconds">
+                  <template #label>
+                    安装整体超时 (s)
+                    <NTooltip trigger="hover">
+                      <template #trigger>
+                        <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
+                      </template>
+                      整段装机脚本最大耗时 (含 binary 下载 + xray 等启动). natapp 慢链路下 binary ~5MB 约 50s, 600s 默认够用.
+                    </NTooltip>
+                  </template>
+                  <NInputNumber v-model:value="form.installTimeoutSeconds" :min="60" :max="3600" class="w-40" />
+                </NFormItem>
+              </NForm>
+              <div class="flex gap-2 pt-1 items-center">
+                <NButton
+                  type="primary"
+                  size="small"
+                  :loading="deploying"
+                  :disabled="xrayMissing"
+                  @click="runDeploy"
+                >
                   <template #icon><NIcon><Rocket /></NIcon></template>
                   SSH 自动装机
                 </NButton>
@@ -520,44 +691,16 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
 </template>
 
 <style scoped>
-.install-meta {
-  border: 1px solid rgba(127, 127, 127, 0.2);
-  border-radius: 4px;
-  padding: 8px 12px;
-  background: rgba(127, 127, 127, 0.04);
-}
-.install-meta .meta-header {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-bottom: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.install-meta .meta-row {
-  display: flex;
-  font-size: 12px;
-  line-height: 1.7;
-}
-.install-meta .meta-row .k {
-  flex: 0 0 7rem;
-  color: #71717a;
-}
-.install-meta .meta-row .v {
-  flex: 1;
-  font-family: 'JetBrains Mono', monospace;
-  color: #3f3f46;
-  background: none;
-  padding: 0;
-  word-break: break-all;
-}
-html[data-theme='dark'] .install-meta .meta-row .v {
-  color: #d4d4d8;
-}
 .hint-icon {
   margin-left: 4px;
   vertical-align: middle;
   color: #a1a1aa;
   cursor: help;
+}
+/* NDivider 默认上下 28px margin 太占地; 表单分组用紧凑值 */
+.form-section {
+  margin-top: 8px !important;
+  margin-bottom: 4px !important;
 }
 .hint-icon:hover {
   color: #6366f1;
