@@ -1,0 +1,23 @@
+package com.nook.biz.agent.service;
+
+import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
+import com.nook.biz.agent.controller.admin.vo.AdminAgentListItemRespVO;
+import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskPageReqVO;
+import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
+import com.nook.common.web.response.PageResult;
+
+import java.util.List;
+
+/** Admin Agent 管理 service; 拼接 server + runtime + capacity 数据. */
+public interface AdminAgentService {
+
+    List<AdminAgentListItemRespVO> list();
+
+    AdminAgentDetailRespVO detail(String serverId);
+
+    /** 派 agent_upgrade task; agent 拉 backend 当前 FS 上的 binary. 返回 taskId. */
+    String dispatchUpgrade(String serverId);
+
+    /** Admin 查某 server task 分页 (倒序, 含类型/状态筛选). */
+    PageResult<AgentTaskDO> pageTasks(String serverId, AdminAgentTaskPageReqVO reqVO);
+}

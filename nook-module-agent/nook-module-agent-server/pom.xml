@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.nook</groupId>
+        <artifactId>nook-module-agent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>nook-module-agent-server</artifactId>
+    <description>Agent 模块实现: controller + service.impl + dal + framework auth.</description>
+
+    <dependencies>
+        <!-- 本模块对外契约 -->
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-module-agent-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- 复用 ResourceServer / XrayNode 等 node 域实体 + service; 顺带传递 web/security/mybatis/ssh/fastjson 等 starter -->
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-module-node</artifactId>
+        </dependency>
+    </dependencies>
+</project>
