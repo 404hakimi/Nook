@@ -2,13 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  ArrowUp,
-  Box,
   CheckCircle2,
   CircleDashed,
   Clock,
   Cpu,
-  FileCog,
   Gauge,
   Globe,
   MapPin,
@@ -28,8 +25,7 @@ import {
   NProgress,
   NSelect,
   NSpin,
-  NTag,
-  useMessage
+  NTag
 } from 'naive-ui'
 import {
   AGENT_ONLINE_LABELS,
@@ -42,12 +38,11 @@ import {
 } from '@/api/agent/agent'
 import { SERVER_LIFECYCLE_LABELS, SERVER_LIFECYCLE_TAG_TYPE } from '@/api/resource/server'
 import { listEnabledRegions, type ResourceRegion } from '@/api/resource/region'
-import { formatDateTime } from '@/utils/date'
+import ServerCreateDialog from './dialogs/ServerCreateDialog.vue'
 import RegionFlag from '@/components/RegionFlag.vue'
 import { h } from 'vue'
 
 const router = useRouter()
-const message = useMessage()
 
 const list = ref<AgentListItem[]>([])
 const total = ref(0)
@@ -176,13 +171,15 @@ const ONLINE_COLOR: Record<string, string> = {
 function openDetail(serverId: string) {
   router.push(`/servers/${serverId}`)
 }
-function openTab(serverId: string, tab: string, ev: Event) {
-  ev.stopPropagation()
-  router.push({ path: `/servers/${serverId}`, query: { tab } })
-}
 
+const createOpen = ref(false)
 function openCreate() {
-  message.info('新建 server 待后续接入 (详情页编辑入口已 OK)')
+  createOpen.value = true
+}
+function onCreated(serverId: string) {
+  pageNo.value = 1
+  load()
+  router.push(`/servers/${serverId}`)
 }
 
 // ===== 流量进度 (bytes long, JS Number 2^53 内精确) =====
@@ -401,7 +398,7 @@ onMounted(async () => {
               </NTag>
             </div>
 
-            <!-- 状态 pill 行: 在线状态 + 配置同步 (扫一眼即可识别健康度) -->
+            <!-- 状态 pill 行: 在线 + 配置同步 + Agent / Xray 装机完备度 (扫一眼识别健康度) -->
             <div class="status-pills">
               <span
                 class="status-pill"
@@ -423,41 +420,46 @@ onMounted(async () => {
                 </NIcon>
                 <span class="pill-label">{{ CONFIG_SYNC_LABELS[s.configSyncState || 'NEVER_CONFIGURED'] }}</span>
               </span>
+              <span
+                class="status-pill"
+                :class="`pill-${parseAgentVersion(s.agentVersion) ? 'default' : 'warning'}`"
+                :title="parseAgentVersion(s.agentVersion) ? 'Agent 已安装' : '未装 Agent (进 Agent tab 安装)'"
+              >
+                <NIcon class="pill-icon"><Cpu :size="11" /></NIcon>
+                <span class="pill-label">
+                  Agent <template v-if="parseAgentVersion(s.agentVersion)">v{{ parseAgentVersion(s.agentVersion)!.ver }}</template>
+                  <template v-else>未装</template>
+                </span>
+              </span>
+              <span
+                class="status-pill"
+                :class="`pill-${s.xrayVersion ? 'default' : 'warning'}`"
+                :title="s.xrayVersion ? 'Xray 已安装' : '未装 Xray (进 Xray tab 安装)'"
+              >
+                <NIcon class="pill-icon"><ServerCog :size="11" /></NIcon>
+                <span class="pill-label">
+                  Xray <template v-if="s.xrayVersion">{{ s.xrayVersion }}</template>
+                  <template v-else>未装</template>
+                </span>
+              </span>
             </div>
 
-            <!-- 数值摘要: Agent 版本 + 心跳延迟 -->
-            <div class="status-grid">
-              <div class="status-cell">
-                <div class="status-key">
-                  <NIcon class="key-icon"><Box :size="12" /></NIcon>
-                  <span>Agent</span>
-                </div>
-                <div class="status-val">
-                  <span v-if="parseAgentVersion(s.agentVersion)" class="text-xs num">
-                    v{{ parseAgentVersion(s.agentVersion)!.ver }}
-                  </span>
-                  <span v-else class="text-zinc-400 text-xs">未装</span>
-                </div>
-              </div>
-              <div class="status-cell">
-                <div class="status-key">
-                  <NIcon class="key-icon"><Clock :size="12" /></NIcon>
-                  <span>心跳延迟</span>
-                </div>
-                <div class="status-val">
-                  <span
-                    v-if="s.elapsedSec != null"
-                    class="elapsed"
-                    :class="{ 'elapsed-stale': elapsedStale(s.elapsedSec) }"
-                    :title="`${s.elapsedSec} 秒`"
-                  >
-                    <span v-for="(p, i) in formatElapsed(s.elapsedSec)" :key="i" class="num-sm">
-                      {{ p.n }}<span class="unit-sm">{{ p.u }}</span>
-                    </span>
-                  </span>
-                  <span v-else class="text-zinc-400 text-xs">—</span>
-                </div>
-              </div>
+            <!-- 心跳延迟 (单字段, 一行展示) -->
+            <div class="heartbeat-row" v-if="s.elapsedSec != null || s.onlineState !== 'NEVER'">
+              <NIcon class="key-icon"><Clock :size="12" /></NIcon>
+              <span class="status-key">心跳延迟</span>
+              <span class="flex-1"></span>
+              <span
+                v-if="s.elapsedSec != null"
+                class="elapsed"
+                :class="{ 'elapsed-stale': elapsedStale(s.elapsedSec) }"
+                :title="`${s.elapsedSec} 秒`"
+              >
+                <span v-for="(p, i) in formatElapsed(s.elapsedSec)" :key="i" class="num-sm">
+                  {{ p.n }}<span class="unit-sm">{{ p.u }}</span>
+                </span>
+              </span>
+              <span v-else class="text-zinc-400 text-xs">—</span>
             </div>
 
             <!-- 流量进度 -->
@@ -486,29 +488,6 @@ onMounted(async () => {
               />
             </div>
 
-            <div class="last-seen">
-              <NIcon class="text-zinc-400"><Clock :size="11" /></NIcon>
-              <span>上次心跳: {{ formatDateTime(s.lastHeartbeatAt) || '—' }}</span>
-            </div>
-
-            <div class="card-actions" @click.stop>
-              <NButton size="tiny" quaternary type="info" @click="openTab(s.serverId, 'xray', $event)">
-                <template #icon><NIcon><ServerCog :size="12" /></NIcon></template>
-                Xray
-              </NButton>
-              <NButton size="tiny" quaternary type="primary" @click="openTab(s.serverId, 'agent', $event)">
-                <template #icon><NIcon><Cpu :size="12" /></NIcon></template>
-                Agent
-              </NButton>
-              <NButton size="tiny" quaternary @click="openTab(s.serverId, 'agent', $event)">
-                <template #icon><NIcon><FileCog :size="12" /></NIcon></template>
-                改配置
-              </NButton>
-              <NButton size="tiny" quaternary type="success" @click="openTab(s.serverId, 'agent', $event)">
-                <template #icon><NIcon><ArrowUp :size="12" /></NIcon></template>
-                升级
-              </NButton>
-            </div>
           </div>
         </div>
       </div>
@@ -526,6 +505,8 @@ onMounted(async () => {
         />
       </div>
     </NSpin>
+
+    <ServerCreateDialog v-model="createOpen" @created="onCreated" />
   </div>
 </template>
 
@@ -728,17 +709,12 @@ html[data-theme='dark'] .pill-warning { color: #facc15; background: rgba(250, 20
 html[data-theme='dark'] .pill-error   { color: #f87171; background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.25); }
 html[data-theme='dark'] .pill-default { color: #a1a1aa; background: rgba(161, 161, 170, 0.14); border-color: rgba(161, 161, 170, 0.22); }
 
-/* 状态网格 */
-.status-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 12px;
-  margin-top: 8px;
-}
-.status-cell {
+/* 心跳延迟行 (单字段, 替代之前的 status-grid) */
+.heartbeat-row {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
 }
 .status-key {
   display: flex;
@@ -749,11 +725,6 @@ html[data-theme='dark'] .pill-default { color: #a1a1aa; background: rgba(161, 16
 }
 .key-icon {
   color: #a1a1aa;
-}
-.status-val {
-  display: flex;
-  align-items: center;
-  min-height: 18px;
 }
 /* .num-sm / .unit-sm 走 main.scss 全局 tokens (卡片紧凑变体) */
 
@@ -779,26 +750,6 @@ html[data-theme='dark'] .elapsed-stale .unit-sm {
   align-items: center;
   gap: 4px;
   font-size: 11px;
-}
-
-.last-seen {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: #a1a1aa;
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px dotted rgba(127, 127, 127, 0.12);
-}
-
-.card-actions {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px dashed rgba(127, 127, 127, 0.15);
 }
 
 .pagination-bar {

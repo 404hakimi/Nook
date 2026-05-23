@@ -13,6 +13,8 @@ export interface AgentListItem {
   /** INSTALLING / READY / LIVE / RETIRED */
   lifecycleState: string
   agentVersion?: string
+  /** xray 安装版本 (e.g., v26.3.27); 缺值 = 未装 xray. */
+  xrayVersion?: string
   lastHeartbeatAt?: string
   tempUnhealthy?: number
   elapsedSec?: number
