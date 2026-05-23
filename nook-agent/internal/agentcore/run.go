@@ -59,8 +59,9 @@ func Run(version string, registerRole RoleRegister) {
 		log.Printf("[main] os.Executable 失败, 用 config 兜底 bin_path=%s", binPath)
 	}
 	log.Printf("[main] upgrade 目标路径 (自动探测): %s", binPath)
-	executor.NewUpgradeExecutor(binPath, cfg.Backend.APIToken).Register(exec)
-	executor.NewConfigReloadExecutor(*configPath).Register(exec)
+	httpTimeout := cfg.HTTPTimeout()
+	executor.NewUpgradeExecutor(binPath, cfg.Backend.APIToken, httpTimeout).Register(exec)
+	executor.NewConfigReloadExecutor(*configPath, httpTimeout).Register(exec)
 
 	// 角色注册器挂自己的 (e.g., frontline 挂 xray)
 	extraGoroutines := registerRole(exec, cfg, cli)

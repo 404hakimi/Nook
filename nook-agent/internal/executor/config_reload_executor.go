@@ -18,11 +18,12 @@ import (
 )
 
 type ConfigReloadExecutor struct {
-	configPath string // 例: /etc/nook-agent/config.yml
+	configPath  string        // 例: /etc/nook-agent/config.yml
+	httpTimeout time.Duration // 上报 task-result 的 HTTP 客户端 timeout; 自杀前留足时间让 SUCCESS 上报飞出去
 }
 
-func NewConfigReloadExecutor(configPath string) *ConfigReloadExecutor {
-	return &ConfigReloadExecutor{configPath: configPath}
+func NewConfigReloadExecutor(configPath string, httpTimeout time.Duration) *ConfigReloadExecutor {
+	return &ConfigReloadExecutor{configPath: configPath, httpTimeout: httpTimeout}
 }
 
 func (e *ConfigReloadExecutor) Register(d *Dispatcher) {
@@ -59,10 +60,12 @@ func (e *ConfigReloadExecutor) reload(ctx context.Context, raw []byte) (string, 
 		_ = os.Remove(tmp)
 		return "", fmt.Errorf("rename %s → %s 失败: %w", tmp, e.configPath, err)
 	}
-	log.Printf("[config-reload] 写盘 OK (%s, %d bytes, md5=%s), 1s 后自杀 systemd 拉起", e.configPath, len(p.Yaml), gotMD5)
+	exitDelay := e.httpTimeout + 2*time.Second
+	log.Printf("[config-reload] 写盘 OK (%s, %d bytes, md5=%s), %v 后自杀 systemd 拉起", e.configPath, len(p.Yaml), gotMD5, exitDelay)
 	// 异步退出, 让本 task 的 SUCCESS 上报先飞出去. systemd RestartSec=10s 拉起.
+	// 等 httpTimeout + 2s 给 poller.runOne 的 Post task-result 充足时间; 1s 太短会被强杀导致重派.
 	go func() {
-		time.Sleep(1 * time.Second)
+		time.Sleep(exitDelay)
 		os.Exit(0)
 	}()
 	return fmt.Sprintf(`{"configPath":%q,"bytes":%d,"md5":%q}`, e.configPath, len(p.Yaml), gotMD5), nil

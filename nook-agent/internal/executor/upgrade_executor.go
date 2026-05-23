@@ -19,12 +19,13 @@ import (
 
 // UpgradeExecutor 升级 task handler.
 type UpgradeExecutor struct {
-	binPath   string
-	authToken string // X-Agent-Token; download 时跟 backend /admin/agent-dist/bin 鉴权
+	binPath     string
+	authToken   string        // X-Agent-Token; download 时跟 backend /admin/agent-dist/bin 鉴权
+	httpTimeout time.Duration // 下载 + 上报 task-result 的整体 timeout (跨境节点要够大, 从 backend.timeout_seconds 来)
 }
 
-func NewUpgradeExecutor(binPath, authToken string) *UpgradeExecutor {
-	return &UpgradeExecutor{binPath: binPath, authToken: authToken}
+func NewUpgradeExecutor(binPath, authToken string, httpTimeout time.Duration) *UpgradeExecutor {
+	return &UpgradeExecutor{binPath: binPath, authToken: authToken, httpTimeout: httpTimeout}
 }
 
 func (e *UpgradeExecutor) Register(d *Dispatcher) {
@@ -51,7 +52,7 @@ func (e *UpgradeExecutor) upgrade(ctx context.Context, raw []byte) (string, erro
 	}
 	newPath := e.binPath + ".new"
 	// 1. 下载到临时文件 (带 X-Agent-Token, backend /admin/agent-dist/bin 鉴权用)
-	if err := downloadFile(ctx, p.URL, newPath, e.authToken); err != nil {
+	if err := downloadFile(ctx, p.URL, newPath, e.authToken, e.httpTimeout); err != nil {
 		return "", fmt.Errorf("下载失败: %w", err)
 	}
 	// 2. sha256 校验
@@ -73,16 +74,17 @@ func (e *UpgradeExecutor) upgrade(ctx context.Context, raw []byte) (string, erro
 		_ = os.Remove(newPath)
 		return "", fmt.Errorf("替换 binary 失败: %w", err)
 	}
-	// 4. 上报 SUCCESS 后 1s 退出, systemd Restart=always 在 10s 后拉起新版本
+	// 4. 上报 SUCCESS 后退出, systemd Restart=always 拉起新版本.
+	// 等 httpTimeout + 2s 让 poller.runOne 同步 Post task-result 有充足时间跑完 —
+	// 1s 太短, 跨境抖动时 Post 可能还没完成就被 os.Exit 强杀, backend 收不到 SUCCESS 会重派同一 task.
 	go func() {
-		time.Sleep(1 * time.Second)
-		// 0=正常退出; systemd 会在 RestartSec=10s 后拉起新进程
+		time.Sleep(e.httpTimeout + 2*time.Second)
 		os.Exit(0)
 	}()
 	return fmt.Sprintf(`{"version":"%s","binPath":"%s"}`, p.Version, e.binPath), nil
 }
 
-func downloadFile(ctx context.Context, url, dst, authToken string) error {
+func downloadFile(ctx context.Context, url, dst, authToken string, timeout time.Duration) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -90,7 +92,9 @@ func downloadFile(ctx context.Context, url, dst, authToken string) error {
 	if authToken != "" {
 		req.Header.Set("X-Agent-Token", authToken)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	// 独立 client 带 timeout; http.DefaultClient 无 timeout, 卡死的下载永不返回会堵死 poller 队列
+	httpCli := &http.Client{Timeout: timeout}
+	resp, err := httpCli.Do(req)
 	if err != nil {
 		return err
 	}
