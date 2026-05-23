@@ -6,6 +6,7 @@ import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentListItemRespVO;
 import com.nook.biz.agent.dal.dataobject.AgentRuntimeConfigDO;
 import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
+import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
 import com.nook.common.utils.object.BeanUtils;
@@ -36,6 +37,7 @@ public interface AdminAgentConvert {
      * @return 列表项 VO
      */
     default AdminAgentListItemRespVO toListItem(ResourceServerRespDTO s,
+                                                ResourceServerCredentialRespDTO credential,
                                                 ResourceServerRuntimeRespDTO rt,
                                                 ResourceServerCapacityRespDTO cap,
                                                 AgentRuntimeConfigDO cfg,
@@ -43,7 +45,7 @@ public interface AdminAgentConvert {
         AdminAgentListItemRespVO vo = new AdminAgentListItemRespVO();
         vo.setServerId(s.getId());
         vo.setServerName(s.getName());
-        vo.setHost(s.getHost());
+        vo.setHost(credential == null ? null : credential.getHost());
         vo.setRegion(s.getRegion());
         vo.setLifecycleState(s.getLifecycleState());
         Long elapsedSec = null;

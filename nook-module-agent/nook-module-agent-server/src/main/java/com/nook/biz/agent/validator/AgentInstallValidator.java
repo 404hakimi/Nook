@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class AgentInstallValidator {
 
     /**
-     * 校验 role 是 frontline / landing 之一.
+     * 校验 role
      *
      * @param role 角色 code
      */

@@ -21,8 +21,10 @@ import com.nook.biz.agent.service.AdminAgentService;
 import com.nook.biz.agent.service.AgentTaskDispatchService;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
+import com.nook.biz.node.api.resource.ResourceServerCredentialApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
+import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerPageReqDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
@@ -49,6 +51,7 @@ import java.util.Set;
 public class AdminAgentServiceImpl implements AdminAgentService {
 
     private final ResourceServerApi resourceServerApi;
+    private final ResourceServerCredentialApi resourceServerCredentialApi;
     private final ResourceServerRuntimeApi resourceServerRuntimeApi;
     private final ResourceServerCapacityApi resourceServerCapacityApi;
     private final AgentTaskDispatchService agentTaskDispatchService;
@@ -63,6 +66,7 @@ public class AdminAgentServiceImpl implements AdminAgentService {
         PageResult<ResourceServerRespDTO> page = resourceServerApi.page(dto);
         if (CollUtil.isEmpty(page.getRecords())) return PageResult.of(page.getTotal(), List.of());
         Set<String> ids = CollectionUtils.convertSet(page.getRecords(), ResourceServerRespDTO::getId);
+        Map<String, ResourceServerCredentialRespDTO> credentialMap = resourceServerCredentialApi.listByServerIds(ids);
         Map<String, ResourceServerRuntimeRespDTO> runtimeMap = resourceServerRuntimeApi.listByServerIds(ids);
         Map<String, ResourceServerCapacityRespDTO> capacityMap = resourceServerCapacityApi.listByServerIds(ids);
         Map<String, AgentRuntimeConfigDO> cfgMap = CollectionUtils.convertMap(
@@ -71,7 +75,8 @@ public class AdminAgentServiceImpl implements AdminAgentService {
         LocalDateTime now = LocalDateTime.now();
         List<AdminAgentListItemRespVO> records = page.getRecords().stream()
                 .map(s -> AdminAgentConvert.INSTANCE.toListItem(
-                        s, runtimeMap.get(s.getId()), capacityMap.get(s.getId()),
+                        s, credentialMap.get(s.getId()),
+                        runtimeMap.get(s.getId()), capacityMap.get(s.getId()),
                         cfgMap.get(s.getId()), now))
                 .toList();
         return PageResult.of(page.getTotal(), records);

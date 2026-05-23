@@ -5,7 +5,8 @@ import com.nook.biz.agent.controller.vo.AgentInstallMetaRespVO;
 import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
 import com.nook.biz.agent.service.AgentInstallScriptService;
 import com.nook.biz.node.api.resource.ResourceServerApi;
-import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
+import com.nook.biz.node.api.resource.ResourceServerCredentialApi;
+import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.StreamingEndpointSupport;
 import com.nook.framework.web.WebStreamingProperties;
@@ -36,6 +37,7 @@ public class AgentInstallController {
 
     private final AgentInstallScriptService agentInstallScriptService;
     private final ResourceServerApi resourceServerApi;
+    private final ResourceServerCredentialApi resourceServerCredentialApi;
     private final StreamingEndpointSupport streamingSupport;
     private final WebStreamingProperties webStreamingProperties;
 
@@ -49,8 +51,9 @@ public class AgentInstallController {
     @PostMapping(value = "/install", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter install(@RequestParam("id") String id,
                                        @Valid @RequestBody AgentInstallReqVO reqVO) {
-        ResourceServerRespDTO srv = resourceServerApi.validateExists(id);
-        Duration emitterTimeout = Duration.ofSeconds(srv.getInstallTimeoutSeconds())
+        resourceServerApi.validateExists(id);
+        ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(id);
+        Duration emitterTimeout = Duration.ofSeconds(cred.getInstallTimeoutSeconds())
                 .plus(webStreamingProperties.getEmitterBuffer());
         return streamingSupport.stream("agent-install:" + id, emitterTimeout,
                 lineSink -> agentInstallScriptService.installStreaming(id, reqVO, lineSink));

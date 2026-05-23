@@ -9,6 +9,8 @@ import com.nook.biz.agent.framework.script.AgentScripts;
 import com.nook.biz.agent.service.AgentInstallScriptService;
 import com.nook.biz.agent.validator.AgentInstallValidator;
 import com.nook.biz.node.api.resource.ResourceServerApi;
+import com.nook.biz.node.api.resource.ResourceServerCredentialApi;
+import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.xray.XrayNodeApi;
 import com.nook.biz.node.api.xray.dto.XrayNodeRespDTO;
@@ -38,6 +40,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
     private static final int XRAY_STATS_INTERVAL_SECONDS = 300;
 
     private final ResourceServerApi resourceServerApi;
+    private final ResourceServerCredentialApi resourceServerCredentialApi;
     private final XrayNodeApi xrayNodeApi;
     private final ScriptCatalog scriptCatalog;
     private final AgentInstallValidator agentInstallValidator;
@@ -46,6 +49,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
     @Override
     public void installStreaming(String serverId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
         ResourceServerRespDTO srv = resourceServerApi.validateExists(serverId);
+        ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(serverId);
         agentInstallValidator.validateInstallPrerequisite(srv, reqVO);
         if (AgentRole.FRONTLINE.getCode().equals(reqVO.getRole())) {
             lineSink.accept("[nook] xray: bin=" + reqVO.getXrayBin() + " apiPort=" + reqVO.getXrayApiPort() + "\n");
@@ -67,20 +71,20 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         vars.put("BIN_PATH", reqVO.getBinPath());
         vars.put("CONFIG_PATH", reqVO.getConfigPath());
         vars.put("SYSTEMD_UNIT_PATH", reqVO.getSystemdUnitPath());
-        // 用 DTO 里的 SSH timeouts 覆盖 server 默认值 (一次性, 不回写表); ad-hoc session 跑完即关
-        SessionCredential cred = SessionCredential.builder()
+        // 用 DTO 里的 SSH timeouts 覆盖 credential 默认值 (一次性, 不回写表); ad-hoc session 跑完即关
+        SessionCredential sshCred = SessionCredential.builder()
                 .serverId(srv.getId())
-                .sshHost(srv.getHost())
-                .sshPort(srv.getSshPort())
-                .sshUser(srv.getSshUser())
-                .sshPassword(srv.getSshPassword())
+                .sshHost(cred.getHost())
+                .sshPort(cred.getSshPort())
+                .sshUser(cred.getSshUser())
+                .sshPassword(cred.getSshPassword())
                 .sshTimeoutSeconds(reqVO.getSshTimeoutSeconds())
                 .sshOpTimeoutSeconds(reqVO.getSshOpTimeoutSeconds())
                 .sshUploadTimeoutSeconds(reqVO.getSshUploadTimeoutSeconds())
                 .installTimeoutSeconds(reqVO.getInstallTimeoutSeconds())
                 .build();
         Duration installTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
-        SshSessions.runAdHocVoid(cred, session ->
+        SshSessions.runAdHocVoid(sshCred, session ->
                 scriptCatalog.run(session, AgentScripts.NOOK_AGENT_INSTALL, vars, installTimeout, lineSink));
 
         log.info("[installStreaming] 装机完成 serverId={} name={} role={}",
@@ -94,12 +98,15 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         AgentInstallMetaRespVO vo = new AgentInstallMetaRespVO();
         vo.setBackendUrl(StrUtil.blankToDefault(agentProperties.getBackendPublicUrl(), ""));
         if (StrUtil.isNotBlank(serverId)) {
-            ResourceServerRespDTO srv = resourceServerApi.validateExists(serverId);
-            // SSH 默认从 resource_server 读
-            vo.setSshTimeoutSeconds(srv.getSshTimeoutSeconds());
-            vo.setSshOpTimeoutSeconds(srv.getSshOpTimeoutSeconds());
-            vo.setSshUploadTimeoutSeconds(srv.getSshUploadTimeoutSeconds());
-            vo.setInstallTimeoutSeconds(srv.getInstallTimeoutSeconds());
+            resourceServerApi.validateExists(serverId);
+            // SSH 默认从 resource_server_credential 读
+            ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.getByServerId(serverId);
+            if (cred != null) {
+                vo.setSshTimeoutSeconds(cred.getSshTimeoutSeconds());
+                vo.setSshOpTimeoutSeconds(cred.getSshOpTimeoutSeconds());
+                vo.setSshUploadTimeoutSeconds(cred.getSshUploadTimeoutSeconds());
+                vo.setInstallTimeoutSeconds(cred.getInstallTimeoutSeconds());
+            }
             // frontline 额外读 xray_node: bin/api_port
             if (AgentRole.FRONTLINE.getCode().equals(role)) {
                 XrayNodeRespDTO xrayNode = xrayNodeApi.getByServerId(serverId);
