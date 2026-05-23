@@ -1,6 +1,7 @@
 package com.nook.biz.agent.service.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.nook.biz.agent.api.enums.AgentHostType;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.controller.vo.AgentInstallMetaRespVO;
 import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
@@ -8,8 +9,12 @@ import com.nook.biz.agent.framework.config.AgentProperties;
 import com.nook.biz.agent.framework.script.AgentScripts;
 import com.nook.biz.agent.service.AgentInstallScriptService;
 import com.nook.biz.agent.validator.AgentInstallValidator;
+import com.nook.biz.node.api.resource.ResourceIpPoolApi;
+import com.nook.biz.node.api.resource.ResourceIpPoolCredentialApi;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCredentialApi;
+import com.nook.biz.node.api.resource.dto.ResourceIpPoolCredentialRespDTO;
+import com.nook.biz.node.api.resource.dto.ResourceIpPoolRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.xray.XrayNodeApi;
@@ -41,19 +46,30 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
 
     private final ResourceServerApi resourceServerApi;
     private final ResourceServerCredentialApi resourceServerCredentialApi;
+    private final ResourceIpPoolApi resourceIpPoolApi;
+    private final ResourceIpPoolCredentialApi resourceIpPoolCredentialApi;
     private final XrayNodeApi xrayNodeApi;
     private final ScriptCatalog scriptCatalog;
     private final AgentInstallValidator agentInstallValidator;
     private final AgentProperties agentProperties;
 
     @Override
-    public void installStreaming(String serverId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
+    public void installStreaming(String hostId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
+        AgentHostType hostType = reqVO.getHostType() != null ? reqVO.getHostType() : AgentHostType.SERVER;
+        agentInstallValidator.validateRoleHostMatch(reqVO.getRole(), hostType);
+        if (hostType == AgentHostType.SERVER) {
+            installFrontline(hostId, reqVO, lineSink);
+        } else {
+            installLanding(hostId, reqVO, lineSink);
+        }
+    }
+
+    /** Frontline (resource_server): xray 必填 + 复用 server 凭据. */
+    private void installFrontline(String serverId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
         ResourceServerRespDTO srv = resourceServerApi.validateExists(serverId);
         ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(serverId);
-        agentInstallValidator.validateInstallPrerequisite(srv, reqVO);
-        if (AgentRole.FRONTLINE.getCode().equals(reqVO.getRole())) {
-            lineSink.accept("[nook] xray: bin=" + reqVO.getXrayBin() + " apiPort=" + reqVO.getXrayApiPort() + "\n");
-        }
+        agentInstallValidator.validateFrontlinePrerequisite(srv, reqVO);
+        lineSink.accept("[nook] xray: bin=" + reqVO.getXrayBin() + " apiPort=" + reqVO.getXrayApiPort() + "\n");
 
         String token = srv.getAgentToken();
         String configYaml = buildYaml(reqVO, token);
@@ -61,17 +77,6 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         lineSink.accept("[nook] role: " + reqVO.getRole() + " / server: " + srv.getName() + "\n");
         lineSink.accept("[nook] 渲染 yaml: " + configYaml.length() + " 字节\n");
 
-        Map<String, String> vars = new LinkedHashMap<>();
-        vars.put("SERVER_NAME", srv.getName());
-        vars.put("ROLE", reqVO.getRole());
-        vars.put("BACKEND_URL", reqVO.getBackendUrl());
-        vars.put("AGENT_TOKEN", token);
-        vars.put("CONFIG_YAML", configYaml);
-        vars.put("NOOK_HOME", reqVO.getNookHome());
-        vars.put("BIN_PATH", reqVO.getBinPath());
-        vars.put("CONFIG_PATH", reqVO.getConfigPath());
-        vars.put("SYSTEMD_UNIT_PATH", reqVO.getSystemdUnitPath());
-        // 用 DTO 里的 SSH timeouts 覆盖 credential 默认值 (一次性, 不回写表); ad-hoc session 跑完即关
         SessionCredential sshCred = SessionCredential.builder()
                 .serverId(srv.getId())
                 .sshHost(cred.getHost())
@@ -83,40 +88,99 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
                 .sshUploadTimeoutSeconds(reqVO.getSshUploadTimeoutSeconds())
                 .installTimeoutSeconds(reqVO.getInstallTimeoutSeconds())
                 .build();
+        runInstall(sshCred, srv.getName(), reqVO, token, configYaml, lineSink);
+
+        log.info("[installFrontline] 装机完成 serverId={} name={}", serverId, srv.getName());
+    }
+
+    /** Landing (resource_ip_pool): xray 字段忽略; ssh 凭据走 ip_pool_credential, host 留空时用 ip_address 兜底. */
+    private void installLanding(String ipId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
+        ResourceIpPoolRespDTO ip = resourceIpPoolApi.validateExists(ipId);
+        ResourceIpPoolCredentialRespDTO cred = resourceIpPoolCredentialApi.requireByIpId(ipId);
+        agentInstallValidator.validateLandingPrerequisite(ip);
+
+        String token = ip.getAgentToken();
+        String configYaml = buildYaml(reqVO, token);
+        String displayName = StrUtil.isNotBlank(ip.getRemark()) ? ip.getRemark() : ip.getIpAddress();
+        lineSink.accept("[nook] agent_token: " + StrUtil.subPre(token, 12) + "… (复用 ip_pool 入库时签发)\n");
+        lineSink.accept("[nook] role: " + reqVO.getRole() + " / ip_pool: " + ip.getIpAddress() + "\n");
+        lineSink.accept("[nook] 渲染 yaml: " + configYaml.length() + " 字节\n");
+
+        SessionCredential sshCred = SessionCredential.builder()
+                .serverId(ip.getId())
+                .sshHost(StrUtil.blankToDefault(cred.getSshHost(), ip.getIpAddress()))
+                .sshPort(cred.getSshPort() != null ? cred.getSshPort() : 22)
+                .sshUser(StrUtil.blankToDefault(cred.getSshUser(), "root"))
+                .sshPassword(cred.getSshPassword())
+                .sshTimeoutSeconds(reqVO.getSshTimeoutSeconds())
+                .sshOpTimeoutSeconds(reqVO.getSshOpTimeoutSeconds())
+                .sshUploadTimeoutSeconds(reqVO.getSshUploadTimeoutSeconds())
+                .installTimeoutSeconds(reqVO.getInstallTimeoutSeconds())
+                .build();
+        runInstall(sshCred, displayName, reqVO, token, configYaml, lineSink);
+
+        log.info("[installLanding] 装机完成 ipId={} ipAddress={}", ipId, ip.getIpAddress());
+    }
+
+    /** 共用 SSH 执行段; serverName / ip_address 都以 SERVER_NAME 变量塞给装机脚本. */
+    private void runInstall(SessionCredential sshCred, String displayName, AgentInstallReqVO reqVO,
+                            String token, String configYaml, Consumer<String> lineSink) {
+        Map<String, String> vars = new LinkedHashMap<>();
+        vars.put("SERVER_NAME", displayName);
+        vars.put("ROLE", reqVO.getRole());
+        vars.put("BACKEND_URL", reqVO.getBackendUrl());
+        vars.put("AGENT_TOKEN", token);
+        vars.put("CONFIG_YAML", configYaml);
+        vars.put("NOOK_HOME", reqVO.getNookHome());
+        vars.put("BIN_PATH", reqVO.getBinPath());
+        vars.put("CONFIG_PATH", reqVO.getConfigPath());
+        vars.put("SYSTEMD_UNIT_PATH", reqVO.getSystemdUnitPath());
         Duration installTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
         SshSessions.runAdHocVoid(sshCred, session ->
                 scriptCatalog.run(session, AgentScripts.NOOK_AGENT_INSTALL, vars, installTimeout, lineSink));
-
-        log.info("[installStreaming] 装机完成 serverId={} name={} role={}",
-                serverId, srv.getName(), reqVO.getRole());
     }
 
     @Override
-    public AgentInstallMetaRespVO getInstallMeta(String role, String serverId) {
+    public AgentInstallMetaRespVO getInstallMeta(String role, AgentHostType hostType, String hostId) {
         agentInstallValidator.validateRole(role);
-        // meta 只返 "backend 已知数据" (admin 前端拿去 prefill, 用户可改); 路径默认由前端持有, 此处不下发
+        AgentHostType resolvedHost = hostType != null ? hostType
+                : (AgentRole.LANDING.getCode().equals(role) ? AgentHostType.IP_POOL : AgentHostType.SERVER);
         AgentInstallMetaRespVO vo = new AgentInstallMetaRespVO();
         vo.setBackendUrl(StrUtil.blankToDefault(agentProperties.getBackendPublicUrl(), ""));
-        if (StrUtil.isNotBlank(serverId)) {
-            resourceServerApi.validateExists(serverId);
-            // SSH 默认从 resource_server_credential 读
-            ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.getByServerId(serverId);
-            if (cred != null) {
-                vo.setSshTimeoutSeconds(cred.getSshTimeoutSeconds());
-                vo.setSshOpTimeoutSeconds(cred.getSshOpTimeoutSeconds());
-                vo.setSshUploadTimeoutSeconds(cred.getSshUploadTimeoutSeconds());
-                vo.setInstallTimeoutSeconds(cred.getInstallTimeoutSeconds());
-            }
-            // frontline 额外读 xray_node: bin/api_port
-            if (AgentRole.FRONTLINE.getCode().equals(role)) {
-                XrayNodeRespDTO xrayNode = xrayNodeApi.getByServerId(serverId);
-                if (xrayNode != null) {
-                    vo.setXrayBin(xrayNode.getXrayBinaryPath());
-                    vo.setXrayApiPort(xrayNode.getXrayApiPort());
-                }
-            }
+        if (StrUtil.isBlank(hostId)) {
+            return vo;
+        }
+        if (resolvedHost == AgentHostType.SERVER) {
+            fillServerMeta(role, hostId, vo);
+        } else {
+            fillIpPoolMeta(hostId, vo);
         }
         return vo;
+    }
+
+    /** Frontline + 选了 server: SSH 默认 + (frontline) xray 信息. */
+    private void fillServerMeta(String role, String serverId, AgentInstallMetaRespVO vo) {
+        resourceServerApi.validateExists(serverId);
+        ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.getByServerId(serverId);
+        if (cred != null) {
+            vo.setSshTimeoutSeconds(cred.getSshTimeoutSeconds());
+            vo.setSshOpTimeoutSeconds(cred.getSshOpTimeoutSeconds());
+            vo.setSshUploadTimeoutSeconds(cred.getSshUploadTimeoutSeconds());
+            vo.setInstallTimeoutSeconds(cred.getInstallTimeoutSeconds());
+        }
+        if (AgentRole.FRONTLINE.getCode().equals(role)) {
+            XrayNodeRespDTO xrayNode = xrayNodeApi.getByServerId(serverId);
+            if (xrayNode != null) {
+                vo.setXrayBin(xrayNode.getXrayBinaryPath());
+                vo.setXrayApiPort(xrayNode.getXrayApiPort());
+            }
+        }
+    }
+
+    /** Landing + 选了 ipId: 只回 ip_address (admin 展示用); SSH timeouts 由前端写死 default. */
+    private void fillIpPoolMeta(String ipId, AgentInstallMetaRespVO vo) {
+        ResourceIpPoolRespDTO ip = resourceIpPoolApi.validateExists(ipId);
+        vo.setIpAddress(ip.getIpAddress());
     }
 
     /** 拼 nook-agent config.yml. 所有值 (URL / 路径 / xray) 都来自 DTO, backend 不兜底. */

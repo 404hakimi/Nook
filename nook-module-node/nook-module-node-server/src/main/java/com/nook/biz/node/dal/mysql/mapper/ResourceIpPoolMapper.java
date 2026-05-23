@@ -41,6 +41,13 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPoolDO> {
                 .last("LIMIT 1"));
     }
 
+    /** 按 agent_token 查 IP 池行 (landing agent push 接口鉴权用); 找不到返 null. */
+    default ResourceIpPoolDO selectByAgentToken(String agentToken) {
+        return selectOne(Wrappers.<ResourceIpPoolDO>lambdaQuery()
+                .eq(ResourceIpPoolDO::getAgentToken, agentToken)
+                .last("LIMIT 1"));
+    }
+
     /** 按 ip_address 唯一查; 录入时查重用. */
     default ResourceIpPoolDO selectByIpAddress(String ipAddress) {
         return selectOne(Wrappers.<ResourceIpPoolDO>lambdaQuery()

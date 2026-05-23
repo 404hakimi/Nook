@@ -1,12 +1,15 @@
 package com.nook.biz.node.service.resource.impl;
 
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCredentialUpdateReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolCredentialMapper;
 import com.nook.biz.node.service.resource.ResourceIpPoolCredentialService;
 import com.nook.biz.node.validator.ResourceIpPoolValidator;
 import com.nook.common.utils.object.BeanUtils;
+import com.nook.common.web.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +29,15 @@ public class ResourceIpPoolCredentialServiceImpl implements ResourceIpPoolCreden
     @Override
     public ResourceIpPoolCredentialDO get(String ipId) {
         return credentialMapper.selectById(ipId);
+    }
+
+    @Override
+    public ResourceIpPoolCredentialDO requireByIpId(String ipId) {
+        ResourceIpPoolCredentialDO row = credentialMapper.selectById(ipId);
+        if (ObjectUtil.isNull(row)) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_SSH_CRED_MISSING, ipId);
+        }
+        return row;
     }
 
     @Override

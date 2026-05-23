@@ -1,5 +1,6 @@
 package com.nook.biz.agent.controller.vo;
 
+import com.nook.biz.agent.api.enums.AgentHostType;
 import com.nook.biz.agent.api.enums.AgentRole;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -20,6 +21,9 @@ public class AgentInstallReqVO {
     @NotBlank(message = "role 不能为空")
     @Pattern(regexp = AgentRole.Codes.PATTERN, message = "role 只能是 frontline / landing")
     private String role;
+
+    /** 目标主机表; SERVER=resource_server (frontline), IP_POOL=resource_ip_pool (landing). 默认 SERVER 兼容旧调用. */
+    private AgentHostType hostType;
 
     /** backend HTTP 客户端超时 (秒); 跨境抖动可调大. */
     @NotNull @Min(5) @Max(600)

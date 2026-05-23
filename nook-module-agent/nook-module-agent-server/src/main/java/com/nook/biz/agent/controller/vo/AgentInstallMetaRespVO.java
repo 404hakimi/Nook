@@ -30,4 +30,7 @@ public class AgentInstallMetaRespVO {
 
     /** 选了 server 才填: resource_server.install_timeout_seconds. */
     private Integer installTimeoutSeconds;
+
+    /** Landing + 选了 ipId 才填: ip_pool.ip_address (host 兜底 + admin 展示). */
+    private String ipAddress;
 }

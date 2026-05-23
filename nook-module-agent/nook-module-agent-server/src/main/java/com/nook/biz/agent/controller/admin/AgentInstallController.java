@@ -1,9 +1,11 @@
 package com.nook.biz.agent.controller.admin;
 
+import com.nook.biz.agent.api.enums.AgentHostType;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.controller.vo.AgentInstallMetaRespVO;
 import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
 import com.nook.biz.agent.service.AgentInstallScriptService;
+import com.nook.biz.node.api.resource.ResourceIpPoolApi;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCredentialApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
@@ -35,41 +37,59 @@ import java.time.Duration;
 @Validated
 public class AgentInstallController {
 
+    /** Landing 装机 SCP 上传 + apt + binary 下载默认窗口; ip_pool 表没存 timeout 字段时 emitter 用此值. */
+    private static final int LANDING_INSTALL_TIMEOUT_DEFAULT_SECONDS = 600;
+
     private final AgentInstallScriptService agentInstallScriptService;
     private final ResourceServerApi resourceServerApi;
     private final ResourceServerCredentialApi resourceServerCredentialApi;
+    private final ResourceIpPoolApi resourceIpPoolApi;
     private final StreamingEndpointSupport streamingSupport;
     private final WebStreamingProperties webStreamingProperties;
 
     /**
-     * SSH 自动装 nook-agent (流式日志走 ResponseBodyEmitter); 复用 resource_server 已存 SSH 凭据.
+     * SSH 自动装 nook-agent (流式日志走 ResponseBodyEmitter); hostType=SERVER 走 resource_server, IP_POOL 走 resource_ip_pool.
      *
-     * @param id    server 主键
-     * @param reqVO 装机表单 (路径 / URL / 各种 timeout / xray 信息等, frontend 持有默认 + 用户可改)
+     * @param id    host 主键 (server id 或 ip_pool id)
+     * @param reqVO 装机表单 (含 hostType + 路径 / URL / 各种 timeout / xray 信息等)
      * @return ResponseBodyEmitter 流式回写 SSH 脚本 stdout
      */
     @PostMapping(value = "/install", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter install(@RequestParam("id") String id,
                                        @Valid @RequestBody AgentInstallReqVO reqVO) {
-        resourceServerApi.validateExists(id);
-        ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(id);
-        Duration emitterTimeout = Duration.ofSeconds(cred.getInstallTimeoutSeconds())
+        AgentHostType hostType = reqVO.getHostType() != null ? reqVO.getHostType() : AgentHostType.SERVER;
+        reqVO.setHostType(hostType);
+        int installTimeoutSec;
+        if (hostType == AgentHostType.SERVER) {
+            resourceServerApi.validateExists(id);
+            ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(id);
+            installTimeoutSec = cred.getInstallTimeoutSeconds();
+        } else {
+            resourceIpPoolApi.validateExists(id);
+            installTimeoutSec = reqVO.getInstallTimeoutSeconds() != null
+                    ? reqVO.getInstallTimeoutSeconds() : LANDING_INSTALL_TIMEOUT_DEFAULT_SECONDS;
+        }
+        Duration emitterTimeout = Duration.ofSeconds(installTimeoutSec)
                 .plus(webStreamingProperties.getEmitterBuffer());
         return streamingSupport.stream("agent-install:" + id, emitterTimeout,
                 lineSink -> agentInstallScriptService.installStreaming(id, reqVO, lineSink));
     }
 
     /**
-     * 装机元信息 (backend 已知数据), 前端 ProvisionDialog 表单 prefill 用; frontline + serverId 时附带 xray 信息.
+     * 装机元信息 (backend 已知数据), 前端 ProvisionDialog 表单 prefill 用.
      *
      * @param role     frontline / landing (默认 frontline)
-     * @param serverId 可选; 选了 server 才返 SSH 默认 + xray bin/port
-     * @return meta (backendUrl + 可选 xray + 可选 SSH timeouts)
+     * @param hostType SERVER / IP_POOL; 可空, frontline 默认 SERVER, landing 默认 IP_POOL
+     * @param hostId   server id 或 ip_pool id; 可空
+     * @return meta
      */
     @GetMapping("/install-meta")
     public Result<AgentInstallMetaRespVO> installMeta(
             @RequestParam(value = "role", defaultValue = AgentRole.Codes.FRONTLINE) String role,
+            @RequestParam(value = "hostType", required = false) AgentHostType hostType,
+            @RequestParam(value = "hostId", required = false) String hostId,
             @RequestParam(value = "serverId", required = false) String serverId) {
-        return Result.ok(agentInstallScriptService.getInstallMeta(role, serverId));
+        String resolvedHostId = hostId != null ? hostId : serverId;
+        return Result.ok(agentInstallScriptService.getInstallMeta(role, hostType, resolvedHostId));
     }
 }

@@ -135,6 +135,9 @@ export function listNetworkInterfaces(id: string) {
   return request.get<unknown, string[]>('/admin/resource/server/network-interfaces', { params: { id } })
 }
 
+/** Agent 装机 host 表; frontline → SERVER, landing → IP_POOL. */
+export type AgentHostType = 'SERVER' | 'IP_POOL'
+
 /** Agent 装机 meta: backend 已知数据, 前端 prefill 表单用; 用户可改. */
 export interface AgentInstallMeta {
   backendUrl: string
@@ -144,12 +147,18 @@ export interface AgentInstallMeta {
   sshOpTimeoutSeconds?: number
   sshUploadTimeoutSeconds?: number
   installTimeoutSeconds?: number
+  /** Landing + 选了 ipId 才填: ip_pool.ip_address (admin 展示用). */
+  ipAddress?: string
 }
 
-export function getAgentInstallMeta(role: 'frontline' | 'landing', serverId?: string | null) {
+export function getAgentInstallMeta(
+  role: 'frontline' | 'landing',
+  hostType: AgentHostType,
+  hostId?: string | null
+) {
   return request.get<unknown, AgentInstallMeta>(
     '/admin/agent/install-meta',
-    { params: { role, serverId: serverId || undefined } }
+    { params: { role, hostType, hostId: hostId || undefined } }
   )
 }
 
@@ -211,6 +220,8 @@ export function transitionServerLifecycle(id: string, state: string) {
 
 export interface AgentInstallDTO {
   role: 'frontline' | 'landing'
+  /** SERVER (frontline) / IP_POOL (landing); 后端按此分叉去 resource_server 或 resource_ip_pool 查. */
+  hostType: AgentHostType
   backendTimeoutSeconds: number
   heartbeatIntervalSeconds: number
   nicIntervalSeconds: number

@@ -56,6 +56,7 @@ import IpPoolCoreEditDialog from './dialogs/IpPoolCoreEditDialog.vue'
 import IpPoolCredentialEditDialog from './dialogs/IpPoolCredentialEditDialog.vue'
 import IpPoolBillingEditDialog from './dialogs/IpPoolBillingEditDialog.vue'
 import IpPoolSocks5EditDialog from './dialogs/IpPoolSocks5EditDialog.vue'
+import AgentProvisionDialog from '@/views/agent/AgentProvisionDialog.vue'
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -265,6 +266,15 @@ const EDIT_DROPDOWN_OPTIONS = [
   { type: 'divider' as const, key: 'sep' },
   { label: '整段表单 (兼容)', key: 'form' }
 ]
+
+// ===== 装 landing agent (provisionMode=1 自部署才显示) =====
+const provisionOpen = ref(false)
+const provisionIpId = ref<string | null>(null)
+
+function openProvision(ip: ResourceIpPool) {
+  provisionIpId.value = ip.id
+  provisionOpen.value = true
+}
 
 function onEditSelect(ip: ResourceIpPool, key: string) {
   switch (key) {
@@ -602,6 +612,23 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
               }
             )
           : null,
+        // 装 landing agent: 仅自部署 (provisionMode=1) 显示, 走 SSH 装机
+        row.provisionMode === 1
+          ? h(
+              NButton,
+              {
+                size: 'tiny',
+                quaternary: true,
+                type: 'success',
+                onClick: () => openProvision(row),
+                title: 'SSH 自动装 nook-landing-agent (后续 dante 限速 / 改配置走 task 链路)'
+              },
+              {
+                icon: () => h(NIcon, null, { default: () => h(Rocket) }),
+                default: () => '装 agent'
+              }
+            )
+          : null,
         h(
           NDropdown,
           {
@@ -830,5 +857,11 @@ onMounted(async () => {
     <IpPoolCredentialEditDialog v-if="editingIp" v-model="credentialEditOpen" :ip-id="editingIp.id" :ip-address="editingIp.ipAddress" @saved="onFormSaved" />
     <IpPoolBillingEditDialog v-if="editingIp" v-model="billingEditOpen" :ip-id="editingIp.id" @saved="onFormSaved" />
     <IpPoolSocks5EditDialog v-if="editingIp" v-model="socks5EditOpen" :ip-id="editingIp.id" @saved="onFormSaved" />
+    <AgentProvisionDialog
+      v-model="provisionOpen"
+      :initial-server-id="provisionIpId"
+      initial-role="landing"
+      @dispatched="onFormSaved"
+    />
   </div>
 </template>

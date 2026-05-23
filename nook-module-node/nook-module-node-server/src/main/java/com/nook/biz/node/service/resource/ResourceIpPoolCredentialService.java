@@ -19,6 +19,14 @@ public interface ResourceIpPoolCredentialService {
     ResourceIpPoolCredentialDO get(String ipId);
 
     /**
+     * 取凭据; 缺失抛 IP_POOL_SSH_CRED_MISSING.
+     *
+     * @param ipId IP 池 id
+     * @return DO
+     */
+    ResourceIpPoolCredentialDO requireByIpId(String ipId);
+
+    /**
      * 更新凭据; sshPassword 留空 = 保留原值.
      *
      * @param ipId  IP 池 id

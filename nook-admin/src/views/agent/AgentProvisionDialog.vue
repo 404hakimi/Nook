@@ -27,9 +27,11 @@ import {
   getAgentInstallMeta,
   listNetworkInterfaces,
   pageServers,
+  type AgentHostType,
   type AgentInstallDTO,
   type AgentInstallMeta
 } from '@/api/resource/server'
+import { pageIpPool } from '@/api/resource/ip-pool'
 import {
   AGENT_ONLINE_LABELS,
   AGENT_ONLINE_TAG_TYPE,
@@ -56,20 +58,29 @@ const open = computed({
 const message = useMessage()
 const dialog = useDialog()
 
-// ---------- 服务器列表 + role 过滤 ----------
+// ---------- host 抽象: frontline → SERVER, landing → IP_POOL ----------
 const loading = ref(false)
-const agents = ref<AgentListItem[]>([])
-const allServers = ref<Array<{ id: string; name: string; lifecycleState: string }>>([])
 const selectedRole = ref<'frontline' | 'landing'>('frontline')
-const selectedServerId = ref<string | null>(null)
+const selectedHostId = ref<string | null>(null)
+
+const hostKind = computed<AgentHostType>(() =>
+  selectedRole.value === 'landing' ? 'IP_POOL' : 'SERVER'
+)
 
 const ROLE_OPTIONS = [
   { label: 'Frontline (xray)', value: 'frontline' },
   { label: 'Landing (socks5)', value: 'landing' }
 ]
 
+// frontline 用 server + agent 列表; landing 用 ip_pool 列表 (agent runtime 阶段 6 才上报)
+const agents = ref<AgentListItem[]>([])
+const allServers = ref<Array<{ id: string; name: string; lifecycleState: string }>>([])
+const allIpPools = ref<Array<{ id: string; ipAddress: string; lifecycleState: string; remark?: string }>>([])
+
 const currentAgent = computed(() =>
-  agents.value.find((a) => a.serverId === selectedServerId.value) || null
+  hostKind.value === 'SERVER'
+    ? agents.value.find((a) => a.serverId === selectedHostId.value) || null
+    : null
 )
 
 function serverRole(serverId: string): 'frontline' | 'landing' | 'unprovisioned' {
@@ -79,31 +90,55 @@ function serverRole(serverId: string): 'frontline' | 'landing' | 'unprovisioned'
   return 'frontline'
 }
 
-const serverOptions = computed(() =>
-  allServers.value
-    .filter((s) => {
-      const r = serverRole(s.id)
-      return r === 'unprovisioned' || r === selectedRole.value
-    })
-    .map((s) => {
-      const a = agents.value.find((x) => x.serverId === s.id)
-      const host = a?.host ? ` (${a.host})` : ''
-      const tag = a && a.agentVersion ? `${a.onlineState} ${a.agentVersion}` : '未装'
-      return { label: `${s.name}${host} — ${tag}`, value: s.id }
-    })
-)
+const hostOptions = computed(() => {
+  if (hostKind.value === 'SERVER') {
+    return allServers.value
+      .filter((s) => {
+        const r = serverRole(s.id)
+        return r === 'unprovisioned' || r === selectedRole.value
+      })
+      .map((s) => {
+        const a = agents.value.find((x) => x.serverId === s.id)
+        const host = a?.host ? ` (${a.host})` : ''
+        const tag = a && a.agentVersion ? `${a.onlineState} ${a.agentVersion}` : '未装'
+        return { label: `${s.name}${host} — ${tag}`, value: s.id }
+      })
+  }
+  return allIpPools.value.map((p) => {
+    const note = p.remark ? ` — ${p.remark}` : ''
+    return { label: `${p.ipAddress} (${p.lifecycleState})${note}`, value: p.id }
+  })
+})
+
+const hostDisplayName = computed(() => {
+  if (!selectedHostId.value) return ''
+  if (hostKind.value === 'SERVER') {
+    const s = allServers.value.find((x) => x.id === selectedHostId.value)
+    return s ? s.name : ''
+  }
+  const p = allIpPools.value.find((x) => x.id === selectedHostId.value)
+  return p ? p.ipAddress : ''
+})
 
 async function loadData() {
   loading.value = true
   try {
-    const [servers, agentList] = await Promise.all([
-      pageServers({ pageNo: 1, pageSize: 200 }),
-      listAgents()
-    ])
-    agents.value = agentList
-    allServers.value = servers.records.map((s) => ({
-      id: s.id, name: s.name, lifecycleState: s.lifecycleState
-    }))
+    if (hostKind.value === 'SERVER') {
+      const [servers, agentList] = await Promise.all([
+        pageServers({ pageNo: 1, pageSize: 200 }),
+        listAgents()
+      ])
+      agents.value = agentList
+      allServers.value = servers.records.map((s) => ({
+        id: s.id, name: s.name, lifecycleState: s.lifecycleState
+      }))
+    } else {
+      // landing: 拉 ip 池列表; 不依赖 agents (阶段 6 之前 ip_pool 还没有 agent_runtime 行)
+      const ipPage = await pageIpPool({ pageNo: 1, pageSize: 200 })
+      allIpPools.value = ipPage.records.map((p) => ({
+        id: p.id, ipAddress: p.ipAddress, lifecycleState: p.lifecycleState, remark: p.remark
+      }))
+    }
   } catch { /* */ } finally {
     loading.value = false
   }
@@ -111,15 +146,16 @@ async function loadData() {
 
 // ---------- 推荐 tab ----------
 type Flow = 'upgrade' | 'deploy'
-const activeTab = ref<Flow>('upgrade')
+const activeTab = ref<Flow>('deploy')
 const recommended = computed<Flow>(() => {
+  if (hostKind.value === 'IP_POOL') return 'deploy'
   const a = currentAgent.value
   if (!a || a.onlineState === 'NEVER') return 'deploy'
   return 'upgrade'
 })
 watch(currentAgent, () => { activeTab.value = recommended.value })
 
-// ---------- 升级 ----------
+// ---------- 升级 (仅 SERVER) ----------
 const upgrading = ref(false)
 const dispatchedTaskId = ref<string | null>(null)
 const lastDispatchedFor = ref<string | null>(null)
@@ -181,23 +217,22 @@ function startUpgradePolling(serverId: string, oldVersion: string) {
   }, 5000)
 }
 
-// ---------- 装机元信息 (后端常量, readonly 展示) ----------
-// 仅在 deploy tab 用到 (NIC 选项 + backendUrl + SSH 默认值); 升级流程不依赖. lazy load.
+// ---------- 装机元信息 (backend 已知数据) ----------
 const installMeta = ref<AgentInstallMeta | null>(null)
-/** meta 是否已为当前 (role, serverId) 拉过; 切 tab 不重复拉. */
 let metaFetchedKey: string | null = null
 
 function metaKey(): string {
-  return `${selectedRole.value}|${selectedServerId.value ?? ''}`
+  return `${selectedRole.value}|${hostKind.value}|${selectedHostId.value ?? ''}`
 }
 
 async function loadInstallMeta(force = false) {
   const key = metaKey()
   if (!force && metaFetchedKey === key) return
   try {
-    installMeta.value = await getAgentInstallMeta(selectedRole.value, selectedServerId.value)
+    installMeta.value = await getAgentInstallMeta(
+      selectedRole.value, hostKind.value, selectedHostId.value
+    )
     metaFetchedKey = key
-    // backend 已知数据 (URL + SSH 默认) 覆盖到表单, admin 直接基于真实值改
     applyMetaToForm(form, installMeta.value)
   } catch {
     installMeta.value = null
@@ -205,15 +240,15 @@ async function loadInstallMeta(force = false) {
   }
 }
 
-/** frontline 选了 server 但 xray_node 没记录 → 装机会失败, 前端拦; landing 永远 false. */
+/** Frontline 选了 server 但 xray_node 没记录 → 装机会失败. */
 const xrayMissing = computed(() =>
   selectedRole.value === 'frontline'
-  && !!selectedServerId.value
+  && !!selectedHostId.value
   && (!installMeta.value?.xrayBin || installMeta.value?.xrayApiPort == null)
 )
 
 // ---------- 部署表单 ----------
-// 选 server 后 SSH 拉远端网卡; 失败/未选时只剩 auto. lazy: 仅 deploy tab 触发.
+// 远端网卡仅 SERVER 模式拉 (server 有 SSH 凭据 endpoint); IP_POOL 模式直接 auto
 const nicOptions = ref<Array<{ label: string; value: string }>>([
   { label: 'auto (默认路由出口网卡)', value: 'auto' }
 ])
@@ -221,6 +256,7 @@ const nicLoading = ref(false)
 let nicFetchedForServerId: string | null = null
 
 async function loadNicOptions(serverId: string, force = false) {
+  if (hostKind.value !== 'SERVER') return
   if (!force && nicFetchedForServerId === serverId) return
   nicLoading.value = true
   try {
@@ -241,20 +277,18 @@ async function loadNicOptions(serverId: string, force = false) {
 function defaultForm(): AgentInstallDTO {
   return {
     role: selectedRole.value,
-    // 120s 覆盖跨境 binary 下载 (~60s 实测) + 余量; 常态心跳/poll 实际秒级返回, 不会真吃满
+    hostType: hostKind.value,
+    // 120s 覆盖跨境 binary 下载 (~60s 实测) + 余量
     backendTimeoutSeconds: 120,
     heartbeatIntervalSeconds: 60,
     nicIntervalSeconds: 300,
     nicInterface: 'auto',
-    // 60s: admin 派任务后最差等 1min 才被 agent 拾取; 比 30s 省一半 backend 请求, 体感无差
     pollerIntervalSeconds: 60,
-    // 路径 + URL 默认 (前端持有, 改了对本次装机生效); backendUrl 选 server 后从 meta 覆盖
     nookHome: '/home/nook-agent',
     binPath: '/home/nook-agent/nook-agent',
     configPath: '/home/nook-agent/config.yml',
     systemdUnitPath: '/etc/systemd/system/nook-agent.service',
     backendUrl: '',
-    // SSH 默认 (跟 socks5 deploy 一致); 选了 server 后会被 install-meta 里 resource_server 存值覆盖
     sshTimeoutSeconds: 60,
     sshOpTimeoutSeconds: 60,
     sshUploadTimeoutSeconds: 180,
@@ -263,7 +297,6 @@ function defaultForm(): AgentInstallDTO {
 }
 const form = reactive<AgentInstallDTO>(defaultForm())
 
-/** 把 meta 里 backend 已知值 (URL + SSH 4 件套) 应用到给定 form 对象上 (in-place). */
 function applyMetaToForm(target: AgentInstallDTO, m: AgentInstallMeta | null) {
   if (!m) return
   if (m.backendUrl) target.backendUrl = m.backendUrl
@@ -273,11 +306,10 @@ function applyMetaToForm(target: AgentInstallDTO, m: AgentInstallMeta | null) {
   if (m.installTimeoutSeconds != null) target.installTimeoutSeconds = m.installTimeoutSeconds
 }
 
-/** Reset: 仅 deploy tab 触发; 先拉 meta 算出最终值, 一次性 assign — 避免先 default 后 prefill 的两帧闪烁. */
 async function resetForm() {
   const fresh = defaultForm()
   try {
-    const m = await getAgentInstallMeta(selectedRole.value, selectedServerId.value)
+    const m = await getAgentInstallMeta(selectedRole.value, hostKind.value, selectedHostId.value)
     installMeta.value = m
     metaFetchedKey = metaKey()
     applyMetaToForm(fresh, m)
@@ -302,14 +334,14 @@ function appendLog(t: string) {
 }
 
 function runDeploy() {
+  if (!selectedHostId.value) return
+  // SERVER 模式且已装过 (有 agent 在线史) 才弹二次确认; landing 无 agent 记录, 直接走
   const a = currentAgent.value
-  if (!a) return
-  if (a.onlineState !== 'NEVER') {
+  if (a && a.onlineState !== 'NEVER') {
     dialog.warning({
       title: '确认重新部署',
       content: '是否确认部署?',
       positiveText: '继续', negativeText: '取消',
-      // 不 await, 让确认框立即关闭, 部署在后台跑
       onPositiveClick: () => { actuallyDeploy() }
     })
     return
@@ -318,27 +350,24 @@ function runDeploy() {
 }
 
 async function actuallyDeploy() {
-  const a = currentAgent.value
-  if (!a) return
+  if (!selectedHostId.value) return
   deployLog.value = ''
   deploying.value = true
   deployAbort = new AbortController()
   try {
-    // frontline 必带 xray bin/api_port (后端从 install-meta 已查过, 这里只是把前端拿到的值回塞)
     const dto: AgentInstallDTO = {
       ...form,
       role: selectedRole.value,
+      hostType: hostKind.value,
       xrayBin: selectedRole.value === 'frontline' ? installMeta.value?.xrayBin : undefined,
       xrayApiPort: selectedRole.value === 'frontline' ? installMeta.value?.xrayApiPort : undefined
     }
-    await agentInstallStream(a.serverId, dto, appendLog, deployAbort.signal)
+    await agentInstallStream(selectedHostId.value, dto, appendLog, deployAbort.signal)
     appendLog('\n[nook-admin] ✅ 装机流完成\n')
     emit('dispatched')
     await loadData()
-    // loadData 触发 watch(currentAgent) → 把 activeTab 重置成 recommended (新装的还没心跳, recommended='deploy');
-    // 等 watch flush 完再切, 不然立即赋值会被覆盖回去
     await nextTick()
-    activeTab.value = 'upgrade'
+    if (hostKind.value === 'SERVER') activeTab.value = 'upgrade'
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     appendLog(`\n[nook-admin] ❌ 失败: ${msg}\n`)
@@ -356,54 +385,49 @@ function cancelDeploy() {
 // ---------- 生命周期 ----------
 watch(open, (v) => {
   if (v) {
-    loadData()
     selectedRole.value = props.initialRole ?? 'frontline'
-    selectedServerId.value = props.initialServerId
+    selectedHostId.value = props.initialServerId
     deployLog.value = ''
     dispatchedTaskId.value = null
     upgradeStatus.value = 'WAITING'
     upgradeElapsed.value = 0
-    // 重置 form 到 default (不带 meta), 等用户进 deploy tab 再 lazy load
     Object.assign(form, defaultForm())
     installMeta.value = null
     metaFetchedKey = null
     nicFetchedForServerId = null
     nicOptions.value = [{ label: 'auto (默认路由出口网卡)', value: 'auto' }]
+    loadData()
   } else {
     stopPolling()
     if (deployAbort) deployAbort.abort()
   }
 })
 
-watch(selectedRole, () => {
-  if (selectedServerId.value) {
-    const r = serverRole(selectedServerId.value)
-    if (r !== 'unprovisioned' && r !== selectedRole.value) {
-      selectedServerId.value = null
-    }
-  }
+// 用户主动切 role: 老选中的 hostId 跨表无效 → 清空 + 重拉新 host 表
+// (不走 watch(selectedRole), 避免 open=true 时同时 set role+hostId 顺序乱)
+function onRoleChange() {
+  selectedHostId.value = null
   form.role = selectedRole.value
-  // 仅 deploy tab 时刷 meta (role 影响 xrayBin/xrayApiPort)
-  if (activeTab.value === 'deploy') loadInstallMeta()
-})
+  form.hostType = hostKind.value
+  installMeta.value = null
+  metaFetchedKey = null
+  loadData()
+}
 
-// 选 server 后 SSH 拉网卡 + 重拉 install-meta — 仅 deploy tab 触发, 升级流程不需要
-watch(selectedServerId, (id) => {
+watch(selectedHostId, (id) => {
   if (activeTab.value !== 'deploy') return
-  if (id) {
-    loadNicOptions(id)
-    loadInstallMeta()
-  } else {
+  if (id && hostKind.value === 'SERVER') loadNicOptions(id)
+  if (id) loadInstallMeta()
+  else {
     nicOptions.value = [{ label: 'auto (默认路由出口网卡)', value: 'auto' }]
     nicFetchedForServerId = null
   }
 })
 
-// 切到 deploy tab 时按需 lazy load (首次进入 / 之前 server 变过没拉)
 watch(activeTab, (tab) => {
   if (tab !== 'deploy') return
-  if (selectedServerId.value) loadNicOptions(selectedServerId.value)
-  loadInstallMeta()
+  if (selectedHostId.value && hostKind.value === 'SERVER') loadNicOptions(selectedHostId.value)
+  if (selectedHostId.value) loadInstallMeta()
 })
 
 onMounted(() => { if (props.modelValue) loadData() })
@@ -422,20 +446,19 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
   >
     <NSpin :show="loading">
       <div class="space-y-3">
-        <!-- 角色 + server -->
         <div class="flex flex-wrap items-center gap-3">
-          <NRadioGroup v-model:value="selectedRole" size="small">
+          <NRadioGroup v-model:value="selectedRole" size="small" @update:value="onRoleChange">
             <NRadio v-for="opt in ROLE_OPTIONS" :key="opt.value" :value="opt.value">
               {{ opt.label }}
             </NRadio>
           </NRadioGroup>
           <NSelect
-            v-model:value="selectedServerId"
-            :options="serverOptions"
+            v-model:value="selectedHostId"
+            :options="hostOptions"
             filterable
             size="small"
             class="flex-1 min-w-[20rem]"
-            :placeholder="`选 ${selectedRole} server`"
+            :placeholder="`选 ${selectedRole === 'frontline' ? 'server' : 'IP 池条目'}`"
           />
         </div>
 
@@ -447,10 +470,12 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
           <div class="flex-1"></div>
           <NTag size="small" type="info">推荐: {{ recommended === 'upgrade' ? '升级' : '部署' }}</NTag>
         </div>
+        <div v-else-if="selectedHostId && hostKind === 'IP_POOL'" class="text-xs text-zinc-500">
+          落地机 agent runtime 尚未上报 (阶段 6 才有); 仅装机流可用. host: {{ hostDisplayName }}
+        </div>
 
-        <NTabs v-if="currentAgent" v-model:value="activeTab" type="line" size="small">
-          <!-- ============ 升级 ============ -->
-          <NTabPane name="upgrade">
+        <NTabs v-if="selectedHostId" v-model:value="activeTab" type="line" size="small">
+          <NTabPane v-if="hostKind === 'SERVER' && currentAgent" name="upgrade">
             <template #tab>
               <span>升级二进制包</span>
               <NTooltip trigger="hover">
@@ -487,7 +512,6 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
             </div>
           </NTabPane>
 
-          <!-- ============ 部署 ============ -->
           <NTabPane name="deploy">
             <template #tab>
               <span>重新部署</span>
@@ -495,12 +519,15 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                 <template #trigger>
                   <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                 </template>
-                覆盖远端 config.yml + 重写 systemd unit + 重启 agent. 全字段 admin 自定 (前端默认 + 选 server 后 backend 已知值 prefill); 后端不兜底.
+                覆盖远端 config.yml + 重写 systemd unit + 重启 agent. 全字段 admin 自定 (前端默认 + 选 host 后 backend 已知值 prefill); 后端不兜底.
               </NTooltip>
             </template>
             <div class="space-y-3 mt-2">
               <NAlert v-if="xrayMissing" type="error" :show-icon="false" size="small">
                 ⚠ 该 server 未装 xray (xray_node 表无记录), frontline 装机会失败. 请先到 xray 管理装上.
+              </NAlert>
+              <NAlert v-if="hostKind === 'IP_POOL'" type="info" :show-icon="false" size="small">
+                Landing 模式装机: 走 resource_ip_pool.ssh_credential 子表 (sshHost 空 = ip_address 兜底). dante 装机 / 限速由 agent 拉 task 后处理, 这里只装 nook-landing-agent 自身.
               </NAlert>
 
               <NForm :model="form" label-placement="left" label-width="auto" size="small">
@@ -550,7 +577,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      vnstat 采样的网卡名. auto = agent 自动用 /proc/net/route 默认路由出口网卡; 多网卡场景可选具体网卡名.
+                      vnstat 采样的网卡名. auto = agent 自动用 /proc/net/route 默认路由出口网卡; 多网卡场景可选具体网卡名 (server 模式可拉远端列表, landing 模式手填).
                     </NTooltip>
                   </template>
                   <NSelect
@@ -560,7 +587,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                     tag
                     filterable
                     class="w-60"
-                    placeholder="选 server 后自动拉取"
+                    :placeholder="hostKind === 'SERVER' ? '选 server 后自动拉取' : 'auto 或手填网卡名'"
                   />
                 </NFormItem>
                 <NFormItem path="pollerIntervalSeconds">
@@ -570,7 +597,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      agent 轮询 backend 任务队列频率 (升级 / 改配置 / 清日志 等 task 走这条路). 越短任务越及时, backend 请求量越大.
+                      agent 轮询 backend 任务队列频率 (升级 / 改配置 / 清日志 等 task 走这条路).
                     </NTooltip>
                   </template>
                   <NInputNumber v-model:value="form.pollerIntervalSeconds" :min="5" :max="600" class="w-40" />
@@ -586,7 +613,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      agent yaml backend.api_url + 装机脚本 curl binary 都用此值. 默认从 backend config 读, 可改 (e.g. 换 natapp 地址).
+                      agent yaml backend.api_url + 装机脚本 curl binary 都用此值. 默认从 backend config 读, 可改.
                     </NTooltip>
                   </template>
                   <NInput v-model:value="form.backendUrl" placeholder="https://your-backend.example.com" class="w-96" />
@@ -598,7 +625,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      agent 文件 (binary + config) 落地的目录; 改路径要确保 server 文件系统已存在或脚本能 mkdir.
+                      agent 文件 (binary + config) 落地的目录.
                     </NTooltip>
                   </template>
                   <NInput v-model:value="form.nookHome" class="w-96" />
@@ -610,7 +637,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      agent binary 绝对路径; systemd ExecStart + yaml runtime.bin_path 都用此. 默认在 nookHome 下.
+                      agent binary 绝对路径; systemd ExecStart + yaml runtime.bin_path 都用此.
                     </NTooltip>
                   </template>
                   <NInput v-model:value="form.binPath" class="w-96" />
@@ -622,7 +649,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      agent config.yml 绝对路径; systemd ExecStart 用 -c 指向此. 后续改配置也会写到此处.
+                      agent config.yml 绝对路径; systemd ExecStart 用 -c 指向此.
                     </NTooltip>
                   </template>
                   <NInput v-model:value="form.configPath" class="w-96" />
@@ -634,7 +661,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      systemd unit 文件位置; 默认 /etc/systemd/system/nook-agent.service. 改 unit 名也会影响 systemctl 命令.
+                      systemd unit 文件位置; 默认 /etc/systemd/system/nook-agent.service.
                     </NTooltip>
                   </template>
                   <NInput v-model:value="form.systemdUnitPath" class="w-96" />
@@ -650,7 +677,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      建 SSH 会话握手阶段超时 (跨境抖动可调大). 默认从 server 表读, 这里改只对本次装机生效.
+                      建 SSH 会话握手阶段超时. SERVER 默认从 resource_server 表读, IP_POOL 默认 60s.
                     </NTooltip>
                   </template>
                   <NInputNumber v-model:value="form.sshTimeoutSeconds" :min="5" :max="600" class="w-40" />
@@ -662,7 +689,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      装机脚本里单条命令 (apt / curl / systemctl) 最大耗时. 单步卡过这值会中断本次装机.
+                      装机脚本里单条命令 (apt / curl / systemctl) 最大耗时.
                     </NTooltip>
                   </template>
                   <NInputNumber v-model:value="form.sshOpTimeoutSeconds" :min="5" :max="300" class="w-40" />
@@ -674,7 +701,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      SCP 单文件上传超时 (装机脚本 ~几 KB, 默认 180 余量足). 慢链路或大文件调大.
+                      SCP 单文件上传超时.
                     </NTooltip>
                   </template>
                   <NInputNumber v-model:value="form.sshUploadTimeoutSeconds" :min="5" :max="600" class="w-40" />
@@ -686,7 +713,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
                       <template #trigger>
                         <NIcon class="hint-icon"><HelpCircle :size="14" /></NIcon>
                       </template>
-                      整段装机脚本最大耗时 (含 binary 下载 + xray 等启动). natapp 慢链路下 binary ~5MB 约 50s, 600s 默认够用.
+                      整段装机脚本最大耗时 (含 binary 下载 + xray 等启动).
                     </NTooltip>
                   </template>
                   <NInputNumber v-model:value="form.installTimeoutSeconds" :min="60" :max="3600" class="w-40" />
@@ -710,7 +737,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
             </div>
           </NTabPane>
         </NTabs>
-        <div v-else class="text-center text-zinc-500 text-sm py-4">↑ 先选服务器</div>
+        <div v-else class="text-center text-zinc-500 text-sm py-4">↑ 先选 host</div>
       </div>
     </NSpin>
 
@@ -729,7 +756,6 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
   color: #a1a1aa;
   cursor: help;
 }
-/* NDivider 默认上下 28px margin 太占地; 表单分组用紧凑值 */
 .form-section {
   margin-top: 8px !important;
   margin-bottom: 4px !important;
