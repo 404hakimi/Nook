@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nook.biz.agent.api.enums.AgentHostType;
 import com.nook.biz.agent.api.enums.AgentTaskStatus;
 import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
@@ -75,7 +76,7 @@ public class AgentReportServiceImpl implements AgentReportService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<AgentTaskRespVO> pullPendingTasks(String serverId, int limit) {
-        List<AgentTaskDO> pending = agentTaskMapper.selectPending(serverId, limit);
+        List<AgentTaskDO> pending = agentTaskMapper.selectPending(AgentHostType.SERVER.code(), serverId, limit);
         if (CollUtil.isEmpty(pending)) {
             return List.of();
         }

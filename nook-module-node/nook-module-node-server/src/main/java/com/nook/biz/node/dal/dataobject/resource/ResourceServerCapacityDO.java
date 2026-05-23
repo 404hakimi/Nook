@@ -42,6 +42,9 @@ public class ResourceServerCapacityDO {
     /** NORMAL / THROTTLED; used 90% → THROTTLED, allocator 跳过. */
     private String throttleState;
 
+    /** 线路机出站接口实际限速 Mbps; 0=不限; agent 跑 tc qdisc 落实. */
+    private Integer bandwidthLimitMbps;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

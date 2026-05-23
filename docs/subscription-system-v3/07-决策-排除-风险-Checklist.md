@@ -102,7 +102,30 @@
 **决策**: 删字段 (`ALTER TABLE resource_server DROP COLUMN max_concurrent_clients`); 客户数上限**只走** `xray_node.touchdown_size`.
 **收益**: 跟 [design-simplicity](memory) 偏好一致 — "不要硬上限 + 软上限两层"
 
-#### 3.2.3 MP 全局 update-strategy: NOT_NULL (PATCH 语义)
+#### 3.2.3 限速方案: dante 落地机级 + tc 线路机级兜底 (2026-05-23 本会话决议)
+
+**背景**: 旧 v3 设计写 "不限速, 用户跑满 IP 物理上限", 实际运营会出问题:
+- 线路机带宽有限, 同时几个用户跑满 IP 会拖垮线路
+- 无法兜住"链路守恒" (Σ落地机带宽 ≤ 线路机带宽)
+
+**决策**: 改成限速 + 链路守恒模型:
+- 落地机 dante per-IP 限速 (`bandwidth class`, v3 1 IP = 1 客户, 颗粒度等价 per-客户)
+- 线路机 Linux tc 出站接口级限速 (`tc qdisc add tbf`)
+- admin 进货时强校验 `Σ(SKU 池内 IP.bandwidth_limit_mbps) ≤ min(SKU 池内 server.bandwidth_limit_mbps) × 0.9`
+- allocator 选 server 时再做动态校验
+
+**对比方案**:
+- xray 客户级限速: ❌ xray-core 原生不支持 per-user bandwidth, 弃用
+- 单独用 dante 不用 tc: ⚠️ 落地机 dante 限速失效 (e.g., crash) 时无兜底
+- 单独用 tc 不用 dante: ⚠️ 服务器级颗粒度太粗, 一个 IP 跑满会挤占其他 IP
+
+**预留率**: 10% (常量 `BANDWIDTH_RESERVATION_RATIO = 0.10`)
+
+**前提**: 落地机也跑 nook-agent (现状仅线路机跑), 需要给 `resource_ip_pool` 加 `agent_token` 字段; `agent_task.server_id` 重命名为 `host_id` + 加 `host_type` 区分 SERVER/IP_POOL.
+
+**实施进度**: ❌ 全部待做. 详见 [02-数据模型 §5.7](../subscription-system-v3/02-数据模型.md).
+
+#### 3.2.4 MP 全局 update-strategy: NOT_NULL (PATCH 语义)
 
 **决策**: 保留默认, 不改成 IGNORED.
 **代价**: update 接口不能把字段从有值清成 null (e.g., billing.expiresAt / dns.domain 没法置空)

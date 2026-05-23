@@ -80,6 +80,9 @@ public class ResourceIpPoolDO extends BaseEntity {
 
     private String sshPassword;
 
+    /** 落地机 dante 实际限速 Mbps; 0=不限; agent 改 sockd.conf 落实. */
+    private Integer bandwidthLimitMbps;
+
     private Integer bandwidthMbps;
 
     private Integer trafficQuotaGb;
@@ -94,6 +97,9 @@ public class ResourceIpPoolDO extends BaseEntity {
     private LocalDate expiresAt;
 
     private String remark;
+
+    /** Agent 鉴权 token; 装机一次性 SHA256 生成 (落地机也跑 nook-agent). */
+    private String agentToken;
 
     @TableLogic
     private Integer deleted;

@@ -2,6 +2,7 @@ package com.nook.biz.agent.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nook.biz.agent.api.enums.AgentHostType;
 import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.dal.dataobject.AgentRuntimeConfigDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentRuntimeConfigMapper;
@@ -65,7 +66,7 @@ public class AgentRuntimeConfigServiceImpl implements AgentRuntimeConfigService 
         } catch (JsonProcessingException e) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "task payload 序列化失败");
         }
-        String taskId = agentTaskDispatchService.dispatch(serverId, AgentTaskType.CONFIG_RELOAD.getCode(), payload);
+        String taskId = agentTaskDispatchService.dispatch(AgentHostType.SERVER, serverId, AgentTaskType.CONFIG_RELOAD.getCode(), payload);
         log.info("[save] serverId={} taskId={} bytes={} operator={}",
                 serverId, taskId, yaml.length(), operatorId);
         return taskId;

@@ -17,8 +17,11 @@ import java.time.LocalDateTime;
 @TableName("agent_task")
 public class AgentTaskDO extends BaseEntity {
 
-    /** FK → resource_server.id. */
-    private String serverId;
+    /** 任务目标主机类型; 取值见 {@link com.nook.biz.agent.api.enums.AgentHostType}. */
+    private String hostType;
+
+    /** resource_server.id (hostType=SERVER) 或 resource_ip_pool.id (hostType=IP_POOL). */
+    private String hostId;
 
     /** 任务类型: xray_provision_user / xray_remove_user / shell_exec 等. */
     private String taskType;

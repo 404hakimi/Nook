@@ -63,7 +63,7 @@
 - ✅ **SKU 资源池**: `plan_sku_resource` 关联表绑定 SKU ↔ (server + IP 池), 容量 = 数 IP (砍 sold_traffic_gb)
 - ✅ **1 sub 1 server + DNS 切换**: 用户独享子域名, 故障 5-15min DNS 缓存恢复
 - ✅ **Agent 架构 (Go)**: 服务器跑轻量 agent 主动 push 数据 + pull 任务, backend 不再 SSH 拉
-- ✅ **不限带宽**: xray / dante 都不限速, 通过 `xray_node.touchdown_size` 控制单机密度
+- ✅ **dante + tc 双层限速**: 落地机 dante per-IP 限速 (= per-客户, v3 1:1) + 线路机 tc 服务器级总带宽兜底; 链路守恒 `Σ落地 ≤ 线路 × 0.9`; `xray_node.touchdown_size` 仅作客户数硬上限
 
 ### 数据模型 (核心变化)
 

@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nook.biz.agent.api.enums.AgentHostType;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
@@ -102,14 +103,15 @@ public class AdminAgentServiceImpl implements AdminAgentService {
         String fullVersion = role + "-" + bin.version();
         String payload = String.format("{\"url\":\"%s\",\"sha256\":\"%s\",\"version\":\"%s\"}",
                 escape(url), escape(bin.sha256()), escape(fullVersion));
-        return agentTaskDispatchService.dispatch(serverId, AgentTaskType.AGENT_UPGRADE.getCode(), payload);
+        return agentTaskDispatchService.dispatch(AgentHostType.SERVER, serverId, AgentTaskType.AGENT_UPGRADE.getCode(), payload);
     }
 
     @Override
     public PageResult<AgentTaskDO> pageTasks(String serverId, AdminAgentTaskPageReqVO reqVO) {
         resourceServerApi.validateExists(serverId);
-        IPage<AgentTaskDO> page = agentTaskMapper.selectPageByServer(
-                Page.of(reqVO.getPageNo(), reqVO.getPageSize()), serverId, reqVO);
+        IPage<AgentTaskDO> page = agentTaskMapper.selectPageByHost(
+                Page.of(reqVO.getPageNo(), reqVO.getPageSize()),
+                AgentHostType.SERVER.code(), serverId, reqVO);
         return PageResult.of(page.getTotal(), page.getRecords());
     }
 

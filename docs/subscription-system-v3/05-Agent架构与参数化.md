@@ -13,7 +13,13 @@
 - **数据流方向反转**: 数据 server → backend (HTTPS POST), 不再后端 SSH 拉
 - **配置变更走任务队列**: backend 写 task, agent 轮询拉 + 执行 + 回报
 - **配置驱动**: agent 行为完全由后端推的 yaml 决定, 加新能力 = 加模块 + 改模板
-- **单一二进制**: 一个 nook-agent 部署所有 server (线路机 / 落地 IP 同一份), 行为靠配置区分
+- **单一二进制**: 一个 nook-agent 部署所有 host (线路机 / 落地机同一份, 行为靠配置区分)
+
+**关于落地机 agent**:
+- v3 设计原意是线路机 + 落地机都跑 agent (落地机用 landing 配置模板)
+- **现状**: 仅线路机 (`resource_server`) 装了 agent, 有 `agent_token`
+- **待补**: 落地机 (`resource_ip_pool`) 装 agent + 加 `agent_token` 字段 — 限速 task 必需 (见 [02-数据模型 §5](./02-数据模型.md))
+- 装机流程类似线路机但简化 (无 xray, 只有 dante)
 
 ---
 
@@ -48,21 +54,23 @@ nook-agent (Go, 单二进制 ~10MB)
 │   └─ executor dispatcher
 │
 ├─ Collectors (按 config 启用)
-│   ├─ heartbeat ✅     — 1min 一次心跳 + agent_version 上报
-│   ├─ vnstat ✅         — NIC 流量采样 (5min)
-│   ├─ xray-stats ✅     — xray statsquery (per user up/down, 5min, xray.enabled=true 才启用)
-│   ├─ xray-dump ❌      — xray api 拉当前用户列表 (配置对账)
-│   ├─ dante-stats ❌    — dante 连接数 / 流量
-│   ├─ systemd ❌        — systemd 服务状态 (xray/dante)
-│   └─ procinfo ❌       — CPU/Mem/Disk
+│   ├─ heartbeat ✅      — 1min 一次心跳 + agent_version 上报
+│   ├─ vnstat ✅          — NIC 流量采样 (5min)
+│   ├─ xray-stats ✅      — xray statsquery (per user up/down, 5min, xray.enabled=true 才启用)
+│   ├─ xray-dump ❌       — xray api 拉当前用户列表 (配置对账)
+│   ├─ dante-stats ❌     — dante 连接数 / 流量
+│   ├─ systemd ❌         — systemd 服务状态 (xray/dante)
+│   └─ procinfo ❌        — CPU/Mem/Disk
 │
 └─ Executors (按 config 启用)
-    ├─ ping ✅            — echo, 探活
-    ├─ xray-api ✅        — xray api adu / rmu / ado / rmo
-    ├─ config_reload ✅   — 写盘 /home/nook-agent/config.yml + 自杀 → systemd 拉新进程
-    ├─ agent_upgrade ✅   — 下载新 binary + sha256 校验 + 替换 + 自杀
-    ├─ systemd-ctl ❌     — systemctl start/stop/restart (白名单)
-    ├─ shell ❌           — 任意 shell (admin 远程命令, 白名单)
+    ├─ ping ✅                  — echo, 探活
+    ├─ xray-api ✅              — xray api adu / rmu / ado / rmo
+    ├─ config_reload ✅         — 写盘 /home/nook-agent/config.yml + 自杀 → systemd 拉新进程
+    ├─ agent_upgrade ✅         — 下载新 binary + sha256 校验 + 替换 + 自杀
+    ├─ socks5_set_bandwidth ❌  — 落地机限速: 改 sockd.conf bandwidth class + systemctl restart danted
+    ├─ server_set_bandwidth ❌  — 线路机限速: tc qdisc replace dev eth0 root tbf rate Xmbit
+    ├─ systemd-ctl ❌           — systemctl start/stop/restart (白名单)
+    ├─ shell ❌                 — 任意 shell (admin 远程命令, 白名单)
     ├─ file-write ❌
     └─ file-read ❌
 ```
@@ -96,13 +104,14 @@ poller:
   interval_seconds: 60
 ```
 
-### 4.2 落地 IP (Landing, socks5)
+### 4.2 落地机 (Landing, socks5)
 
 ```yaml
 backend:
   api_url: https://nook-api.example.com
-  server_id: ip-jp-1
-  agent_token: ${...}
+  host_id: ${ip_pool.id}                   # ❌ 待补: 当前 yaml 用 server_id, 落地机需扩展为 host_id
+  host_type: IP_POOL                        # ❌ 待补: 跟 agent_task.host_type 对齐
+  agent_token: ${ip_pool.agent_token}       # ❌ 待补: 字段加到 resource_ip_pool
 
 heartbeat:
   interval_seconds: 60
@@ -110,6 +119,11 @@ heartbeat:
 nic:
   interval_seconds: 300
   interface: eth0
+
+dante:
+  enabled: true
+  config_path: /etc/danted.conf             # sockd.conf 路径
+  systemd_unit: danted                       # systemctl 操作目标
 
 # xray.enabled 默认 false, 不跑 xray collector/executor
 poller:
@@ -157,6 +171,8 @@ poller:
 | `xray_update_outbound` | `{outboundTag, newDanteEndpoint, danteUser, dantePass}` | xray-api: rmo + ado (换 IP) | ✅ |
 | `xray_update_user_quota` | `{email, newTotalBytes}` | xray-api: adu (重置流量) | ❌ |
 | `xray_full_sync` | `{}` | xray-dump + diff + adu/rmu | ❌ Sprint 1 |
+| `socks5_set_bandwidth` | `{mbps}` | 落地机: 改 sockd.conf bandwidth class + restart danted; 0=不限 | ❌ 限速方案 |
+| `server_set_bandwidth` | `{mbps, interface}` | 线路机: tc qdisc replace dev <iface> root tbf rate <X>mbit burst 100mb latency 50ms; 0=删 tc rule | ❌ 限速方案 |
 | `systemd_restart` | `{service}` | systemd-ctl: systemctl restart | ❌ |
 | `shell_exec` | `{cmd, timeout}` | shell | ❌ |
 
@@ -370,6 +386,10 @@ Admin UI                  Backend                          Agent                
 - `xray_full_sync` task: 远端 xray dump + diff + 自动修复 (替代之前 SSH `XrayClientReconcilerJob`)
 - agent 任务超时兜底 Job (PICKED > 10min 重置 PENDING)
 - `xray_update_user_quota` task: 续费时重置流量基线
+- **落地机 agent 部署 + 限速 executor** (`socks5_set_bandwidth` / `server_set_bandwidth`): 落实 [02-数据模型 §5](./02-数据模型.md) 限速方案
+  - 落地机 nook-agent 装机流程 (landing 配置模板 + agent_token 注入)
+  - `agent_task` 表 `server_id → host_id + host_type` 迁移
+  - Go executor: dante bandwidth class 写 sockd.conf + restart; tc qdisc 命令封装
 
 ### 11.3 Sprint 5+ 远期
 
