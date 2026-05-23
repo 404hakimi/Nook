@@ -136,15 +136,25 @@ class MinaSshSession implements SshSession {
     /**
      * TCP 连接 + 鉴权; connect/auth 用拆开的超时, 鉴权该秒级失败而不是拖 connectTimeout.
      * 鉴权阶段失败关掉 session 再向上抛, 防资源泄漏.
+     *
+     * <p>cred.sshTimeoutSeconds > 0 时同时覆盖 connect/auth 两个 yaml 默认; cred 只有一个超时字段,
+     * 拆 connect/auth 是 framework 内部细化, 业务侧每台机器存一个值, 用同一值兜底两边即可.
      */
     private static ClientSession openAndAuth(SshClient client, SessionCredential cred,
                                              Duration connectTimeout, Duration authTimeout) throws IOException {
+        Duration effectiveConnect = connectTimeout;
+        Duration effectiveAuth = authTimeout;
+        if (cred.getSshTimeoutSeconds() > 0) {
+            Duration override = Duration.ofSeconds(cred.getSshTimeoutSeconds());
+            effectiveConnect = override;
+            effectiveAuth = override;
+        }
         ConnectFuture cf = client.connect(cred.getSshUser(), cred.getSshHost(), cred.getSshPort());
-        cf.verify(connectTimeout.toMillis());
+        cf.verify(effectiveConnect.toMillis());
         ClientSession session = cf.getSession();
         try {
             session.addPasswordIdentity(cred.getSshPassword());
-            session.auth().verify(authTimeout.toMillis());
+            session.auth().verify(effectiveAuth.toMillis());
             return session;
         } catch (Exception e) {
             try { session.close(); } catch (IOException ignored) { }
