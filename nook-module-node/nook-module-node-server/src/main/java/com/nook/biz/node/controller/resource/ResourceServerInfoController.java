@@ -39,6 +39,11 @@ public class ResourceServerInfoController {
         return Result.ok(info);
     }
 
+    @GetMapping("/ufw-status")
+    public Result<String> getUfwStatus(@RequestParam("id") String id) {
+        return Result.ok(resourceServerInfoService.getUfwStatus(id));
+    }
+
     @GetMapping("/systemd-status")
     public Result<SystemdStatusRespVO> getSystemdStatus(@RequestParam("id") String id,
                                                         @RequestParam("unit") String unit) {

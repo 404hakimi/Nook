@@ -3,6 +3,7 @@ package com.nook.biz.node.controller.resource;
 import com.nook.biz.node.controller.resource.vo.ResourceServerBillingRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerBillingUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialRespVO;
@@ -150,5 +151,14 @@ public class ResourceServerController {
     public Result<ResourceServerCapacityRespVO> getCapacity(@RequestParam("id") String id) {
         serverValidator.validateExists(id);
         return Result.ok(ResourceServerCapacityConvert.INSTANCE.convert(capacityService.get(id)));
+    }
+
+    /** 更新业务阈值 (月流量配额 + 限定带宽); throttle 状态机 + agent tc qdisc 用. */
+    @PutMapping("/{id}/capacity")
+    public Result<Boolean> updateCapacity(@PathVariable("id") String id,
+                                          @RequestBody @Valid ResourceServerCapacityUpdateReqVO reqVO) {
+        serverValidator.validateExists(id);
+        capacityService.updateQuota(id, reqVO);
+        return Result.ok(true);
     }
 }

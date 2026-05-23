@@ -53,6 +53,11 @@ public class ResourceServerInfoServiceImpl implements ResourceServerInfoService 
     }
 
     @Override
+    public String getUfwStatus(String serverId) {
+        return serverProbe.readUfwStatus(SshSessions.acquire(serverId, SshSessionScope.SHARED));
+    }
+
+    @Override
     public SystemdStatusRespVO getSystemdStatus(String serverId, String unit) {
         return ServerInspectorConvert.INSTANCE.convert(serverProbe.readSystemdStatus(
                 SshSessions.acquire(serverId, SshSessionScope.SHARED), unit));

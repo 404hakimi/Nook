@@ -20,7 +20,7 @@ export interface ServerSystemInfo {
   timezone?: string
 }
 
-/** Xray systemd 服务运行状态 (后端 ServiceStatusRespVO); 不含日志. */
+/** Xray systemd 服务运行状态 (后端 XrayServerStatusRespVO); 不含日志. */
 export interface XrayServiceStatus {
   /** systemd unit 名, xray-managed 接口固定为 "xray" */
   unit?: string
@@ -31,10 +31,6 @@ export interface XrayServiceStatus {
   listening?: string
   /** systemctl is-enabled 输出: enabled / disabled / static / masked / ... */
   enabled?: string
-  /** ufw status verbose 输出原文; 未装 ufw 时为提示文案 */
-  ufwStatus?: string
-  /** 远端主机基本信息; 详情弹框默认折叠展示 */
-  hostInfo?: HostInfo
 }
 
 /** 远端主机基本信息 (跟 Socks5 状态共用同一结构); 与后端 HostInfoRespVO 字段对齐. */
@@ -72,6 +68,11 @@ export function testServerConnectivity(serverId: string) {
 /** 拉服务器系统基本信息 (hostname / 内存 / 磁盘 / 时区 等). */
 export function getServerSystemInfo(serverId: string) {
   return request.get<unknown, ServerSystemInfo>('/admin/resource/server/system-info', { params: { id: serverId } })
+}
+
+/** 拉 UFW 防火墙状态 (ufw status verbose 原文); 未装 ufw 时回提示文案. */
+export function getServerUfwStatus(serverId: string) {
+  return request.get<unknown, string>('/admin/resource/server/ufw-status', { params: { id: serverId } })
 }
 
 /**

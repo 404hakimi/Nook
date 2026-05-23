@@ -2,7 +2,6 @@ package com.nook.biz.node.service.xray.server;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
-import com.nook.biz.node.controller.resource.vo.HostInfoRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
@@ -12,7 +11,6 @@ import com.nook.framework.ssh.script.ScriptCatalog;
 import com.nook.framework.ssh.script.ScriptModule;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
-import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.cloudflare.CloudflareApiClient;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
@@ -158,9 +156,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, XrayConstants.SYSTEMD_UNIT);
         XrayNodeDO node = xrayNodeValidator.validateExists(serverId);
         XrayDaemonExtraSnapshot extras = xrayDaemonProbe.readExtras(session, node.getXrayBinaryPath(), node.getXrayApiPort());
-        // UFW + 主机信息: 一次状态刷新顺手拿全, 减少前端二次刷的来回
-        String ufw = serverProbe.readUfwStatus(session);
-        HostInfoSnapshot host = serverProbe.readHostInfo(session);
 
         XrayServerStatusRespVO vo = new XrayServerStatusRespVO();
         vo.setUnit(sysd.getUnit());
@@ -169,8 +164,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         vo.setEnabled(sysd.getEnabled());
         vo.setVersion(extras.getVersion());
         vo.setListening(extras.getListening());
-        vo.setUfwStatus(ufw);
-        vo.setHostInfo(toHostInfoVO(host));
         return vo;
     }
 
@@ -198,21 +191,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         vo.setLevel(snap.getLevel());
         vo.setKeyword(snap.getKeyword());
         vo.setLog(snap.getLog());
-        return vo;
-    }
-
-    /** snapshot → respVO 平铺复制; 字段同名, 直接 set. */
-    private static HostInfoRespVO toHostInfoVO(HostInfoSnapshot s) {
-        if (s == null) return null;
-        HostInfoRespVO vo = new HostInfoRespVO();
-        vo.setHostname(s.getHostname());
-        vo.setKernel(s.getKernel());
-        vo.setOsRelease(s.getOsRelease());
-        vo.setSystemUptime(s.getSystemUptime());
-        vo.setLoadAvg(s.getLoadAvg());
-        vo.setMemory(s.getMemory());
-        vo.setDisk(s.getDisk());
-        vo.setTimezone(s.getTimezone());
         return vo;
     }
 

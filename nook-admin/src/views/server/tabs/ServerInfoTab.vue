@@ -27,6 +27,7 @@ import {
 import {
   deleteServer,
   getServerBilling,
+  getServerCapacity,
   getServerDetail,
   getServerDns,
   SERVER_LIFECYCLE_LABELS,
@@ -34,12 +35,14 @@ import {
   transitionServerLifecycle,
   type ResourceServer,
   type ServerBilling,
+  type ServerCapacity,
   type ServerDns
 } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import type { AgentListItem } from '@/api/agent/agent'
 import ServerCoreEditDialog from '@/views/server/dialogs/ServerCoreEditDialog.vue'
 import ServerBillingEditDialog from '@/views/server/dialogs/ServerBillingEditDialog.vue'
+import ServerCapacityEditDialog from '@/views/server/dialogs/ServerCapacityEditDialog.vue'
 import ServerDnsEditDialog from '@/views/server/dialogs/ServerDnsEditDialog.vue'
 
 const props = defineProps<{
@@ -54,20 +57,23 @@ const dialog = useDialog()
 const detail = ref<ResourceServer | null>(null)
 const billing = ref<ServerBilling | null>(null)
 const dns = ref<ServerDns | null>(null)
+const capacity = ref<ServerCapacity | null>(null)
 const loading = ref(false)
 
 async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    const [d, b, n] = await Promise.all([
+    const [d, b, n, c] = await Promise.all([
       getServerDetail(props.serverId),
       getServerBilling(props.serverId),
-      getServerDns(props.serverId)
+      getServerDns(props.serverId),
+      getServerCapacity(props.serverId)
     ])
     detail.value = d
     billing.value = b
     dns.value = n
+    capacity.value = c
   } catch { /* */ } finally {
     loading.value = false
   }
@@ -129,6 +135,7 @@ const expiresTagType = computed(() => {
 // ===== 编辑 dialogs =====
 const coreEditOpen = ref(false)
 const billingEditOpen = ref(false)
+const capacityEditOpen = ref(false)
 const dnsEditOpen = ref(false)
 
 function afterEdit() { load(); emit('refresh') }
@@ -197,7 +204,7 @@ function afterEdit() { load(); emit('refresh') }
         </NDescriptions>
       </NCard>
 
-      <!-- === Section 2: 账面 (云厂商 / 带宽 / 成本 / 到期) === -->
+      <!-- === Section 2: 账面 (财务字段: 云厂商 / 成本 / 账单日 / 到期日) === -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
           <div class="section-header">
@@ -210,17 +217,10 @@ function afterEdit() { load(); emit('refresh') }
             </NButton>
           </div>
         </template>
-        <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
-          <NDescriptionsItem label="云厂商">
+        <!-- 云厂商 独占 + 成本/账单日/到期日 三等分 -->
+        <NDescriptions bordered size="small" label-placement="left" :column="3" label-style="width: 6rem">
+          <NDescriptionsItem label="云厂商" :span="3">
             <NTag v-if="billing?.idcProvider" size="small" type="info">{{ billing.idcProvider }}</NTag>
-            <span v-else class="muted">—</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="承诺带宽">
-            <template v-if="billing?.bandwidthMbps != null">
-              <span class="num">{{ billing.bandwidthMbps }}</span>
-              <span class="unit">Mbps</span>
-              <span class="text-xs text-zinc-400 ml-2">账面, 不 enforce</span>
-            </template>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="月成本">
@@ -232,12 +232,13 @@ function afterEdit() { load(); emit('refresh') }
           </NDescriptionsItem>
           <NDescriptionsItem label="账单日">
             <template v-if="billing?.billingCycleDay">
+              <span class="unit">每月</span>
               <span class="num">{{ billing.billingCycleDay }}</span>
-              <span class="unit">日</span>
+              <span class="unit">号</span>
             </template>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="到期日" :span="2">
+          <NDescriptionsItem label="到期日">
             <div v-if="billing?.expiresAt" class="flex items-center gap-2">
               <span class="num">{{ billing.expiresAt }}</span>
               <NTag size="tiny" :type="expiresTagType">
@@ -246,6 +247,40 @@ function afterEdit() { load(); emit('refresh') }
               </NTag>
             </div>
             <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+        </NDescriptions>
+      </NCard>
+
+      <!-- === Section 2b: 容量与流量 (业务阈值: 限定带宽 + 月流量阈值; 真实 enforce / throttle 状态机用) === -->
+      <NCard size="small" :bordered="false" class="info-section">
+        <template #header>
+          <div class="section-header">
+            <NIcon class="section-icon"><CircleDollarSign :size="14" /></NIcon>
+            <span>容量与流量</span>
+            <span class="text-xs text-zinc-400 ml-2">业务阈值 · agent tc / throttle 用</span>
+            <span class="flex-1"></span>
+            <NButton size="tiny" quaternary type="primary" @click="capacityEditOpen = true">
+              <template #icon><NIcon><Edit3 :size="12" /></NIcon></template>
+              编辑
+            </NButton>
+          </div>
+        </template>
+        <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
+          <NDescriptionsItem label="限定带宽">
+            <template v-if="capacity?.bandwidthLimitMbps">
+              <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
+              <span class="unit">Mbps</span>
+              <span class="text-xs text-zinc-400 ml-2">agent tc qdisc 真实 enforce</span>
+            </template>
+            <span v-else class="muted">不限</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="月流量阈值">
+            <template v-if="capacity?.monthlyTrafficGb">
+              <span class="num">{{ capacity.monthlyTrafficGb }}</span>
+              <span class="unit">GB / 月</span>
+              <span class="text-xs text-zinc-400 ml-2">90% 触发 THROTTLED</span>
+            </template>
+            <span v-else class="muted">不限</span>
           </NDescriptionsItem>
         </NDescriptions>
       </NCard>
@@ -287,7 +322,7 @@ function afterEdit() { load(); emit('refresh') }
             <span>时间 / 备注</span>
           </div>
         </template>
-        <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
+        <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 6rem">
           <NDescriptionsItem label="创建时间">{{ formatDateTime(detail.createdAt) }}</NDescriptionsItem>
           <NDescriptionsItem label="更新时间">{{ formatDateTime(detail.updatedAt) }}</NDescriptionsItem>
         </NDescriptions>
@@ -303,6 +338,7 @@ function afterEdit() { load(); emit('refresh') }
 
     <ServerCoreEditDialog v-if="detail" v-model="coreEditOpen" :server="detail" @saved="afterEdit" />
     <ServerBillingEditDialog v-model="billingEditOpen" :server-id="serverId" @saved="afterEdit" />
+    <ServerCapacityEditDialog v-model="capacityEditOpen" :server-id="serverId" @saved="afterEdit" />
     <ServerDnsEditDialog v-model="dnsEditOpen" :server-id="serverId" :lifecycle-state="detail?.lifecycleState" @saved="afterEdit" />
   </NSpin>
 </template>

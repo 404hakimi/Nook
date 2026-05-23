@@ -6,6 +6,8 @@ import {
   Gauge,
   LineChart,
   RefreshCcw,
+  Server,
+  ShieldCheck,
   Wifi
 } from 'lucide-vue-next'
 import {
@@ -17,16 +19,16 @@ import {
   NIcon,
   NProgress,
   NSpin,
-  NTag
+  NTag,
+  useMessage
 } from 'naive-ui'
 import {
-  getServerBilling,
   getServerCapacity,
   getServerDetail,
   type ResourceServer,
-  type ServerBilling,
   type ServerCapacity
 } from '@/api/resource/server'
+import { getServerSystemInfo, getServerUfwStatus, type ServerSystemInfo } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
 import { AGENT_ONLINE_LABELS, AGENT_ONLINE_TAG_TYPE, type AgentListItem } from '@/api/agent/agent'
 
@@ -36,21 +38,43 @@ const props = defineProps<{
 }>()
 
 const detail = ref<ResourceServer | null>(null)
-const billing = ref<ServerBilling | null>(null)
 const capacity = ref<ServerCapacity | null>(null)
 const loading = ref(false)
+
+// 主机 / UFW 状态: 走 SSH 实时拉, 不在 onMounted 跑, 避免每次进监控面板都触发远端命令; 用户点"加载"按钮才查
+const hostInfo = ref<ServerSystemInfo | null>(null)
+const ufwStatus = ref<string>('')
+const hostLoading = ref(false)
+const hostLoaded = ref(false)
+const message = useMessage()
+
+async function loadHostStatus() {
+  if (!props.serverId) return
+  hostLoading.value = true
+  try {
+    const [h, u] = await Promise.all([
+      getServerSystemInfo(props.serverId),
+      getServerUfwStatus(props.serverId)
+    ])
+    hostInfo.value = h
+    ufwStatus.value = u
+    hostLoaded.value = true
+  } catch (e) {
+    message.error('拉主机状态失败: ' + ((e as Error).message ?? ''))
+  } finally {
+    hostLoading.value = false
+  }
+}
 
 async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    const [d, b, c] = await Promise.all([
+    const [d, c] = await Promise.all([
       getServerDetail(props.serverId),
-      getServerBilling(props.serverId),
       getServerCapacity(props.serverId)
     ])
     detail.value = d
-    billing.value = b
     capacity.value = c
   } catch { /* */ } finally {
     loading.value = false
@@ -203,6 +227,78 @@ const heartbeatColor = computed(() => {
         </NCard>
       </div>
 
+      <!-- ============ 主机 + UFW (实时 SSH, 懒加载) ============ -->
+      <NCard size="small" :bordered="false" class="info-section">
+        <template #header>
+          <div class="section-header">
+            <NIcon class="section-icon"><Server :size="14" /></NIcon>
+            <span>主机 / UFW 实时</span>
+            <NTag size="tiny" type="default" class="ml-1">SSH</NTag>
+            <span class="flex-1"></span>
+            <NButton size="tiny" type="primary" :loading="hostLoading" @click="loadHostStatus">
+              <template #icon><NIcon><RefreshCcw :size="12" /></NIcon></template>
+              {{ hostLoaded ? '刷新' : '加载' }}
+            </NButton>
+          </div>
+        </template>
+
+        <NAlert v-if="!hostLoaded && !hostLoading" type="info" :show-icon="false" size="small">
+          点上方 "加载" 拉远端 SSH 主机 + UFW 信息 (避免进监控面板就强拉, 单次约 1-3s).
+        </NAlert>
+
+        <NSpin v-else :show="hostLoading && !hostInfo">
+          <NDescriptions
+            v-if="hostInfo"
+            bordered
+            size="small"
+            label-placement="left"
+            :column="2"
+            :label-style="{ width: '8rem' }"
+            class="mb-3"
+          >
+            <NDescriptionsItem label="主机名">
+              <code v-if="hostInfo.hostname" class="kbd">{{ hostInfo.hostname }}</code>
+              <span v-else class="muted">—</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="时区">
+              <code v-if="hostInfo.timezone" class="kbd">{{ hostInfo.timezone }}</code>
+              <span v-else class="muted">—</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="系统">
+              <span v-if="hostInfo.osRelease">{{ hostInfo.osRelease }}</span>
+              <span v-else class="muted">—</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="内核">
+              <code v-if="hostInfo.kernel" class="kbd">{{ hostInfo.kernel }}</code>
+              <span v-else class="muted">—</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="运行时间">
+              <span v-if="hostInfo.systemUptime">{{ hostInfo.systemUptime }}</span>
+              <span v-else class="muted">—</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="负载 (1/5/15m)">
+              <code v-if="hostInfo.loadAvg" class="kbd">{{ hostInfo.loadAvg }}</code>
+              <span v-else class="muted">—</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="内存">
+              <code v-if="hostInfo.memory" class="kbd">{{ hostInfo.memory }}</code>
+              <span v-else class="muted">—</span>
+            </NDescriptionsItem>
+            <NDescriptionsItem label="磁盘 (/)">
+              <code v-if="hostInfo.disk" class="kbd">{{ hostInfo.disk }}</code>
+              <span v-else class="muted">—</span>
+            </NDescriptionsItem>
+          </NDescriptions>
+
+          <div v-if="hostLoaded" class="ufw-block">
+            <div class="text-xs text-zinc-500 mb-1 flex items-center gap-1">
+              <NIcon><ShieldCheck :size="12" /></NIcon> UFW 防火墙
+            </div>
+            <pre class="ufw-pre">{{ ufwStatus || '(未获取到)' }}</pre>
+          </div>
+        </NSpin>
+      </NCard>
+
       <!-- ============ 流量详情 ============ -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
@@ -226,12 +322,13 @@ const heartbeatColor = computed(() => {
           :column="2"
           :label-style="{ width: '8rem', verticalAlign: 'middle' }"
         >
-          <NDescriptionsItem label="承诺带宽">
-            <template v-if="billing?.bandwidthMbps != null">
-              <span class="num">{{ billing.bandwidthMbps }}</span>
+          <NDescriptionsItem label="限定带宽">
+            <template v-if="capacity?.bandwidthLimitMbps">
+              <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
               <span class="unit">Mbps</span>
+              <span class="text-xs text-zinc-400 ml-2">agent tc enforce</span>
             </template>
-            <span v-else class="muted">—</span>
+            <span v-else class="muted">不限</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="本月已用">
             <span class="num">{{ usedGB }}</span>
@@ -383,6 +480,20 @@ html[data-theme='dark'] .metric-sub { color: #a1a1aa; }
   background: rgba(127, 127, 127, 0.2);
   margin: 0 8px;
   vertical-align: middle;
+}
+
+.ufw-pre {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(127, 127, 127, 0.06);
+  border-radius: 4px;
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .chart-placeholder {

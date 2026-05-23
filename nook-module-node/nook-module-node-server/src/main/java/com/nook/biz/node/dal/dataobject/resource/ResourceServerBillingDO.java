@@ -22,9 +22,6 @@ public class ResourceServerBillingDO {
 
     private String idcProvider;
 
-    /** 承诺带宽 Mbps (账面, 不 enforce). */
-    private Integer bandwidthMbps;
-
     private BigDecimal costMonthlyUsd;
 
     /** 账单日 1-28. */

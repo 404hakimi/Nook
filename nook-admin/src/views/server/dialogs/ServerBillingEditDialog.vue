@@ -34,7 +34,6 @@ const errors = reactive<Record<string, string>>({})
 
 const form = reactive({
   idcProvider: '',
-  bandwidthMbps: null as number | null,
   costMonthlyUsd: null as number | null,
   billingCycleDay: null as number | null,
   expiresAtTs: null as number | null
@@ -43,14 +42,12 @@ const form = reactive({
 function fill(b: ServerBilling | null) {
   if (!b) {
     form.idcProvider = ''
-    form.bandwidthMbps = null
     form.costMonthlyUsd = null
     form.billingCycleDay = null
     form.expiresAtTs = null
     return
   }
   form.idcProvider = b.idcProvider ?? ''
-  form.bandwidthMbps = b.bandwidthMbps ?? null
   form.costMonthlyUsd = b.costMonthlyUsd ?? null
   form.billingCycleDay = b.billingCycleDay ?? null
   form.expiresAtTs = b.expiresAt ? new Date(b.expiresAt).getTime() : null
@@ -82,7 +79,6 @@ function validate(): boolean {
   if (form.billingCycleDay != null && (form.billingCycleDay < 1 || form.billingCycleDay > 28)) {
     errors.billingCycleDay = '账单日 1-28'
   }
-  if (form.bandwidthMbps != null && form.bandwidthMbps < 0) errors.bandwidthMbps = '带宽 ≥ 0'
   return Object.keys(errors).length === 0
 }
 
@@ -92,7 +88,6 @@ async function onSubmit() {
   try {
     await updateServerBilling(props.serverId, {
       idcProvider: form.idcProvider.trim() || undefined,
-      bandwidthMbps: form.bandwidthMbps ?? undefined,
       costMonthlyUsd: form.costMonthlyUsd ?? undefined,
       billingCycleDay: form.billingCycleDay ?? undefined,
       expiresAt: tsToDateStr(form.expiresAtTs)
@@ -121,9 +116,6 @@ async function onSubmit() {
           <NInput v-model:value="form.idcProvider" placeholder="如 Vultr / Hetzner / dmit" />
         </NFormItem>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-          <NFormItem label="承诺带宽 Mbps (账面)" :feedback="errors.bandwidthMbps" :validation-status="errors.bandwidthMbps ? 'error' : undefined">
-            <NInputNumber v-model:value="form.bandwidthMbps" :min="0" class="w-full" />
-          </NFormItem>
           <NFormItem label="月度成本 USD">
             <NInputNumber v-model:value="form.costMonthlyUsd" :min="0" :precision="2" class="w-full" />
           </NFormItem>

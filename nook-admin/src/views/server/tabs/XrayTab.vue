@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { Activity, FileText, Info, Rocket, RotateCcw, ServerCog } from 'lucide-vue-next'
-import { NAlert, NButton, NIcon, NSpin, NTag, useDialog, useMessage } from 'naive-ui'
+import { Activity, Calendar, FileText, FolderOpen, Info, Lock, Network, RotateCcw, ServerCog } from 'lucide-vue-next'
+import { NAlert, NButton, NCard, NDescriptions, NDescriptionsItem, NIcon, NSpin, NTag, useDialog, useMessage } from 'naive-ui'
 import { pageXrayNode, type XrayNode } from '@/api/xray/node'
 import { xrayRestart } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
@@ -90,25 +90,108 @@ function onRestart() {
         </NButton>
       </div>
 
-      <!-- 字段表 -->
-      <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <div class="info-row"><span class="k">xray 版本</span>
-          <NTag size="tiny" type="info">{{ node.xrayVersion || '?' }}</NTag>
-        </div>
-        <div class="info-row"><span class="k">API 端口</span><code class="v">{{ node.xrayApiPort ?? '—' }}</code></div>
-        <div class="info-row"><span class="k">监听端口</span><code class="v">{{ node.sharedInboundPort ?? '—' }}</code></div>
-        <div class="info-row"><span class="k">domain</span><code class="v">{{ node.domain || '—' }}</code></div>
-        <div class="info-row"><span class="k">ws path</span><code class="v">{{ node.wsPath || '—' }}</code></div>
-        <div class="info-row"><span class="k">touchdownSize</span><span class="v">{{ node.touchdownSize ?? '—' }}</span></div>
-        <div class="info-row"><span class="k">binary 路径</span><code class="v">{{ node.xrayBinaryPath || '—' }}</code></div>
-        <div class="info-row"><span class="k">config 路径</span><code class="v">{{ node.xrayConfigPath || '—' }}</code></div>
-        <div class="info-row"><span class="k">share 目录</span><code class="v">{{ node.xrayShareDir || '—' }}</code></div>
-        <div class="info-row"><span class="k">log 目录</span><code class="v">{{ node.xrayLogDir || '—' }}</code></div>
-        <div class="info-row"><span class="k">TLS cert</span><code class="v">{{ node.tlsCertPath || '—' }}</code></div>
-        <div class="info-row"><span class="k">TLS key</span><code class="v">{{ node.tlsKeyPath || '—' }}</code></div>
-        <div class="info-row"><span class="k">最近启动</span><span class="v">{{ formatDateTime(node.lastXrayUptime) || '—' }}</span></div>
-        <div class="info-row"><span class="k">部署完成</span><span class="v">{{ formatDateTime(node.installedAt) || '—' }}</span></div>
-      </div>
+      <!-- === Section 1: 运行参数 === -->
+      <NCard size="small" :bordered="false" class="info-section">
+        <template #header>
+          <div class="section-header">
+            <NIcon class="section-icon"><Network :size="14" /></NIcon>
+            <span>运行参数</span>
+          </div>
+        </template>
+        <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
+          <NDescriptionsItem label="xray 版本">
+            <NTag size="small" type="info">{{ node.xrayVersion || '?' }}</NTag>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="监听端口">
+            <span v-if="node.sharedInboundPort != null" class="num">{{ node.sharedInboundPort }}</span>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="domain">
+            <code v-if="node.domain" class="kbd">{{ node.domain }}</code>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="API 端口">
+            <span v-if="node.xrayApiPort != null" class="num">{{ node.xrayApiPort }}</span>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="ws path">
+            <code v-if="node.wsPath" class="kbd">{{ node.wsPath }}</code>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="touchdownSize">
+            <span v-if="node.touchdownSize != null" class="num">{{ node.touchdownSize }}</span>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+        </NDescriptions>
+      </NCard>
+
+      <!-- === Section 2: TLS === -->
+      <NCard size="small" :bordered="false" class="info-section">
+        <template #header>
+          <div class="section-header">
+            <NIcon class="section-icon"><Lock :size="14" /></NIcon>
+            <span>TLS 证书</span>
+          </div>
+        </template>
+        <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 6rem">
+          <NDescriptionsItem label="cert 路径">
+            <code v-if="node.tlsCertPath" class="kbd">{{ node.tlsCertPath }}</code>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="key 路径">
+            <code v-if="node.tlsKeyPath" class="kbd">{{ node.tlsKeyPath }}</code>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+        </NDescriptions>
+      </NCard>
+
+      <!-- === Section 3: 文件路径 === -->
+      <NCard size="small" :bordered="false" class="info-section">
+        <template #header>
+          <div class="section-header">
+            <NIcon class="section-icon"><FolderOpen :size="14" /></NIcon>
+            <span>文件路径</span>
+          </div>
+        </template>
+        <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
+          <NDescriptionsItem label="binary">
+            <code v-if="node.xrayBinaryPath" class="kbd">{{ node.xrayBinaryPath }}</code>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="config">
+            <code v-if="node.xrayConfigPath" class="kbd">{{ node.xrayConfigPath }}</code>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="share 目录">
+            <code v-if="node.xrayShareDir" class="kbd">{{ node.xrayShareDir }}</code>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="log 目录">
+            <code v-if="node.xrayLogDir" class="kbd">{{ node.xrayLogDir }}</code>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+        </NDescriptions>
+      </NCard>
+
+      <!-- === Section 4: 时间 === -->
+      <NCard size="small" :bordered="false" class="info-section">
+        <template #header>
+          <div class="section-header">
+            <NIcon class="section-icon"><Calendar :size="14" /></NIcon>
+            <span>时间</span>
+          </div>
+        </template>
+        <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
+          <NDescriptionsItem label="最近启动">
+            <span v-if="node.lastXrayUptime">{{ formatDateTime(node.lastXrayUptime) }}</span>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="部署完成">
+            <span v-if="node.installedAt">{{ formatDateTime(node.installedAt) }}</span>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+        </NDescriptions>
+      </NCard>
 
       <XrayNodeInstallInfoDialog v-model="installInfoOpen" :node="node" />
       <XrayNodeStatusDialog v-model="statusOpen" :node="node" />
@@ -119,5 +202,5 @@ function onRestart() {
 </template>
 
 <style scoped>
-/* info-row / k / v 走 main.scss 全局 tokens */
+/* info-section / section-header / section-icon / num / unit / muted / kbd 走 main.scss 全局 tokens */
 </style>

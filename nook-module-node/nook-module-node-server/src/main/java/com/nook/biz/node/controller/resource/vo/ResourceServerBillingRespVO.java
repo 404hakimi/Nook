@@ -17,9 +17,6 @@ public class ResourceServerBillingRespVO {
     private String serverId;
     private String idcProvider;
 
-    /** 承诺带宽 Mbps (账面, 不 enforce). */
-    private Integer bandwidthMbps;
-
     private BigDecimal costMonthlyUsd;
     private Integer billingCycleDay;
 

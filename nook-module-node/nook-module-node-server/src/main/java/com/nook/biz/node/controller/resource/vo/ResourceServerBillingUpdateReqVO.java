@@ -19,9 +19,6 @@ public class ResourceServerBillingUpdateReqVO {
     @Size(max = 64)
     private String idcProvider;
 
-    @Min(value = 0)
-    private Integer bandwidthMbps;
-
     private BigDecimal costMonthlyUsd;
 
     @Min(value = 1, message = "账单日 1-28")

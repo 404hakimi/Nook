@@ -29,6 +29,14 @@ public interface ResourceServerInfoService {
     ServerSystemInfoRespVO getSystemInfo(String serverId);
 
     /**
+     * 获得 UFW 防火墙状态 (ufw status verbose 原文); 未装 ufw 时回提示文案
+     *
+     * @param serverId resource_server.id
+     * @return ufw status 多行字符串
+     */
+    String getUfwStatus(String serverId);
+
+    /**
      * 获得指定 systemd unit 的通用状态 (active / 启动时间 / 开机自启)
      *
      * @param serverId resource_server.id

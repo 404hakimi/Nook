@@ -34,12 +34,10 @@ export interface ServerCredential {
   installTimeoutSeconds?: number
 }
 
-/** 账面 (1:1, /admin/resource/server/{id}/billing). */
+/** 账面 (1:1, /admin/resource/server/{id}/billing); 仅财务字段, 业务带宽 / 流量阈值在 capacity. */
 export interface ServerBilling {
   serverId?: string
   idcProvider?: string
-  /** 承诺带宽 Mbps (账面, 不 enforce). */
-  bandwidthMbps?: number
   costMonthlyUsd?: number
   billingCycleDay?: number
   expiresAt?: string
@@ -115,10 +113,13 @@ export function pageServers(params: ResourceServerQuery) {
   return request.get<unknown, PageResult<ResourceServer>>('/admin/resource/server/page', { params })
 }
 
-/** Server NIC 流量配额 + 已用 (监控面板用); 未上报过 NIC 时返 null. */
+/** Server NIC 流量配额 + 已用 + 业务带宽阈值 (监控面板用); 未上报过 NIC 时返 null. */
 export interface ServerCapacity {
   serverId: string
+  /** 业务月流量阈值 GB; 0/null = 不限. throttle 状态机 90% 触发基数. */
   monthlyTrafficGb?: number
+  /** 业务限定带宽 Mbps; 0 = 不限. agent tc qdisc 真实 enforce. */
+  bandwidthLimitMbps?: number
   rxBytes?: number
   txBytes?: number
   usedTrafficBytes?: number
@@ -126,8 +127,19 @@ export interface ServerCapacity {
   throttleState?: string
 }
 
+/** 业务阈值编辑入参 (PUT /admin/resource/server/{id}/capacity). */
+export interface ServerCapacityUpdateDTO {
+  monthlyTrafficGb?: number
+  bandwidthLimitMbps?: number
+}
+
 export function getServerCapacity(id: string) {
   return request.get<unknown, ServerCapacity | null>('/admin/resource/server/capacity', { params: { id } })
+}
+
+/** 更新业务阈值 (月流量配额 + 限定带宽); agent tc / throttle 状态机用. */
+export function updateServerCapacity(id: string, dto: ServerCapacityUpdateDTO) {
+  return request.put<unknown, boolean>(`/admin/resource/server/${id}/capacity`, dto)
 }
 
 /** SSH 列出远端网卡 (排除 lo); 失败返空 list, 前端 fallback 到 "auto". */
