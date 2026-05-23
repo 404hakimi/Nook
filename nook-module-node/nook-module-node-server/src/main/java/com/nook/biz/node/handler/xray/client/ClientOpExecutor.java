@@ -7,6 +7,8 @@ import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolSocks5Mapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
 import com.nook.biz.node.api.enums.XrayErrorCode;
@@ -64,6 +66,7 @@ public class ClientOpExecutor {
     private final XrayNodeValidator xrayNodeValidator;
     private final ResourceIpPoolValidator ipPoolValidator;
     private final XrayDaemonProbe xrayDaemonProbe;
+    private final ResourceIpPoolSocks5Mapper ipPoolSocks5Mapper;
     private final TransactionTemplate transactionTemplate;
 
     /**
@@ -87,7 +90,8 @@ public class ClientOpExecutor {
         // 同事务回滚时 IP 自动归还
         sink.report("占用落地 IP", 35);
         ResourceIpPoolDO ipEntry = resourceIpPoolService.occupyById(reqVO.getIpId(), reqVO.getMemberUserId());
-        if (StrUtil.isBlank(ipEntry.getIpAddress()) || ObjectUtil.isNull(ipEntry.getSocks5Port())) {
+        ResourceIpPoolSocks5DO ipSocks5 = ipPoolSocks5Mapper.selectById(reqVO.getIpId());
+        if (StrUtil.isBlank(ipEntry.getIpAddress()) || ipSocks5 == null || ObjectUtil.isNull(ipSocks5.getSocks5Port())) {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
                     reqVO.getIpId(), "落地 IP 的 SOCKS5 凭据未配置");
         }
@@ -151,8 +155,8 @@ public class ClientOpExecutor {
 
             sink.report("下发落地出口", 90);
             outboundCli.addSocksOutbound(session, xrayBin, apiPort, outboundTag,
-                    ipEntry.getIpAddress(), ipEntry.getSocks5Port(),
-                    ipEntry.getSocks5Username(), ipEntry.getSocks5Password());
+                    ipEntry.getIpAddress(), ipSocks5.getSocks5Port(),
+                    ipSocks5.getSocks5Username(), ipSocks5.getSocks5Password());
             socksAdded = true;
         } catch (RuntimeException e) {
             log.error("[provision] CLI 失败 server={} client={} email={} stage=[user={} rule={} socks={}]",
@@ -423,7 +427,9 @@ public class ClientOpExecutor {
      */
     private void syncSingle(SshSession session, XrayNodeDO node, XrayClientDO c,
                             ResourceIpPoolDO ipEntry, OpProgressSink progress) {
-        if (ipEntry == null || StrUtil.isBlank(ipEntry.getIpAddress()) || ObjectUtil.isNull(ipEntry.getSocks5Port())) {
+        ResourceIpPoolSocks5DO ipSocks5 = ipEntry == null ? null : ipPoolSocks5Mapper.selectById(ipEntry.getId());
+        if (ipEntry == null || StrUtil.isBlank(ipEntry.getIpAddress())
+                || ipSocks5 == null || ObjectUtil.isNull(ipSocks5.getSocks5Port())) {
             xrayClientMapper.updateStatus(c.getId(), 3, LocalDateTime.now());
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
                     c.getIpId(), "落地 IP 凭据丢失, 无法 sync");
@@ -476,8 +482,8 @@ public class ClientOpExecutor {
         progress.report("下发新落地出口", 92);
         try {
             outboundCli.addSocksOutbound(session, xrayBin, apiPort, outboundTag,
-                    ipEntry.getIpAddress(), ipEntry.getSocks5Port(),
-                    ipEntry.getSocks5Username(), ipEntry.getSocks5Password());
+                    ipEntry.getIpAddress(), ipSocks5.getSocks5Port(),
+                    ipSocks5.getSocks5Username(), ipSocks5.getSocks5Password());
         } catch (RuntimeException addErr) {
             xrayClientMapper.updateStatus(c.getId(), 3, LocalDateTime.now());
             throw addErr;

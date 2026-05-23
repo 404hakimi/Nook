@@ -12,8 +12,11 @@ import com.nook.biz.node.controller.resource.vo.Socks5StatusRespVO;
 import com.nook.biz.node.convert.socks5.Socks5OpsConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolMapper;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolCredentialMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolSocks5Mapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.api.enums.XrayErrorCode;
@@ -61,14 +64,14 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     private final XrayNodeValidator xrayNodeValidator;
     private final XrayOutboundCli outboundCli;
     private final ServerProbe serverProbe;
-    private final ResourceIpPoolMapper resourceIpPoolMapper;
+    private final ResourceIpPoolCredentialMapper credentialMapper;
+    private final ResourceIpPoolSocks5Mapper socks5Mapper;
 
     /** dante 的 systemd unit 名 (apt 包默认), 跟 install / update 脚本里 systemctl 操作的 unit 对齐. */
     private static final String DANTE_UNIT = "danted";
 
     @Override
     public void installSocks5(ResourceIpSocksInstallReqVO reqVO, Consumer<String> lineSink) {
-        // ad-hoc 凭据来自前端表单, 不入 resource_server, 直接构造 framework 值对象绕开业务 DTO
         SessionCredential cred = buildAdHocCred(reqVO);
         Map<String, String> vars = buildVars(reqVO);
         Duration installTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
@@ -79,7 +82,8 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     @Override
     public ResourceIpSocksTestRespVO testSocks5(String ipId, ResourceIpSocksTestReqVO reqVO) {
         ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
-        if (StrUtil.isBlank(ip.getIpAddress()) || ObjectUtil.isNull(ip.getSocks5Port())) {
+        ResourceIpPoolSocks5DO socks5 = socks5Mapper.selectById(ipId);
+        if (StrUtil.isBlank(ip.getIpAddress()) || socks5 == null || ObjectUtil.isNull(socks5.getSocks5Port())) {
             // 凭据未配置时不调 prober, 直接返回结构化失败; echoUrl / 超时回填原值便于前端控制台展示
             ResourceIpSocksTestRespVO vo = new ResourceIpSocksTestRespVO();
             vo.setSuccess(false);
@@ -90,7 +94,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
             return vo;
         }
         Socks5ProbeSnapshot snap = socks5Prober.probe(
-                ip.getIpAddress(), ip.getSocks5Port(), ip.getSocks5Username(), ip.getSocks5Password(),
+                ip.getIpAddress(), socks5.getSocks5Port(), socks5.getSocks5Username(), socks5.getSocks5Password(),
                 reqVO.getEchoUrl(), reqVO.getConnectTimeoutMs(), reqVO.getReadTimeoutMs());
         return Socks5OpsConvert.INSTANCE.convert(snap);
     }
@@ -100,20 +104,20 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         // 1. 拉 IP 池, 校验 provisionMode 自部署 + SOCKS5 配置齐
         ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
         if (ip.getProvisionMode() == null || ip.getProvisionMode() != 1) {
-            throw new BusinessException(com.nook.biz.node.api.enums.ResourceErrorCode.IP_POOL_NOT_SELF_DEPLOY,
-                    ip.getIpAddress());
+            throw new BusinessException(ResourceErrorCode.IP_POOL_NOT_SELF_DEPLOY, ip.getIpAddress());
         }
-        if (StrUtil.isBlank(ip.getIpAddress()) || ObjectUtil.isNull(ip.getSocks5Port())
-                || StrUtil.isBlank(ip.getSocks5Username()) || StrUtil.isBlank(ip.getSocks5Password())) {
-            throw new BusinessException(com.nook.biz.node.api.enums.ResourceErrorCode.IP_POOL_SOCKS5_INCOMPLETE,
-                    ip.getIpAddress());
+        ResourceIpPoolSocks5DO socks5 = socks5Mapper.selectById(ipId);
+        if (StrUtil.isBlank(ip.getIpAddress()) || socks5 == null
+                || ObjectUtil.isNull(socks5.getSocks5Port())
+                || StrUtil.isBlank(socks5.getSocks5Username()) || StrUtil.isBlank(socks5.getSocks5Password())) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_SOCKS5_INCOMPLETE, ip.getIpAddress());
         }
 
         // 2. SSH 到 landing 跑 update-dante-creds.sh; 走 ad-hoc cred (用户每次输 SSH 密码)
         lineSink.accept("[nook] === 阶段 1/2: 同步 landing dante 配置 ===\n");
         SessionCredential landingCred = buildSyncCred(ip, reqVO);
         // SSH 端口走入参不走 DB 现值; sync 这次握手用的就是 reqVO.sshPort, UFW 跟着放行才合理
-        Map<String, String> vars = buildSyncVars(ip, reqVO.getSshPort());
+        Map<String, String> vars = buildSyncVars(ip, socks5, reqVO.getSshPort());
         Duration scriptTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
         SshSessions.runAdHocVoid(landingCred, session ->
                 scriptCatalog.run(session, NookScripts.SOCKS5_UPDATE_CREDS, vars, scriptTimeout, lineSink));
@@ -139,15 +143,14 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         try {
             outboundCli.removeOutbound(session, xrayBin, apiPort, outboundTag);
         } catch (BusinessException be) {
-            // 远端原本没有就当作已删, 不报错
             if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) {
                 throw be;
             }
             lineSink.accept("[nook] 远端原本无该 outbound, 跳过 rmo\n");
         }
         outboundCli.addSocksOutbound(session, xrayBin, apiPort, outboundTag,
-                ip.getIpAddress(), ip.getSocks5Port(),
-                ip.getSocks5Username(), ip.getSocks5Password());
+                ip.getIpAddress(), socks5.getSocks5Port(),
+                socks5.getSocks5Username(), socks5.getSocks5Password());
         lineSink.accept("[nook] outbound " + outboundTag + " 已用新凭据重建\n");
         lineSink.accept("[nook] === 同步完成 ===\n");
         log.info("[ip-pool] SYNC-CREDS ipId={} ip={} client={} outbound={}",
@@ -169,21 +172,21 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 .build();
     }
 
-    /** sync-creds 模板变量: 全部从 DB 现值读, sshPort 单独传入 (跟当前 SSH 握手用的端口对齐). */
-    private Map<String, String> buildSyncVars(ResourceIpPoolDO ip, int sshPort) {
-        int autostart = ip.getAutostartEnabled() == null ? 1 : ip.getAutostartEnabled();
-        int firewall = ip.getFirewallEnabled() == null ? 1 : ip.getFirewallEnabled();
-        String installDir = StrUtil.blankToDefault(ip.getInstallDir(), DEFAULT_INSTALL_DIR);
+    /** sync-creds 模板变量: socks5 部分从 socks5 子表读, sshPort 单独传入 (跟当前 SSH 握手用的端口对齐). */
+    private Map<String, String> buildSyncVars(ResourceIpPoolDO ip, ResourceIpPoolSocks5DO socks5, int sshPort) {
+        int autostart = socks5.getAutostartEnabled() == null ? 1 : socks5.getAutostartEnabled();
+        int firewall = socks5.getFirewallEnabled() == null ? 1 : socks5.getFirewallEnabled();
+        String installDir = StrUtil.blankToDefault(socks5.getInstallDir(), DEFAULT_INSTALL_DIR);
         return Map.ofEntries(
                 Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
-                Map.entry("SOCKS_PORT", String.valueOf(ip.getSocks5Port())),
+                Map.entry("SOCKS_PORT", String.valueOf(socks5.getSocks5Port())),
                 Map.entry("SSH_PORT", String.valueOf(sshPort)),
-                Map.entry("SOCKS_USER", ip.getSocks5Username()),
-                Map.entry("SOCKS_PASS", ip.getSocks5Password()),
-                Map.entry("ALLOW_FROM", StrUtil.blankToDefault(ip.getFirewallAllowFrom(), "0.0.0.0/0")),
+                Map.entry("SOCKS_USER", socks5.getSocks5Username()),
+                Map.entry("SOCKS_PASS", socks5.getSocks5Password()),
+                Map.entry("ALLOW_FROM", StrUtil.blankToDefault(socks5.getFirewallAllowFrom(), "0.0.0.0/0")),
                 Map.entry("FIREWALL_ENABLED", String.valueOf(firewall)),
-                Map.entry("LOG_LEVEL", StrUtil.blankToDefault(ip.getLogLevel(), DEFAULT_LOG_LEVEL)),
-                Map.entry("LOG_PATH", ip.getLogPath()),
+                Map.entry("LOG_LEVEL", StrUtil.blankToDefault(socks5.getLogLevel(), DEFAULT_LOG_LEVEL)),
+                Map.entry("LOG_PATH", socks5.getLogPath()),
                 Map.entry("INSTALL_DIR", installDir),
                 Map.entry("AUTOSTART_ENABLED", String.valueOf(autostart)));
     }
@@ -191,7 +194,6 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     /** 把请求里的 ad-hoc SSH 字段封成 SessionCredential; 不入库, 也不绕道业务 DTO. */
     private SessionCredential buildAdHocCred(ResourceIpSocksInstallReqVO r) {
         return SessionCredential.builder()
-                // serverId 仅供日志识别, 不参与 DB 查询
                 .serverId("ad-hoc:" + r.getSshHost())
                 .sshHost(r.getSshHost())
                 .sshPort(r.getSshPort())
@@ -216,7 +218,6 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         return Map.ofEntries(
                 Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
                 Map.entry("SOCKS_PORT", String.valueOf(r.getSocksPort())),
-                // SSH_PORT 是本次握手用的端口; ufw 跟着放行才不会把自己锁外面
                 Map.entry("SSH_PORT", String.valueOf(r.getSshPort())),
                 Map.entry("SOCKS_USER", r.getSocksUser()),
                 Map.entry("SOCKS_PASS", r.getSocksPass()),
@@ -229,17 +230,17 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 Map.entry("LOG_ROTATE_ENABLED", logRotate ? "1" : "0"));
     }
 
-    // ===== status / autostart / log: 走 IP 池条目存储的 SSH 凭据, 不需要前端再输 =====
+    // ===== status / autostart / log: 走 IP 池 credential 子表存储的 SSH 凭据 =====
 
     @Override
     public Socks5StatusRespVO getSocks5Status(String ipId) {
         ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
+        ResourceIpPoolSocks5DO socks5 = socks5Mapper.selectById(ipId);
         SessionCredential cred = buildStoredCred(ip);
         return SshSessions.runAdHoc(cred, session -> {
             SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, DANTE_UNIT);
             String version = readDanteVersion(session);
-            String listening = readDanteListening(session, ip.getSocks5Port());
-            // UFW + 主机信息: 一次状态刷新顺手取全, 减少前端二次刷
+            String listening = readDanteListening(session, socks5 == null ? null : socks5.getSocks5Port());
             String ufw = serverProbe.readUfwStatus(session);
             HostInfoSnapshot host = serverProbe.readHostInfo(session);
 
@@ -256,7 +257,6 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         });
     }
 
-    /** snapshot → respVO 平铺复制; 字段同名, 直接 set. */
     private static HostInfoRespVO toHostInfoVO(HostInfoSnapshot s) {
         if (s == null) return null;
         HostInfoRespVO vo = new HostInfoRespVO();
@@ -276,17 +276,16 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
         SessionCredential cred = buildStoredCred(ip);
         SshSessions.runAdHocVoid(cred, session -> {
-            // systemctl enable/disable 退出码非 0 是常态 (disabled/static), 不抛错
             String cmd = (enabled ? "systemctl enable " : "systemctl disable ") + DANTE_UNIT
                     + " 2>&1 || true";
             session.ssh().exec(cmd);
         });
 
-        // 同步 DB.autostart_enabled, 让列表 / 编辑表单展示跟远端实际一致
-        ResourceIpPoolDO update = new ResourceIpPoolDO();
-        update.setId(ipId);
-        update.setAutostartEnabled(enabled ? 1 : 0);
-        resourceIpPoolMapper.updateById(update);
+        // 同步 socks5 子表的 autostart_enabled, 让列表 / 编辑表单展示跟远端实际一致
+        ResourceIpPoolSocks5DO patch = new ResourceIpPoolSocks5DO();
+        patch.setIpId(ipId);
+        patch.setAutostartEnabled(enabled ? 1 : 0);
+        socks5Mapper.updateBySelective(patch);
         log.info("[ip-pool] SOCKS5 autostart ipId={} ip={} enabled={}", ipId, ip.getIpAddress(), enabled);
     }
 
@@ -303,7 +302,8 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     @Override
     public ServiceLogRespVO getSocks5LogFile(String ipId, Integer lines, String keyword) {
         ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
-        String filePath = ip.getLogPath();
+        ResourceIpPoolSocks5DO socks5 = socks5Mapper.selectById(ipId);
+        String filePath = socks5 == null ? null : socks5.getLogPath();
         SessionCredential cred = buildStoredCred(ip);
         JournalLogSnapshot snap = SshSessions.runAdHoc(cred, session ->
                 serverProbe.readFileLog(session, filePath, lines, keyword));
@@ -321,24 +321,24 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     }
 
     /**
-     * 从 IP 池条目里取存储的 SSH 凭据组装 SessionCredential.
+     * 从 IP 池 credential 子表取存储的 SSH 凭据组装 SessionCredential.
      * 缺省策略: sshHost 留空 → 用 ipAddress; sshPort 留空 → 22; sshUser 留空 → root.
      * 密码必须有值, 否则抛业务错让用户回编辑表单补.
      */
     private SessionCredential buildStoredCred(ResourceIpPoolDO ip) {
-        if (StrUtil.isBlank(ip.getSshPassword())) {
+        ResourceIpPoolCredentialDO cred = credentialMapper.selectById(ip.getId());
+        if (cred == null || StrUtil.isBlank(cred.getSshPassword())) {
             throw new BusinessException(ResourceErrorCode.IP_POOL_SSH_CRED_MISSING, ip.getIpAddress());
         }
-        String host = StrUtil.blankToDefault(ip.getSshHost(), ip.getIpAddress());
-        int port = ObjectUtil.defaultIfNull(ip.getSshPort(), 22);
-        String user = StrUtil.blankToDefault(ip.getSshUser(), "root");
+        String host = StrUtil.blankToDefault(cred.getSshHost(), ip.getIpAddress());
+        int port = ObjectUtil.defaultIfNull(cred.getSshPort(), 22);
+        String user = StrUtil.blankToDefault(cred.getSshUser(), "root");
         return SessionCredential.builder()
                 .serverId("ip-pool:" + ip.getId())
                 .sshHost(host)
                 .sshPort(port)
                 .sshUser(user)
-                .sshPassword(ip.getSshPassword())
-                // 详情/日志/切自启都是短命令, 超时复用 install / op 一档配置即可
+                .sshPassword(cred.getSshPassword())
                 .sshTimeoutSeconds(30)
                 .sshOpTimeoutSeconds(30)
                 .sshUploadTimeoutSeconds(60)
@@ -353,13 +353,9 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         return out == null ? "" : out.trim();
     }
 
-    /**
-     * ss -ltn 过滤 socks5 端口监听行; 与 XrayDaemonProbe 风格保持一致, 多行字符串前端展示.
-     * 端口缺失或 ss 失败时回 "(未捕获)" 让前端有兜底显示.
-     */
+    /** ss -ltn 过滤 socks5 端口监听行. */
     private String readDanteListening(SshSession session, Integer socksPort) {
         if (socksPort == null) return "";
-        // -H 头不输出, 直接 grep 端口; awk 防 ":1080" 误命中 "11080"
         String cmd = "ss -ltn 2>/dev/null | awk 'NR==1 || $4 ~ /:" + socksPort + "$/' || true";
         String out = session.ssh().exec(cmd).getStdout();
         return out == null ? "" : out.trim();

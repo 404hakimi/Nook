@@ -2,7 +2,11 @@ package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolRuntimeDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
 import com.nook.common.web.response.PageResult;
 
 import java.util.Collection;
@@ -126,4 +130,51 @@ public interface ResourceIpPoolService {
      * @param newState 目标 lifecycle (INSTALLING / READY / LIVE / RETIRED)
      */
     void transitionLifecycle(String id, String newState);
+
+    /**
+     * 取 SSH 凭据子表
+     *
+     * @param ipId IP 池编号
+     * @return 凭据 DO; 不存在返 null
+     */
+    ResourceIpPoolCredentialDO getCredential(String ipId);
+
+    /**
+     * 取账面子表
+     *
+     * @param ipId IP 池编号
+     * @return 账面 DO; 不存在返 null
+     */
+    ResourceIpPoolBillingDO getBilling(String ipId);
+
+    /**
+     * 取 dante 配置 + 限速子表
+     *
+     * @param ipId IP 池编号
+     * @return socks5 DO; 不存在返 null
+     */
+    ResourceIpPoolSocks5DO getSocks5(String ipId);
+
+    /**
+     * 取 agent 心跳 / 健康子表
+     *
+     * @param ipId IP 池编号
+     * @return runtime DO; 不存在返 null
+     */
+    ResourceIpPoolRuntimeDO getRuntime(String ipId);
+
+    /**
+     * 批量取 4 张子表 (list 渲染用); 缺失子表行不在 map 里
+     *
+     * @param ipIds IP 池编号集合
+     * @return 4 个 Map: ipId → 子 DO
+     */
+    SubtablesBundle batchLoadSubtables(Collection<String> ipIds);
+
+    /** 4 张子表批量返回包. */
+    record SubtablesBundle(
+            Map<String, ResourceIpPoolCredentialDO> credentials,
+            Map<String, ResourceIpPoolBillingDO> billings,
+            Map<String, ResourceIpPoolSocks5DO> socks5s,
+            Map<String, ResourceIpPoolRuntimeDO> runtimes) { }
 }

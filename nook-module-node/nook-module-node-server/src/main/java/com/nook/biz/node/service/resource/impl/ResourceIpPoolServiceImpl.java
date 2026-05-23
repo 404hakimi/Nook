@@ -9,9 +9,17 @@ import com.nook.biz.node.config.ResourceIpPoolProperties;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolRuntimeDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpTypeDO;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolBillingMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolCredentialMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolRuntimeMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolSocks5Mapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpTypeMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
@@ -46,6 +54,10 @@ import java.util.Set;
 public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     private final ResourceIpPoolMapper resourceIpPoolMapper;
+    private final ResourceIpPoolCredentialMapper credentialMapper;
+    private final ResourceIpPoolBillingMapper billingMapper;
+    private final ResourceIpPoolSocks5Mapper socks5Mapper;
+    private final ResourceIpPoolRuntimeMapper runtimeMapper;
     private final ResourceIpTypeMapper resourceIpTypeMapper;
     private final XrayClientMapper xrayClientMapper;
     private final ResourceIpPoolValidator ipPoolValidator;
@@ -54,27 +66,80 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String createIpPool(ResourceIpPoolSaveReqVO createReqVO) {
-        // 校验 IP 类型存在
         ipPoolValidator.validateIpTypeExists(createReqVO.getIpTypeId());
-        // 校验 IP 地址唯一
         ipPoolValidator.validateIpAddressUnique(null, createReqVO.getIpAddress());
 
-        // 插入 IP 池条目
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1) 主表 (身份 + lifecycle + 占用)
         ResourceIpPoolDO entity = BeanUtils.toBean(createReqVO, ResourceIpPoolDO.class);
         resourceIpPoolMapper.insert(entity);
-        return entity.getId();
+        String ipId = entity.getId();
+
+        // 2) credential 子表 (SSH 凭据, provision_mode=1 用)
+        ResourceIpPoolCredentialDO cred = BeanUtils.toBean(createReqVO, ResourceIpPoolCredentialDO.class);
+        cred.setIpId(ipId);
+        cred.setCreatedAt(now);
+        cred.setUpdatedAt(now);
+        credentialMapper.insert(cred);
+
+        // 3) billing 子表 (账面)
+        ResourceIpPoolBillingDO bill = BeanUtils.toBean(createReqVO, ResourceIpPoolBillingDO.class);
+        bill.setIpId(ipId);
+        bill.setCreatedAt(now);
+        bill.setUpdatedAt(now);
+        billingMapper.insert(bill);
+
+        // 4) socks5 子表 (dante 配置 + 限速)
+        ResourceIpPoolSocks5DO socks5 = BeanUtils.toBean(createReqVO, ResourceIpPoolSocks5DO.class);
+        socks5.setIpId(ipId);
+        socks5.setCreatedAt(now);
+        socks5.setUpdatedAt(now);
+        socks5Mapper.insert(socks5);
+
+        // 5) runtime 子表占位 (agent 装好后由心跳 / 健康探测填)
+        ResourceIpPoolRuntimeDO runtime = new ResourceIpPoolRuntimeDO();
+        runtime.setIpId(ipId);
+        runtime.setTempUnhealthy(0);
+        runtime.setConsecutiveMiss(0);
+        runtime.setUpdatedAt(now);
+        runtimeMapper.insert(runtime);
+
+        return ipId;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateIpPool(String id, ResourceIpPoolSaveReqVO updateReqVO) {
-        // 校验 IP 池条目存在
         ipPoolValidator.validateExists(id);
         ipPoolValidator.validateIpTypeExists(updateReqVO.getIpTypeId());
         ipPoolValidator.validateIpAddressUnique(id, updateReqVO.getIpAddress());
 
+        // 1) 主表
         ResourceIpPoolDO updateObj = BeanUtils.toBean(updateReqVO, ResourceIpPoolDO.class);
-        resourceIpPoolMapper.update(updateObj, Wrappers.<ResourceIpPoolDO>lambdaUpdate().eq(ResourceIpPoolDO::getId, id));
+        updateObj.setId(id);
+        resourceIpPoolMapper.updateById(updateObj);
+
+        // 2) credential 子表 (NOT_NULL 策略, ssh_password 留空保留原值)
+        ResourceIpPoolCredentialDO credPatch = BeanUtils.toBean(updateReqVO, ResourceIpPoolCredentialDO.class);
+        credPatch.setIpId(id);
+        if (StrUtil.isBlank(credPatch.getSshPassword())) {
+            credPatch.setSshPassword(null);
+        }
+        credentialMapper.updateBySelective(credPatch);
+
+        // 3) billing 子表
+        ResourceIpPoolBillingDO billPatch = BeanUtils.toBean(updateReqVO, ResourceIpPoolBillingDO.class);
+        billPatch.setIpId(id);
+        billingMapper.updateBySelective(billPatch);
+
+        // 4) socks5 子表 (socks5_password 留空保留原值)
+        ResourceIpPoolSocks5DO socks5Patch = BeanUtils.toBean(updateReqVO, ResourceIpPoolSocks5DO.class);
+        socks5Patch.setIpId(id);
+        if (StrUtil.isBlank(socks5Patch.getSocks5Password())) {
+            socks5Patch.setSocks5Password(null);
+        }
+        socks5Mapper.updateBySelective(socks5Patch);
     }
 
     @Override
@@ -236,6 +301,43 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
             "LIVE→RETIRED", "READY→RETIRED",
             "RETIRED→LIVE"
     );
+
+    @Override
+    public ResourceIpPoolCredentialDO getCredential(String ipId) {
+        return credentialMapper.selectById(ipId);
+    }
+
+    @Override
+    public ResourceIpPoolBillingDO getBilling(String ipId) {
+        return billingMapper.selectById(ipId);
+    }
+
+    @Override
+    public ResourceIpPoolSocks5DO getSocks5(String ipId) {
+        return socks5Mapper.selectById(ipId);
+    }
+
+    @Override
+    public ResourceIpPoolRuntimeDO getRuntime(String ipId) {
+        return runtimeMapper.selectById(ipId);
+    }
+
+    @Override
+    public SubtablesBundle batchLoadSubtables(Collection<String> ipIds) {
+        if (CollectionUtils.isAnyEmpty(ipIds)) {
+            return new SubtablesBundle(Collections.emptyMap(), Collections.emptyMap(),
+                    Collections.emptyMap(), Collections.emptyMap());
+        }
+        Map<String, ResourceIpPoolCredentialDO> cred = CollectionUtils.convertMap(
+                credentialMapper.selectBatchIds(ipIds), ResourceIpPoolCredentialDO::getIpId);
+        Map<String, ResourceIpPoolBillingDO> bill = CollectionUtils.convertMap(
+                billingMapper.selectBatchIds(ipIds), ResourceIpPoolBillingDO::getIpId);
+        Map<String, ResourceIpPoolSocks5DO> socks5 = CollectionUtils.convertMap(
+                socks5Mapper.selectBatchIds(ipIds), ResourceIpPoolSocks5DO::getIpId);
+        Map<String, ResourceIpPoolRuntimeDO> runtime = CollectionUtils.convertMap(
+                runtimeMapper.selectBatchIds(ipIds), ResourceIpPoolRuntimeDO::getIpId);
+        return new SubtablesBundle(cred, bill, socks5, runtime);
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
