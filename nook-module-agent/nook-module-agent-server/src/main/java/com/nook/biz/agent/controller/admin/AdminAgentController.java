@@ -1,12 +1,15 @@
 package com.nook.biz.agent.controller.admin;
 
+import cn.hutool.core.collection.CollUtil;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentListItemRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentPageReqVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskPageReqVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskRespVO;
+import com.nook.biz.agent.convert.AdminAgentConvert;
 import com.nook.biz.agent.convert.AgentTaskConvert;
 import com.nook.biz.agent.service.AdminAgentService;
+import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
@@ -18,6 +21,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
+import java.util.Set;
 
 /**
  * 管理后台 - Agent 管理 Controller
@@ -33,14 +39,21 @@ public class AdminAgentController {
     private final AdminAgentService adminAgentService;
 
     /**
-     * Agent 总览分页 (resource_server + runtime + config 同步状态拼接).
+     * Agent 总览分页 (规范 §1 三步走: Convert 提 ids → Service 批量查 aggregates → Convert 拼装 VO).
      *
      * @param reqVO 分页 + 筛选
-     * @return 每行含 onlineState / agentVersion / configSyncState / 流量 等汇总字段
+     * @return 每行含 onlineState / agentVersion / xrayVersion / configSyncState / 流量 等汇总字段
      */
     @GetMapping("/page")
     public Result<PageResult<AdminAgentListItemRespVO>> page(@Valid @ModelAttribute AdminAgentPageReqVO reqVO) {
-        return Result.ok(adminAgentService.page(reqVO));
+        PageResult<ResourceServerRespDTO> page = adminAgentService.pageServers(reqVO);
+        if (CollUtil.isEmpty(page.getRecords())) {
+            return Result.ok(PageResult.empty());
+        }
+        Set<String> ids = AdminAgentConvert.INSTANCE.extractServerIds(page.getRecords());
+        AdminAgentService.ListAggregates agg = adminAgentService.loadListAggregates(ids);
+        return Result.ok(PageResult.of(page.getTotal(),
+                AdminAgentConvert.INSTANCE.convertList(page.getRecords(), agg, LocalDateTime.now())));
     }
 
     /**

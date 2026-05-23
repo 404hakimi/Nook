@@ -7,7 +7,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
-import com.nook.biz.agent.controller.admin.vo.AdminAgentListItemRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentPageReqVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskPageReqVO;
 import com.nook.biz.agent.convert.AdminAgentConvert;
@@ -23,11 +22,10 @@ import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerCredentialApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
-import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
-import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerPageReqDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
+import com.nook.biz.node.api.xray.XrayNodeApi;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.error.CommonErrorCode;
@@ -37,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
@@ -54,6 +52,7 @@ public class AdminAgentServiceImpl implements AdminAgentService {
     private final ResourceServerCredentialApi resourceServerCredentialApi;
     private final ResourceServerRuntimeApi resourceServerRuntimeApi;
     private final ResourceServerCapacityApi resourceServerCapacityApi;
+    private final XrayNodeApi xrayNodeApi;
     private final AgentTaskDispatchService agentTaskDispatchService;
     private final AgentBinaryResolver agentBinaryResolver;
     private final AgentRuntimeConfigMapper agentRuntimeConfigMapper;
@@ -61,25 +60,25 @@ public class AdminAgentServiceImpl implements AdminAgentService {
     private final AgentProperties agentProperties;
 
     @Override
-    public PageResult<AdminAgentListItemRespVO> page(AdminAgentPageReqVO reqVO) {
+    public PageResult<ResourceServerRespDTO> pageServers(AdminAgentPageReqVO reqVO) {
         ResourceServerPageReqDTO dto = BeanUtils.toBean(reqVO, ResourceServerPageReqDTO.class);
-        PageResult<ResourceServerRespDTO> page = resourceServerApi.page(dto);
-        if (CollUtil.isEmpty(page.getRecords())) return PageResult.of(page.getTotal(), List.of());
-        Set<String> ids = CollectionUtils.convertSet(page.getRecords(), ResourceServerRespDTO::getId);
-        Map<String, ResourceServerCredentialRespDTO> credentialMap = resourceServerCredentialApi.listByServerIds(ids);
-        Map<String, ResourceServerRuntimeRespDTO> runtimeMap = resourceServerRuntimeApi.listByServerIds(ids);
-        Map<String, ResourceServerCapacityRespDTO> capacityMap = resourceServerCapacityApi.listByServerIds(ids);
-        Map<String, AgentRuntimeConfigDO> cfgMap = CollectionUtils.convertMap(
-                agentRuntimeConfigMapper.selectBatchIds(ids),
-                AgentRuntimeConfigDO::getServerId);
-        LocalDateTime now = LocalDateTime.now();
-        List<AdminAgentListItemRespVO> records = page.getRecords().stream()
-                .map(s -> AdminAgentConvert.INSTANCE.toListItem(
-                        s, credentialMap.get(s.getId()),
-                        runtimeMap.get(s.getId()), capacityMap.get(s.getId()),
-                        cfgMap.get(s.getId()), now))
-                .toList();
-        return PageResult.of(page.getTotal(), records);
+        return resourceServerApi.page(dto);
+    }
+
+    @Override
+    public ListAggregates loadListAggregates(Collection<String> serverIds) {
+        if (CollUtil.isEmpty(serverIds)) {
+            return new ListAggregates(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        }
+        Set<String> ids = Set.copyOf(serverIds);
+        return new ListAggregates(
+                resourceServerCredentialApi.listByServerIds(ids),
+                resourceServerRuntimeApi.listByServerIds(ids),
+                resourceServerCapacityApi.listByServerIds(ids),
+                xrayNodeApi.listByServerIds(ids),
+                CollectionUtils.convertMap(
+                        agentRuntimeConfigMapper.selectBatchIds(ids),
+                        AgentRuntimeConfigDO::getServerId));
     }
 
     @Override

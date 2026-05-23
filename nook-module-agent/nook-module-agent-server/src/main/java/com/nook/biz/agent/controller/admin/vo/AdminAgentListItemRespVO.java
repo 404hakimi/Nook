@@ -26,6 +26,9 @@ public class AdminAgentListItemRespVO {
     /** agent 上报的版本号; null = 从未上报心跳 (装机未完成). */
     private String agentVersion;
 
+    /** xray 安装版本 (e.g., v26.3.27); null = 未装 xray. */
+    private String xrayVersion;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastHeartbeatAt;
 
