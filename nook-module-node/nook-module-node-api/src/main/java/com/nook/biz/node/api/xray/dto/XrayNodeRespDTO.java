@@ -18,4 +18,7 @@ public class XrayNodeRespDTO {
 
     /** Xray api server 监听端口 (loopback, agent statsquery 用). */
     private Integer xrayApiPort;
+
+    /** Xray 版本号 (e.g., v26.3.27); null = 未上报. */
+    private String xrayVersion;
 }
