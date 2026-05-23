@@ -58,7 +58,7 @@ const form = reactive({
 
 const serverOptions = computed(() =>
   servers.value.map((s) => ({
-    label: `${s.name} — ${s.host}`,
+    label: s.name,
     value: s.id
   }))
 )

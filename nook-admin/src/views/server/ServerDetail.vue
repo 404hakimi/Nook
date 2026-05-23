@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Activity, ArrowLeft, Cpu, Info, KeyRound, ServerCog } from 'lucide-vue-next'
+import { Activity, ArrowLeft, Cpu, Info, KeyRound, ServerCog, Users } from 'lucide-vue-next'
 import {
   NButton,
   NCard,
@@ -26,6 +26,7 @@ import MonitoringTab from './tabs/MonitoringTab.vue'
 import ServerInfoTab from './tabs/ServerInfoTab.vue'
 import SshTab from './tabs/SshTab.vue'
 import XrayTab from './tabs/XrayTab.vue'
+import ClientsTab from './tabs/ClientsTab.vue'
 import AgentTab from './tabs/AgentTab.vue'
 
 const route = useRoute()
@@ -185,6 +186,16 @@ const ONLINE_DOT: Record<string, string> = {
             </NSpace>
           </template>
           <XrayTab :server-id="serverId" />
+        </NTabPane>
+
+        <NTabPane name="clients">
+          <template #tab>
+            <NSpace :size="6" align="center">
+              <NIcon><Users :size="14" /></NIcon>
+              <span>Xray 客户端</span>
+            </NSpace>
+          </template>
+          <ClientsTab :server-id="serverId" />
         </NTabPane>
 
         <NTabPane name="agent">

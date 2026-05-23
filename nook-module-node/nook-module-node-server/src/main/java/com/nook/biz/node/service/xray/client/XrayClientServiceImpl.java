@@ -16,6 +16,7 @@ import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayRoutingCli;
+import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.XrayNodeValidator;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
@@ -59,6 +60,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     private final XrayNodeService xrayNodeService;
     private final XrayNodeValidator xrayNodeValidator;
     private final ResourceServerValidator serverValidator;
+    private final ResourceServerCredentialService credentialService;
     private final XrayClientValidator clientValidator;
     private final OpConfigResolver opConfigResolver;
     private final OpOrchestrator opOrchestrator;
@@ -127,7 +129,8 @@ public class XrayClientServiceImpl implements XrayClientService {
         if (StrUtil.isNotBlank(node.getDomain())) {
             vo.setServerHost(node.getDomain());
         } else {
-            vo.setServerHost(serverValidator.validateExists(e.getServerId()).getHost());
+            serverValidator.validateExists(e.getServerId());
+            vo.setServerHost(credentialService.requireByServerId(e.getServerId()).getHost());
         }
         vo.setListenPort(node.getSharedInboundPort());
         vo.setTransport(node.getTransport());

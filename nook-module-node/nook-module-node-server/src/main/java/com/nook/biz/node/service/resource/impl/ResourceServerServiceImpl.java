@@ -2,19 +2,26 @@ package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
-import com.nook.biz.node.controller.resource.vo.ResourceServerSaveReqVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
+import com.nook.biz.node.controller.resource.vo.ResourceServerCoreUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDnsDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerCredentialMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerDnsMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.event.ServerCredentialChangedEvent;
+import com.nook.biz.node.service.resource.ResourceServerBillingService;
+import com.nook.biz.node.service.resource.ResourceServerCredentialService;
+import com.nook.biz.node.service.resource.ResourceServerDnsService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.utils.collection.CollectionUtils;
@@ -49,22 +56,34 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     private final ResourceServerMapper resourceServerMapper;
     private final ResourceServerCapacityMapper resourceServerCapacityMapper;
     private final ResourceServerRuntimeMapper resourceServerRuntimeMapper;
+    private final ResourceServerCredentialMapper credentialMapper;
+    private final ResourceServerDnsMapper dnsMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ResourceServerValidator serverValidator;
+    private final ResourceServerCredentialService credentialService;
+    private final ResourceServerBillingService billingService;
+    private final ResourceServerDnsService dnsService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public String createServer(ResourceServerSaveReqVO createReqVO) {
+    public String createServer(ResourceServerCreateReqVO createReqVO) {
         serverValidator.validateNameUnique(null, createReqVO.getName());
-        serverValidator.validateHostUnique(null, createReqVO.getHost());
-        // domain 可空, 只有非空时才查重 (LIVE 前置才必填)
-        serverValidator.validateDomainUnique(null, createReqVO.getDomain());
 
-        ResourceServerDO entity = BeanUtils.toBean(createReqVO, ResourceServerDO.class);
-        // agent_token 入库时一次性签发, install / reinstall / upgrade 都复用 (永不刷新)
+        // 1) 写主表 (生成 id + agent_token)
+        ResourceServerDO entity = new ResourceServerDO();
+        entity.setName(createReqVO.getName());
+        entity.setRegion(createReqVO.getRegion());
+        entity.setTotalIpCount(createReqVO.getTotalIpCount());
+        entity.setRemark(createReqVO.getRemark());
+        entity.setLifecycleState(StrUtil.blankToDefault(createReqVO.getLifecycleState(),
+                ResourceServerLifecycleEnum.INSTALLING.name()));
         entity.setAgentToken(generateAgentToken());
         resourceServerMapper.insert(entity);
-        // 同步创建子表占位行 (capacity 中频 / runtime 高频); 没有 INSERT 就 SELECT JOIN 拿不到
+
+        // 2) credential / billing / dns 子表 + capacity / runtime 占位
+        credentialService.create(entity.getId(), createReqVO.getCredential());
+        billingService.create(entity.getId(), createReqVO.getBilling());
+        dnsService.create(entity.getId(), createReqVO.getDns());
         initCapacityAndRuntime(entity.getId());
         return entity.getId();
     }
@@ -80,12 +99,13 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         }
     }
 
-    /** 新建 server 时初始化 capacity + runtime 子表; 默认 NORMAL / 心跳 null. */
     private void initCapacityAndRuntime(String serverId) {
         LocalDateTime now = LocalDateTime.now();
 
         ResourceServerCapacityDO capacity = new ResourceServerCapacityDO();
         capacity.setServerId(serverId);
+        capacity.setRxBytes(0L);
+        capacity.setTxBytes(0L);
         capacity.setUsedTrafficBytes(0L);
         capacity.setQuotaResetPolicy("CALENDAR_MONTH");
         capacity.setThrottleState("NORMAL");
@@ -103,27 +123,20 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void updateServer(String id, ResourceServerSaveReqVO updateReqVO) {
+    public void updateCore(String id, ResourceServerCoreUpdateReqVO reqVO) {
         serverValidator.validateExists(id);
-        serverValidator.validateNameUnique(id, updateReqVO.getName());
-        serverValidator.validateHostUnique(id, updateReqVO.getHost());
-        serverValidator.validateDomainUnique(id, updateReqVO.getDomain());
+        serverValidator.validateNameUnique(id, reqVO.getName());
 
-        // 更新服务器
-        ResourceServerDO updateObj = BeanUtils.toBean(updateReqVO, ResourceServerDO.class);
-        resourceServerMapper.update(updateObj, Wrappers.<ResourceServerDO>lambdaUpdate().eq(ResourceServerDO::getId, id));
-        // 凭据变更事件; SshSessionManager 据此清掉该 server 的 SSH 会话缓存, 下次调用走新凭据
-        applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(id));
+        ResourceServerDO updateObj = BeanUtils.toBean(reqVO, ResourceServerDO.class);
+        updateObj.setId(id);
+        resourceServerMapper.updateById(updateObj);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteServer(String id) {
-        // 校验服务器存在
         serverValidator.validateExists(id);
-        // 删除服务器
         resourceServerMapper.deleteById(id);
-        // 凭据变更事件; 让 SshSessionManager 立即关闭并释放该 server 的 SSH 连接
         applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(id));
     }
 
@@ -134,8 +147,20 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public PageResult<ResourceServerDO> getServerPage(ResourceServerPageReqVO pageReqVO) {
+        // host 在 credential 子表; 先查匹配再回主表
+        Set<String> hostMatchIds = null;
+        if (StrUtil.isNotBlank(pageReqVO.getHost())) {
+            hostMatchIds = CollectionUtils.convertSet(
+                    credentialMapper.selectByHostLike(pageReqVO.getHost()),
+                    ResourceServerCredentialDO::getServerId);
+            if (hostMatchIds.isEmpty()) {
+                return PageResult.empty();
+            }
+        }
         IPage<ResourceServerDO> result = resourceServerMapper.selectPageByQuery(
-                Page.of(pageReqVO.getPageNo(), pageReqVO.getPageSize()), pageReqVO);
+                Page.of(pageReqVO.getPageNo(), pageReqVO.getPageSize()),
+                pageReqVO.getName(), pageReqVO.getLifecycleState(), pageReqVO.getRegion(),
+                hostMatchIds);
         return PageResult.of(result.getTotal(), result.getRecords());
     }
 
@@ -152,16 +177,15 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         return CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(ids),
                 ResourceServerDO::getId,
-                // name 缺失时 fallback host, 不让 UI 出现空白
-                e -> e.getName() != null ? e.getName() : e.getHost());
+                ResourceServerDO::getName);
     }
 
     // 允许的双向流转表; 命名按 from→to, 没列出的组合都拒
     private static final Set<String> ALLOWED_LIFECYCLE_TRANSITIONS = Set.of(
-            "INSTALLING→READY", "READY→INSTALLING",  // 装机回退
-            "READY→LIVE", "LIVE→READY",              // 上下线
-            "LIVE→RETIRED", "READY→RETIRED",         // 退役
-            "RETIRED→LIVE"                            // 退役复活回 LIVE; 不允许 RETIRED→READY 等
+            "INSTALLING→READY", "READY→INSTALLING",
+            "READY→LIVE", "LIVE→READY",
+            "LIVE→RETIRED", "READY→RETIRED",
+            "RETIRED→LIVE"
     );
 
     @Override
@@ -173,16 +197,19 @@ public class ResourceServerServiceImpl implements ResourceServerService {
                     srv.getLifecycleState(), newState);
         }
         if (StrUtil.equals(srv.getLifecycleState(), newState)) {
-            return;  // 幂等: 目标态等于当前态直接 no-op
+            return;
         }
         String key = srv.getLifecycleState() + "→" + newState;
         if (!ALLOWED_LIFECYCLE_TRANSITIONS.contains(key)) {
             throw new BusinessException(ResourceErrorCode.SERVER_LIFECYCLE_INVALID_TRANSITION,
                     srv.getLifecycleState(), newState);
         }
-        // LIVE 前置: domain 必填 (用户连接的子域名 / DNS 切换都靠它)
-        if (ResourceServerLifecycleEnum.LIVE.matches(newState) && StrUtil.isBlank(srv.getDomain())) {
-            throw new BusinessException(ResourceErrorCode.SERVER_LIVE_DOMAIN_REQUIRED);
+        // LIVE 前置: dns.domain 必填
+        if (ResourceServerLifecycleEnum.LIVE.matches(newState)) {
+            ResourceServerDnsDO dns = dnsMapper.selectById(id);
+            if (dns == null || StrUtil.isBlank(dns.getDomain())) {
+                throw new BusinessException(ResourceErrorCode.SERVER_LIVE_DOMAIN_REQUIRED);
+            }
         }
         resourceServerMapper.updateLifecycleState(id, newState);
         log.info("[server] LIFECYCLE id={} {} → {}", id, srv.getLifecycleState(), newState);

@@ -19,6 +19,7 @@ import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
+import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.service.xray.node.XrayNodeService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.XrayNodeValidator;
@@ -62,6 +63,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private final OpConfigResolver opConfigResolver;
     private final CloudflareApiClient cloudflareApiClient;
     private final ResourceServerValidator resourceServerValidator;
+    private final ResourceServerCredentialService credentialService;
 
     @Override
     public void installStreaming(String serverId, XrayServerInstallReqVO reqVO, Consumer<String> lineSink) {
@@ -73,7 +75,8 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         // 部署前加 A 记录: 仅走域名路径需要; 失败不阻断, 用户可手动在 CF 面板加
         if (useTls && StrUtil.isNotBlank(reqVO.getCfApiToken())) {
             try {
-                String serverHost = resourceServerValidator.validateExists(serverId).getHost();
+                resourceServerValidator.validateExists(serverId);
+                String serverHost = credentialService.requireByServerId(serverId).getHost();
                 cloudflareApiClient.ensureARecord(reqVO.getCfApiToken(), reqVO.getDomain(), serverHost, false);
                 lineSink.accept("[nook] ✔ Cloudflare A 记录已加: " + reqVO.getDomain() + " → " + serverHost + "\n");
             } catch (Exception cfe) {

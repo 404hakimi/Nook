@@ -2,54 +2,16 @@ import request from '@/api/request'
 import { useUserStore } from '@/stores/user'
 
 /**
- * 服务器实体 (v3): 主表存基础信息 + 装机生命周期; capacity / runtime 高频字段拆到子表.
- *
- * - lifecycleState 替代旧的 status (1=运行/2=维护/3=下线 → INSTALLING/READY/LIVE/RETIRED)
- * - region 改为字典码 (FK → resource_region.code), 表单走 listEnabledRegions 下拉
- * - 新增 v3 字段: domain / cfZoneId / cfRecordId / costMonthlyUsd / billingCycleDay / expiresAt / maxConcurrentClients
- * - monthlyTrafficGb 已迁到 resource_server_capacity 子表, 不在 server 主表
+ * 服务器实体 - 核心字段 (SSH 凭据 / 账面 / DNS 拆到 1:1 子表, 见 ServerCredential / ServerBilling / ServerDns).
  */
 export interface ResourceServer {
   id: string
   name: string
-  host: string
-  sshPort?: number
-  sshUser?: string
-  sshPassword?: string
-  sshTimeoutSeconds?: number
-  sshOpTimeoutSeconds?: number
-  sshUploadTimeoutSeconds?: number
-  installTimeoutSeconds?: number
-
-  /** 运营商承诺峰值带宽 Mbps; 仅账面展示. */
-  bandwidthMbps?: number
-
-  /** 线路机域名 (e.g., jp-01.nook.com); LIVE 前置必填. */
-  domain?: string
-
-  /** Cloudflare Zone ID. */
-  cfZoneId?: string
-
-  /** Cloudflare DNS record ID. */
-  cfRecordId?: string
-
-  /** 月度成本 USD (内部成本核算). */
-  costMonthlyUsd?: number
-
-  /** 账单日 1-28; 月度流量重置参考. */
-  billingCycleDay?: number
-
-  /** 服务器到期日 (机房续费) YYYY-MM-DD. */
-  expiresAt?: string
-
-  /** allocator 硬上限; 1C1G=50-100, 2C2G=200, 4C4G=500, 8C8G=1000. */
-  maxConcurrentClients?: number
 
   /** 装机生命周期; 取值 INSTALLING / READY / LIVE / RETIRED. */
   lifecycleState: string
 
   totalIpCount?: number
-  idcProvider?: string
 
   /** 区域码 (FK → resource_region.code). */
   region?: string
@@ -59,37 +21,66 @@ export interface ResourceServer {
   updatedAt?: string
 }
 
-export interface ResourceServerQuery {
-  pageNo?: number
-  pageSize?: number
-  keyword?: string
-  /** 装机生命周期过滤 (INSTALLING/READY/LIVE/RETIRED); 空=全部. */
-  lifecycleState?: string
-  region?: string
-}
-
-export interface ResourceServerSaveDTO {
-  name?: string
-  host?: string
-  sshPort?: number
+/** SSH 凭据 (1:1, /admin/resource/server/{id}/credential). */
+export interface ServerCredential {
+  serverId?: string
+  host: string
+  sshPort: number
   sshUser?: string
   sshPassword?: string
   sshTimeoutSeconds?: number
   sshOpTimeoutSeconds?: number
   sshUploadTimeoutSeconds?: number
   installTimeoutSeconds?: number
+}
+
+/** 账面 (1:1, /admin/resource/server/{id}/billing). */
+export interface ServerBilling {
+  serverId?: string
+  idcProvider?: string
+  /** 承诺带宽 Mbps (账面, 不 enforce). */
   bandwidthMbps?: number
-  domain?: string
-  cfZoneId?: string
-  cfRecordId?: string
   costMonthlyUsd?: number
   billingCycleDay?: number
   expiresAt?: string
-  maxConcurrentClients?: number
-  idcProvider?: string
-  region?: string
-  lifecycleState?: string
+}
+
+/** DNS 绑定 (1:1, /admin/resource/server/{id}/dns). */
+export interface ServerDns {
+  serverId?: string
+  domain?: string
+  cfZoneId?: string
+  cfRecordId?: string
+}
+
+/** 创建参数 (top-level core + 嵌套 credential 必填, billing/dns 可空). */
+export interface ResourceServerCreateDTO {
+  name: string
+  region: string
+  totalIpCount?: number
   remark?: string
+  lifecycleState?: string
+  credential: ServerCredential
+  billing?: ServerBilling
+  dns?: ServerDns
+}
+
+/** 核心字段更新 (lifecycle 走 /lifecycle 接口). */
+export interface ResourceServerCoreUpdateDTO {
+  name: string
+  region: string
+  totalIpCount?: number
+  remark?: string
+}
+
+export interface ResourceServerQuery {
+  pageNo?: number
+  pageSize?: number
+  name?: string
+  host?: string
+  /** 装机生命周期过滤 (INSTALLING/READY/LIVE/RETIRED); 空=全部. */
+  lifecycleState?: string
+  region?: string
 }
 
 export interface PageResult<T> {
@@ -128,11 +119,8 @@ export function pageServers(params: ResourceServerQuery) {
 export interface ServerCapacity {
   serverId: string
   monthlyTrafficGb?: number
-  /** 当周期下行字节. */
   rxBytes?: number
-  /** 当周期上行字节. */
   txBytes?: number
-  /** 当周期已用字节 = rx + tx. */
   usedTrafficBytes?: number
   quotaResetPolicy?: string
   throttleState?: string
@@ -149,13 +137,9 @@ export function listNetworkInterfaces(id: string) {
 
 /** Agent 装机 meta: backend 已知数据, 前端 prefill 表单用; 用户可改. */
 export interface AgentInstallMeta {
-  /** Backend 公网 URL (config 读). */
   backendUrl: string
-  /** Frontline + 选了 server 才有: xray binary 绝对路径. */
   xrayBin?: string
-  /** Frontline + 选了 server 才有: xray api server 端口. */
   xrayApiPort?: number
-  /** 选了 server 才有: SSH 默认 (resource_server 表读). */
   sshTimeoutSeconds?: number
   sshOpTimeoutSeconds?: number
   sshUploadTimeoutSeconds?: number
@@ -173,12 +157,43 @@ export function getServerDetail(id: string) {
   return request.get<unknown, ResourceServer>('/admin/resource/server/get', { params: { id } })
 }
 
-export function createServer(dto: ResourceServerSaveDTO) {
+/** 取 SSH 凭据 (编辑 dialog prefill; 密码字段空着, 改密码才填). */
+export function getServerCredential(id: string) {
+  return request.get<unknown, ServerCredential | null>(`/admin/resource/server/${id}/credential`)
+}
+
+/** 取账面. */
+export function getServerBilling(id: string) {
+  return request.get<unknown, ServerBilling | null>(`/admin/resource/server/${id}/billing`)
+}
+
+/** 取 DNS 绑定. */
+export function getServerDns(id: string) {
+  return request.get<unknown, ServerDns | null>(`/admin/resource/server/${id}/dns`)
+}
+
+export function createServer(dto: ResourceServerCreateDTO) {
   return request.post<unknown, ResourceServer>('/admin/resource/server/create', dto)
 }
 
-export function updateServer(id: string, dto: ResourceServerSaveDTO) {
-  return request.put<unknown, ResourceServer>('/admin/resource/server/update', dto, { params: { id } })
+/** 更新核心 (name/region/totalIp/remark; lifecycle 走 /lifecycle). */
+export function updateServerCore(id: string, dto: ResourceServerCoreUpdateDTO) {
+  return request.put<unknown, boolean>(`/admin/resource/server/${id}/core`, dto)
+}
+
+/** 更新 SSH 凭据 (LIVE 后 host/port 硬锁; 密码空保留原值). */
+export function updateServerCredential(id: string, dto: ServerCredential) {
+  return request.put<unknown, boolean>(`/admin/resource/server/${id}/credential`, dto)
+}
+
+/** 更新账面. */
+export function updateServerBilling(id: string, dto: ServerBilling) {
+  return request.put<unknown, boolean>(`/admin/resource/server/${id}/billing`, dto)
+}
+
+/** 更新 DNS 绑定. */
+export function updateServerDns(id: string, dto: ServerDns) {
+  return request.put<unknown, boolean>(`/admin/resource/server/${id}/dns`, dto)
 }
 
 export function deleteServer(id: string) {
@@ -202,16 +217,13 @@ export interface AgentInstallDTO {
   /** auto | eth0 | ens5 ... */
   nicInterface: string
   pollerIntervalSeconds: number
-  /** Frontline 必填; 前端从 /agent-install-meta 拿 xray_node 字段后回塞. landing 可省. */
   xrayBin?: string
   xrayApiPort?: number
-  // 路径 + URL (前端默认 + 可改, backend 不兜底)
   nookHome: string
   binPath: string
   configPath: string
   systemdUnitPath: string
   backendUrl: string
-  // SSH 参数 (per-install override; 不回写 resource_server)
   sshTimeoutSeconds: number
   sshOpTimeoutSeconds: number
   sshUploadTimeoutSeconds: number
@@ -220,7 +232,6 @@ export interface AgentInstallDTO {
 
 /**
  * SSH 自动装 nook-agent (流式日志); 复用 resource_server 已存 SSH 凭据.
- * 调一次重置 agent_token + 把 token splice 进 dto.configYaml → SSH 跑装机脚本 → agent active.
  */
 export function agentInstallStream(
   id: string,

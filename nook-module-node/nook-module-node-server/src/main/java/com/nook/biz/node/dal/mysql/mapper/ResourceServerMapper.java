@@ -1,18 +1,17 @@
 package com.nook.biz.node.dal.mysql.mapper;
 
-import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 
 /**
- * ResourceServerDO 数据访问.
+ * 服务器资源 Mapper
  *
  * @author nook
  */
@@ -30,48 +29,27 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .ne(ResourceServerDO::getId, excludeId));
     }
 
-    default boolean existsByHost(String host) {
-        return exists(Wrappers.<ResourceServerDO>lambdaQuery()
-                .eq(ResourceServerDO::getHost, host));
-    }
-
-    default boolean existsByHostExcludingId(String host, String excludeId) {
-        return exists(Wrappers.<ResourceServerDO>lambdaQuery()
-                .eq(ResourceServerDO::getHost, host)
-                .ne(ResourceServerDO::getId, excludeId));
-    }
-
     /** 按 agent_token 查 server (Agent push 接口鉴权用); 找不到返 null. */
     default ResourceServerDO selectByAgentToken(String agentToken) {
         return selectOne(Wrappers.<ResourceServerDO>lambdaQuery()
                 .eq(ResourceServerDO::getAgentToken, agentToken));
     }
 
-    /** domain 是否存在 (LIVE 前置必填的唯一字段). */
-    default boolean existsByDomain(String domain) {
-        return exists(Wrappers.<ResourceServerDO>lambdaQuery()
-                .eq(ResourceServerDO::getDomain, domain));
-    }
-
-    default boolean existsByDomainExcludingId(String domain, String excludeId) {
-        return exists(Wrappers.<ResourceServerDO>lambdaQuery()
-                .eq(ResourceServerDO::getDomain, domain)
-                .ne(ResourceServerDO::getId, excludeId));
-    }
-
-    /** 分页; keyword 模糊匹 name/host/domain; lifecycleState / region 精确过滤. */
-    default IPage<ResourceServerDO> selectPageByQuery(IPage<ResourceServerDO> page, ResourceServerPageReqVO reqVO) {
+    /**
+     * 列表分页. host 过滤需由调用方先查 credential 子表得到 idIn 再传入 (null=不约束).
+     */
+    default IPage<ResourceServerDO> selectPageByQuery(IPage<ResourceServerDO> page, String name,
+                                                      String lifecycleState, String region,
+                                                      Collection<String> idIn) {
         return selectPage(page, Wrappers.<ResourceServerDO>lambdaQuery()
-                .eq(StrUtil.isNotBlank(reqVO.getLifecycleState()), ResourceServerDO::getLifecycleState, reqVO.getLifecycleState())
-                .eq(StrUtil.isNotBlank(reqVO.getRegion()), ResourceServerDO::getRegion, reqVO.getRegion())
-                .and(StrUtil.isNotBlank(reqVO.getKeyword()), q -> q
-                        .like(ResourceServerDO::getName, reqVO.getKeyword())
-                        .or().like(ResourceServerDO::getHost, reqVO.getKeyword())
-                        .or().like(ResourceServerDO::getDomain, reqVO.getKeyword()))
+                .eq(StrUtil.isNotBlank(lifecycleState), ResourceServerDO::getLifecycleState, lifecycleState)
+                .eq(StrUtil.isNotBlank(region), ResourceServerDO::getRegion, region)
+                .like(StrUtil.isNotBlank(name), ResourceServerDO::getName, name)
+                .in(idIn != null, ResourceServerDO::getId, idIn)
                 .orderByDesc(ResourceServerDO::getCreatedAt));
     }
 
-    /** 切换 lifecycle_state (admin 上线 / 退役); 显式 set updated_at. */
+    /** 切换 lifecycle_state; 显式 set updated_at. */
     default int updateLifecycleState(String id, String newState) {
         return update(null, Wrappers.<ResourceServerDO>lambdaUpdate()
                 .set(ResourceServerDO::getLifecycleState, newState)

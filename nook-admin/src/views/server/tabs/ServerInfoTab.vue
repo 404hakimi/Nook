@@ -5,6 +5,7 @@ import {
   CircleDollarSign,
   Edit3,
   FileText,
+  Globe,
   Power,
   Server,
   Trash2
@@ -17,7 +18,6 @@ import {
   NDescriptionsItem,
   NIcon,
   NPopconfirm,
-  NProgress,
   NSelect,
   NSpin,
   NTag,
@@ -26,15 +26,21 @@ import {
 } from 'naive-ui'
 import {
   deleteServer,
+  getServerBilling,
   getServerDetail,
+  getServerDns,
   SERVER_LIFECYCLE_LABELS,
   SERVER_LIFECYCLE_TAG_TYPE,
   transitionServerLifecycle,
-  type ResourceServer
+  type ResourceServer,
+  type ServerBilling,
+  type ServerDns
 } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
-import ServerFormDialog from '@/views/resource/ServerFormDialog.vue'
 import type { AgentListItem } from '@/api/agent/agent'
+import ServerCoreEditDialog from '@/views/server/dialogs/ServerCoreEditDialog.vue'
+import ServerBillingEditDialog from '@/views/server/dialogs/ServerBillingEditDialog.vue'
+import ServerDnsEditDialog from '@/views/server/dialogs/ServerDnsEditDialog.vue'
 
 const props = defineProps<{
   serverId: string
@@ -46,13 +52,22 @@ const message = useMessage()
 const dialog = useDialog()
 
 const detail = ref<ResourceServer | null>(null)
+const billing = ref<ServerBilling | null>(null)
+const dns = ref<ServerDns | null>(null)
 const loading = ref(false)
 
 async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    detail.value = await getServerDetail(props.serverId)
+    const [d, b, n] = await Promise.all([
+      getServerDetail(props.serverId),
+      getServerBilling(props.serverId),
+      getServerDns(props.serverId)
+    ])
+    detail.value = d
+    billing.value = b
+    dns.value = n
   } catch { /* */ } finally {
     loading.value = false
   }
@@ -61,6 +76,7 @@ async function load() {
 onMounted(load)
 watch(() => props.serverId, load)
 
+// ===== lifecycle 切换 =====
 const lifecycleOptions = [
   { label: '装机中', value: 'INSTALLING' },
   { label: '待上线', value: 'READY' },
@@ -86,7 +102,6 @@ async function doTransition() {
   })
 }
 
-const editOpen = ref(false)
 async function onDelete() {
   try {
     await deleteServer(props.serverId)
@@ -98,8 +113,8 @@ async function onDelete() {
 
 // ===== 到期天数 =====
 const expiresDaysLeft = computed(() => {
-  if (!detail.value?.expiresAt) return null
-  const d = new Date(detail.value.expiresAt).getTime()
+  if (!billing.value?.expiresAt) return null
+  const d = new Date(billing.value.expiresAt).getTime()
   const now = Date.now()
   return Math.floor((d - now) / (24 * 3600 * 1000))
 })
@@ -110,24 +125,27 @@ const expiresTagType = computed(() => {
   if (d < 7) return 'warning'
   return 'success'
 })
+
+// ===== 编辑 dialogs =====
+const coreEditOpen = ref(false)
+const billingEditOpen = ref(false)
+const dnsEditOpen = ref(false)
+
+function afterEdit() { load(); emit('refresh') }
 </script>
 
 <template>
   <NSpin :show="loading">
     <div v-if="detail" class="space-y-3">
 
-      <!-- 操作栏 -->
+      <!-- 操作栏: lifecycle 切换 + 删除 -->
       <div class="action-bar">
-        <NButton size="small" type="primary" @click="editOpen = true">
-          <template #icon><NIcon><Edit3 :size="14" /></NIcon></template>
-          编辑服务器信息
-        </NButton>
         <NSelect
           v-model:value="targetLifecycle"
           :options="lifecycleOptions"
           size="small"
           placeholder="切换 lifecycle"
-          class="w-44"
+          class="w-32"
         />
         <NButton size="small" :disabled="!targetLifecycle" @click="doTransition">
           <template #icon><NIcon><Power :size="14" /></NIcon></template>
@@ -151,6 +169,11 @@ const expiresTagType = computed(() => {
           <div class="section-header">
             <NIcon class="section-icon"><Server :size="14" /></NIcon>
             <span>基础信息</span>
+            <span class="flex-1"></span>
+            <NButton size="tiny" quaternary type="primary" @click="coreEditOpen = true">
+              <template #icon><NIcon><Edit3 :size="12" /></NIcon></template>
+              编辑
+            </NButton>
           </div>
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
@@ -160,16 +183,13 @@ const expiresTagType = computed(() => {
               {{ SERVER_LIFECYCLE_LABELS[detail.lifecycleState] || detail.lifecycleState }}
             </NTag>
           </NDescriptionsItem>
-          <NDescriptionsItem label="Host">
-            <code class="kbd">{{ detail.host }}</code>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="域名">
-            <code v-if="detail.domain" class="kbd">{{ detail.domain }}</code>
-            <span v-else class="muted">未配置</span>
-          </NDescriptionsItem>
           <NDescriptionsItem label="区域">
             <NTag v-if="detail.region" size="small">{{ detail.region }}</NTag>
             <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="IP 总数">
+            <span class="num">{{ detail.totalIpCount ?? '—' }}</span>
+            <span class="unit">个</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="服务器 ID">
             <code class="kbd text-xs">{{ detail.id }}</code>
@@ -177,79 +197,83 @@ const expiresTagType = computed(() => {
         </NDescriptions>
       </NCard>
 
-      <!-- === Section 2: 厂商 / 账单 / 容量 (合并) === -->
+      <!-- === Section 2: 账面 (云厂商 / 带宽 / 成本 / 到期) === -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
           <div class="section-header">
             <NIcon class="section-icon"><CircleDollarSign :size="14" /></NIcon>
-            <span>厂商 / 账单 / 容量</span>
+            <span>账面信息</span>
+            <span class="flex-1"></span>
+            <NButton size="tiny" quaternary type="primary" @click="billingEditOpen = true">
+              <template #icon><NIcon><Edit3 :size="12" /></NIcon></template>
+              编辑
+            </NButton>
           </div>
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
           <NDescriptionsItem label="云厂商">
-            <NTag v-if="detail.idcProvider" size="small" type="info">{{ detail.idcProvider }}</NTag>
+            <NTag v-if="billing?.idcProvider" size="small" type="info">{{ billing.idcProvider }}</NTag>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="承诺带宽">
-            <span v-if="detail.bandwidthMbps != null"><b class="num">{{ detail.bandwidthMbps }}</b> <span class="unit">Mbps</span></span>
-            <span v-else class="muted">—</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="最大客户数">
-            <span v-if="detail.maxConcurrentClients != null"><b class="num">{{ detail.maxConcurrentClients }}</b> <span class="unit">个</span></span>
-            <span v-else class="muted">—</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="IP 总数">
-            <span v-if="detail.totalIpCount != null"><b class="num">{{ detail.totalIpCount }}</b> <span class="unit">个</span></span>
+            <template v-if="billing?.bandwidthMbps != null">
+              <span class="num">{{ billing.bandwidthMbps }}</span>
+              <span class="unit">Mbps</span>
+              <span class="text-xs text-zinc-400 ml-2">账面, 不 enforce</span>
+            </template>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="月成本">
-            <span v-if="detail.costMonthlyUsd != null" class="num">${{ detail.costMonthlyUsd }} <span class="unit">/ 月</span></span>
+            <template v-if="billing?.costMonthlyUsd != null">
+              <span class="num">${{ billing.costMonthlyUsd }}</span>
+              <span class="unit">/ 月</span>
+            </template>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="账单日">
-            <span v-if="detail.billingCycleDay">每月 <b class="num">{{ detail.billingCycleDay }}</b> 日</span>
+            <template v-if="billing?.billingCycleDay">
+              <span class="num">{{ billing.billingCycleDay }}</span>
+              <span class="unit">日</span>
+            </template>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="到期日">
-            <div v-if="detail.expiresAt" class="flex items-center gap-2">
-              <span class="num font-mono">{{ detail.expiresAt }}</span>
+          <NDescriptionsItem label="到期日" :span="2">
+            <div v-if="billing?.expiresAt" class="flex items-center gap-2">
+              <span class="num">{{ billing.expiresAt }}</span>
               <NTag size="tiny" :type="expiresTagType">
                 <span v-if="expiresDaysLeft! < 0">已过期 {{ -expiresDaysLeft! }} 天</span>
-                <span v-else-if="expiresDaysLeft! < 7">剩 {{ expiresDaysLeft }} 天</span>
                 <span v-else>剩 {{ expiresDaysLeft }} 天</span>
               </NTag>
             </div>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
         </NDescriptions>
-
-        <!-- 月度流量进度条 (占位; backend 暂无 API, P 后续接入) -->
-        <div class="traffic-block">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-xs text-zinc-500">本月流量 (待接入)</span>
-            <span class="text-xs text-zinc-400 font-mono">— GB / — GB</span>
-          </div>
-          <NProgress :percentage="0" :height="6" :show-indicator="false" status="default" />
-        </div>
       </NCard>
 
-      <!-- === Section 3: DNS / CDN === -->
-      <NCard
-        v-if="detail.cfZoneId || detail.cfRecordId || detail.domain"
-        size="small" :bordered="false" class="info-section"
-      >
+      <!-- === Section 3: DNS 绑定 === -->
+      <NCard size="small" :bordered="false" class="info-section">
         <template #header>
           <div class="section-header">
+            <NIcon class="section-icon"><Globe :size="14" /></NIcon>
             <span>DNS / Cloudflare</span>
+            <span class="flex-1"></span>
+            <NButton size="tiny" quaternary type="primary" @click="dnsEditOpen = true">
+              <template #icon><NIcon><Edit3 :size="12" /></NIcon></template>
+              编辑
+            </NButton>
           </div>
         </template>
-        <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 8rem">
-          <NDescriptionsItem label="CF Zone ID">
-            <code v-if="detail.cfZoneId" class="kbd text-xs">{{ detail.cfZoneId }}</code>
+        <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 9rem">
+          <NDescriptionsItem label="线路机域名">
+            <code v-if="dns?.domain" class="kbd">{{ dns.domain }}</code>
+            <span v-else class="muted">未配置 (LIVE 前置必填)</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="Cloudflare Zone ID">
+            <code v-if="dns?.cfZoneId" class="kbd text-xs">{{ dns.cfZoneId }}</code>
             <span v-else class="muted">未配置</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="CF Record ID">
-            <code v-if="detail.cfRecordId" class="kbd text-xs">{{ detail.cfRecordId }}</code>
+          <NDescriptionsItem label="Cloudflare Record ID">
+            <code v-if="dns?.cfRecordId" class="kbd text-xs">{{ dns.cfRecordId }}</code>
             <span v-else class="muted">未配置</span>
           </NDescriptionsItem>
         </NDescriptions>
@@ -277,12 +301,14 @@ const expiresTagType = computed(() => {
 
     </div>
 
-    <ServerFormDialog v-model="editOpen" mode="edit" :server="detail" @saved="() => { load(); emit('refresh') }" />
+    <ServerCoreEditDialog v-if="detail" v-model="coreEditOpen" :server="detail" @saved="afterEdit" />
+    <ServerBillingEditDialog v-model="billingEditOpen" :server-id="serverId" @saved="afterEdit" />
+    <ServerDnsEditDialog v-model="dnsEditOpen" :server-id="serverId" :lifecycle-state="detail?.lifecycleState" @saved="afterEdit" />
   </NSpin>
 </template>
 
 <style scoped>
-/* 字体 / 数值 / 段头 / info-section 内边距统一走 main.scss 全局 tokens */
+/* 字体 / 数值 / 段头 走 main.scss 全局 tokens */
 
 .traffic-block {
   margin-top: 10px;

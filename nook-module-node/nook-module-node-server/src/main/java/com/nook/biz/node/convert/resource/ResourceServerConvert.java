@@ -9,7 +9,7 @@ import org.mapstruct.factory.Mappers;
 import java.util.List;
 
 /**
- * ResourceServerDO DO ↔ VO.
+ * 服务器资源 Convert
  *
  * @author nook
  */

@@ -26,8 +26,10 @@ import IpPoolDetailDialog from '@/views/resource/IpPoolDetailDialog.vue'
 
 interface Props {
   serverId: string
+  /** true=旧 XrayNodeList 子表 (缩进 + 灰底); false=ServerDetail tab 独立场景 */
+  embedded?: boolean
 }
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { embedded: true })
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -254,9 +256,13 @@ onMounted(loadList)
 </script>
 
 <template>
-  <div class="pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900/30 border-y border-zinc-200 dark:border-zinc-700">
+  <div :class="embedded
+    ? 'pl-12 pr-4 py-3 bg-zinc-50 dark:bg-zinc-900/30 border-y border-zinc-200 dark:border-zinc-700'
+    : ''">
     <div class="flex items-center gap-2 mb-2">
-      <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-300">该节点客户端</span>
+      <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+        {{ embedded ? '该节点客户端' : 'Xray 客户端' }}
+      </span>
       <span class="text-xs text-zinc-400">共 {{ total }} 个</span>
       <div class="flex-1"></div>
       <NButton size="tiny" type="primary" @click="provisionOpen = true">

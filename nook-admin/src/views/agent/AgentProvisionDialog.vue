@@ -59,7 +59,7 @@ const dialog = useDialog()
 // ---------- 服务器列表 + role 过滤 ----------
 const loading = ref(false)
 const agents = ref<AgentListItem[]>([])
-const allServers = ref<Array<{ id: string; name: string; host: string; lifecycleState: string }>>([])
+const allServers = ref<Array<{ id: string; name: string; lifecycleState: string }>>([])
 const selectedRole = ref<'frontline' | 'landing'>('frontline')
 const selectedServerId = ref<string | null>(null)
 
@@ -87,8 +87,9 @@ const serverOptions = computed(() =>
     })
     .map((s) => {
       const a = agents.value.find((x) => x.serverId === s.id)
+      const host = a?.host ? ` (${a.host})` : ''
       const tag = a && a.agentVersion ? `${a.onlineState} ${a.agentVersion}` : '未装'
-      return { label: `${s.name} (${s.host}) — ${tag}`, value: s.id }
+      return { label: `${s.name}${host} — ${tag}`, value: s.id }
     })
 )
 
@@ -101,7 +102,7 @@ async function loadData() {
     ])
     agents.value = agentList
     allServers.value = servers.records.map((s) => ({
-      id: s.id, name: s.name, host: s.host, lifecycleState: s.lifecycleState
+      id: s.id, name: s.name, lifecycleState: s.lifecycleState
     }))
   } catch { /* */ } finally {
     loading.value = false
@@ -181,15 +182,26 @@ function startUpgradePolling(serverId: string, oldVersion: string) {
 }
 
 // ---------- 装机元信息 (后端常量, readonly 展示) ----------
+// 仅在 deploy tab 用到 (NIC 选项 + backendUrl + SSH 默认值); 升级流程不依赖. lazy load.
 const installMeta = ref<AgentInstallMeta | null>(null)
+/** meta 是否已为当前 (role, serverId) 拉过; 切 tab 不重复拉. */
+let metaFetchedKey: string | null = null
 
-async function loadInstallMeta() {
+function metaKey(): string {
+  return `${selectedRole.value}|${selectedServerId.value ?? ''}`
+}
+
+async function loadInstallMeta(force = false) {
+  const key = metaKey()
+  if (!force && metaFetchedKey === key) return
   try {
     installMeta.value = await getAgentInstallMeta(selectedRole.value, selectedServerId.value)
+    metaFetchedKey = key
     // backend 已知数据 (URL + SSH 默认) 覆盖到表单, admin 直接基于真实值改
     applyMetaToForm(form, installMeta.value)
   } catch {
     installMeta.value = null
+    metaFetchedKey = null
   }
 }
 
@@ -201,13 +213,15 @@ const xrayMissing = computed(() =>
 )
 
 // ---------- 部署表单 ----------
-// 选 server 后 SSH 拉远端网卡; 失败/未选时只剩 auto
+// 选 server 后 SSH 拉远端网卡; 失败/未选时只剩 auto. lazy: 仅 deploy tab 触发.
 const nicOptions = ref<Array<{ label: string; value: string }>>([
   { label: 'auto (默认路由出口网卡)', value: 'auto' }
 ])
 const nicLoading = ref(false)
+let nicFetchedForServerId: string | null = null
 
-async function loadNicOptions(serverId: string) {
+async function loadNicOptions(serverId: string, force = false) {
+  if (!force && nicFetchedForServerId === serverId) return
   nicLoading.value = true
   try {
     const ifaces = await listNetworkInterfaces(serverId)
@@ -215,8 +229,10 @@ async function loadNicOptions(serverId: string) {
       { label: 'auto (默认路由出口网卡)', value: 'auto' },
       ...ifaces.map((n) => ({ label: n, value: n }))
     ]
+    nicFetchedForServerId = serverId
   } catch {
     nicOptions.value = [{ label: 'auto (默认路由出口网卡)', value: 'auto' }]
+    nicFetchedForServerId = null
   } finally {
     nicLoading.value = false
   }
@@ -257,15 +273,17 @@ function applyMetaToForm(target: AgentInstallDTO, m: AgentInstallMeta | null) {
   if (m.installTimeoutSeconds != null) target.installTimeoutSeconds = m.installTimeoutSeconds
 }
 
-/** Reset: 先拉 meta 算出最终值, 一次性 assign — 避免先 default 后 prefill 的两帧闪烁. */
+/** Reset: 仅 deploy tab 触发; 先拉 meta 算出最终值, 一次性 assign — 避免先 default 后 prefill 的两帧闪烁. */
 async function resetForm() {
   const fresh = defaultForm()
   try {
     const m = await getAgentInstallMeta(selectedRole.value, selectedServerId.value)
     installMeta.value = m
+    metaFetchedKey = metaKey()
     applyMetaToForm(fresh, m)
   } catch {
     installMeta.value = null
+    metaFetchedKey = null
   }
   Object.assign(form, fresh)
 }
@@ -345,8 +363,12 @@ watch(open, (v) => {
     dispatchedTaskId.value = null
     upgradeStatus.value = 'WAITING'
     upgradeElapsed.value = 0
-    // resetForm 内部已 await meta + 一次性 assign, 不再单独 loadInstallMeta (避免重复请求 + 闪烁)
-    resetForm()
+    // 重置 form 到 default (不带 meta), 等用户进 deploy tab 再 lazy load
+    Object.assign(form, defaultForm())
+    installMeta.value = null
+    metaFetchedKey = null
+    nicFetchedForServerId = null
+    nicOptions.value = [{ label: 'auto (默认路由出口网卡)', value: 'auto' }]
   } else {
     stopPolling()
     if (deployAbort) deployAbort.abort()
@@ -361,16 +383,26 @@ watch(selectedRole, () => {
     }
   }
   form.role = selectedRole.value
-  loadInstallMeta()
+  // 仅 deploy tab 时刷 meta (role 影响 xrayBin/xrayApiPort)
+  if (activeTab.value === 'deploy') loadInstallMeta()
 })
 
-// 选 server 后 SSH 拉网卡 + 重拉 install-meta (frontline 时附带 xray 信息)
+// 选 server 后 SSH 拉网卡 + 重拉 install-meta — 仅 deploy tab 触发, 升级流程不需要
 watch(selectedServerId, (id) => {
+  if (activeTab.value !== 'deploy') return
   if (id) {
     loadNicOptions(id)
+    loadInstallMeta()
   } else {
     nicOptions.value = [{ label: 'auto (默认路由出口网卡)', value: 'auto' }]
+    nicFetchedForServerId = null
   }
+})
+
+// 切到 deploy tab 时按需 lazy load (首次进入 / 之前 server 变过没拉)
+watch(activeTab, (tab) => {
+  if (tab !== 'deploy') return
+  if (selectedServerId.value) loadNicOptions(selectedServerId.value)
   loadInstallMeta()
 })
 

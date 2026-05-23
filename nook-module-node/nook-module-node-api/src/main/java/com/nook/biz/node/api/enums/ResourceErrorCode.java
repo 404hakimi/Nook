@@ -19,7 +19,7 @@ public enum ResourceErrorCode implements ErrorCode {
     SERVER_DOMAIN_DUPLICATE(5004, "服务器域名 %s 已被占用"),
     SERVER_LIFECYCLE_INVALID_TRANSITION(5005, "服务器生命周期不允许 %s → %s"),
     SERVER_LIVE_DOMAIN_REQUIRED(5006, "上线 LIVE 前必须先填 domain"),
-    // 5007 SERVER_SSH_PASSWORD_REQUIRED 已删除 — 由 ResourceServerSaveReqVOValidator 统一抛 PARAM_INVALID
+    SERVER_SSH_LOCKED_AFTER_LIVE(5007, "lifecycle=LIVE 后 host/port 不可改 (需先退到 READY)"),
 
     IP_TYPE_NOT_FOUND(5101, "IP 类型 %s 不存在"),
     IP_POOL_NOT_FOUND(5102, "IP 池条目 %s 不存在"),

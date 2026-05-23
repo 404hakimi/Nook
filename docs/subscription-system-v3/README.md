@@ -59,13 +59,13 @@
 - ✅ **SKU 资源池**: `plan_sku_resource` 关联表显式绑定 SKU 到 server + IP 池, 容量 = 数 IP (砍 sold_traffic_gb 复杂度)
 - ✅ **1 sub 1 server + DNS 切换**: 用户独享子域名 (Cloudflare DNS), 切换走 DNS 改向 (5-15min 缓存恢复)
 - ✅ **Agent 架构 (Go)**: 服务器跑轻量 agent 主动 push 数据 + pull 任务, backend 不再 SSH 拉
-- ✅ **不限带宽**: xray / dante 都不限速, 用户跑满 IP 物理上限; 通过 `max_concurrent_clients` 控制单机用户密度间接管控带宽分摊
+- ✅ **不限带宽**: xray / dante 都不限速, 用户跑满 IP 物理上限; 通过 `xray_node.touchdown_size` 控制单机用户密度间接管控带宽分摊
 
 ### 数据模型
 
 - `plan_sku_resource` 关联表 (新增, 核心)
 - `sub_main` 加 `sub_domain` + `cf_record_id` (1:1 关系恢复)
-- `resource_server` 加 `domain` / `cf_zone_id` / `lifecycle_state` / `max_concurrent_clients` (必填)
+- `resource_server` 加 `domain` / `cf_zone_id` / `lifecycle_state` (客户数上限走 `xray_node.touchdown_size`)
 - `resource_server_capacity` 拆出, 砍 `sold_traffic_gb` / `oversubscription_ratio`
 - `agent_task` 新表 (agent 任务队列)
 

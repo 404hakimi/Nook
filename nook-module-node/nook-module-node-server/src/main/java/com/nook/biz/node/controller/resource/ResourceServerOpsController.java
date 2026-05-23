@@ -2,6 +2,7 @@ package com.nook.biz.node.controller.resource;
 
 import com.nook.framework.web.WebStreamingProperties;
 import com.nook.biz.node.controller.resource.vo.EnableSwapReqVO;
+import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.service.resource.ResourceServerOpsService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.framework.web.StreamingEndpointSupport;
@@ -32,6 +33,7 @@ public class ResourceServerOpsController {
     private final ResourceServerOpsService resourceServerOpsService;
     private final StreamingEndpointSupport streamingSupport;
     private final ResourceServerValidator serverValidator;
+    private final ResourceServerCredentialService credentialService;
     private final WebStreamingProperties webStreamingProperties;
 
     @PostMapping(value = "/enable-swap", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
@@ -48,7 +50,8 @@ public class ResourceServerOpsController {
     }
 
     private Duration emitterTimeout(String id) {
-        int installTimeout = serverValidator.validateExists(id).getInstallTimeoutSeconds();
+        serverValidator.validateExists(id);
+        int installTimeout = credentialService.requireByServerId(id).getInstallTimeoutSeconds();
         return Duration.ofSeconds(installTimeout).plus(webStreamingProperties.getEmitterBuffer());
     }
 }

@@ -43,10 +43,11 @@ public interface XrayClientConvert {
     default XrayClientRespVO convert(XrayClientDO entity,
                                      Map<String, String> ipAddressMap,
                                      Map<String, ResourceServerDO> serverMap,
+                                     Map<String, String> hostMap,
                                      Map<String, XrayNodeDO> nodeMap) {
         XrayClientRespVO vo = convert(entity);
         fillIpAddress(vo, ipAddressMap);
-        fillServer(vo, serverMap);
+        fillServer(vo, serverMap, hostMap);
         fillInbound(vo, nodeMap);
         return vo;
     }
@@ -54,11 +55,12 @@ public interface XrayClientConvert {
     default PageResult<XrayClientRespVO> convertPage(PageResult<XrayClientDO> page,
                                                      Map<String, String> ipAddressMap,
                                                      Map<String, ResourceServerDO> serverMap,
+                                                     Map<String, String> hostMap,
                                                      Map<String, XrayNodeDO> nodeMap) {
         List<XrayClientRespVO> records = convertList(page.getRecords());
         for (XrayClientRespVO v : records) {
             fillIpAddress(v, ipAddressMap);
-            fillServer(v, serverMap);
+            fillServer(v, serverMap, hostMap);
             fillInbound(v, nodeMap);
         }
         return PageResult.of(page.getTotal(), records);
@@ -80,12 +82,18 @@ public interface XrayClientConvert {
         if (addr != null) vo.setIpAddress(addr);
     }
 
-    private static void fillServer(XrayClientRespVO vo, Map<String, ResourceServerDO> serverMap) {
-        if (vo == null || serverMap == null) return;
-        ResourceServerDO s = serverMap.get(vo.getServerId());
-        if (s != null) {
-            vo.setServerName(s.getName());
-            vo.setServerHost(s.getHost());
+    /** host 来自 resource_server_credential, 跟 name 分两 map 注入. */
+    private static void fillServer(XrayClientRespVO vo,
+                                   Map<String, ResourceServerDO> serverMap,
+                                   Map<String, String> hostMap) {
+        if (vo == null) return;
+        if (serverMap != null) {
+            ResourceServerDO s = serverMap.get(vo.getServerId());
+            if (s != null) vo.setServerName(s.getName());
+        }
+        if (hostMap != null) {
+            String h = hostMap.get(vo.getServerId());
+            if (h != null) vo.setServerHost(h);
         }
     }
 

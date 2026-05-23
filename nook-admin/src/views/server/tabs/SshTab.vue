@@ -10,7 +10,6 @@ import {
   Wifi
 } from 'lucide-vue-next'
 import {
-  NAlert,
   NButton,
   NCard,
   NDescriptions,
@@ -20,15 +19,21 @@ import {
   NTag,
   useMessage
 } from 'naive-ui'
-import { getServerDetail, type ResourceServer } from '@/api/resource/server'
+import {
+  getServerCredential,
+  getServerDetail,
+  type ResourceServer,
+  type ServerCredential
+} from '@/api/resource/server'
 import { testServerConnectivity, type ConnectivityTestResult } from '@/api/xray/server'
-import ServerFormDialog from '@/views/resource/ServerFormDialog.vue'
+import ServerCredentialEditDialog from '@/views/server/dialogs/ServerCredentialEditDialog.vue'
 
 const props = defineProps<{ serverId: string }>()
 
 const message = useMessage()
 
 const detail = ref<ResourceServer | null>(null)
+const credential = ref<ServerCredential | null>(null)
 const loading = ref(false)
 const showPassword = ref(false)
 const editOpen = ref(false)
@@ -40,7 +45,12 @@ async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    detail.value = await getServerDetail(props.serverId)
+    const [d, c] = await Promise.all([
+      getServerDetail(props.serverId),
+      getServerCredential(props.serverId)
+    ])
+    detail.value = d
+    credential.value = c
   } catch { /* */ } finally {
     loading.value = false
   }
@@ -78,11 +88,13 @@ async function copyText(text: string | undefined, label: string) {
     message.error('复制失败')
   }
 }
+
+function afterEdit() { load() }
 </script>
 
 <template>
   <NSpin :show="loading">
-    <div v-if="detail" class="space-y-3">
+    <div v-if="credential" class="space-y-3">
 
       <!-- 操作栏 -->
       <div class="action-bar">
@@ -106,49 +118,50 @@ async function copyText(text: string | undefined, label: string) {
             <NIcon class="section-icon"><KeyRound :size="14" /></NIcon>
             <span>登录凭据</span>
             <NTag size="tiny" type="warning" class="ml-1">敏感信息</NTag>
+            <span v-if="detail?.lifecycleState === 'LIVE'" class="text-xs text-orange-500 ml-2">⚠ LIVE 后 host/port 已硬锁</span>
           </div>
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 6rem">
           <NDescriptionsItem label="Host">
             <div class="cred-row">
-              <code class="kbd">{{ detail.host }}</code>
-              <NButton text size="tiny" @click="copyText(detail.host, 'Host')" title="复制">
+              <code class="kbd">{{ credential.host }}</code>
+              <NButton text size="tiny" @click="copyText(credential.host, 'Host')" title="复制">
                 <template #icon><NIcon><Copy :size="12" /></NIcon></template>
               </NButton>
             </div>
           </NDescriptionsItem>
           <NDescriptionsItem label="端口">
             <div class="cred-row">
-              <code class="kbd">{{ detail.sshPort ?? 22 }}</code>
-              <NButton text size="tiny" @click="copyText(String(detail.sshPort ?? 22), '端口')" title="复制">
+              <code class="kbd">{{ credential.sshPort ?? 22 }}</code>
+              <NButton text size="tiny" @click="copyText(String(credential.sshPort ?? 22), '端口')" title="复制">
                 <template #icon><NIcon><Copy :size="12" /></NIcon></template>
               </NButton>
             </div>
           </NDescriptionsItem>
           <NDescriptionsItem label="用户名">
             <div class="cred-row">
-              <code class="kbd">{{ detail.sshUser || '—' }}</code>
-              <NButton v-if="detail.sshUser" text size="tiny" @click="copyText(detail.sshUser, '用户名')" title="复制">
+              <code class="kbd">{{ credential.sshUser || '—' }}</code>
+              <NButton v-if="credential.sshUser" text size="tiny" @click="copyText(credential.sshUser, '用户名')" title="复制">
                 <template #icon><NIcon><Copy :size="12" /></NIcon></template>
               </NButton>
             </div>
           </NDescriptionsItem>
           <NDescriptionsItem label="密码">
             <div class="cred-row">
-              <code class="kbd password-mask">{{ maskedPassword(detail.sshPassword) }}</code>
-              <NButton v-if="detail.sshPassword" text size="tiny" @click="showPassword = !showPassword">
+              <code class="kbd password-mask">{{ maskedPassword(credential.sshPassword) }}</code>
+              <NButton v-if="credential.sshPassword" text size="tiny" @click="showPassword = !showPassword">
                 <template #icon>
                   <NIcon><EyeOff v-if="showPassword" :size="12" /><Eye v-else :size="12" /></NIcon>
                 </template>
                 {{ showPassword ? '隐藏' : '显示' }}
               </NButton>
-              <NButton v-if="detail.sshPassword" text size="tiny" @click="copyText(detail.sshPassword, '密码')" title="复制">
+              <NButton v-if="credential.sshPassword" text size="tiny" @click="copyText(credential.sshPassword, '密码')" title="复制">
                 <template #icon><NIcon><Copy :size="12" /></NIcon></template>
               </NButton>
             </div>
           </NDescriptionsItem>
           <NDescriptionsItem label="SSH 命令">
-            <code class="kbd full-cmd">ssh {{ detail.sshUser || 'root' }}@{{ detail.host }}{{ (detail.sshPort && detail.sshPort !== 22) ? ` -p ${detail.sshPort}` : '' }}</code>
+            <code class="kbd full-cmd">ssh {{ credential.sshUser || 'root' }}@{{ credential.host }}{{ (credential.sshPort && credential.sshPort !== 22) ? ` -p ${credential.sshPort}` : '' }}</code>
           </NDescriptionsItem>
         </NDescriptions>
       </NCard>
@@ -164,32 +177,33 @@ async function copyText(text: string | undefined, label: string) {
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 10rem">
           <NDescriptionsItem label="握手超时">
-            <span class="num">{{ detail.sshTimeoutSeconds ?? '—' }}</span> <span class="unit">秒</span>
+            <span class="num">{{ credential.sshTimeoutSeconds ?? '—' }}</span> <span class="unit">秒</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="单条命令超时">
-            <span class="num">{{ detail.sshOpTimeoutSeconds ?? '—' }}</span> <span class="unit">秒</span>
+            <span class="num">{{ credential.sshOpTimeoutSeconds ?? '—' }}</span> <span class="unit">秒</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="SCP 上传超时">
-            <span class="num">{{ detail.sshUploadTimeoutSeconds ?? '—' }}</span> <span class="unit">秒</span>
+            <span class="num">{{ credential.sshUploadTimeoutSeconds ?? '—' }}</span> <span class="unit">秒</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="装机整体超时">
-            <span class="num">{{ detail.installTimeoutSeconds ?? '—' }}</span> <span class="unit">秒</span>
+            <span class="num">{{ credential.installTimeoutSeconds ?? '—' }}</span> <span class="unit">秒</span>
           </NDescriptionsItem>
         </NDescriptions>
       </NCard>
 
-      <NAlert type="warning" :show-icon="false" size="small">
-        SSH 密码以明文存 DB (Nook 简版, 未引 vault). 上线前请确认 backend 端访问 / 数据库权限收敛.
-      </NAlert>
-
     </div>
 
-    <ServerFormDialog v-model="editOpen" mode="edit" :server="detail" @saved="load" />
+    <ServerCredentialEditDialog
+      v-model="editOpen"
+      :server-id="serverId"
+      :lifecycle-state="detail?.lifecycleState"
+      @saved="afterEdit"
+    />
   </NSpin>
 </template>
 
 <style scoped>
-/* 字体 / 数值 / 段头 / info-section 内边距统一走 main.scss 全局 tokens */
+/* 字体 / 数值 / 段头 走 main.scss 全局 tokens */
 
 .cred-row {
   display: flex;

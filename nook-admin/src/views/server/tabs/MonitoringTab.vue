@@ -20,9 +20,11 @@ import {
   NTag
 } from 'naive-ui'
 import {
+  getServerBilling,
   getServerCapacity,
   getServerDetail,
   type ResourceServer,
+  type ServerBilling,
   type ServerCapacity
 } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
@@ -34,6 +36,7 @@ const props = defineProps<{
 }>()
 
 const detail = ref<ResourceServer | null>(null)
+const billing = ref<ServerBilling | null>(null)
 const capacity = ref<ServerCapacity | null>(null)
 const loading = ref(false)
 
@@ -41,11 +44,13 @@ async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    const [d, c] = await Promise.all([
+    const [d, b, c] = await Promise.all([
       getServerDetail(props.serverId),
+      getServerBilling(props.serverId),
       getServerCapacity(props.serverId)
     ])
     detail.value = d
+    billing.value = b
     capacity.value = c
   } catch { /* */ } finally {
     loading.value = false
@@ -189,10 +194,10 @@ const heartbeatColor = computed(() => {
           <div v-if="detail" class="metric-body">
             <div class="metric-main">
               <span class="metric-num">—</span>
-              <span class="metric-unit">/ {{ detail.maxConcurrentClients ?? '∞' }} 个</span>
+              <span class="metric-unit">/ — 个</span>
             </div>
             <div class="metric-sub mt-2 text-xs text-zinc-400">
-              已分配数待接 xray client count API
+              已分配数待接 xray client count API; 上限读 xray_node.touchdownSize
             </div>
           </div>
         </NCard>
@@ -222,8 +227,8 @@ const heartbeatColor = computed(() => {
           :label-style="{ width: '8rem', verticalAlign: 'middle' }"
         >
           <NDescriptionsItem label="承诺带宽">
-            <template v-if="detail?.bandwidthMbps != null">
-              <span class="num">{{ detail.bandwidthMbps }}</span>
+            <template v-if="billing?.bandwidthMbps != null">
+              <span class="num">{{ billing.bandwidthMbps }}</span>
               <span class="unit">Mbps</span>
             </template>
             <span v-else class="muted">—</span>

@@ -54,7 +54,7 @@ async function loadServerOptions() {
     // 上限 200 个; 真有这么多 server 时再加分页选择器
     const res = await pageServers({ pageNo: 1, pageSize: 200 })
     serverOptions.value = res.records.map((s) => ({
-      label: `${s.name} (${s.host})`,
+      label: s.name,
       value: s.id,
       raw: s
     }))
@@ -318,7 +318,7 @@ function close() {
     </template>
     <template #header-extra>
       <span v-if="effectiveServer" class="text-xs text-zinc-500">
-        {{ effectiveServer.name }} ({{ effectiveServer.host }})
+        {{ effectiveServer.name }}
       </span>
     </template>
 

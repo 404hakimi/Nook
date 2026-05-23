@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * 服务器分页查询 Request VO.
+ * 管理后台 - 服务器分页查询 Request VO
  *
  * @author nook
  */
@@ -14,12 +14,15 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class ResourceServerPageReqVO extends PageParam {
 
-    /** 关键词; 模糊匹配 name / host / domain. */
-    private String keyword;
+    /** 名称模糊匹 (name only; domain 在 dns 子表, host 在 credential 子表, 后端分别 join). */
+    private String name;
+
+    /** IP / host 模糊匹 (走 credential 子表). */
+    private String host;
 
     /** 装机生命周期过滤; 取值见 {@link ResourceServerLifecycleEnum}. */
     private String lifecycleState;
 
-    /** 区域过滤 (区域码: JP-TYO / US-LAX 等). */
+    /** 区域过滤. */
     private String region;
 }

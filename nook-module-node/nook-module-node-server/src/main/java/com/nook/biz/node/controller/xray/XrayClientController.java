@@ -12,6 +12,7 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
+import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.client.XrayClientService;
 import com.nook.biz.node.service.xray.client.XrayClientTrafficService;
@@ -50,6 +51,7 @@ public class XrayClientController {
     private final XrayClientTrafficService xrayClientTrafficService;
     private final ResourceIpPoolService resourceIpPoolService;
     private final ResourceServerService resourceServerService;
+    private final ResourceServerCredentialService credentialService;
     private final XrayNodeService xrayNodeService;
 
     @GetMapping("/page")
@@ -58,8 +60,9 @@ public class XrayClientController {
         Set<String> serverIds = XrayClientConvert.collectServerIds(pageResult.getRecords());
         Map<String, String> ipMap = loadIpAddressMap(XrayClientConvert.collectIpIds(pageResult.getRecords()));
         Map<String, ResourceServerDO> serverMap = loadServerMap(serverIds);
+        Map<String, String> hostMap = loadHostMap(serverIds);
         Map<String, XrayNodeDO> nodeMap = loadNodeMap(serverIds);
-        return Result.ok(XrayClientConvert.INSTANCE.convertPage(pageResult, ipMap, serverMap, nodeMap));
+        return Result.ok(XrayClientConvert.INSTANCE.convertPage(pageResult, ipMap, serverMap, hostMap, nodeMap));
     }
 
     @GetMapping("/get")
@@ -128,8 +131,13 @@ public class XrayClientController {
         Set<String> serverIds = XrayClientConvert.collectServerIds(single);
         Map<String, String> ipMap = loadIpAddressMap(XrayClientConvert.collectIpIds(single));
         Map<String, ResourceServerDO> serverMap = loadServerMap(serverIds);
+        Map<String, String> hostMap = loadHostMap(serverIds);
         Map<String, XrayNodeDO> nodeMap = loadNodeMap(serverIds);
-        return XrayClientConvert.INSTANCE.convert(entity, ipMap, serverMap, nodeMap);
+        return XrayClientConvert.INSTANCE.convert(entity, ipMap, serverMap, hostMap, nodeMap);
+    }
+
+    private Map<String, String> loadHostMap(Set<String> serverIds) {
+        return credentialService.getHostMap(serverIds);
     }
 
     private Map<String, String> loadIpAddressMap(Set<String> ipIds) {

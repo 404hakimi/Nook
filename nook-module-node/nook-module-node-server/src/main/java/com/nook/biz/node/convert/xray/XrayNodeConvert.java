@@ -39,10 +39,11 @@ public interface XrayNodeConvert {
     }
 
     default PageResult<XrayNodeRespVO> convertPage(PageResult<XrayNodeDO> page,
-                                                   Map<String, ResourceServerDO> serverMap) {
+                                                   Map<String, ResourceServerDO> serverMap,
+                                                   Map<String, String> hostMap) {
         List<XrayNodeRespVO> records = convertList(page.getRecords());
         for (XrayNodeRespVO v : records) {
-            fillServer(v, serverMap);
+            fillServer(v, serverMap, hostMap);
         }
         return PageResult.of(page.getTotal(), records);
     }
@@ -56,12 +57,18 @@ public interface XrayNodeConvert {
                 .collect(Collectors.toSet());
     }
 
-    private static void fillServer(XrayNodeRespVO vo, Map<String, ResourceServerDO> serverMap) {
-        if (vo == null || serverMap == null) return;
-        ResourceServerDO s = serverMap.get(vo.getServerId());
-        if (s != null) {
-            vo.setServerName(s.getName());
-            vo.setServerHost(s.getHost());
+    /** host 来自 resource_server_credential, 跟 name 分两 map 注入. */
+    static void fillServer(XrayNodeRespVO vo,
+                           Map<String, ResourceServerDO> serverMap,
+                           Map<String, String> hostMap) {
+        if (vo == null) return;
+        if (serverMap != null) {
+            ResourceServerDO s = serverMap.get(vo.getServerId());
+            if (s != null) vo.setServerName(s.getName());
+        }
+        if (hostMap != null) {
+            String h = hostMap.get(vo.getServerId());
+            if (h != null) vo.setServerHost(h);
         }
     }
 }

@@ -2,12 +2,12 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  Activity,
   ArrowUp,
   Box,
+  CheckCircle2,
+  CircleDashed,
   Clock,
   Cpu,
-  Database,
   FileCog,
   Gauge,
   Globe,
@@ -92,7 +92,7 @@ const form = ref<{ name: string; host: string; region: string | null; lifecycleS
   onlineState: null  // 客户端筛选 (个位数集群单页装下, 本地过滤即可)
 })
 const pageNo = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(9)
 
 async function load() {
   loading.value = true
@@ -201,6 +201,28 @@ function trafficStatus(s: AgentListItem): 'default' | 'success' | 'warning' | 'e
   if (p >= 90) return 'error'
   if (p >= 70) return 'warning'
   return 'success'
+}
+
+// 心跳延迟拆成最高 2 个单位 (s / m / h / d), 避免 "86400s" 这种不可读数字
+function formatElapsed(sec: number): { n: number; u: string }[] {
+  if (sec < 60) return [{ n: sec, u: 's' }]
+  if (sec < 3600) {
+    const m = Math.floor(sec / 60)
+    const s = sec % 60
+    return s > 0 ? [{ n: m, u: 'm' }, { n: s, u: 's' }] : [{ n: m, u: 'min' }]
+  }
+  if (sec < 86400) {
+    const h = Math.floor(sec / 3600)
+    const m = Math.floor((sec % 3600) / 60)
+    return m > 0 ? [{ n: h, u: 'h' }, { n: m, u: 'm' }] : [{ n: h, u: 'h' }]
+  }
+  const d = Math.floor(sec / 86400)
+  const h = Math.floor((sec % 86400) / 3600)
+  return h > 0 ? [{ n: d, u: 'd' }, { n: h, u: 'h' }] : [{ n: d, u: 'd' }]
+}
+// 超过 1h 视为 stale (上方 pill 只表达到 ≥5min, 这里再分一级)
+function elapsedStale(sec: number): boolean {
+  return sec >= 3600
 }
 
 function parseAgentVersion(v?: string): { role: string; ver: string } | null {
@@ -379,7 +401,31 @@ onMounted(async () => {
               </NTag>
             </div>
 
-            <!-- 状态摘要 -->
+            <!-- 状态 pill 行: 在线状态 + 配置同步 (扫一眼即可识别健康度) -->
+            <div class="status-pills">
+              <span
+                class="status-pill"
+                :class="`pill-${AGENT_ONLINE_TAG_TYPE[s.onlineState] || 'default'}`"
+                :title="`在线状态: ${AGENT_ONLINE_LABELS[s.onlineState]}`"
+              >
+                <span class="pill-dot" :class="{ pulse: s.onlineState === 'ONLINE' }"></span>
+                <span class="pill-label">{{ AGENT_ONLINE_LABELS[s.onlineState] }}</span>
+              </span>
+              <span
+                class="status-pill"
+                :class="`pill-${CONFIG_SYNC_TAG_TYPE[s.configSyncState || 'NEVER_CONFIGURED'] || 'default'}`"
+                :title="`配置同步: ${CONFIG_SYNC_LABELS[s.configSyncState || 'NEVER_CONFIGURED']}`"
+              >
+                <NIcon class="pill-icon">
+                  <CheckCircle2 v-if="s.configSyncState === 'SYNCED'" :size="11" />
+                  <RefreshCcw v-else-if="s.configSyncState === 'PENDING'" :size="11" />
+                  <CircleDashed v-else :size="11" />
+                </NIcon>
+                <span class="pill-label">{{ CONFIG_SYNC_LABELS[s.configSyncState || 'NEVER_CONFIGURED'] }}</span>
+              </span>
+            </div>
+
+            <!-- 数值摘要: Agent 版本 + 心跳延迟 -->
             <div class="status-grid">
               <div class="status-cell">
                 <div class="status-key">
@@ -395,33 +441,20 @@ onMounted(async () => {
               </div>
               <div class="status-cell">
                 <div class="status-key">
-                  <NIcon class="key-icon"><Activity :size="12" /></NIcon>
-                  <span>状态</span>
-                </div>
-                <div class="status-val">
-                  <NTag size="tiny" :type="AGENT_ONLINE_TAG_TYPE[s.onlineState] || 'default'">
-                    {{ AGENT_ONLINE_LABELS[s.onlineState] }}
-                  </NTag>
-                </div>
-              </div>
-              <div class="status-cell">
-                <div class="status-key">
-                  <NIcon class="key-icon"><Database :size="12" /></NIcon>
-                  <span>配置同步</span>
-                </div>
-                <div class="status-val">
-                  <NTag size="tiny" :type="CONFIG_SYNC_TAG_TYPE[s.configSyncState || 'NEVER_CONFIGURED'] || 'default'">
-                    {{ CONFIG_SYNC_LABELS[s.configSyncState || 'NEVER_CONFIGURED'] }}
-                  </NTag>
-                </div>
-              </div>
-              <div class="status-cell">
-                <div class="status-key">
                   <NIcon class="key-icon"><Clock :size="12" /></NIcon>
                   <span>心跳延迟</span>
                 </div>
                 <div class="status-val">
-                  <span v-if="s.elapsedSec != null" class="num-sm">{{ s.elapsedSec }}<span class="unit-sm">s</span></span>
+                  <span
+                    v-if="s.elapsedSec != null"
+                    class="elapsed"
+                    :class="{ 'elapsed-stale': elapsedStale(s.elapsedSec) }"
+                    :title="`${s.elapsedSec} 秒`"
+                  >
+                    <span v-for="(p, i) in formatElapsed(s.elapsedSec)" :key="i" class="num-sm">
+                      {{ p.n }}<span class="unit-sm">{{ p.u }}</span>
+                    </span>
+                  </span>
                   <span v-else class="text-zinc-400 text-xs">—</span>
                 </div>
               </div>
@@ -485,7 +518,7 @@ onMounted(async () => {
           :page="pageNo"
           :page-size="pageSize"
           :item-count="total"
-          :page-sizes="[10, 20, 50]"
+          :page-sizes="[9, 18, 36]"
           show-size-picker
           size="small"
           @update:page="onPageChange"
@@ -629,6 +662,72 @@ html[data-theme='dark'] .card-title { color: #e4e4e7; }
   margin: 0 1px;
 }
 
+/* 状态 pill 行: 卡片头部下方; 颜色编码 + 圆点 + 文字, 比 tag 更醒目 */
+.status-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 7px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.pill-dot.pulse {
+  animation: pill-pulse 2s ease-in-out infinite;
+}
+@keyframes pill-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+  50% { box-shadow: 0 0 0 4px transparent; opacity: 0.6; }
+}
+.pill-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.pill-label {
+  line-height: 1;
+}
+.pill-success {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+  border-color: rgba(22, 163, 74, 0.22);
+}
+.pill-warning {
+  background: rgba(202, 138, 4, 0.1);
+  color: #ca8a04;
+  border-color: rgba(202, 138, 4, 0.22);
+}
+.pill-error {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.22);
+}
+.pill-default {
+  background: rgba(161, 161, 170, 0.1);
+  color: #71717a;
+  border-color: rgba(161, 161, 170, 0.22);
+}
+html[data-theme='dark'] .pill-success { color: #4ade80; background: rgba(74, 222, 128, 0.12); border-color: rgba(74, 222, 128, 0.25); }
+html[data-theme='dark'] .pill-warning { color: #facc15; background: rgba(250, 204, 21, 0.12); border-color: rgba(250, 204, 21, 0.25); }
+html[data-theme='dark'] .pill-error   { color: #f87171; background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.25); }
+html[data-theme='dark'] .pill-default { color: #a1a1aa; background: rgba(161, 161, 170, 0.14); border-color: rgba(161, 161, 170, 0.22); }
+
 /* 状态网格 */
 .status-grid {
   display: grid;
@@ -657,6 +756,20 @@ html[data-theme='dark'] .card-title { color: #e4e4e7; }
   min-height: 18px;
 }
 /* .num-sm / .unit-sm 走 main.scss 全局 tokens (卡片紧凑变体) */
+
+/* 心跳延迟: 复合单位 (如 2h 15m) 之间留 1 个 num-sm 字宽的间距 */
+.elapsed > .num-sm + .num-sm {
+  margin-left: 4px;
+}
+/* stale (≥1h) 提示色: 上方 pill 已表达健康度, 这里仅做"久未上报"附加视觉提醒 */
+.elapsed-stale .num-sm,
+.elapsed-stale .unit-sm {
+  color: #ea580c;
+}
+html[data-theme='dark'] .elapsed-stale .num-sm,
+html[data-theme='dark'] .elapsed-stale .unit-sm {
+  color: #fb923c;
+}
 
 .traffic-row {
   margin-top: 10px;

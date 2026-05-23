@@ -38,7 +38,7 @@
 **交付**:
 - **DB**:
   - `resource_region` 字典 (新建, 预录入 8 区: US-WEST/EAST / JP-TYO / HK / SG / DE-FRA / UK-LON / KR-SEL)
-  - `resource_server` 改造: 加 `bandwidth_mbps / domain UQ / cf_zone_id / cf_record_id / cost_monthly_usd / billing_cycle_day / expires_at / max_concurrent_clients / lifecycle_state ENUM / deleted`; 删 `status` / `total_bandwidth`; `region` 改 FK → `resource_region.code`
+  - `resource_server` 改造: 加 `bandwidth_mbps / domain UQ / cf_zone_id / cf_record_id / cost_monthly_usd / billing_cycle_day / expires_at / lifecycle_state ENUM / deleted`; 删 `status` / `total_bandwidth`; `region` 改 FK → `resource_region.code` (客户数上限走 `xray_node.touchdown_size`)
   - `resource_server_capacity` (1:1 中频): `monthly_traffic_gb / used_traffic_gb / quota_reset_policy ENUM / throttle_state ENUM`
   - `resource_server_runtime` (1:1 高频): `last_heartbeat_at / temp_unhealthy / agent_version / last_agent_seen_ip / consecutive_miss`
   - `resource_ip_pool` 改造: 加 `lifecycle_state ENUM`; `status` 从 TINYINT(6 值) 改为 ENUM 4 值 (AVAILABLE/RESERVED/OCCUPIED/COOLING); `assigned_member_id` 改名 `occupied_by_member_id`; 加 `reserved_expires_at / cost_monthly_usd / billing_cycle_day / expires_at / deleted`; `region` 改 FK
@@ -55,7 +55,7 @@
 - **前端 (`nook-admin`)**:
   - API client 重写: `server.ts` / `ip-pool.ts` 类型对齐 + 新建 `region.ts`
   - ServerList / IpPoolList: 列表展示 region 字典 + 生命周期 Tag + 双状态标签; 顶部搜索栏改 lifecycle / status 下拉过滤; 操作列加"流转"按钮 (NDropdown 选目标状态)
-  - ServerFormDialog 重写: 加 domain / cfZoneId / cfRecordId / cost / billing / expires / max_concurrent_clients / region Select; 删 monthlyTrafficGb (归 capacity 子表)
+  - ServerFormDialog 重写: 加 domain / cfZoneId / cfRecordId / cost / billing / expires / region Select; 删 monthlyTrafficGb (归 capacity 子表); 客户数上限走 xray_node.touchdown_size
   - IpPoolFormDialog: 加 lifecycleState 字段, 删 status 字段 (allocator 流转, 不在 admin 表单)
   - 兼容修复: XrayNodeDiffDialog / ClientProvisionDialog 适配 status 类型 + occupiedByMemberId 改名
 - **验证**:
@@ -200,7 +200,7 @@
   - `resource_server_traffic` / `resource_ip_pool_traffic` (NIC 流量历史)
   - `agent_task` (Agent 任务队列)
 - DB 改老表:
-  - `resource_server` 加 `bandwidth_mbps` / `domain` / `cf_zone_id` / `cf_record_id` / `billing_cycle_day` / `expires_at` / `lifecycle_state` / `max_concurrent_clients` (必填)
+  - `resource_server` 加 `bandwidth_mbps` / `domain` / `cf_zone_id` / `cf_record_id` / `billing_cycle_day` / `expires_at` / `lifecycle_state` (客户数上限走 `xray_node.touchdown_size`)
   - `resource_ip_pool` 加 `ip_type` / `lifecycle_state` / **`status`** (AVAILABLE/RESERVED/OCCUPIED/COOLING, v3 优化) / `dante_user` / `dante_pass`
 - 表前缀: `resource_*` / `member_*` / `plan_*` / `sub_*` / `order_*` / `alert_*`
 - Service:
