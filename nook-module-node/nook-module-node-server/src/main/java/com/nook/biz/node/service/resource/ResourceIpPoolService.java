@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.resource;
 
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
@@ -28,12 +29,21 @@ public interface ResourceIpPoolService {
     String createIpPool(ResourceIpPoolSaveReqVO createReqVO);
 
     /**
-     * 更新 IP 池条目; socks5Password 留空 = 保留旧值.
+     * 更新 IP 池条目 (整段表单, 含子表); socks5Password / sshPassword 留空 = 保留旧值.
      *
      * @param id          IP 池编号
      * @param updateReqVO IP 池信息
      */
     void updateIpPool(String id, ResourceIpPoolSaveReqVO updateReqVO);
+
+    /**
+     * 更新核心字段 (主表: region / ipTypeId / ipAddress / provisionMode / remark);
+     * lifecycle 走 transition 接口, 子表 (SSH/账面/socks5) 走各自子 Service.
+     *
+     * @param id    IP 池编号
+     * @param reqVO 核心字段
+     */
+    void updateCore(String id, ResourceIpPoolCoreUpdateReqVO reqVO);
 
     /**
      * 删除 IP 池条目

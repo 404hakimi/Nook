@@ -61,9 +61,55 @@ export interface ResourceIpPool {
   billingCycleDay?: number
   /** IP 到期日 YYYY-MM-DD. */
   expiresAt?: string
+  /** dante 实际限速 Mbps; 0=不限. */
+  bandwidthLimitMbps?: number
   remark?: string
   createdAt?: string
   updatedAt?: string
+}
+
+/** IP 池核心字段 (拆 dialog 用; lifecycle 走 /lifecycle 接口). */
+export interface IpPoolCoreUpdateDTO {
+  region: string
+  ipTypeId: string
+  ipAddress: string
+  provisionMode: number
+  remark?: string
+}
+
+/** SSH 凭据 (provision_mode=1 用; sshPassword 留空 = 保留原值). */
+export interface IpPoolCredential {
+  ipId?: string
+  sshHost?: string
+  sshPort?: number
+  sshUser?: string
+  sshPassword?: string
+}
+
+/** 账面 (仅记录, 不 enforce). */
+export interface IpPoolBilling {
+  ipId?: string
+  bandwidthMbps?: number
+  trafficQuotaGb?: number
+  costMonthlyUsd?: number
+  billingCycleDay?: number
+  expiresAt?: string
+}
+
+/** dante 配置 + 限速; socks5Password 留空 = 保留原值. */
+export interface IpPoolSocks5 {
+  ipId?: string
+  socks5Port: number
+  socks5Username?: string
+  socks5Password?: string
+  logLevel?: string
+  logPath: string
+  autostartEnabled?: number
+  firewallEnabled?: number
+  firewallAllowFrom?: string
+  installDir?: string
+  /** dante 实际限速 Mbps; 0=不限. */
+  bandwidthLimitMbps?: number
 }
 
 export interface ResourceIpPoolQuery {
@@ -221,6 +267,43 @@ export function transitionIpPoolLifecycle(id: string, state: string) {
     null,
     { params: { id, state } }
   )
+}
+
+// ===== 子表分段编辑 (拆 4 个 dialog 各自调) =====
+
+/** 更新核心字段 (region/ipTypeId/ipAddress/provisionMode/remark; lifecycle 走 /lifecycle). */
+export function updateIpPoolCore(id: string, dto: IpPoolCoreUpdateDTO) {
+  return request.put<unknown, boolean>(`/admin/resource/ip-pool/${id}/core`, dto)
+}
+
+/** 取 SSH 凭据 (编辑 dialog prefill; 密码字段空着, 改密码才填). */
+export function getIpPoolCredential(id: string) {
+  return request.get<unknown, IpPoolCredential | null>(`/admin/resource/ip-pool/${id}/credential`)
+}
+
+/** 更新 SSH 凭据 (sshPassword 留空 = 保留原值). */
+export function updateIpPoolCredential(id: string, dto: IpPoolCredential) {
+  return request.put<unknown, boolean>(`/admin/resource/ip-pool/${id}/credential`, dto)
+}
+
+/** 取账面. */
+export function getIpPoolBilling(id: string) {
+  return request.get<unknown, IpPoolBilling | null>(`/admin/resource/ip-pool/${id}/billing`)
+}
+
+/** 更新账面. */
+export function updateIpPoolBilling(id: string, dto: IpPoolBilling) {
+  return request.put<unknown, boolean>(`/admin/resource/ip-pool/${id}/billing`, dto)
+}
+
+/** 取 dante 配置 + 限速. */
+export function getIpPoolSocks5(id: string) {
+  return request.get<unknown, IpPoolSocks5 | null>(`/admin/resource/ip-pool/${id}/socks5`)
+}
+
+/** 更新 dante 配置 + 限速 (socks5Password 留空 = 保留原值; 改 bandwidthLimitMbps 触发链路校验). */
+export function updateIpPoolSocks5(id: string, dto: IpPoolSocks5) {
+  return request.put<unknown, boolean>(`/admin/resource/ip-pool/${id}/socks5`, dto)
 }
 
 // ===== SOCKS5 落地节点 运维 (走 IP 池条目存储的 SSH 凭据, 不再问用户) =====

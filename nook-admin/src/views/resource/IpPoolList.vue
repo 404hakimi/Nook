@@ -52,6 +52,10 @@ import IpPoolTestDialog from './IpPoolTestDialog.vue'
 import IpPoolSyncCredsDialog from './IpPoolSyncCredsDialog.vue'
 import IpPoolStatusDialog from './IpPoolStatusDialog.vue'
 import IpPoolLogDialog from './IpPoolLogDialog.vue'
+import IpPoolCoreEditDialog from './dialogs/IpPoolCoreEditDialog.vue'
+import IpPoolCredentialEditDialog from './dialogs/IpPoolCredentialEditDialog.vue'
+import IpPoolBillingEditDialog from './dialogs/IpPoolBillingEditDialog.vue'
+import IpPoolSocks5EditDialog from './dialogs/IpPoolSocks5EditDialog.vue'
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -227,6 +231,49 @@ function openEdit(ip: ResourceIpPool) {
   formIp.value = ip
   formSocksPrefill.value = null
   formOpen.value = true
+}
+
+// ===== 分段编辑 (4 个独立 dialog, 跟 server 拆 dialog 同模式) =====
+const coreEditOpen = ref(false)
+const credentialEditOpen = ref(false)
+const billingEditOpen = ref(false)
+const socks5EditOpen = ref(false)
+const editingIp = ref<ResourceIpPool | null>(null)
+
+function openCoreEdit(ip: ResourceIpPool) {
+  editingIp.value = ip
+  coreEditOpen.value = true
+}
+function openCredentialEdit(ip: ResourceIpPool) {
+  editingIp.value = ip
+  credentialEditOpen.value = true
+}
+function openBillingEdit(ip: ResourceIpPool) {
+  editingIp.value = ip
+  billingEditOpen.value = true
+}
+function openSocks5Edit(ip: ResourceIpPool) {
+  editingIp.value = ip
+  socks5EditOpen.value = true
+}
+
+const EDIT_DROPDOWN_OPTIONS = [
+  { label: '核心信息 (区域/类型/IP/部署模式)', key: 'core' },
+  { label: 'SSH 凭据', key: 'credential' },
+  { label: '账面 (带宽/成本/到期)', key: 'billing' },
+  { label: 'dante 配置 + 限速', key: 'socks5' },
+  { type: 'divider' as const, key: 'sep' },
+  { label: '整段表单 (兼容)', key: 'form' }
+]
+
+function onEditSelect(ip: ResourceIpPool, key: string) {
+  switch (key) {
+    case 'core': openCoreEdit(ip); break
+    case 'credential': openCredentialEdit(ip); break
+    case 'billing': openBillingEdit(ip); break
+    case 'socks5': openSocks5Edit(ip); break
+    case 'form': openEdit(ip); break
+  }
 }
 
 function onFormSaved() {
@@ -556,11 +603,22 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
             )
           : null,
         h(
-          NButton,
-          { size: 'tiny', quaternary: true, onClick: () => openEdit(row) },
+          NDropdown,
           {
-            icon: () => h(NIcon, null, { default: () => h(Pencil) }),
-            default: () => '编辑'
+            trigger: 'click',
+            options: EDIT_DROPDOWN_OPTIONS,
+            onSelect: (key: string) => onEditSelect(row, key)
+          },
+          {
+            default: () =>
+              h(
+                NButton,
+                { size: 'tiny', quaternary: true, title: '分段编辑 (核心/凭据/账面/dante 或整段)' },
+                {
+                  icon: () => h(NIcon, null, { default: () => h(Pencil) }),
+                  default: () => '编辑'
+                }
+              )
           }
         ),
         h(
@@ -766,5 +824,11 @@ onMounted(async () => {
 
     <!-- SOCKS5 日志: journalctl -u danted, lines + level + keyword 过滤 -->
     <IpPoolLogDialog v-model="logOpen" :ip="logTarget" />
+
+    <!-- 分段编辑 dialog (跟 server 拆 dialog 同模式); v-if 让每次切换 IP 重建 dialog, watch immediate=true 立即 fetch 回填 -->
+    <IpPoolCoreEditDialog v-if="editingIp" v-model="coreEditOpen" :ip-pool="editingIp" @saved="onFormSaved" />
+    <IpPoolCredentialEditDialog v-if="editingIp" v-model="credentialEditOpen" :ip-id="editingIp.id" :ip-address="editingIp.ipAddress" @saved="onFormSaved" />
+    <IpPoolBillingEditDialog v-if="editingIp" v-model="billingEditOpen" :ip-id="editingIp.id" @saved="onFormSaved" />
+    <IpPoolSocks5EditDialog v-if="editingIp" v-model="socks5EditOpen" :ip-id="editingIp.id" @saved="onFormSaved" />
   </div>
 </template>

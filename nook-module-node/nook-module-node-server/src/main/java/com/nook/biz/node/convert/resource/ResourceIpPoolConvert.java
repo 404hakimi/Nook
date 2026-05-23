@@ -1,6 +1,9 @@
 package com.nook.biz.node.convert.resource;
 
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolBillingRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCredentialRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSocks5RespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpTypeRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
@@ -99,6 +102,15 @@ public interface ResourceIpPoolConvert {
         if (vo == null || runtime == null) return;
         vo.setLastHealthAt(runtime.getLastHealthAt());
     }
+
+    /** 凭据 DO → 子 RespVO (单独 endpoint 返回). */
+    ResourceIpPoolCredentialRespVO convertCredential(ResourceIpPoolCredentialDO entity);
+
+    /** 账面 DO → 子 RespVO. */
+    ResourceIpPoolBillingRespVO convertBilling(ResourceIpPoolBillingDO entity);
+
+    /** dante 配置 DO → 子 RespVO. */
+    ResourceIpPoolSocks5RespVO convertSocks5(ResourceIpPoolSocks5DO entity);
 
     /** IP 类型 → RespVO. */
     ResourceIpTypeRespVO convertType(ResourceIpTypeDO entity);

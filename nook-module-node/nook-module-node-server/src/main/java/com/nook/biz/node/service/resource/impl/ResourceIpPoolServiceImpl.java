@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.config.ResourceIpPoolProperties;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
@@ -301,6 +302,18 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
             "LIVE→RETIRED", "READY→RETIRED",
             "RETIRED→LIVE"
     );
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateCore(String id, ResourceIpPoolCoreUpdateReqVO reqVO) {
+        ipPoolValidator.validateExists(id);
+        ipPoolValidator.validateIpTypeExists(reqVO.getIpTypeId());
+        ipPoolValidator.validateIpAddressUnique(id, reqVO.getIpAddress());
+
+        ResourceIpPoolDO updateObj = BeanUtils.toBean(reqVO, ResourceIpPoolDO.class);
+        updateObj.setId(id);
+        resourceIpPoolMapper.updateById(updateObj);
+    }
 
     @Override
     public ResourceIpPoolCredentialDO getCredential(String ipId) {
