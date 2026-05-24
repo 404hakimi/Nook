@@ -52,9 +52,9 @@ export interface ResourceIpPool {
   sshUser?: string
   /** 明文 SSH 密码; 后台受信网络场景下发. */
   sshPassword?: string
-  /** 采购带宽上限 (Mbps); 仅账面记录. */
+  /** 采购带宽上限 (Mbps); 仅账面记录 (实际限速看 bandwidthLimitMbps). */
   bandwidthMbps?: number
-  /** 采购流量上限 (GB); 仅账面记录. */
+  /** 采购流量上限 (GB); 仅账面记录 (实际配额看 monthlyTrafficGb). */
   trafficQuotaGb?: number
   /** 月度成本 USD. */
   costMonthlyUsd?: number
@@ -62,8 +62,16 @@ export interface ResourceIpPool {
   billingCycleDay?: number
   /** IP 到期日 YYYY-MM-DD. */
   expiresAt?: string
-  /** dante 实际限速 Mbps; 0=不限. */
+  /** dante 实际限速 Mbps (capacity 子表); 0=不限. */
   bandwidthLimitMbps?: number
+  /** 月流量上限 GB (capacity 子表); null/0=不限. */
+  monthlyTrafficGb?: number
+  /** 当周期累计已用字节 (capacity 子表; agent push). */
+  usedTrafficBytes?: number
+  /** 周期重置策略. */
+  quotaResetPolicy?: string
+  /** NORMAL / THROTTLED. */
+  throttleState?: string
   remark?: string
   createdAt?: string
   updatedAt?: string
@@ -97,7 +105,7 @@ export interface IpPoolBilling {
   expiresAt?: string
 }
 
-/** dante 配置 + 限速; socks5Password 留空 = 保留原值. */
+/** dante 配置; socks5Password 留空 = 保留原值. 限速字段拆到 IpPoolCapacity. */
 export interface IpPoolSocks5 {
   ipId?: string
   socks5Port: number
@@ -108,8 +116,23 @@ export interface IpPoolSocks5 {
   autostartEnabled?: number
   firewallEnabled?: number
   installDir?: string
+}
+
+/** IP 池容量监控 (限速 + 月流量上限 + 累计已用; 跟 server_capacity 一致). */
+export interface IpPoolCapacity {
+  ipId?: string
   /** dante 实际限速 Mbps; 0=不限. */
-  bandwidthLimitMbps?: number
+  bandwidthLimitMbps: number
+  /** 月流量上限 GB; null/0=不限. */
+  monthlyTrafficGb?: number
+  /** 当周期累计已用 byte (agent push). */
+  usedTrafficBytes?: number
+  rxBytes?: number
+  txBytes?: number
+  /** CALENDAR_MONTH / BILLING_CYCLE / FIXED. */
+  quotaResetPolicy?: string
+  /** NORMAL / THROTTLED. */
+  throttleState?: string
 }
 
 export interface ResourceIpPoolQuery {
@@ -317,9 +340,31 @@ export function getIpPoolSocks5(id: string) {
   return request.get<unknown, IpPoolSocks5 | null>(`/admin/resource/ip-pool/${id}/socks5`)
 }
 
-/** 更新 dante 配置 + 限速 (socks5Password 留空 = 保留原值; 改 bandwidthLimitMbps 触发链路校验). */
+/** 更新 dante 配置 (socks5Password 留空 = 保留原值; 限速走 capacity endpoint). */
 export function updateIpPoolSocks5(id: string, dto: IpPoolSocks5) {
   return request.put<unknown, boolean>(`/admin/resource/ip-pool/${id}/socks5`, dto)
+}
+
+/** 取容量监控 (限速 / 月流量上限 / 累计 / throttle 状态). */
+export function getIpPoolCapacity(id: string) {
+  return request.get<unknown, IpPoolCapacity | null>(`/admin/resource/ip-pool/${id}/capacity`)
+}
+
+/** 更新容量配置 (限速 + 月流量上限 + 重置策略; rx/tx/throttle 由 agent / 状态机改不在此). */
+export function updateIpPoolCapacity(id: string, dto: IpPoolCapacity) {
+  return request.put<unknown, boolean>(`/admin/resource/ip-pool/${id}/capacity`, dto)
+}
+
+/** 周期重置策略选项. */
+export const QUOTA_RESET_POLICY_OPTIONS = [
+  { label: '每月 1 号重置', value: 'CALENDAR_MONTH' },
+  { label: '按账单日重置', value: 'BILLING_CYCLE' },
+  { label: '永不重置', value: 'FIXED' }
+] as const
+
+export const THROTTLE_STATE_LABELS: Record<string, string> = {
+  NORMAL: '正常',
+  THROTTLED: '已触发限流'
 }
 
 // ===== SOCKS5 落地节点 运维 (走 IP 池条目存储的 SSH 凭据, 不再问用户) =====

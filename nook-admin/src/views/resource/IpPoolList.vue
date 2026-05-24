@@ -198,7 +198,7 @@ async function onSuspend(ip: ResourceIpPool) {
   if (ip.lifecycleState !== 'LIVE') return
   const ok = await confirm({
     title: '停用 IP',
-    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS.LIVE} 切到 ${IP_POOL_LIFECYCLE_LABELS.RETIRED}? 停用后 allocator 不再分配此 IP, 现有占用不受影响.`,
+    message: `停用 IP ${ip.ipAddress}? 停用后系统不再将此 IP 分配给新订阅, 当前正在使用的会员不受影响.`,
     type: 'warning',
     confirmText: '停用'
   })
@@ -215,7 +215,7 @@ async function onActivate(ip: ResourceIpPool) {
   if (ip.lifecycleState !== 'RETIRED') return
   const ok = await confirm({
     title: '启用 IP',
-    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS.RETIRED} 切回 ${IP_POOL_LIFECYCLE_LABELS.LIVE}? 启用后 allocator 可再次分配此 IP.`,
+    message: `启用 IP ${ip.ipAddress}? 启用后此 IP 可重新被分配给新订阅.`,
     type: 'info',
     confirmText: '启用'
   })
@@ -416,7 +416,7 @@ onMounted(async () => {
         <div class="stat-card__body">
           <div class="stat-card__label">可分配</div>
           <div class="stat-card__value">{{ summary.available }}</div>
-          <div class="stat-card__hint">allocator 可给新订阅</div>
+          <div class="stat-card__hint">可分配给新订阅</div>
         </div>
         <div class="stat-card__icon">
           <NIcon :size="28"><CheckCircle2 /></NIcon>

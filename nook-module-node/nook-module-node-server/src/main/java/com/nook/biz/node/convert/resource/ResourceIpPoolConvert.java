@@ -1,12 +1,14 @@
 package com.nook.biz.node.convert.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolBillingRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCapacityRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCredentialRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolInstallRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSocks5RespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpTypeRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolInstallDO;
@@ -36,25 +38,27 @@ public interface ResourceIpPoolConvert {
     List<ResourceIpPoolRespVO> convertList(List<ResourceIpPoolDO> entities);
 
     /**
-     * 单 IP 详情: 主 + 5 子表 → RespVO. 子表行允许为 null (新建未填), 缺失字段保持 null.
+     * 单 IP 详情: 主 + 6 子表 → RespVO. 子表行允许为 null (新建未填), 缺失字段保持 null.
      */
     default ResourceIpPoolRespVO convertWithSubtables(ResourceIpPoolDO main,
                                                      ResourceIpPoolCredentialDO cred,
                                                      ResourceIpPoolBillingDO bill,
                                                      ResourceIpPoolSocks5DO socks5,
                                                      ResourceIpPoolInstallDO install,
-                                                     ResourceIpPoolRuntimeDO runtime) {
+                                                     ResourceIpPoolRuntimeDO runtime,
+                                                     ResourceIpPoolCapacityDO capacity) {
         ResourceIpPoolRespVO vo = convert(main);
         enrichCredential(vo, cred);
         enrichBilling(vo, bill);
         enrichSocks5(vo, socks5);
         enrichInstall(vo, install);
         enrichRuntime(vo, runtime);
+        enrichCapacity(vo, capacity);
         return vo;
     }
 
     /**
-     * 列表分页: 主表 list + 5 子表 Map (ipId → 子 DO) → RespVO list.
+     * 列表分页: 主表 list + 6 子表 Map (ipId → 子 DO) → RespVO list.
      */
     default PageResult<ResourceIpPoolRespVO> convertPageWithSubtables(
             PageResult<ResourceIpPoolDO> page,
@@ -62,7 +66,8 @@ public interface ResourceIpPoolConvert {
             Map<String, ResourceIpPoolBillingDO> billMap,
             Map<String, ResourceIpPoolSocks5DO> socks5Map,
             Map<String, ResourceIpPoolInstallDO> installMap,
-            Map<String, ResourceIpPoolRuntimeDO> runtimeMap) {
+            Map<String, ResourceIpPoolRuntimeDO> runtimeMap,
+            Map<String, ResourceIpPoolCapacityDO> capacityMap) {
         List<ResourceIpPoolRespVO> records = convertList(page.getRecords());
         for (ResourceIpPoolRespVO vo : records) {
             enrichCredential(vo, credMap == null ? null : credMap.get(vo.getId()));
@@ -70,6 +75,7 @@ public interface ResourceIpPoolConvert {
             enrichSocks5(vo, socks5Map == null ? null : socks5Map.get(vo.getId()));
             enrichInstall(vo, installMap == null ? null : installMap.get(vo.getId()));
             enrichRuntime(vo, runtimeMap == null ? null : runtimeMap.get(vo.getId()));
+            enrichCapacity(vo, capacityMap == null ? null : capacityMap.get(vo.getId()));
         }
         return PageResult.of(page.getTotal(), records);
     }
@@ -97,7 +103,17 @@ public interface ResourceIpPoolConvert {
         vo.setSocks5Username(socks5.getSocks5Username());
         vo.setSocks5Password(socks5.getSocks5Password());
         vo.setLogLevel(socks5.getLogLevel());
-        vo.setBandwidthLimitMbps(socks5.getBandwidthLimitMbps());
+    }
+
+    static void enrichCapacity(ResourceIpPoolRespVO vo, ResourceIpPoolCapacityDO capacity) {
+        if (vo == null || capacity == null) return;
+        vo.setBandwidthLimitMbps(capacity.getBandwidthLimitMbps());
+        vo.setMonthlyTrafficGb(capacity.getMonthlyTrafficGb());
+        vo.setUsedTrafficBytes(capacity.getUsedTrafficBytes());
+        vo.setRxBytes(capacity.getRxBytes());
+        vo.setTxBytes(capacity.getTxBytes());
+        vo.setQuotaResetPolicy(capacity.getQuotaResetPolicy());
+        vo.setThrottleState(capacity.getThrottleState());
     }
 
     static void enrichInstall(ResourceIpPoolRespVO vo, ResourceIpPoolInstallDO install) {
@@ -125,6 +141,9 @@ public interface ResourceIpPoolConvert {
 
     /** 装机事实 DO → 子 RespVO. */
     ResourceIpPoolInstallRespVO convertInstall(ResourceIpPoolInstallDO entity);
+
+    /** 容量监控 DO → 子 RespVO. */
+    ResourceIpPoolCapacityRespVO convertCapacity(ResourceIpPoolCapacityDO entity);
 
     /** IP 类型 → RespVO. */
     ResourceIpTypeRespVO convertType(ResourceIpTypeDO entity);

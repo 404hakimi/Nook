@@ -44,8 +44,7 @@ const form = reactive<IpPoolSocks5>({
   logPath: '/home/socks5/logs/sockd.log',
   autostartEnabled: 1,
   firewallEnabled: 1,
-  installDir: '/home/socks5',
-  bandwidthLimitMbps: 0
+  installDir: '/home/socks5'
 })
 
 function fill(s: IpPoolSocks5 | null) {
@@ -58,7 +57,6 @@ function fill(s: IpPoolSocks5 | null) {
   form.autostartEnabled = s.autostartEnabled ?? 1
   form.firewallEnabled = s.firewallEnabled ?? 1
   form.installDir = s.installDir ?? '/home/socks5'
-  form.bandwidthLimitMbps = s.bandwidthLimitMbps ?? 0
 }
 
 watch(() => [props.modelValue, props.ipId], async ([open]) => {
@@ -76,8 +74,7 @@ watch(() => [props.modelValue, props.ipId], async ([open]) => {
 function validate(): boolean {
   Object.keys(errors).forEach((k) => delete errors[k])
   if (!form.socks5Port || form.socks5Port < 1 || form.socks5Port > 65535) errors.socks5Port = '端口 1-65535'
-  if (!form.logPath?.trim()) errors.logPath = 'logPath 必填'
-  if (form.bandwidthLimitMbps != null && form.bandwidthLimitMbps < 0) errors.bandwidthLimitMbps = '限速 ≥ 0'
+  if (!form.logPath?.trim()) errors.logPath = '日志路径必填'
   return Object.keys(errors).length === 0
 }
 
@@ -93,10 +90,9 @@ async function onSubmit() {
       logPath: form.logPath.trim(),
       autostartEnabled: form.autostartEnabled ?? undefined,
       firewallEnabled: form.firewallEnabled ?? undefined,
-      installDir: form.installDir?.trim() || undefined,
-      bandwidthLimitMbps: form.bandwidthLimitMbps ?? 0
+      installDir: form.installDir?.trim() || undefined
     })
-    message.success('已保存; agent 拉到 socks5_set_bandwidth task 后改 sockd.conf 生效')
+    message.success('已保存; 重装后远端生效')
     emit('saved')
     emit('update:modelValue', false)
   } catch { /* */ } finally {
@@ -109,24 +105,21 @@ async function onSubmit() {
   <NModal
     :show="modelValue"
     preset="card"
-    title="编辑 dante 配置 + 限速"
+    title="编辑 dante 配置"
     style="max-width: 44rem; width: 92vw"
     :bordered="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <NSpin :show="loading">
       <NAlert type="info" :show-icon="false" size="small" class="mb-3">
-        dante 配置改动需要 agent 拉 socks5_set_bandwidth / restart task 后生效 (≤ 60s).
-        socks5Password 留空 = 保留原值.
+        配置保存后, 需走"重装"在远端生效 (装机脚本读 DB 重新生成 sockd.conf).
+        密码留空 = 保留原值. 限速 / 流量上限在"容量"里改.
       </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <div class="text-xs text-zinc-500 mt-1 mb-1">SOCKS5 凭据</div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
           <NFormItem label="SOCKS5 端口" required :feedback="errors.socks5Port" :validation-status="errors.socks5Port ? 'error' : undefined">
             <NInputNumber v-model:value="form.socks5Port" :min="1" :max="65535" class="w-full" />
-          </NFormItem>
-          <NFormItem label="实际限速 Mbps (0=不限)" :feedback="errors.bandwidthLimitMbps" :validation-status="errors.bandwidthLimitMbps ? 'error' : undefined">
-            <NInputNumber v-model:value="form.bandwidthLimitMbps" :min="0" :max="1000000" class="w-full" />
           </NFormItem>
           <NFormItem label="SOCKS5 用户">
             <NInput v-model:value="form.socks5Username" />

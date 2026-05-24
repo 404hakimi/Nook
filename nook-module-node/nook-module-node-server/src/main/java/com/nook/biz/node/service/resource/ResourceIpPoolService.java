@@ -4,6 +4,7 @@ import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolInstallDO;
@@ -158,6 +159,14 @@ public interface ResourceIpPoolService {
     ResourceIpPoolInstallDO getInstall(String ipId);
 
     /**
+     * 获得容量监控子表
+     *
+     * @param ipId IP 池编号
+     * @return capacity 子表
+     */
+    ResourceIpPoolCapacityDO getCapacity(String ipId);
+
+    /**
      * 获得 IP 池总览统计 (stats 卡片用; 按 lifecycle + status 双维度分组)
      *
      * @return key → count map (LIFECYCLE_INSTALLING, STATUS_AVAILABLE 等); 缺失值默认 0
@@ -165,18 +174,19 @@ public interface ResourceIpPoolService {
     Map<String, Long> getSummary();
 
     /**
-     * 批量获得 5 张子表
+     * 批量获得 6 张子表
      *
      * @param ipIds IP 池编号集合
-     * @return 5 张子表批量返回包
+     * @return 6 张子表批量返回包
      */
     SubtablesBundle batchLoadSubtables(Collection<String> ipIds);
 
-    /** 5 张子表批量返回包 */
+    /** 6 张子表批量返回包 */
     record SubtablesBundle(
             Map<String, ResourceIpPoolCredentialDO> credentials,
             Map<String, ResourceIpPoolBillingDO> billings,
             Map<String, ResourceIpPoolSocks5DO> socks5s,
             Map<String, ResourceIpPoolInstallDO> installs,
-            Map<String, ResourceIpPoolRuntimeDO> runtimes) { }
+            Map<String, ResourceIpPoolRuntimeDO> runtimes,
+            Map<String, ResourceIpPoolCapacityDO> capacities) { }
 }

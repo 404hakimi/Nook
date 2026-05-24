@@ -11,6 +11,7 @@ import com.nook.biz.node.controller.resource.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolInstallDO;
@@ -18,6 +19,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolRuntimeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpTypeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolBillingMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolCapacityMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolCredentialMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolInstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolMapper;
@@ -61,6 +63,7 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     private final ResourceIpPoolSocks5Mapper socks5Mapper;
     private final ResourceIpPoolInstallMapper installMapper;
     private final ResourceIpPoolRuntimeMapper runtimeMapper;
+    private final ResourceIpPoolCapacityMapper capacityMapper;
     private final ResourceIpTypeMapper resourceIpTypeMapper;
     private final XrayClientMapper xrayClientMapper;
     private final ResourceIpPoolValidator ipPoolValidator;
@@ -113,6 +116,19 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
         runtime.setConsecutiveMiss(0);
         runtime.setUpdatedAt(now);
         runtimeMapper.insert(runtime);
+
+        // 7) capacity 子表占位 (限速 / 月流量上限默认 0 = 不限; agent 上报后填 rx/tx)
+        ResourceIpPoolCapacityDO capacity = new ResourceIpPoolCapacityDO();
+        capacity.setIpId(ipId);
+        capacity.setBandwidthLimitMbps(0);
+        capacity.setUsedTrafficBytes(0L);
+        capacity.setRxBytes(0L);
+        capacity.setTxBytes(0L);
+        capacity.setQuotaResetPolicy("CALENDAR_MONTH");
+        capacity.setThrottleState("NORMAL");
+        capacity.setCreatedAt(now);
+        capacity.setUpdatedAt(now);
+        capacityMapper.insert(capacity);
 
         return ipId;
     }
@@ -287,6 +303,11 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     }
 
     @Override
+    public ResourceIpPoolCapacityDO getCapacity(String ipId) {
+        return capacityMapper.selectById(ipId);
+    }
+
+    @Override
     public Map<String, Long> getSummary() {
         // 全量 count (含已退役) + 按 lifecycle / status 分组 count
         // 单租户场景 IP 池条目 <200, 8 次 count 查询代价不大, 比 group by + result mapping 更简单
@@ -305,7 +326,8 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     public SubtablesBundle batchLoadSubtables(Collection<String> ipIds) {
         if (CollectionUtils.isAnyEmpty(ipIds)) {
             return new SubtablesBundle(Collections.emptyMap(), Collections.emptyMap(),
-                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+                    Collections.emptyMap());
         }
         Map<String, ResourceIpPoolCredentialDO> cred = CollectionUtils.convertMap(
                 credentialMapper.selectBatchIds(ipIds), ResourceIpPoolCredentialDO::getIpId);
@@ -317,7 +339,9 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
                 installMapper.selectByIpIds(ipIds), ResourceIpPoolInstallDO::getIpId);
         Map<String, ResourceIpPoolRuntimeDO> runtime = CollectionUtils.convertMap(
                 runtimeMapper.selectBatchIds(ipIds), ResourceIpPoolRuntimeDO::getIpId);
-        return new SubtablesBundle(cred, bill, socks5, install, runtime);
+        Map<String, ResourceIpPoolCapacityDO> capacity = CollectionUtils.convertMap(
+                capacityMapper.selectByIpIds(ipIds), ResourceIpPoolCapacityDO::getIpId);
+        return new SubtablesBundle(cred, bill, socks5, install, runtime, capacity);
     }
 
     @Override

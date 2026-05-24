@@ -7,9 +7,10 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * IP 池 dante 业务配置 + 限速 DO (1:1, agent 改 sockd.conf 用)
+ * IP 池 dante 业务配置 DO (1:1, agent 改 sockd.conf 用)
  *
  * <p>装机产物 (install_dir / log_path / autostart / firewall) 拆到 resource_ip_pool_install 子表.
+ * <p>实际限速 (bandwidth_limit_mbps) 和月流量上限拆到 resource_ip_pool_capacity 子表.
  *
  * @author nook
  */
@@ -30,9 +31,6 @@ public class ResourceIpPoolSocks5DO {
 
     /** dante log 关键字组合 (空格分隔). */
     private String logLevel;
-
-    /** dante 实际限速 Mbps; 0=不限; agent 改 sockd.conf 落实. */
-    private Integer bandwidthLimitMbps;
 
     private LocalDateTime createdAt;
 

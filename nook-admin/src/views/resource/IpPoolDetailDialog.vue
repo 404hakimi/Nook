@@ -289,6 +289,16 @@ function maskSecret(s?: string): string {
   if (s.length <= 12) return s.slice(0, 2) + '****' + s.slice(-2)
   return s.slice(0, 6) + '****' + s.slice(-4)
 }
+
+function formatBytes(bytes?: number | null): string {
+  if (bytes == null || bytes === 0) return '0 B'
+  const gb = bytes / 1024 / 1024 / 1024
+  if (gb >= 1) return `${gb.toFixed(2)} GB`
+  const mb = bytes / 1024 / 1024
+  if (mb >= 1) return `${mb.toFixed(1)} MB`
+  const kb = bytes / 1024
+  return `${kb.toFixed(0)} KB`
+}
 </script>
 
 <template>
@@ -707,22 +717,40 @@ function maskSecret(s?: string): string {
           </template>
         </div>
 
-        <!-- ============ 账面信息 (折叠/紧凑展示) ============ -->
+        <!-- ============ 容量 + 账面 (折叠/紧凑展示) ============ -->
         <div class="billing-block">
           <div class="billing-block__head">
-            <div class="billing-block__title">账面</div>
+            <div class="billing-block__title">容量与账面</div>
             <NButton size="tiny" quaternary @click="emit('edit-billing', detail)">
               <template #icon><NIcon><Pencil /></NIcon></template>
               编辑
             </NButton>
           </div>
+          <!-- 容量 (实际控制) -->
+          <div class="billing-section-label">实际控制</div>
           <div class="billing-block__body">
             <div class="billing-cell">
-              <div class="billing-cell__label">带宽</div>
+              <div class="billing-cell__label">实际限速</div>
+              <div class="billing-cell__value">{{ detail.bandwidthLimitMbps ? `${detail.bandwidthLimitMbps} Mbps` : '不限' }}</div>
+            </div>
+            <div class="billing-cell">
+              <div class="billing-cell__label">月流量上限</div>
+              <div class="billing-cell__value">{{ detail.monthlyTrafficGb ? `${detail.monthlyTrafficGb} GB` : '不限' }}</div>
+            </div>
+            <div class="billing-cell">
+              <div class="billing-cell__label">本期已用</div>
+              <div class="billing-cell__value text-xs">{{ formatBytes(detail.usedTrafficBytes) }}</div>
+            </div>
+          </div>
+          <!-- 账面 (财务记录) -->
+          <div class="billing-section-label">账面记录</div>
+          <div class="billing-block__body">
+            <div class="billing-cell">
+              <div class="billing-cell__label">采购带宽</div>
               <div class="billing-cell__value">{{ detail.bandwidthMbps == null ? '∞' : `${detail.bandwidthMbps} Mbps` }}</div>
             </div>
             <div class="billing-cell">
-              <div class="billing-cell__label">流量</div>
+              <div class="billing-cell__label">采购流量</div>
               <div class="billing-cell__value">{{ detail.trafficQuotaGb == null ? '∞' : `${detail.trafficQuotaGb} GB` }}</div>
             </div>
             <div class="billing-cell">
@@ -951,6 +979,11 @@ function maskSecret(s?: string): string {
   font-size: 13px;
   font-weight: 600;
   color: var(--n-text-color-2, #555);
+}
+.billing-section-label {
+  font-size: 11px;
+  color: var(--n-text-color-3, #999);
+  margin: 8px 0 4px 0;
 }
 .billing-block__body {
   display: grid;

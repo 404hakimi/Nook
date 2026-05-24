@@ -75,8 +75,28 @@ public class ResourceIpPoolRespVO {
     /** landing agent 鉴权 token (主表 agent_token; 装机时自动生成) */
     private String agentToken;
 
-    /** dante 限速 Mbps (socks5 子表 bandwidth_limit_mbps; 0/null = 不限速) */
+    // ===== 容量监控 (resource_ip_pool_capacity 子表) =====
+
+    /** dante 限速 Mbps (capacity 子表; 0/null = 不限速) */
     private Integer bandwidthLimitMbps;
+
+    /** 月流量上限 GB (capacity 子表; null/0 = 不限) */
+    private Integer monthlyTrafficGb;
+
+    /** 当周期累计已用流量 byte (capacity 子表; agent push) */
+    private Long usedTrafficBytes;
+
+    /** 当周期下行字节 */
+    private Long rxBytes;
+
+    /** 当周期上行字节 */
+    private Long txBytes;
+
+    /** 周期重置策略 CALENDAR_MONTH / BILLING_CYCLE / FIXED */
+    private String quotaResetPolicy;
+
+    /** NORMAL / THROTTLED */
+    private String throttleState;
 
     private String sshHost;
 

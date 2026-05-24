@@ -2,6 +2,8 @@ package com.nook.biz.node.controller.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolBillingRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolBillingUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCapacityRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCapacityUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCredentialRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCredentialUpdateReqVO;
@@ -17,6 +19,7 @@ import com.nook.biz.node.convert.resource.ResourceIpPoolConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolInstallDO;
 import com.nook.biz.node.service.resource.ResourceIpPoolBillingService;
+import com.nook.biz.node.service.resource.ResourceIpPoolCapacityService;
 import com.nook.biz.node.service.resource.ResourceIpPoolCredentialService;
 import com.nook.biz.node.service.resource.ResourceIpPoolInstallService;
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
@@ -58,6 +61,7 @@ public class ResourceIpPoolController {
     private final ResourceIpPoolBillingService billingService;
     private final ResourceIpPoolSocks5Service socks5Service;
     private final ResourceIpPoolInstallService installService;
+    private final ResourceIpPoolCapacityService capacityService;
     private final ResourceIpPoolValidator ipPoolValidator;
 
     /**
@@ -130,7 +134,7 @@ public class ResourceIpPoolController {
         ResourceIpPoolService.SubtablesBundle bundle = resourceIpPoolService.batchLoadSubtables(ids);
         return Result.ok(ResourceIpPoolConvert.INSTANCE.convertPageWithSubtables(
                 pageResult, bundle.credentials(), bundle.billings(), bundle.socks5s(),
-                bundle.installs(), bundle.runtimes()));
+                bundle.installs(), bundle.runtimes(), bundle.capacities()));
     }
 
     /**
@@ -270,7 +274,33 @@ public class ResourceIpPoolController {
         return Result.ok(true);
     }
 
-    /** 单 IP 详情: 主 + 5 子表组装 */
+    /**
+     * 获得容量监控 (限速 / 月流量上限 / 累计 / throttle)
+     *
+     * @param id IP 池编号
+     * @return 容量监控
+     */
+    @GetMapping("/{id}/capacity")
+    public Result<ResourceIpPoolCapacityRespVO> getCapacity(@PathVariable("id") String id) {
+        ipPoolValidator.validateExists(id);
+        return Result.ok(ResourceIpPoolConvert.INSTANCE.convertCapacity(capacityService.get(id)));
+    }
+
+    /**
+     * 更新容量监控 (admin 改限速 / 月流量上限 / 重置策略; rx/tx/throttle 由 agent / 状态机改不在此)
+     *
+     * @param id    IP 池编号
+     * @param reqVO 容量更新入参
+     * @return 是否成功
+     */
+    @PutMapping("/{id}/capacity")
+    public Result<Boolean> updateCapacity(@PathVariable("id") String id,
+                                          @Valid @RequestBody ResourceIpPoolCapacityUpdateReqVO reqVO) {
+        capacityService.update(id, reqVO);
+        return Result.ok(true);
+    }
+
+    /** 单 IP 详情: 主 + 6 子表组装 */
     private ResourceIpPoolRespVO loadDetail(String id) {
         ResourceIpPoolDO main = ipPoolValidator.validateExists(id);
         return ResourceIpPoolConvert.INSTANCE.convertWithSubtables(main,
@@ -278,6 +308,7 @@ public class ResourceIpPoolController {
                 resourceIpPoolService.getBilling(id),
                 resourceIpPoolService.getSocks5(id),
                 resourceIpPoolService.getInstall(id),
-                resourceIpPoolService.getRuntime(id));
+                resourceIpPoolService.getRuntime(id),
+                resourceIpPoolService.getCapacity(id));
     }
 }
