@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
+  Activity,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Copy,
+  Eye,
   FileText,
   Globe2,
   KeyRound,
@@ -18,6 +20,7 @@ import {
   Trash2,
   Undo2,
   Users,
+  Wrench,
   Zap
 } from 'lucide-vue-next'
 import {
@@ -385,30 +388,65 @@ async function copySocks5Url(ip: ResourceIpPool) {
   }
 }
 
-// ===== 卡片的"更多"下拉选项 =====
+/**
+ * 卡片"更多"下拉: 拆 3 个子菜单 (运维 / 生命周期 / 占用·删除).
+ * 装机/重装已在卡片底部内联展示, 这里不再重复.
+ */
 function moreOptionsFor(ip: ResourceIpPool) {
-  const isInstalling = ip.lifecycleState === 'INSTALLING' || ip.lifecycleState === 'READY'
-  const isLive = ip.lifecycleState === 'LIVE'
-  return [
-    ip.provisionMode === 1 && isInstalling
-      ? { label: '装机 SOCKS5', key: 'deploy', icon: () => h(NIcon, null, { default: () => h(Rocket) }) }
+  // 运维子菜单 (依赖 SSH 凭据已落库的, 才放出口)
+  const opsChildren = [
+    canManage(ip)
+      ? { label: '查看 dante 状态', key: 'status', icon: () => h(NIcon, null, { default: () => h(Eye) }) }
       : null,
-    ip.provisionMode === 1 && isLive
-      ? { label: '重装 SOCKS5', key: 'deploy', icon: () => h(NIcon, null, { default: () => h(Rocket) }) }
+    canManage(ip)
+      ? { label: '查看日志', key: 'log', icon: () => h(NIcon, null, { default: () => h(FileText) }) }
       : null,
-    canManage(ip) ? { label: '查看 dante 状态', key: 'status' } : null,
-    canManage(ip) ? { label: '查看日志', key: 'log', icon: () => h(NIcon, null, { default: () => h(FileText) }) } : null,
-    ip.provisionMode === 1 ? { label: '装 landing agent', key: 'provision' } : null,
+    ip.provisionMode === 1
+      ? { label: '装 landing agent', key: 'provision', icon: () => h(NIcon, null, { default: () => h(ServerIcon) }) }
+      : null,
     ip.provisionMode === 1 && canTest(ip)
       ? { label: '同步 SOCKS5 凭据', key: 'sync', icon: () => h(NIcon, null, { default: () => h(KeyRound) }) }
-      : null,
-    { type: 'divider', key: 'd1' },
-    ...LIFECYCLE_DROPDOWN_OPTIONS.map((o) => ({ ...o, key: `lc:${o.key}` })),
-    { type: 'divider', key: 'd2' },
+      : null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ].filter(Boolean) as any[]
+
+  // 生命周期流转子菜单: 当前态高亮 disabled
+  const lifecycleChildren = LIFECYCLE_DROPDOWN_OPTIONS.map((o) => ({
+    ...o,
+    key: `lc:${o.key}`,
+    disabled: ip.lifecycleState === o.key
+  }))
+
+  // 占用·删除子菜单
+  const dangerChildren = [
     ip.status === 'OCCUPIED'
       ? { label: '退订到 cooling', key: 'release', icon: () => h(NIcon, null, { default: () => h(Undo2) }) }
       : null,
     { label: '删除 IP', key: 'delete', icon: () => h(NIcon, null, { default: () => h(Trash2) }) }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ].filter(Boolean) as any[]
+
+  return [
+    opsChildren.length > 0
+      ? {
+          label: '运维',
+          key: 'menu-ops',
+          icon: () => h(NIcon, null, { default: () => h(Wrench) }),
+          children: opsChildren
+        }
+      : null,
+    {
+      label: '生命周期',
+      key: 'menu-lifecycle',
+      icon: () => h(NIcon, null, { default: () => h(Activity) }),
+      children: lifecycleChildren
+    },
+    {
+      label: '占用 · 删除',
+      key: 'menu-danger',
+      icon: () => h(NIcon, null, { default: () => h(Trash2) }),
+      children: dangerChildren
+    }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ].filter(Boolean) as any[]
 }
