@@ -12,6 +12,7 @@ import com.nook.biz.node.controller.resource.vo.ResourceIpPoolRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSocks5RespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSocks5UpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSummaryRespVO;
 import com.nook.biz.node.convert.resource.ResourceIpPoolConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolInstallDO;
@@ -107,6 +108,27 @@ public class ResourceIpPoolController {
     public Result<ResourceIpPoolRespVO> getIpPool(@RequestParam("id") String id) {
         ipPoolValidator.validateExists(id);
         return Result.ok(loadDetail(id));
+    }
+
+    /**
+     * 获得 IP 池总览统计 (顶部 stats 卡片用)
+     *
+     * @return 各 lifecycle / status 维度的 count
+     */
+    @GetMapping("/summary")
+    public Result<ResourceIpPoolSummaryRespVO> getSummary() {
+        java.util.Map<String, Long> raw = resourceIpPoolService.getSummary();
+        ResourceIpPoolSummaryRespVO vo = new ResourceIpPoolSummaryRespVO();
+        vo.setTotal(raw.getOrDefault("total", 0L));
+        vo.setInstalling(raw.getOrDefault("lifecycle_INSTALLING", 0L));
+        vo.setReady(raw.getOrDefault("lifecycle_READY", 0L));
+        vo.setLive(raw.getOrDefault("lifecycle_LIVE", 0L));
+        vo.setRetired(raw.getOrDefault("lifecycle_RETIRED", 0L));
+        vo.setAvailable(raw.getOrDefault("status_AVAILABLE", 0L));
+        vo.setOccupied(raw.getOrDefault("status_OCCUPIED", 0L));
+        vo.setCooling(raw.getOrDefault("status_COOLING", 0L));
+        vo.setReserved(raw.getOrDefault("status_RESERVED", 0L));
+        return Result.ok(vo);
     }
 
     /**

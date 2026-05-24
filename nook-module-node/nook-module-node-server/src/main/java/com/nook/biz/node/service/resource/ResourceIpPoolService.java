@@ -173,6 +173,13 @@ public interface ResourceIpPoolService {
     ResourceIpPoolInstallDO getInstall(String ipId);
 
     /**
+     * 获得 IP 池总览统计 (stats 卡片用; 按 lifecycle + status 双维度分组)
+     *
+     * @return key → count map (LIFECYCLE_INSTALLING, STATUS_AVAILABLE 等); 缺失值默认 0
+     */
+    Map<String, Long> getSummary();
+
+    /**
      * 批量获得 5 张子表
      *
      * @param ipIds IP 池编号集合

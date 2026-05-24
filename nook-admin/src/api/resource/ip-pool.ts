@@ -233,6 +233,23 @@ export function pageIpPool(params: ResourceIpPoolQuery) {
   return request.get<unknown, PageResult<ResourceIpPool>>('/admin/resource/ip-pool/page', { params })
 }
 
+/** IP 池总览统计 (顶部 stats 卡片用) */
+export interface ResourceIpPoolSummary {
+  total: number
+  installing: number
+  ready: number
+  live: number
+  retired: number
+  available: number
+  occupied: number
+  cooling: number
+  reserved: number
+}
+
+export function getIpPoolSummary() {
+  return request.get<unknown, ResourceIpPoolSummary>('/admin/resource/ip-pool/summary')
+}
+
 export function getIpPoolDetail(id: string) {
   return request.get<unknown, ResourceIpPool>('/admin/resource/ip-pool/get', { params: { id } })
 }

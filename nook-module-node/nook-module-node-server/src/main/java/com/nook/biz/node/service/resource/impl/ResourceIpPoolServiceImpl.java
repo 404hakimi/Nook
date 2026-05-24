@@ -352,6 +352,21 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     }
 
     @Override
+    public Map<String, Long> getSummary() {
+        // 全量 count (含已退役) + 按 lifecycle / status 分组 count
+        // 单租户场景 IP 池条目 <200, 8 次 count 查询代价不大, 比 group by + result mapping 更简单
+        Map<String, Long> out = new java.util.HashMap<>();
+        out.put("total", resourceIpPoolMapper.selectCount(null));
+        for (ResourceIpPoolLifecycleEnum e : ResourceIpPoolLifecycleEnum.values()) {
+            out.put("lifecycle_" + e.getState(), resourceIpPoolMapper.countByLifecycle(e.getState()));
+        }
+        for (ResourceIpPoolStatusEnum e : ResourceIpPoolStatusEnum.values()) {
+            out.put("status_" + e.getState(), resourceIpPoolMapper.countByStatus(e.getState()));
+        }
+        return out;
+    }
+
+    @Override
     public SubtablesBundle batchLoadSubtables(Collection<String> ipIds) {
         if (CollectionUtils.isAnyEmpty(ipIds)) {
             return new SubtablesBundle(Collections.emptyMap(), Collections.emptyMap(),

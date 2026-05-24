@@ -121,4 +121,16 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPoolDO> {
                 .like(StrUtil.isNotBlank(reqVO.getKeyword()), ResourceIpPoolDO::getIpAddress, reqVO.getKeyword())
                 .orderByDesc(ResourceIpPoolDO::getCreatedAt));
     }
+
+    /** 按 lifecycle_state 分组 count; null state 标 UNKNOWN. */
+    default Long countByLifecycle(String state) {
+        return selectCount(Wrappers.<ResourceIpPoolDO>lambdaQuery()
+                .eq(ResourceIpPoolDO::getLifecycleState, state));
+    }
+
+    /** 按 status 分组 count. */
+    default Long countByStatus(String status) {
+        return selectCount(Wrappers.<ResourceIpPoolDO>lambdaQuery()
+                .eq(ResourceIpPoolDO::getStatus, status));
+    }
 }

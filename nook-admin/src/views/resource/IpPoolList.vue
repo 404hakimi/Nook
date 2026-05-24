@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
-  ArrowRightLeft,
+  CheckCircle2,
   Copy,
   Eye,
   FileText,
   Globe2,
   KeyRound,
+  MoreHorizontal,
   Pencil,
   Plus,
   RefreshCcw,
@@ -14,6 +15,7 @@ import {
   Search,
   Trash2,
   Undo2,
+  Users,
   Zap
 } from 'lucide-vue-next'
 import {
@@ -37,15 +39,16 @@ import {
   IP_POOL_STATUS_LABELS,
   IP_POOL_STATUS_OPTIONS,
   deleteIpPool,
+  getIpPoolSummary,
   pageIpPool,
   releaseIpPool,
   transitionIpPoolLifecycle,
   type ResourceIpPool,
-  type ResourceIpPoolQuery
+  type ResourceIpPoolQuery,
+  type ResourceIpPoolSummary
 } from '@/api/resource/ip-pool'
 import { listEnabledRegions, type ResourceRegion } from '@/api/resource/region'
 import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/resource/ip-type'
-import { formatDateTime } from '@/utils/date'
 import IpPoolFormDialog from './IpPoolFormDialog.vue'
 import IpPoolDeployDialog from './IpPoolDeployDialog.vue'
 import IpPoolCreateChoiceDialog from './IpPoolCreateChoiceDialog.vue'
@@ -92,6 +95,28 @@ const query = reactive<Required<Pick<ResourceIpPoolQuery, 'pageNo' | 'pageSize'>
 const list = ref<ResourceIpPool[]>([])
 const total = ref(0)
 const loading = ref(false)
+const summary = ref<ResourceIpPoolSummary>({
+  total: 0, installing: 0, ready: 0, live: 0, retired: 0,
+  available: 0, occupied: 0, cooling: 0, reserved: 0
+})
+
+async function loadSummary() {
+  try {
+    summary.value = await getIpPoolSummary()
+  } catch { /* silently */ }
+}
+
+/** 点 stats 卡片 = 按 lifecycle 或 status 过滤 (再点同一个清掉过滤) */
+function applyStatsFilter(opts: { lifecycleState?: string; status?: string }) {
+  if (opts.lifecycleState != null) {
+    query.lifecycleState = query.lifecycleState === opts.lifecycleState ? undefined : opts.lifecycleState as never
+  }
+  if (opts.status != null) {
+    query.status = query.status === opts.status ? undefined : opts.status as never
+  }
+  query.pageNo = 1
+  void loadList()
+}
 
 async function loadIpTypes() {
   try {
@@ -338,9 +363,10 @@ function openDeploy() {
 
 /** Phase 4: 装机成功 → 后端事务内一次性入池 → 推 ipId 回前端 → 刷新列表 */
 function onDeployInstalled(ipId: string) {
-  // 不需要二次操作, 直接刷新列表; 用户后续从列表点行进详情看新装的 IP
+  // 不需要二次操作, 直接刷新列表 + summary; 用户后续从列表点行进详情看新装的 IP
   void ipId
   void loadList()
+  void loadSummary()
 }
 
 /** SOCKS5 凭据是否齐全, 决定是否能触发"测试"按钮 (拨号需要这些参数)。 */
@@ -531,90 +557,54 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
       ])
     }
   },
-  {
-    title: '当前会员',
-    key: 'occupiedByMemberId',
-    render: (row) =>
-      h('span', { class: 'font-mono text-xs text-zinc-500' }, row.occupiedByMemberId || '-')
-  },
-  {
-    title: '创建时间',
-    key: 'createdAt',
-    width: 170,
-    render: (row) => formatDateTime(row.createdAt)
-  },
+  // 当前会员 / 创建时间 移到详情 tab, 列表瘦身
   {
     title: '操作',
     key: 'actions',
     align: 'right',
-    width: 420,
-    render: (row) =>
-      h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
-        // 服务状态: 自部署 + SSH 凭据齐全时露出, 弹框内查 dante 服务状态 + 切自启
-        canManage(row)
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                quaternary: true,
-                onClick: () => openStatus(row),
-                title: '查看 dante 运行状态 / 版本 / 监听端口 / UFW / 主机信息; 弹窗内可切自启'
-              },
-              {
-                icon: () => h(NIcon, null, { default: () => h(Eye) }),
-                default: () => '服务状态'
-              }
-            )
+    width: 200,
+    render: (row) => {
+      // 3 个 inline 主操作 (详情 / 测试 / 编辑) + 一个"更多" dropdown 收纳运维 / lifecycle / 退订 / 删除
+      const moreOptions = [
+        canManage(row) ? { label: '查看 dante 状态', key: 'status', icon: () => h(NIcon, null, { default: () => h(Eye) }) } : null,
+        canManage(row) ? { label: '查看日志', key: 'log', icon: () => h(NIcon, null, { default: () => h(FileText) }) } : null,
+        row.provisionMode === 1 ? { label: '装 agent', key: 'provision', icon: () => h(NIcon, null, { default: () => h(Rocket) }) } : null,
+        row.provisionMode === 1 && canTest(row)
+          ? { label: '同步 SOCKS5 凭据', key: 'sync', icon: () => h(NIcon, null, { default: () => h(KeyRound) }) }
           : null,
-        // 日志: 自部署 + SSH 凭据齐全时露出, journalctl -u danted
-        canManage(row)
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                quaternary: true,
-                onClick: () => openLog(row),
-                title: '查看 dante journalctl 日志 (50-1000 行, 按级别 / 关键词过滤)'
-              },
-              {
-                icon: () => h(NIcon, null, { default: () => h(FileText) }),
-                default: () => '日志'
-              }
-            )
+        { type: 'divider', key: 'd1' },
+        ...LIFECYCLE_DROPDOWN_OPTIONS.map((o) => ({ ...o, key: `lc:${o.key}` })),
+        { type: 'divider', key: 'd2' },
+        row.status === 'OCCUPIED'
+          ? { label: '退订到 cooling', key: 'release', icon: () => h(NIcon, null, { default: () => h(Undo2) }) }
           : null,
-        // 测试: 仅 SOCKS5 凭据齐全时露出, 否则该 IP 无法发起拨号
+        { label: '删除 IP', key: 'delete', icon: () => h(NIcon, null, { default: () => h(Trash2) }) }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ].filter(Boolean) as any[]
+
+      function onMoreSelect(key: string) {
+        switch (key) {
+          case 'status': return openStatus(row)
+          case 'log': return openLog(row)
+          case 'provision': return openProvision(row)
+          case 'sync': return openSyncCreds(row)
+          case 'release': return onRelease(row)
+          case 'delete': return onDelete(row)
+          default:
+            if (key.startsWith('lc:')) return onLifecycleSelect(row, key.slice(3))
+        }
+      }
+
+      return h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
+        // 主 1: 测试 — 拨号自检, SOCKS5 凭据齐全才出
         canTest(row)
           ? h(
               NButton,
-              {
-                size: 'tiny',
-                quaternary: true,
-                type: 'warning',
-                onClick: () => openTest(row)
-              },
-              {
-                icon: () => h(NIcon, null, { default: () => h(Zap) }),
-                default: () => '测试'
-              }
+              { size: 'tiny', quaternary: true, type: 'warning', onClick: () => openTest(row), title: '拨号自检 SOCKS5' },
+              { icon: () => h(NIcon, null, { default: () => h(Zap) }), default: () => '测试' }
             )
           : null,
-        // 装 landing agent: 仅自部署 (provisionMode=1) 显示, 走 SSH 装机
-        row.provisionMode === 1
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                quaternary: true,
-                type: 'success',
-                onClick: () => openProvision(row),
-                title: 'SSH 自动装 nook-landing-agent (后续 dante 限速 / 改配置走 task 链路)'
-              },
-              {
-                icon: () => h(NIcon, null, { default: () => h(Rocket) }),
-                default: () => '装 agent'
-              }
-            )
-          : null,
+        // 主 2: 编辑 (分段下拉)
         h(
           NDropdown,
           {
@@ -626,74 +616,26 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
             default: () =>
               h(
                 NButton,
-                { size: 'tiny', quaternary: true, title: '分段编辑 (核心/凭据/账面/dante 或整段)' },
-                {
-                  icon: () => h(NIcon, null, { default: () => h(Pencil) }),
-                  default: () => '编辑'
-                }
+                { size: 'tiny', quaternary: true, title: '编辑分段配置' },
+                { icon: () => h(NIcon, null, { default: () => h(Pencil) }), default: () => '编辑' }
               )
           }
         ),
+        // 主 3: 更多 (运维 / lifecycle 流转 / 退订 / 删除全部收纳)
         h(
           NDropdown,
-          {
-            trigger: 'click',
-            options: LIFECYCLE_DROPDOWN_OPTIONS,
-            onSelect: (key: string) => onLifecycleSelect(row, key)
-          },
+          { trigger: 'click', options: moreOptions, onSelect: onMoreSelect },
           {
             default: () =>
               h(
                 NButton,
-                { size: 'tiny', quaternary: true, type: 'info', title: '切换 lifecycle' },
-                {
-                  icon: () => h(NIcon, null, { default: () => h(ArrowRightLeft) }),
-                  default: () => '流转'
-                }
+                { size: 'tiny', quaternary: true, title: '更多操作' },
+                { icon: () => h(NIcon, null, { default: () => h(MoreHorizontal) }) }
               )
-          }
-        ),
-        // 同步凭据: 仅自部署 (provisionMode=1) 且 SOCKS5 配齐的 IP 才显示
-        row.provisionMode === 1 && canTest(row)
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                quaternary: true,
-                type: 'primary',
-                onClick: () => openSyncCreds(row),
-                title: '把 DB 当前 SOCKS5 配置推到远端 + 重建 client outbound'
-              },
-              {
-                icon: () => h(NIcon, null, { default: () => h(KeyRound) }),
-                default: () => '同步'
-              }
-            )
-          : null,
-        // 退订: 仅"已占用" (OCCUPIED) 才有意义, 其它状态隐藏
-        row.status === 'OCCUPIED'
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                quaternary: true,
-                onClick: () => onRelease(row)
-              },
-              {
-                icon: () => h(NIcon, null, { default: () => h(Undo2) }),
-                default: () => '退订'
-              }
-            )
-          : null,
-        h(
-          NButton,
-          { size: 'tiny', quaternary: true, type: 'error', onClick: () => onDelete(row) },
-          {
-            icon: () => h(NIcon, null, { default: () => h(Trash2) }),
-            default: () => '删除'
           }
         )
       ])
+    }
   }
 ])
 
@@ -717,12 +659,67 @@ const pagination = computed(() => ({
 
 onMounted(async () => {
   await Promise.all([loadIpTypes(), loadRegions()])
-  await loadList()
+  await Promise.all([loadList(), loadSummary()])
 })
 </script>
 
 <template>
   <div class="space-y-4">
+    <!-- 顶部统计卡片 (点击 = 切换过滤; 再点同一个清掉过滤) -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <NCard size="small" hoverable class="cursor-pointer" @click="() => { query.lifecycleState = undefined; query.status = undefined; query.pageNo = 1; loadList() }">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs text-zinc-500">总 IP</div>
+            <div class="text-2xl font-semibold">{{ summary.total }}</div>
+          </div>
+          <NIcon size="22" depth="3"><Globe2 /></NIcon>
+        </div>
+      </NCard>
+      <NCard
+        size="small" hoverable
+        class="cursor-pointer"
+        :style="query.lifecycleState === 'LIVE' ? 'border-color: var(--n-color-target,#18a058)' : ''"
+        @click="applyStatsFilter({ lifecycleState: 'LIVE' })"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs text-zinc-500">已部署 (LIVE)</div>
+            <div class="text-2xl font-semibold" style="color: var(--n-color-target,#18a058)">{{ summary.live }}</div>
+          </div>
+          <NIcon size="22" :color="'#18a058'"><Rocket /></NIcon>
+        </div>
+      </NCard>
+      <NCard
+        size="small" hoverable
+        class="cursor-pointer"
+        :style="query.status === 'AVAILABLE' ? 'border-color: #2080f0' : ''"
+        @click="applyStatsFilter({ status: 'AVAILABLE' })"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs text-zinc-500">可分配</div>
+            <div class="text-2xl font-semibold" style="color: #2080f0">{{ summary.available }}</div>
+          </div>
+          <NIcon size="22" :color="'#2080f0'"><CheckCircle2 /></NIcon>
+        </div>
+      </NCard>
+      <NCard
+        size="small" hoverable
+        class="cursor-pointer"
+        :style="query.status === 'OCCUPIED' ? 'border-color: #f0a020' : ''"
+        @click="applyStatsFilter({ status: 'OCCUPIED' })"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs text-zinc-500">已占用</div>
+            <div class="text-2xl font-semibold" style="color: #f0a020">{{ summary.occupied }}</div>
+          </div>
+          <NIcon size="22" :color="'#f0a020'"><Users /></NIcon>
+        </div>
+      </NCard>
+    </div>
+
     <!-- 顶部搜索栏 -->
     <NCard size="small">
       <div class="flex flex-wrap gap-3 items-end">
