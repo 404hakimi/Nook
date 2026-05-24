@@ -102,10 +102,11 @@ func (c *Client) StatsQuery(ctx context.Context, reset bool) ([]UserStat, error)
 	return parseUserStats([]byte(out))
 }
 
+// statsResp 对应 xray api statsquery JSON; value 是数字, 0 值时字段会缺省
 type statsResp struct {
 	Stat []struct {
 		Name  string `json:"name"`
-		Value string `json:"value"`
+		Value int64  `json:"value"`
 	} `json:"stat"`
 }
 
@@ -127,8 +128,6 @@ func parseUserStats(raw []byte) ([]UserStat, error) {
 		}
 		email := parts[1]
 		dir := parts[3]
-		var v int64
-		_, _ = fmt.Sscanf(s.Value, "%d", &v)
 		row, ok := agg[email]
 		if !ok {
 			row = &UserStat{Email: email}
@@ -136,9 +135,9 @@ func parseUserStats(raw []byte) ([]UserStat, error) {
 		}
 		switch dir {
 		case "uplink":
-			row.UpBytes = v
+			row.UpBytes = s.Value
 		case "downlink":
-			row.DownBytes = v
+			row.DownBytes = s.Value
 		}
 	}
 	out := make([]UserStat, 0, len(agg))
