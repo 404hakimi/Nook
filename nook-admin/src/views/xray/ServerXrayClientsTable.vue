@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { Activity, Plus, RefreshCcw, RotateCw, Share2, Trash2, Zap } from 'lucide-vue-next'
 import {
   NButton,
@@ -22,13 +23,13 @@ import { formatDateTime } from '@/utils/date'
 import ClientProvisionDialog from './ClientProvisionDialog.vue'
 import ClientShareDialog from './ClientShareDialog.vue'
 import ClientTrafficDialog from './ClientTrafficDialog.vue'
-import IpPoolDetailDialog from '@/views/resource/IpPoolDetailDialog.vue'
 
 interface Props {
   serverId: string
 }
 const props = defineProps<Props>()
 
+const router = useRouter()
 const message = useMessage()
 const { confirm } = useConfirm()
 
@@ -139,12 +140,9 @@ function openTraffic(c: XrayClient) {
   trafficOpen.value = true
 }
 
-const ipDetailOpen = ref(false)
-const ipDetailId = ref('')
 function openIpDetail(ipId: string) {
   if (!ipId) return
-  ipDetailId.value = ipId
-  ipDetailOpen.value = true
+  router.push({ name: 'resource-ip-pool-detail', params: { id: ipId } })
 }
 
 const columns = computed<DataTableColumns<XrayClient>>(() => [
@@ -282,6 +280,5 @@ onMounted(loadList)
     <ClientProvisionDialog v-model="provisionOpen" @saved="loadList" />
     <ClientShareDialog v-model="shareOpen" :client="shareTarget" />
     <ClientTrafficDialog v-model="trafficOpen" :inbound="trafficTarget" />
-    <IpPoolDetailDialog v-model="ipDetailOpen" :ip-id="ipDetailId" />
   </div>
 </template>

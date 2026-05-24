@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   Activity,
   Plus,
@@ -35,8 +36,8 @@ import { formatDateTime } from '@/utils/date'
 import ClientProvisionDialog from './ClientProvisionDialog.vue'
 import ClientShareDialog from './ClientShareDialog.vue'
 import ClientTrafficDialog from './ClientTrafficDialog.vue'
-import IpPoolDetailDialog from '@/views/resource/IpPoolDetailDialog.vue'
 
+const router = useRouter()
 const message = useMessage()
 const { confirm } = useConfirm()
 
@@ -197,14 +198,10 @@ function openShare(e: XrayClient) {
   shareOpen.value = true
 }
 
-// ===== IP 详情弹框 (点 IP 列触发, 仅展示, 不在这里改 IP) =====
-const ipDetailOpen = ref(false)
-const ipDetailId = ref<string>('')
+// ===== 点 IP 列跳到 IP 池详情路由页 =====
 function openIpDetail(ipId: string) {
-  // 兼容老数据 / IP 已删的行: 没有 ipId 不弹, 列已经显示空, 点了也无意义
   if (!ipId) return
-  ipDetailId.value = ipId
-  ipDetailOpen.value = true
+  router.push({ name: 'resource-ip-pool-detail', params: { id: ipId } })
 }
 
 // ===== 行操作: 平铺一行小按钮 =====
@@ -496,6 +493,5 @@ onMounted(() => {
     <ClientTrafficDialog v-model="trafficOpen" :inbound="trafficTarget" />
     <ClientShareDialog v-model="shareOpen" :client="shareTarget" />
     <!-- 点击列表 IP 列触发: 只读详情, 不带改 IP 入口 (改 IP 走 IP 池管理页) -->
-    <IpPoolDetailDialog v-model="ipDetailOpen" :ip-id="ipDetailId" />
   </div>
 </template>

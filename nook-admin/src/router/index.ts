@@ -62,6 +62,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'IP代理池' }
       },
       {
+        path: 'resource/ip-pool/:id',
+        name: 'resource-ip-pool-detail',
+        component: () => import('@/views/resource/IpPoolDetail.vue'),
+        meta: { title: 'IP 详情' }
+      },
+      {
         path: 'xray/clients',
         name: 'xray-clients',
         component: () => import('@/views/xray/ClientList.vue'),

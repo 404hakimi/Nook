@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   CheckCircle2,
   ChevronLeft,
@@ -51,15 +52,10 @@ import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/res
 import IpPoolDeployDialog from './IpPoolDeployDialog.vue'
 import IpPoolCreateDialog from './IpPoolCreateDialog.vue'
 import IpPoolCreateChoiceDialog from './IpPoolCreateChoiceDialog.vue'
-import IpPoolDetailDialog from './IpPoolDetailDialog.vue'
 import IpPoolTestDialog from './IpPoolTestDialog.vue'
-import IpPoolLogDialog from './IpPoolLogDialog.vue'
-import IpPoolCoreEditDialog from './dialogs/IpPoolCoreEditDialog.vue'
-import IpPoolCredentialEditDialog from './dialogs/IpPoolCredentialEditDialog.vue'
-import IpPoolBillingEditDialog from './dialogs/IpPoolBillingEditDialog.vue'
-import IpPoolSocks5EditDialog from './dialogs/IpPoolSocks5EditDialog.vue'
-import AgentProvisionDialog from '@/views/agent/AgentProvisionDialog.vue'
 import RegionFlag from '@/components/RegionFlag.vue'
+
+const router = useRouter()
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -228,22 +224,8 @@ async function onActivate(ip: ResourceIpPool) {
   } catch { /* */ }
 }
 
-// ===== 分段编辑 (4 个独立 dialog; 入口在详情 dialog 工具栏) =====
-const coreEditOpen = ref(false)
-const credentialEditOpen = ref(false)
-const billingEditOpen = ref(false)
-const socks5EditOpen = ref(false)
-const editingIp = ref<ResourceIpPool | null>(null)
-
-function openCoreEdit(ip: ResourceIpPool) { editingIp.value = ip; coreEditOpen.value = true }
-function openCredentialEdit(ip: ResourceIpPool) { editingIp.value = ip; credentialEditOpen.value = true }
-function openBillingEdit(ip: ResourceIpPool) { editingIp.value = ip; billingEditOpen.value = true }
-function openSocks5Edit(ip: ResourceIpPool) { editingIp.value = ip; socks5EditOpen.value = true }
-
-// ===== 装 landing agent (入口在详情 dialog) =====
-const provisionOpen = ref(false)
-const provisionIpId = ref<string | null>(null)
-function openProvision(ip: ResourceIpPool) { provisionIpId.value = ip.id; provisionOpen.value = true }
+// 编辑分段 dialog (核心/SSH/账面/dante) + agent provision + log 全部归详情页;
+// list 卡片只保留高频: 测试 / 装机·重装 / 详情 / 停用·启用 / 删除.
 
 function onSaved() {
   loadList()
@@ -311,9 +293,7 @@ const testOpen = ref(false)
 const testTarget = ref<ResourceIpPool | null>(null)
 function openTest(ip: ResourceIpPool) { testTarget.value = ip; testOpen.value = true }
 
-const logOpen = ref(false)
-const logTarget = ref<ResourceIpPool | null>(null)
-function openLog(ip: ResourceIpPool) { logTarget.value = ip; logOpen.value = true }
+// log dialog 入口归详情页 socks5 tab
 
 /**
  * 拼标准 socks5:// URL: socks5://[user[:pass]@]host:port
@@ -347,23 +327,13 @@ async function copySocks5Url(ip: ResourceIpPool) {
   }
 }
 
-// ===== 详情 dialog =====
-const detailOpen = ref(false)
-const detailIpId = ref<string | null>(null)
-const detailDialogRef = ref<InstanceType<typeof IpPoolDetailDialog> | null>(null)
-
+// ===== 详情 (路由页) =====
 function openDetail(ip: ResourceIpPool) {
-  detailIpId.value = ip.id
-  detailOpen.value = true
+  router.push({ name: 'resource-ip-pool-detail', params: { id: ip.id } })
 }
 
-/** 详情 dialog 内任意操作完成后, 重拉 detail (e.g. 编辑/装机/lifecycle) */
-async function refreshDetail() {
-  if (!detailOpen.value) return
-  try {
-    await detailDialogRef.value?.refresh()
-  } catch { /* */ }
-}
+/** 详情页不在 list 里, lifecycle 切换不需要刷详情 (各自的页) */
+async function refreshDetail() { /* no-op; 详情走独立路由 */ }
 
 onMounted(async () => {
   await Promise.all([loadIpTypes(), loadRegions()])
@@ -694,36 +664,7 @@ onMounted(async () => {
 
     <IpPoolDeployDialog v-model="deployOpen" :ip-id="deployIpId" @installed="onDeployInstalled" />
 
-    <!-- 详情 dialog: 顶部工具栏含所有 admin 操作, emit 上抛给父组件打开对应 sub-dialog -->
-    <IpPoolDetailDialog
-      ref="detailDialogRef"
-      v-model="detailOpen"
-      :ip-id="detailIpId"
-      @edit-core="openCoreEdit"
-      @edit-credential="openCredentialEdit"
-      @edit-billing="openBillingEdit"
-      @edit-socks5="openSocks5Edit"
-      @deploy="openDeploy"
-      @test="openTest"
-      @view-log="openLog"
-      @provision-agent="openProvision"
-    />
-
     <IpPoolTestDialog v-model="testOpen" :ip="testTarget" />
-    <IpPoolLogDialog v-model="logOpen" :ip="logTarget" />
-
-    <!-- 分段编辑 dialog; v-if 让每次切换 IP 重建 dialog, watch immediate=true 立即 fetch 回填 -->
-    <IpPoolCoreEditDialog v-if="editingIp" v-model="coreEditOpen" :ip-pool="editingIp" @saved="onSaved" />
-    <IpPoolCredentialEditDialog v-if="editingIp" v-model="credentialEditOpen" :ip-id="editingIp.id" :ip-address="editingIp.ipAddress" @saved="onSaved" />
-    <IpPoolBillingEditDialog v-if="editingIp" v-model="billingEditOpen" :ip-id="editingIp.id" @saved="onSaved" />
-    <IpPoolSocks5EditDialog v-if="editingIp" v-model="socks5EditOpen" :ip-id="editingIp.id" @saved="onSaved" />
-
-    <AgentProvisionDialog
-      v-model="provisionOpen"
-      :initial-server-id="provisionIpId"
-      initial-role="landing"
-      @dispatched="onSaved"
-    />
   </div>
 </template>
 
