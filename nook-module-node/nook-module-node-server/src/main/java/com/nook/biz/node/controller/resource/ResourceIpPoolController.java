@@ -5,6 +5,8 @@ import com.nook.biz.node.controller.resource.vo.ResourceIpPoolBillingUpdateReqVO
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCredentialRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolCredentialUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolInstallRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceIpPoolInstallUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
@@ -12,12 +14,15 @@ import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSocks5RespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSocks5UpdateReqVO;
 import com.nook.biz.node.convert.resource.ResourceIpPoolConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolInstallDO;
 import com.nook.biz.node.service.resource.ResourceIpPoolBillingService;
 import com.nook.biz.node.service.resource.ResourceIpPoolCredentialService;
+import com.nook.biz.node.service.resource.ResourceIpPoolInstallService;
 import com.nook.biz.node.service.resource.ResourceIpPoolService;
 import com.nook.biz.node.service.resource.ResourceIpPoolSocks5Service;
 import com.nook.biz.node.validator.ResourceIpPoolValidator;
 import com.nook.common.utils.collection.CollectionUtils;
+import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
@@ -51,6 +56,7 @@ public class ResourceIpPoolController {
     private final ResourceIpPoolCredentialService credentialService;
     private final ResourceIpPoolBillingService billingService;
     private final ResourceIpPoolSocks5Service socks5Service;
+    private final ResourceIpPoolInstallService installService;
     private final ResourceIpPoolValidator ipPoolValidator;
 
     /**
@@ -115,7 +121,8 @@ public class ResourceIpPoolController {
         Set<String> ids = CollectionUtils.convertSet(pageResult.getRecords(), ResourceIpPoolDO::getId);
         ResourceIpPoolService.SubtablesBundle bundle = resourceIpPoolService.batchLoadSubtables(ids);
         return Result.ok(ResourceIpPoolConvert.INSTANCE.convertPageWithSubtables(
-                pageResult, bundle.credentials(), bundle.billings(), bundle.socks5s(), bundle.runtimes()));
+                pageResult, bundle.credentials(), bundle.billings(), bundle.socks5s(),
+                bundle.installs(), bundle.runtimes()));
     }
 
     /**
@@ -238,13 +245,43 @@ public class ResourceIpPoolController {
         return Result.ok(true);
     }
 
-    /** 单 IP 详情: 主 + 4 子表组装 */
+    /**
+     * 获得 SOCKS5 装机事实
+     *
+     * @param id IP 池编号
+     * @return 装机事实
+     */
+    @GetMapping("/{id}/install")
+    public Result<ResourceIpPoolInstallRespVO> getInstall(@PathVariable("id") String id) {
+        ipPoolValidator.validateExists(id);
+        return Result.ok(ResourceIpPoolConvert.INSTANCE.convertInstall(installService.get(id)));
+    }
+
+    /**
+     * 更新 SOCKS5 装机事实
+     *
+     * @param id    IP 池编号
+     * @param reqVO 装机事实入参
+     * @return 是否成功
+     */
+    @PutMapping("/{id}/install")
+    public Result<Boolean> updateInstall(@PathVariable("id") String id,
+                                         @Valid @RequestBody ResourceIpPoolInstallUpdateReqVO reqVO) {
+        ipPoolValidator.validateExists(id);
+        ResourceIpPoolInstallDO patch = BeanUtils.toBean(reqVO, ResourceIpPoolInstallDO.class);
+        patch.setIpId(id);
+        installService.upsert(patch);
+        return Result.ok(true);
+    }
+
+    /** 单 IP 详情: 主 + 5 子表组装 */
     private ResourceIpPoolRespVO loadDetail(String id) {
         ResourceIpPoolDO main = ipPoolValidator.validateExists(id);
         return ResourceIpPoolConvert.INSTANCE.convertWithSubtables(main,
                 resourceIpPoolService.getCredential(id),
                 resourceIpPoolService.getBilling(id),
                 resourceIpPoolService.getSocks5(id),
+                resourceIpPoolService.getInstall(id),
                 resourceIpPoolService.getRuntime(id));
     }
 }

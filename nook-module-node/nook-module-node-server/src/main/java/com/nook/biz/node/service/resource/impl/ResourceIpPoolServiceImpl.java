@@ -13,11 +13,13 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolInstallDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolRuntimeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpTypeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolBillingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolCredentialMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolInstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolRuntimeMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolSocks5Mapper;
@@ -58,6 +60,7 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     private final ResourceIpPoolCredentialMapper credentialMapper;
     private final ResourceIpPoolBillingMapper billingMapper;
     private final ResourceIpPoolSocks5Mapper socks5Mapper;
+    private final ResourceIpPoolInstallMapper installMapper;
     private final ResourceIpPoolRuntimeMapper runtimeMapper;
     private final ResourceIpTypeMapper resourceIpTypeMapper;
     private final XrayClientMapper xrayClientMapper;
@@ -91,14 +94,20 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
         bill.setUpdatedAt(now);
         billingMapper.insert(bill);
 
-        // 4) socks5 子表 (dante 配置 + 限速)
+        // 4) socks5 子表 (dante 业务配置)
         ResourceIpPoolSocks5DO socks5 = BeanUtils.toBean(createReqVO, ResourceIpPoolSocks5DO.class);
         socks5.setIpId(ipId);
         socks5.setCreatedAt(now);
         socks5.setUpdatedAt(now);
         socks5Mapper.insert(socks5);
 
-        // 5) runtime 子表占位 (agent 装好后由心跳 / 健康探测填)
+        // 5) install 子表 (装机事实; 跟 xray_server 同语义)
+        ResourceIpPoolInstallDO install = BeanUtils.toBean(createReqVO, ResourceIpPoolInstallDO.class);
+        install.setIpId(ipId);
+        install.setInstalledAt(now);
+        installMapper.insert(install);
+
+        // 6) runtime 子表占位 (agent 装好后由心跳 / 健康探测填)
         ResourceIpPoolRuntimeDO runtime = new ResourceIpPoolRuntimeDO();
         runtime.setIpId(ipId);
         runtime.setTempUnhealthy(0);
@@ -141,6 +150,11 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
             socks5Patch.setSocks5Password(null);
         }
         socks5Mapper.updateBySelective(socks5Patch);
+
+        // 5) install 子表 (装机事实, 全字段覆盖; 装机产物本就该跟入参对齐)
+        ResourceIpPoolInstallDO installPatch = BeanUtils.toBean(updateReqVO, ResourceIpPoolInstallDO.class);
+        installPatch.setIpId(id);
+        installMapper.updateById(installPatch);
     }
 
     @Override
@@ -333,10 +347,15 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     }
 
     @Override
+    public ResourceIpPoolInstallDO getInstall(String ipId) {
+        return installMapper.selectById(ipId);
+    }
+
+    @Override
     public SubtablesBundle batchLoadSubtables(Collection<String> ipIds) {
         if (CollectionUtils.isAnyEmpty(ipIds)) {
             return new SubtablesBundle(Collections.emptyMap(), Collections.emptyMap(),
-                    Collections.emptyMap(), Collections.emptyMap());
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         }
         Map<String, ResourceIpPoolCredentialDO> cred = CollectionUtils.convertMap(
                 credentialMapper.selectBatchIds(ipIds), ResourceIpPoolCredentialDO::getIpId);
@@ -344,9 +363,11 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
                 billingMapper.selectBatchIds(ipIds), ResourceIpPoolBillingDO::getIpId);
         Map<String, ResourceIpPoolSocks5DO> socks5 = CollectionUtils.convertMap(
                 socks5Mapper.selectBatchIds(ipIds), ResourceIpPoolSocks5DO::getIpId);
+        Map<String, ResourceIpPoolInstallDO> install = CollectionUtils.convertMap(
+                installMapper.selectByIpIds(ipIds), ResourceIpPoolInstallDO::getIpId);
         Map<String, ResourceIpPoolRuntimeDO> runtime = CollectionUtils.convertMap(
                 runtimeMapper.selectBatchIds(ipIds), ResourceIpPoolRuntimeDO::getIpId);
-        return new SubtablesBundle(cred, bill, socks5, runtime);
+        return new SubtablesBundle(cred, bill, socks5, install, runtime);
     }
 
     @Override

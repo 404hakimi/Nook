@@ -45,6 +45,9 @@ public class ResourceIpPoolSaveReqVO {
     @Size(max = 45)
     private String ipAddress;
 
+    // ===== socks5 业务配置 (落 resource_ip_pool_socks5) =====
+    // TODO Phase 3 卡片向导重做后, 这个 SaveReqVO 拆成嵌套子 VO + 严格 @NotBlank
+
     @NotNull(message = "SOCKS5 端口不能为空")
     @Min(value = 1) @Max(value = 65535)
     private Integer socks5Port;
@@ -59,9 +62,26 @@ public class ResourceIpPoolSaveReqVO {
     @Size(max = 64)
     private String logLevel;
 
+    // ===== 装机事实 (落 resource_ip_pool_install) =====
+
+    @Size(max = 255)
+    private String installDir;
+
     @NotBlank(message = "logPath 必填")
     @Size(max = 255)
     private String logPath;
+
+    @Size(max = 255)
+    private String confPath;
+
+    @Size(max = 255)
+    private String pamFile;
+
+    @Size(max = 255)
+    private String pwdFile;
+
+    @Size(max = 64)
+    private String systemdUnit;
 
     @Min(value = 0) @Max(value = 1)
     private Integer autostartEnabled;
@@ -69,8 +89,8 @@ public class ResourceIpPoolSaveReqVO {
     @Min(value = 0) @Max(value = 1)
     private Integer firewallEnabled;
 
-    @Size(max = 255)
-    private String installDir;
+    @Min(value = 0) @Max(value = 1)
+    private Integer logRotateEnabled;
 
     @Size(max = 128)
     private String sshHost;

@@ -66,22 +66,26 @@ public class ResourceIpSocksInstallReqVO {
     @NotNull(message = "installUfw 必填")
     private Boolean installUfw;
 
-    /** dante 日志关键字组合 (空格分隔); 例 'connect disconnect error'; 留空走默认. */
+    /** dante 日志关键字组合; 前端 default 'connect disconnect error'. */
+    @NotBlank(message = "logLevel 必填")
     @Size(max = 64)
     private String logLevel;
 
-    /** dante logoutput 路径; 前端兜底为 installDir/logs/sockd.log, 后端不再加默认. */
+    /** dante logoutput 路径; 前端 default 'installDir/logs/sockd.log'. */
     @NotBlank(message = "logPath 必填")
     @Size(max = 255)
     private String logPath;
 
-    /** systemd 开机自启 (true=enable, false=disable); 不传默认 true. */
+    /** systemd 开机自启 (true=enable, false=disable). */
+    @NotNull(message = "autostartEnabled 必填")
     private Boolean autostartEnabled;
 
-    /** 是否启用 logrotate 日志轮转 (sockd.log 50M 触发 + gzip 压缩); 推荐低配机开启. */
+    /** 是否启用 logrotate 日志轮转 (sockd.log 50M 触发 + gzip 压缩). */
+    @NotNull(message = "logRotate 必填")
     private Boolean logRotate;
 
-    /** SOCKS5 安装目录; 留空走默认 /home/socks5; logs / info.txt 等运维资产放这里. */
+    /** SOCKS5 安装目录; 前端 default '/home/socks5'. */
+    @NotBlank(message = "installDir 必填")
     @Size(max = 255)
     private String installDir;
 }

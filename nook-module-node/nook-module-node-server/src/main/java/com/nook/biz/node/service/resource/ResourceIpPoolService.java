@@ -6,6 +6,7 @@ import com.nook.biz.node.controller.resource.vo.ResourceIpPoolSaveReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolInstallDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolRuntimeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
 import com.nook.common.web.response.PageResult;
@@ -164,17 +165,26 @@ public interface ResourceIpPoolService {
     ResourceIpPoolRuntimeDO getRuntime(String ipId);
 
     /**
-     * 批量获得 4 张子表
+     * 获得装机事实子表
+     *
+     * @param ipId IP 池编号
+     * @return install 子表
+     */
+    ResourceIpPoolInstallDO getInstall(String ipId);
+
+    /**
+     * 批量获得 5 张子表
      *
      * @param ipIds IP 池编号集合
-     * @return 4 张子表批量返回包
+     * @return 5 张子表批量返回包
      */
     SubtablesBundle batchLoadSubtables(Collection<String> ipIds);
 
-    /** 4 张子表批量返回包 */
+    /** 5 张子表批量返回包 */
     record SubtablesBundle(
             Map<String, ResourceIpPoolCredentialDO> credentials,
             Map<String, ResourceIpPoolBillingDO> billings,
             Map<String, ResourceIpPoolSocks5DO> socks5s,
+            Map<String, ResourceIpPoolInstallDO> installs,
             Map<String, ResourceIpPoolRuntimeDO> runtimes) { }
 }

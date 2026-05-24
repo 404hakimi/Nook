@@ -14,8 +14,10 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolInstallDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolCredentialMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolInstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolSocks5Mapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
@@ -66,6 +68,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     private final ServerProbe serverProbe;
     private final ResourceIpPoolCredentialMapper credentialMapper;
     private final ResourceIpPoolSocks5Mapper socks5Mapper;
+    private final ResourceIpPoolInstallMapper installMapper;
 
     /** dante 的 systemd unit 名 (apt 包默认), 跟 install / update 脚本里 systemctl 操作的 unit 对齐. */
     private static final String DANTE_UNIT = "danted";
@@ -112,12 +115,16 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 || StrUtil.isBlank(socks5.getSocks5Username()) || StrUtil.isBlank(socks5.getSocks5Password())) {
             throw new BusinessException(ResourceErrorCode.IP_POOL_SOCKS5_INCOMPLETE, ip.getIpAddress());
         }
+        ResourceIpPoolInstallDO install = installMapper.selectById(ipId);
+        if (install == null) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_SOCKS5_INCOMPLETE, ip.getIpAddress());
+        }
 
         // 2. SSH 到 landing 跑 update-dante-creds.sh; 走 ad-hoc cred (用户每次输 SSH 密码)
         lineSink.accept("[nook] === 阶段 1/2: 同步 landing dante 配置 ===\n");
         SessionCredential landingCred = buildSyncCred(ip, reqVO);
         // SSH 端口走入参不走 DB 现值; sync 这次握手用的就是 reqVO.sshPort, UFW 跟着放行才合理
-        Map<String, String> vars = buildSyncVars(ip, socks5, reqVO.getSshPort());
+        Map<String, String> vars = buildSyncVars(ip, socks5, install, reqVO.getSshPort());
         Duration scriptTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
         SshSessions.runAdHocVoid(landingCred, session ->
                 scriptCatalog.run(session, NookScripts.SOCKS5_UPDATE_CREDS, vars, scriptTimeout, lineSink));
@@ -172,22 +179,20 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 .build();
     }
 
-    /** sync-creds 模板变量: socks5 部分从 socks5 子表读, sshPort 单独传入 (跟当前 SSH 握手用的端口对齐). */
-    private Map<String, String> buildSyncVars(ResourceIpPoolDO ip, ResourceIpPoolSocks5DO socks5, int sshPort) {
-        int autostart = socks5.getAutostartEnabled() == null ? 1 : socks5.getAutostartEnabled();
-        int firewall = socks5.getFirewallEnabled() == null ? 1 : socks5.getFirewallEnabled();
-        String installDir = StrUtil.blankToDefault(socks5.getInstallDir(), DEFAULT_INSTALL_DIR);
+    /** sync-creds 模板变量: socks5 业务字段 + install 装机产物联合渲染, sshPort 单独传入. */
+    private Map<String, String> buildSyncVars(ResourceIpPoolDO ip, ResourceIpPoolSocks5DO socks5,
+                                              ResourceIpPoolInstallDO install, int sshPort) {
         return Map.ofEntries(
                 Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
                 Map.entry("SOCKS_PORT", String.valueOf(socks5.getSocks5Port())),
                 Map.entry("SSH_PORT", String.valueOf(sshPort)),
                 Map.entry("SOCKS_USER", socks5.getSocks5Username()),
                 Map.entry("SOCKS_PASS", socks5.getSocks5Password()),
-                Map.entry("FIREWALL_ENABLED", String.valueOf(firewall)),
-                Map.entry("LOG_LEVEL", StrUtil.blankToDefault(socks5.getLogLevel(), DEFAULT_LOG_LEVEL)),
-                Map.entry("LOG_PATH", socks5.getLogPath()),
-                Map.entry("INSTALL_DIR", installDir),
-                Map.entry("AUTOSTART_ENABLED", String.valueOf(autostart)));
+                Map.entry("LOG_LEVEL", socks5.getLogLevel()),
+                Map.entry("LOG_PATH", install.getLogPath()),
+                Map.entry("INSTALL_DIR", install.getInstallDir()),
+                Map.entry("FIREWALL_ENABLED", String.valueOf(install.getFirewallEnabled())),
+                Map.entry("AUTOSTART_ENABLED", String.valueOf(install.getAutostartEnabled())));
     }
 
     /** 把请求里的 ad-hoc SSH 字段封成 SessionCredential; 不入库, 也不绕道业务 DTO. */
@@ -206,26 +211,22 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     }
 
     /**
-     * 模板渲染变量表; 字段缺省用 dante 部署的合理默认值, 上层 dialog 留空也能跑.
+     * 模板渲染变量表; 后端不再 blankToDefault, 入参字段全部 @NotBlank/@NotNull 强校验.
      * 命名跟 install-dante-landing.sh.tmpl 里的 {{...}} 占位符对齐.
      */
     private Map<String, String> buildVars(ResourceIpSocksInstallReqVO r) {
-        boolean autostart = r.getAutostartEnabled() == null || r.getAutostartEnabled();
-        boolean firewall = r.getInstallUfw() != null && r.getInstallUfw();
-        boolean logRotate = r.getLogRotate() == null || r.getLogRotate();
-        String installDir = StrUtil.blankToDefault(r.getInstallDir(), DEFAULT_INSTALL_DIR);
         return Map.ofEntries(
                 Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
                 Map.entry("SOCKS_PORT", String.valueOf(r.getSocksPort())),
                 Map.entry("SSH_PORT", String.valueOf(r.getSshPort())),
                 Map.entry("SOCKS_USER", r.getSocksUser()),
                 Map.entry("SOCKS_PASS", r.getSocksPass()),
-                Map.entry("FIREWALL_ENABLED", firewall ? "1" : "0"),
-                Map.entry("LOG_LEVEL", StrUtil.blankToDefault(r.getLogLevel(), DEFAULT_LOG_LEVEL)),
+                Map.entry("FIREWALL_ENABLED", Boolean.TRUE.equals(r.getInstallUfw()) ? "1" : "0"),
+                Map.entry("LOG_LEVEL", r.getLogLevel()),
                 Map.entry("LOG_PATH", r.getLogPath()),
-                Map.entry("INSTALL_DIR", installDir),
-                Map.entry("AUTOSTART_ENABLED", autostart ? "1" : "0"),
-                Map.entry("LOG_ROTATE_ENABLED", logRotate ? "1" : "0"));
+                Map.entry("INSTALL_DIR", r.getInstallDir()),
+                Map.entry("AUTOSTART_ENABLED", Boolean.TRUE.equals(r.getAutostartEnabled()) ? "1" : "0"),
+                Map.entry("LOG_ROTATE_ENABLED", Boolean.TRUE.equals(r.getLogRotate()) ? "1" : "0"));
     }
 
     // ===== status / autostart / log: 走 IP 池 credential 子表存储的 SSH 凭据 =====
@@ -279,11 +280,11 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
             session.ssh().exec(cmd);
         });
 
-        // 同步 socks5 子表的 autostart_enabled, 让列表 / 编辑表单展示跟远端实际一致
-        ResourceIpPoolSocks5DO patch = new ResourceIpPoolSocks5DO();
+        // 同步 install 子表的 autostart_enabled, 让列表 / 编辑表单展示跟远端实际一致
+        ResourceIpPoolInstallDO patch = new ResourceIpPoolInstallDO();
         patch.setIpId(ipId);
         patch.setAutostartEnabled(enabled ? 1 : 0);
-        socks5Mapper.updateBySelective(patch);
+        installMapper.updateById(patch);
         log.info("[ip-pool] SOCKS5 autostart ipId={} ip={} enabled={}", ipId, ip.getIpAddress(), enabled);
     }
 
@@ -300,8 +301,8 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     @Override
     public ServiceLogRespVO getSocks5LogFile(String ipId, Integer lines, String keyword) {
         ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
-        ResourceIpPoolSocks5DO socks5 = socks5Mapper.selectById(ipId);
-        String filePath = socks5 == null ? null : socks5.getLogPath();
+        ResourceIpPoolInstallDO install = installMapper.selectById(ipId);
+        String filePath = install == null ? null : install.getLogPath();
         SessionCredential cred = buildStoredCred(ip);
         JournalLogSnapshot snap = SshSessions.runAdHoc(cred, session ->
                 serverProbe.readFileLog(session, filePath, lines, keyword));
