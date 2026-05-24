@@ -3,7 +3,6 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.controller.resource.vo.HostInfoRespVO;
-import com.nook.biz.node.controller.resource.vo.ResourceIpSocksInstallReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksSyncCredsReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestRespVO;
@@ -91,97 +90,88 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     private static final String DANTE_UNIT = "danted";
 
     @Override
-    public void installSocks5(ResourceIpSocksInstallReqVO reqVO, Consumer<String> lineSink) {
-        // 1. 装机前查重: 同 IP 已在池里 → 拒绝, 防 admin 反复装机导致脏数据
-        ipPoolValidator.validateIpAddressUnique(null, reqVO.getSshHost());
+    public void installSocks5(String ipId, Consumer<String> lineSink) {
+        // 1. 拉 IP 池 + 5 子表 (createIpPool 已落好), 校验配置齐全
+        ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
+        ResourceIpPoolCredentialDO cred = credentialMapper.selectById(ipId);
+        ResourceIpPoolSocks5DO socks5 = socks5Mapper.selectById(ipId);
+        ResourceIpPoolInstallDO install = installMapper.selectById(ipId);
+        if (cred == null || StrUtil.isBlank(cred.getSshHost()) || StrUtil.isBlank(cred.getSshPassword())) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_SOCKS5_INCOMPLETE,
+                    "ipId=" + ipId + " 的 SSH 凭据未填全, 先在编辑 SSH 凭据里补齐");
+        }
+        if (socks5 == null || socks5.getSocks5Port() == null
+                || StrUtil.isBlank(socks5.getSocks5Username()) || StrUtil.isBlank(socks5.getSocks5Password())) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_SOCKS5_INCOMPLETE,
+                    "ipId=" + ipId + " 的 SOCKS5 业务配置未填全, 先在编辑 SOCKS5 配置里补齐");
+        }
+        if (install == null) {
+            throw new BusinessException(ResourceErrorCode.IP_POOL_SOCKS5_INCOMPLETE,
+                    "ipId=" + ipId + " 的装机产物子表缺失");
+        }
 
-        // 2. SSH 跑装机脚本 (副作用不可回滚, 放事务外)
-        SessionCredential cred = buildAdHocCred(reqVO);
-        Map<String, String> vars = buildVars(reqVO);
-        Duration installTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
-        SshSessions.runAdHocVoid(cred, session ->
+        // 2. SSH 跑装机脚本 (副作用不可回滚, 放事务外); 装机脚本耗时 1-5min, 给 10min 兜底
+        SessionCredential sshCred = buildSshCred(cred, install);
+        Map<String, String> vars = buildInstallVars(ip, cred, socks5, install);
+        Duration installTimeout = Duration.ofSeconds(600);
+        lineSink.accept("[nook] === 装机 SOCKS5 / IP " + ip.getIpAddress() + " ===\n");
+        SshSessions.runAdHocVoid(sshCred, session ->
                 scriptCatalog.run(session, NookScripts.SOCKS5_INSTALL, vars, installTimeout, lineSink));
 
-        // 3. 装机成功 → 事务内一次性落 6 行 (主表 + 5 子表); 失败抛错, 远端服务已起来但 admin 可手动清理
-        String ipId = persistFromInstall(reqVO);
-
-        // 4. 把 ipId 通过 lineSink 透回前端, 客户端解析这一行拿 id 跳转详情页
-        lineSink.accept("[nook] ✔ 已落库 ipId=" + ipId + "\n");
-        log.info("[install-socks5] OK ipId={} ip={} provisionMode=SELF_DEPLOY", ipId, reqVO.getSshHost());
+        // 3. 装机成功 → update install 表 (installedAt) + 主表 lifecycle 切到 LIVE
+        LocalDateTime now = LocalDateTime.now();
+        ResourceIpPoolInstallDO installPatch = new ResourceIpPoolInstallDO();
+        installPatch.setIpId(ipId);
+        installPatch.setInstalledAt(now);
+        installMapper.updateById(installPatch);
+        if (!ResourceIpPoolLifecycleEnum.LIVE.getState().equals(ip.getLifecycleState())) {
+            ipPoolMapper.updateLifecycleState(ipId, ResourceIpPoolLifecycleEnum.LIVE.getState());
+        }
+        // agent_token 若未生成, 这时补 (装好后让 landing agent 可以接管 push)
+        if (StrUtil.isBlank(ip.getAgentToken())) {
+            ResourceIpPoolDO mainPatch = new ResourceIpPoolDO();
+            mainPatch.setId(ipId);
+            mainPatch.setAgentToken(generateAgentToken());
+            ipPoolMapper.updateById(mainPatch);
+        }
+        lineSink.accept("[nook] ✔ 装机完成, lifecycle → LIVE, ipId=" + ipId + "\n");
+        log.info("[install-socks5] OK ipId={} ip={} lifecycle=LIVE", ipId, ip.getIpAddress());
     }
 
-    /** 装机成功后事务内一次性落 6 行 (主表 + 5 子表); 跟 ResourceIpPoolServiceImpl.createIpPool 同结构 */
-    private String persistFromInstall(ResourceIpSocksInstallReqVO r) {
-        return transactionTemplate.execute(status -> {
-            LocalDateTime now = LocalDateTime.now();
-            // 主表
-            ResourceIpPoolDO main = new ResourceIpPoolDO();
-            main.setRegion(r.getRegion());
-            main.setIpTypeId(r.getIpTypeId());
-            main.setIpAddress(r.getSshHost());
-            main.setLifecycleState(ResourceIpPoolLifecycleEnum.LIVE.getState());
-            main.setStatus(ResourceIpPoolStatusEnum.AVAILABLE.getState());
-            main.setProvisionMode(ResourceIpPoolProvisionModeEnum.SELF_DEPLOY.getMode());
-            main.setAgentToken(generateAgentToken());
-            main.setRemark(r.getRemark());
-            ipPoolMapper.insert(main);
-            String ipId = main.getId();
+    /** SSH 凭据从 credential / install 子表读 (装机脚本要的超时 / 端口 / 用户). */
+    private SessionCredential buildSshCred(ResourceIpPoolCredentialDO cred, ResourceIpPoolInstallDO install) {
+        return SessionCredential.builder()
+                .serverId("ad-hoc:" + cred.getSshHost())
+                .sshHost(cred.getSshHost())
+                .sshPort(cred.getSshPort() == null ? 22 : cred.getSshPort())
+                .sshUser(StrUtil.blankToDefault(cred.getSshUser(), "root"))
+                .sshPassword(cred.getSshPassword())
+                .sshTimeoutSeconds(60)
+                .sshOpTimeoutSeconds(60)
+                .sshUploadTimeoutSeconds(180)
+                .installTimeoutSeconds(600)
+                .build();
+    }
 
-            // credential 子表 (SSH 凭据从入参落库, 后续运维 status / 日志接口要用)
-            ResourceIpPoolCredentialDO cred = new ResourceIpPoolCredentialDO();
-            cred.setIpId(ipId);
-            cred.setSshHost(r.getSshHost());
-            cred.setSshPort(r.getSshPort());
-            cred.setSshUser(r.getSshUser());
-            cred.setSshPassword(r.getSshPassword());
-            cred.setCreatedAt(now);
-            cred.setUpdatedAt(now);
-            credentialMapper.insert(cred);
-
-            // billing 子表 (空占位, admin 后续编辑)
-            ResourceIpPoolBillingDO bill = new ResourceIpPoolBillingDO();
-            bill.setIpId(ipId);
-            bill.setCreatedAt(now);
-            bill.setUpdatedAt(now);
-            billingMapper.insert(bill);
-
-            // socks5 子表 (dante 业务配置)
-            ResourceIpPoolSocks5DO socks5 = new ResourceIpPoolSocks5DO();
-            socks5.setIpId(ipId);
-            socks5.setSocks5Port(r.getSocksPort());
-            socks5.setSocks5Username(r.getSocksUser());
-            socks5.setSocks5Password(r.getSocksPass());
-            socks5.setLogLevel(r.getLogLevel());
-            socks5.setBandwidthLimitMbps(0);
-            socks5.setCreatedAt(now);
-            socks5.setUpdatedAt(now);
-            socks5Mapper.insert(socks5);
-
-            // install 子表 (装机产物; 跟 xray_server 同语义)
-            ResourceIpPoolInstallDO install = new ResourceIpPoolInstallDO();
-            install.setIpId(ipId);
-            install.setInstallDir(r.getInstallDir());
-            install.setLogPath(r.getLogPath());
-            install.setConfPath(r.getConfPath());
-            install.setPamFile(r.getPamFile());
-            install.setPwdFile(r.getPwdFile());
-            install.setSystemdUnit(DANTE_UNIT);  // 固定 'danted' (apt 包提供), 不接受前端入参
-            install.setAutostartEnabled(Boolean.TRUE.equals(r.getAutostartEnabled()) ? 1 : 0);
-            install.setFirewallEnabled(Boolean.TRUE.equals(r.getInstallUfw()) ? 1 : 0);
-            install.setLogRotateEnabled(Boolean.TRUE.equals(r.getLogRotate()) ? 1 : 0);
-            install.setInstalledAt(now);
-            installMapper.insert(install);
-
-            // runtime 子表占位 (agent 接管后由心跳填)
-            ResourceIpPoolRuntimeDO runtime = new ResourceIpPoolRuntimeDO();
-            runtime.setIpId(ipId);
-            runtime.setTempUnhealthy(0);
-            runtime.setConsecutiveMiss(0);
-            runtime.setUpdatedAt(now);
-            runtimeMapper.insert(runtime);
-
-            return ipId;
-        });
+    /** 装机模板变量: 全部从 DB 已落库的子表读. */
+    private Map<String, String> buildInstallVars(ResourceIpPoolDO ip, ResourceIpPoolCredentialDO cred,
+                                                  ResourceIpPoolSocks5DO socks5, ResourceIpPoolInstallDO install) {
+        return Map.ofEntries(
+                Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
+                Map.entry("SOCKS_PORT", String.valueOf(socks5.getSocks5Port())),
+                Map.entry("SSH_PORT", String.valueOf(cred.getSshPort() == null ? 22 : cred.getSshPort())),
+                Map.entry("SOCKS_USER", socks5.getSocks5Username()),
+                Map.entry("SOCKS_PASS", socks5.getSocks5Password()),
+                Map.entry("FIREWALL_ENABLED", String.valueOf(install.getFirewallEnabled() == null ? 1 : install.getFirewallEnabled())),
+                Map.entry("LOG_LEVEL", socks5.getLogLevel()),
+                Map.entry("LOG_PATH", install.getLogPath()),
+                Map.entry("INSTALL_DIR", install.getInstallDir()),
+                Map.entry("CONF_PATH", install.getConfPath()),
+                Map.entry("PAM_FILE", install.getPamFile()),
+                Map.entry("PWD_FILE", install.getPwdFile()),
+                Map.entry("SYSTEMD_UNIT", DANTE_UNIT),
+                Map.entry("AUTOSTART_ENABLED", String.valueOf(install.getAutostartEnabled() == null ? 1 : install.getAutostartEnabled())),
+                Map.entry("LOG_ROTATE_ENABLED", String.valueOf(install.getLogRotateEnabled() == null ? 1 : install.getLogRotateEnabled())));
     }
 
     /** SHA256(UUID + UUID) → 64 char hex; 跟 DB agent_token CHAR(64) 长度对齐 */
@@ -311,44 +301,8 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 Map.entry("AUTOSTART_ENABLED", String.valueOf(install.getAutostartEnabled())));
     }
 
-    /** 把请求里的 ad-hoc SSH 字段封成 SessionCredential; 不入库, 也不绕道业务 DTO. */
-    private SessionCredential buildAdHocCred(ResourceIpSocksInstallReqVO r) {
-        return SessionCredential.builder()
-                .serverId("ad-hoc:" + r.getSshHost())
-                .sshHost(r.getSshHost())
-                .sshPort(r.getSshPort())
-                .sshUser(r.getSshUser())
-                .sshPassword(r.getSshPassword())
-                .sshTimeoutSeconds(r.getSshTimeoutSeconds())
-                .sshOpTimeoutSeconds(r.getSshOpTimeoutSeconds())
-                .sshUploadTimeoutSeconds(r.getSshUploadTimeoutSeconds())
-                .installTimeoutSeconds(r.getInstallTimeoutSeconds())
-                .build();
-    }
-
-    /**
-     * 模板渲染变量表; 后端不再 blankToDefault, 入参字段全部 @NotBlank/@NotNull 强校验.
-     * 命名跟 install-dante-landing.sh.tmpl 里的 {{...}} 占位符对齐.
-     */
-    private Map<String, String> buildVars(ResourceIpSocksInstallReqVO r) {
-        return Map.ofEntries(
-                Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
-                Map.entry("SOCKS_PORT", String.valueOf(r.getSocksPort())),
-                Map.entry("SSH_PORT", String.valueOf(r.getSshPort())),
-                Map.entry("SOCKS_USER", r.getSocksUser()),
-                Map.entry("SOCKS_PASS", r.getSocksPass()),
-                Map.entry("FIREWALL_ENABLED", Boolean.TRUE.equals(r.getInstallUfw()) ? "1" : "0"),
-                Map.entry("LOG_LEVEL", r.getLogLevel()),
-                Map.entry("LOG_PATH", r.getLogPath()),
-                Map.entry("INSTALL_DIR", r.getInstallDir()),
-                Map.entry("CONF_PATH", r.getConfPath()),
-                Map.entry("PAM_FILE", r.getPamFile()),
-                Map.entry("PWD_FILE", r.getPwdFile()),
-                // systemd unit 固定 'danted' (apt 包提供), 装机用 drop-in 覆盖 ExecStart
-                Map.entry("SYSTEMD_UNIT", DANTE_UNIT),
-                Map.entry("AUTOSTART_ENABLED", Boolean.TRUE.equals(r.getAutostartEnabled()) ? "1" : "0"),
-                Map.entry("LOG_ROTATE_ENABLED", Boolean.TRUE.equals(r.getLogRotate()) ? "1" : "0"));
-    }
+    // installSocks5 / buildInstallVars / buildSshCred 已改成 DB-driven (Phase 5);
+    // 旧的 ResourceIpSocksInstallReqVO 不再用于装机, 全部装机参数从 DB 子表读
 
     // ===== status / autostart / log: 走 IP 池 credential 子表存储的 SSH 凭据 =====
 

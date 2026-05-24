@@ -17,12 +17,12 @@ import java.util.function.Consumer;
 public interface ResourceIpSocksService {
 
     /**
-     * 流式装机 SOCKS5
+     * 流式装机 SOCKS5 — 针对已落库的 IP 池条目跑装机脚本, 装机成功后更新 install 子表 + lifecycle → LIVE
      *
-     * @param reqVO    装机入参
+     * @param ipId     已存在的 IP 池编号
      * @param lineSink 每行 stdout 的消费回调
      */
-    void installSocks5(ResourceIpSocksInstallReqVO reqVO, Consumer<String> lineSink);
+    void installSocks5(String ipId, Consumer<String> lineSink);
 
     /**
      * 拨号测试 SOCKS5

@@ -138,8 +138,18 @@ export interface ResourceIpPoolSaveDTO {
   autostartEnabled?: number
   /** 部署时是否配 UFW (1/0); 留空默认 1. */
   firewallEnabled?: number
+  /** 装机时是否启用 logrotate (1/0); 默认 1. */
+  logRotateEnabled?: number
   /** SOCKS5 安装目录; 默认 /home/socks5. */
   installDir?: string
+  /** sockd.conf 绝对路径; 装机产物. */
+  confPath?: string
+  /** PAM 配置文件路径. */
+  pamFile?: string
+  /** htpasswd 密码文件路径. */
+  pwdFile?: string
+  /** systemd unit 名; 固定 'danted'. */
+  systemdUnit?: string
   /** SSH 主机 (默认 = ipAddress). */
   sshHost?: string
   /** SSH 端口 (默认 22). */
@@ -451,46 +461,7 @@ export function testIpPoolSocks5(id: string, params: Socks5TestParams) {
   return request.post<unknown, Socks5TestResult>('/admin/resource/ip-pool/test-socks5', params, { params: { id } })
 }
 
-// ===== SOCKS5 独立部署 (走 nook-biz-node Socks5Controller, 流式 HTTP, 不绑定 IP 池条目) =====
-
-/**
- * SOCKS5 装机入参. 装机成功后 backend 事务内一次性落 6 行 (主表 + 5 子表),
- * 通过 lineSink 推 `[nook] ✔ 已落库 ipId=<id>` 给前端跳详情.
- *
- * 默认值规则: 前端 form 给 default, 后端 @NotBlank/@NotNull 强校验, 不再 blankToDefault 兜底.
- */
-export interface Socks5InstallDTO {
-  // 主表: 资源归属
-  region: string
-  ipTypeId: string
-  remark?: string
-
-  // SSH 凭据 (落 credential 子表)
-  sshHost: string
-  sshPort: number
-  sshUser: string
-  sshPassword: string
-  sshTimeoutSeconds: number
-  sshOpTimeoutSeconds: number
-  sshUploadTimeoutSeconds: number
-  installTimeoutSeconds: number
-
-  // dante 业务配置 (落 socks5 子表)
-  socksPort: number
-  socksUser: string
-  socksPass: string
-  logLevel: string
-  installUfw: boolean
-
-  // 装机产物 (落 install 子表; 前端 default, 后端校验)
-  logPath: string
-  autostartEnabled: boolean
-  logRotate: boolean
-  installDir: string
-  confPath: string
-  pamFile: string
-  pwdFile: string
-}
+// ===== SOCKS5 装机 (针对已落库的 IP 池条目; 配置先落库, 装机走 SSH 跑脚本 + lifecycle 切 LIVE) =====
 
 /**
  * SOCKS5 凭据热同步入参; SSH 凭据 ad-hoc (一次性), SOCKS5 内容从 DB 现值读, 不在入参里.
@@ -549,22 +520,21 @@ export async function syncSocks5CredsStream(
 }
 
 /**
- * 流式部署 SOCKS5 — 后端 chunked transfer 边跑边吐 stdout, 前端 fetch + ReadableStream 边读边回调。
- * 部署不再绑定 IP 池条目; 部署成功后由前端按需调 createIpPool 把 SOCKS5 凭据落库。
+ * 流式装机 SOCKS5 — 针对已存在的 IP 池条目 (lifecycle=INSTALLING/READY) 跑装机脚本.
+ *
+ * 装机成功后端: update install.installed_at + 主表 lifecycle → LIVE + agent_token 补全
  */
 export async function installSocks5Stream(
-  dto: Socks5InstallDTO,
+  ipId: string,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
   const userStore = useUserStore()
-  const res = await fetch('/api/admin/resource/ip-pool/install-socks5', {
+  const res = await fetch(`/api/admin/resource/ip-pool/install-socks5?ipId=${encodeURIComponent(ipId)}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       Authorization: userStore.token
     },
-    body: JSON.stringify(dto),
     signal
   })
   if (res.status === 401) {

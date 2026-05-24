@@ -2,7 +2,6 @@ package com.nook.biz.node.controller.resource;
 
 import com.nook.biz.node.config.Socks5Properties;
 import com.nook.framework.web.WebStreamingProperties;
-import com.nook.biz.node.controller.resource.vo.ResourceIpSocksInstallReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksSyncCredsReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestRespVO;
@@ -42,19 +41,18 @@ public class ResourceIpSocksController {
     private final Socks5Properties socks5Properties;
 
     /**
-     * 流式安装 SOCKS5 (dante); chunked transfer
+     * 流式安装 SOCKS5 (dante); 针对已落库的 IP 池条目装机 + 状态切到 LIVE
      *
-     * @param reqVO 装机入参
+     * @param ipId 已存在的 IP 池编号
      * @return 流式响应
      */
     @PostMapping(value = "/install-socks5", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
-    public ResponseBodyEmitter installSocks5(@Valid @RequestBody ResourceIpSocksInstallReqVO reqVO) {
-        long secs = reqVO != null && reqVO.getInstallTimeoutSeconds() != null
-                ? reqVO.getInstallTimeoutSeconds() : socks5Properties.getDefaultInstallTimeoutSeconds();
+    public ResponseBodyEmitter installSocks5(@RequestParam("ipId") String ipId) {
+        long secs = socks5Properties.getDefaultInstallTimeoutSeconds();
         Duration emitterTimeout = Duration.ofSeconds(secs).plus(webStreamingProperties.getEmitterBuffer());
-        String streamKey = "socks5:" + (reqVO != null ? reqVO.getSshHost() : "unknown");
+        String streamKey = "socks5:" + ipId;
         return streamingSupport.stream(streamKey, emitterTimeout,
-                lineSink -> resourceIpSocksService.installSocks5(reqVO, lineSink));
+                lineSink -> resourceIpSocksService.installSocks5(ipId, lineSink));
     }
 
     /**

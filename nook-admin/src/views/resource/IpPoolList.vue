@@ -51,6 +51,7 @@ import { listEnabledRegions, type ResourceRegion } from '@/api/resource/region'
 import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/resource/ip-type'
 import IpPoolFormDialog from './IpPoolFormDialog.vue'
 import IpPoolDeployDialog from './IpPoolDeployDialog.vue'
+import IpPoolCreateDialog from './IpPoolCreateDialog.vue'
 import IpPoolCreateChoiceDialog from './IpPoolCreateChoiceDialog.vue'
 import IpPoolTestDialog from './IpPoolTestDialog.vue'
 import IpPoolSyncCredsDialog from './IpPoolSyncCredsDialog.vue'
@@ -354,16 +355,37 @@ function openCreateChoice() {
   createChoiceOpen.value = true
 }
 
-// ===== 独立部署 SOCKS5 (从 choice dialog 选自部署进入; 不绑定 IP 行) =====
+// ===== Phase 5: 创建/装机分离 (效仿服务器) =====
+// choice 选自部署 → IpPoolCreateDialog (配置同步落库) → 询问立即装机 → IpPoolDeployDialog (流式装机)
+const createOpen = ref(false)
 const deployOpen = ref(false)
+const deployIpId = ref<string | null>(null)
 
-function openDeploy() {
+function openCreate() {
+  createOpen.value = true
+}
+
+/** Create 成功 (lifecycle=INSTALLING) → 刷新列表; 用户选立即装机时 install-now 单独触发 */
+function onCreatedAfterChoice(ipId: string) {
+  void ipId
+  void loadList()
+  void loadSummary()
+}
+
+/** Create 后用户选 "立即装机" → 打开 DeployDialog 跑流式装机 */
+function onInstallNow(ipId: string) {
+  deployIpId.value = ipId
   deployOpen.value = true
 }
 
-/** Phase 4: 装机成功 → 后端事务内一次性入池 → 推 ipId 回前端 → 刷新列表 */
+/** 列表行点 "安装/重装 SOCKS5" → 打开 DeployDialog */
+function openDeploy(ip: ResourceIpPool) {
+  deployIpId.value = ip.id
+  deployOpen.value = true
+}
+
+/** 装机完成 (lifecycle 切到 LIVE) → 刷新列表 + summary */
 function onDeployInstalled(ipId: string) {
-  // 不需要二次操作, 直接刷新列表 + summary; 用户后续从列表点行进详情看新装的 IP
   void ipId
   void loadList()
   void loadSummary()
@@ -565,10 +587,19 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
     width: 200,
     render: (row) => {
       // 3 个 inline 主操作 (详情 / 测试 / 编辑) + 一个"更多" dropdown 收纳运维 / lifecycle / 退订 / 删除
+      const isInstalling = row.lifecycleState === 'INSTALLING' || row.lifecycleState === 'READY'
+      const isLive = row.lifecycleState === 'LIVE'
       const moreOptions = [
+        // SOCKS5 装机 / 重装 (自部署模式)
+        row.provisionMode === 1 && isInstalling
+          ? { label: '装机 SOCKS5', key: 'deploy', icon: () => h(NIcon, null, { default: () => h(Rocket) }) }
+          : null,
+        row.provisionMode === 1 && isLive
+          ? { label: '重装 SOCKS5', key: 'deploy', icon: () => h(NIcon, null, { default: () => h(Rocket) }) }
+          : null,
         canManage(row) ? { label: '查看 dante 状态', key: 'status', icon: () => h(NIcon, null, { default: () => h(Eye) }) } : null,
         canManage(row) ? { label: '查看日志', key: 'log', icon: () => h(NIcon, null, { default: () => h(FileText) }) } : null,
-        row.provisionMode === 1 ? { label: '装 agent', key: 'provision', icon: () => h(NIcon, null, { default: () => h(Rocket) }) } : null,
+        row.provisionMode === 1 ? { label: '装 landing agent', key: 'provision' } : null,
         row.provisionMode === 1 && canTest(row)
           ? { label: '同步 SOCKS5 凭据', key: 'sync', icon: () => h(NIcon, null, { default: () => h(KeyRound) }) }
           : null,
@@ -584,6 +615,7 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
 
       function onMoreSelect(key: string) {
         switch (key) {
+          case 'deploy': return openDeploy(row)
           case 'status': return openStatus(row)
           case 'log': return openLog(row)
           case 'provision': return openProvision(row)
@@ -819,14 +851,22 @@ onMounted(async () => {
     <!-- 新增 IP 方式选择: 自部署 / 第三方 (第三方 Coming Soon) -->
     <IpPoolCreateChoiceDialog
       v-model="createChoiceOpen"
-      @choose-self-deploy="openDeploy"
+      @choose-self-deploy="openCreate"
     />
 
-    <!-- 部署 SOCKS5 弹框: 装机成功后后端事务内一次性落 6 行, 推 ipId 回前端刷新列表 -->
-    <IpPoolDeployDialog
-      v-model="deployOpen"
+    <!-- Phase 5: 自部署 创建 dialog (配置 sync 落库 lifecycle=INSTALLING; 不跑 SSH) -->
+    <IpPoolCreateDialog
+      v-model="createOpen"
       :ip-types="ipTypes"
       :regions="regions"
+      @created="onCreatedAfterChoice"
+      @install-now="onInstallNow"
+    />
+
+    <!-- 装机 SOCKS5 dialog (针对已有 ipId 跑流式装机 + lifecycle → LIVE) -->
+    <IpPoolDeployDialog
+      v-model="deployOpen"
+      :ip-id="deployIpId"
       @installed="onDeployInstalled"
     />
 
