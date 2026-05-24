@@ -536,9 +536,9 @@ onMounted(async () => {
             <div class="ip-card__row">
               <NIcon :size="14" class="ip-card__row-icon"><Zap /></NIcon>
               <span class="text-xs text-zinc-500 font-mono">
-                {{ ip.bandwidthMbps == null ? '∞' : `${ip.bandwidthMbps} Mbps` }}
+                {{ ip.bandwidthLimitMbps ? `${ip.bandwidthLimitMbps} Mbps` : '不限' }}
                 <span class="text-zinc-400 mx-1">·</span>
-                {{ ip.trafficQuotaGb == null ? '∞' : `${ip.trafficQuotaGb} GB` }}
+                {{ ip.monthlyTrafficGb ? `${ip.monthlyTrafficGb} GB/月` : '不限' }}
               </span>
             </div>
           </div>

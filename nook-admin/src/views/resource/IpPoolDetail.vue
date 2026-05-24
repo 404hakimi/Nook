@@ -728,8 +728,6 @@ const heartbeatDotColor = computed(() => {
 
           <div class="section-title mt-4">账面 — 财务记录</div>
           <div class="info-grid">
-            <div class="info-row"><span class="k">采购带宽</span><span class="v">{{ detail.bandwidthMbps == null ? '∞' : `${detail.bandwidthMbps} Mbps` }}</span></div>
-            <div class="info-row"><span class="k">采购流量</span><span class="v">{{ detail.trafficQuotaGb == null ? '∞' : `${detail.trafficQuotaGb} GB` }}</span></div>
             <div class="info-row"><span class="k">月度成本</span><span class="v">{{ detail.costMonthlyUsd != null ? `${detail.costMonthlyUsd} USD` : '-' }}</span></div>
             <div class="info-row"><span class="k">账单日</span><span class="v">{{ detail.billingCycleDay != null ? `每月 ${detail.billingCycleDay} 号` : '-' }}</span></div>
             <div class="info-row info-row--full"><span class="k">到期日</span><span class="v">{{ detail.expiresAt || '-' }}</span></div>

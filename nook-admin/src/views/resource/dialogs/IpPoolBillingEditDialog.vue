@@ -58,10 +58,8 @@ const capacityRuntime = reactive({
   throttleState: 'NORMAL' as string | null
 })
 
-// ===== 账面 (billing 子表) =====
+// ===== 账面 (billing 子表; 带宽/流量字段属容量, 这里仅财务) =====
 const billingForm = reactive({
-  bandwidthMbps: null as number | null,
-  trafficQuotaGb: null as number | null,
   costMonthlyUsd: null as number | null,
   billingCycleDay: null as number | null,
   expiresAtTs: null as number | null
@@ -77,8 +75,6 @@ function fillCapacity(c: IpPoolCapacity | null) {
 }
 
 function fillBilling(b: IpPoolBilling | null) {
-  billingForm.bandwidthMbps = b?.bandwidthMbps ?? null
-  billingForm.trafficQuotaGb = b?.trafficQuotaGb ?? null
   billingForm.costMonthlyUsd = b?.costMonthlyUsd ?? null
   billingForm.billingCycleDay = b?.billingCycleDay ?? null
   billingForm.expiresAtTs = b?.expiresAt ? new Date(b.expiresAt).getTime() : null
@@ -136,12 +132,6 @@ function validate(): boolean {
       && (billingForm.billingCycleDay < 1 || billingForm.billingCycleDay > 28)) {
     errors.billingCycleDay = '账单日 1-28'
   }
-  if (billingForm.bandwidthMbps != null && billingForm.bandwidthMbps < 0) {
-    errors.bandwidthMbps = '采购带宽 ≥ 0'
-  }
-  if (billingForm.trafficQuotaGb != null && billingForm.trafficQuotaGb < 0) {
-    errors.trafficQuotaGb = '采购流量 ≥ 0'
-  }
   return Object.keys(errors).length === 0
 }
 
@@ -156,8 +146,6 @@ async function onSubmit() {
         monthlyTrafficGb: capacityForm.monthlyTrafficGb ?? undefined
       }),
       updateIpPoolBilling(props.ipId, {
-        bandwidthMbps: billingForm.bandwidthMbps ?? undefined,
-        trafficQuotaGb: billingForm.trafficQuotaGb ?? undefined,
         costMonthlyUsd: billingForm.costMonthlyUsd ?? undefined,
         billingCycleDay: billingForm.billingCycleDay ?? undefined,
         expiresAt: tsToDateStr(billingForm.expiresAtTs)
@@ -244,20 +232,6 @@ async function onSubmit() {
       </div>
       <NForm :model="billingForm" label-placement="top" size="small">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-          <NFormItem
-            label="采购带宽 Mbps"
-            :feedback="errors.bandwidthMbps"
-            :validation-status="errors.bandwidthMbps ? 'error' : undefined"
-          >
-            <NInputNumber v-model:value="billingForm.bandwidthMbps" :min="0" class="w-full" />
-          </NFormItem>
-          <NFormItem
-            label="采购流量 GB"
-            :feedback="errors.trafficQuotaGb"
-            :validation-status="errors.trafficQuotaGb ? 'error' : undefined"
-          >
-            <NInputNumber v-model:value="billingForm.trafficQuotaGb" :min="0" class="w-full" />
-          </NFormItem>
           <NFormItem label="月度成本 USD">
             <NInputNumber v-model:value="billingForm.costMonthlyUsd" :min="0" :precision="2" class="w-full" />
           </NFormItem>
