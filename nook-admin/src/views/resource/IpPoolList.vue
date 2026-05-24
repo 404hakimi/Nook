@@ -48,6 +48,7 @@ import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/res
 import { formatDateTime } from '@/utils/date'
 import IpPoolFormDialog from './IpPoolFormDialog.vue'
 import IpPoolDeployDialog from './IpPoolDeployDialog.vue'
+import IpPoolCreateChoiceDialog from './IpPoolCreateChoiceDialog.vue'
 import IpPoolTestDialog from './IpPoolTestDialog.vue'
 import IpPoolSyncCredsDialog from './IpPoolSyncCredsDialog.vue'
 import IpPoolStatusDialog from './IpPoolStatusDialog.vue'
@@ -219,12 +220,8 @@ const formSocksPrefill = ref<{
   sshPassword?: string
 } | null>(null)
 
-function openCreate() {
-  formMode.value = 'create'
-  formIp.value = null
-  formSocksPrefill.value = null
-  formOpen.value = true
-}
+// Phase 2 后入口走 IpPoolCreateChoiceDialog → 自部署 → IpPoolDeployDialog → onAddToPoolFromDeploy
+// 不再保留"直接打开空 form 跳过装机"的旧路径
 
 function openEdit(ip: ResourceIpPool) {
   formMode.value = 'edit'
@@ -325,7 +322,14 @@ async function onRelease(ip: ResourceIpPool) {
   }
 }
 
-// ===== 独立部署 SOCKS5 (顶部按钮触发, 不绑定 IP 行) =====
+// ===== 新增 IP 入口 - 方式选择 (自部署 / 第三方) =====
+const createChoiceOpen = ref(false)
+
+function openCreateChoice() {
+  createChoiceOpen.value = true
+}
+
+// ===== 独立部署 SOCKS5 (从 choice dialog 选自部署进入; 不绑定 IP 行) =====
 const deployOpen = ref(false)
 
 function openDeploy() {
@@ -795,15 +799,11 @@ onMounted(async () => {
         </NButton>
         <div class="flex-1"></div>
         <NButton
-          type="info"
+          type="primary"
           size="small"
-          @click="openDeploy"
-          title="远端部署 SOCKS5; 成功后可一键添加到 IP 池"
+          @click="openCreateChoice"
+          title="选择方式 (自部署 / 第三方)"
         >
-          <template #icon><NIcon><Rocket /></NIcon></template>
-          部署 SOCKS5
-        </NButton>
-        <NButton type="primary" size="small" @click="openCreate">
           <template #icon><NIcon><Plus /></NIcon></template>
           新增 IP
         </NButton>
@@ -834,7 +834,13 @@ onMounted(async () => {
       @saved="onFormSaved"
     />
 
-    <!-- 独立部署 SOCKS5 弹框: 不绑定 IP 行; 成功后 "添加到 IP 池" 走 onAddToPoolFromDeploy 接力 -->
+    <!-- 新增 IP 方式选择: 自部署 / 第三方 (第三方 Coming Soon) -->
+    <IpPoolCreateChoiceDialog
+      v-model="createChoiceOpen"
+      @choose-self-deploy="openDeploy"
+    />
+
+    <!-- 独立部署 SOCKS5 弹框: 从 choice dialog 选自部署进入; 成功后 "添加到 IP 池" 走 onAddToPoolFromDeploy 接力 -->
     <IpPoolDeployDialog v-model="deployOpen" @add-to-pool="onAddToPoolFromDeploy" />
 
     <!-- SOCKS5 测试弹框: 让用户选 echo-IP 端点 + 看完整请求结果 -->
