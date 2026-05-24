@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
 import {
-  NAlert,
   NButton,
   NForm,
   NFormItem,
@@ -21,8 +20,6 @@ import {
 const props = defineProps<{
   modelValue: boolean
   ipId: string
-  /** ip_pool.ip_address (空 sshHost 时的兜底显示用). */
-  ipAddress?: string
 }>()
 const emit = defineEmits<{
   'update:modelValue': [v: boolean]
@@ -46,7 +43,7 @@ function fill(c: IpPoolCredential | null) {
   form.sshHost = c.sshHost ?? ''
   form.sshPort = c.sshPort ?? 22
   form.sshUser = c.sshUser ?? 'root'
-  form.sshPassword = '' // 留空表示不修改
+  form.sshPassword = c.sshPassword ?? ''
 }
 
 watch(() => [props.modelValue, props.ipId], async ([open]) => {
@@ -75,7 +72,7 @@ async function onSubmit() {
       sshHost: form.sshHost?.trim() || undefined,
       sshPort: form.sshPort ?? undefined,
       sshUser: form.sshUser?.trim() || undefined,
-      sshPassword: form.sshPassword?.trim() || undefined
+      sshPassword: form.sshPassword ?? undefined
     })
     message.success('已保存; 下次 SSH 走新凭据')
     emit('saved')
@@ -96,28 +93,23 @@ async function onSubmit() {
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <NSpin :show="loading">
-      <NAlert type="info" :show-icon="false" size="small" class="mb-3">
-        SSH 凭据用于落地机 dante 装机 + 后续运维 (改配置 / 切自启 / 看日志). 密码留空 = 保留原值.
-        sshHost 留空时, 走 ip_address ({{ ipAddress || '-' }}) 兜底.
-      </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-          <NFormItem label="SSH 主机 (留空 = ip_address)">
+          <NFormItem label="SSH 主机">
             <NInput v-model:value="form.sshHost" :input-props="{ style: 'font-family: monospace' }" />
           </NFormItem>
-          <NFormItem label="SSH 端口 (留空 = 22)" :feedback="errors.sshPort" :validation-status="errors.sshPort ? 'error' : undefined">
+          <NFormItem label="SSH 端口" :feedback="errors.sshPort" :validation-status="errors.sshPort ? 'error' : undefined">
             <NInputNumber v-model:value="form.sshPort" :min="1" :max="65535" class="w-full" />
           </NFormItem>
-          <NFormItem label="SSH 用户 (留空 = root)">
+          <NFormItem label="SSH 用户">
             <NInput v-model:value="form.sshUser" />
           </NFormItem>
-          <NFormItem label="SSH 密码 (留空保留原值)">
+          <NFormItem label="SSH 密码">
             <NInput
               v-model:value="form.sshPassword"
               type="password"
               show-password-on="click"
               :input-props="{ autocomplete: 'new-password' }"
-              placeholder="留空表示不修改"
             />
           </NFormItem>
         </div>

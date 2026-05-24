@@ -748,7 +748,6 @@ const heartbeatDotColor = computed(() => {
       v-if="detail"
       v-model="credEditOpen"
       :ip-id="detail.id"
-      :ip-address="detail.ipAddress"
       @saved="onSubDialogSaved"
     />
     <IpPoolBillingEditDialog v-if="detail" v-model="billingEditOpen" :ip-id="detail.id" @saved="onSubDialogSaved" />
