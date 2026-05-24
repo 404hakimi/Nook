@@ -70,7 +70,11 @@ const LIFECYCLE_OPTIONS = [
 ]
 
 const PROVISION_MODE_OPTIONS = Object.entries(IP_POOL_PROVISION_MODE_LABELS).map(
-  ([value, label]) => ({ label, value: Number(value) })
+  ([value, label]) => ({
+    label: Number(value) === 2 ? `${label} (Coming Soon)` : label,
+    value: Number(value),
+    disabled: Number(value) === 2  // 第三方 模式暂未实现, 禁用选项防误选
+  })
 )
 
 const ipTypeOptions = computed(() =>
@@ -343,7 +347,7 @@ function close() {
             label="部署模式"
             required
             :validation-status="errors.provisionMode ? 'error' : undefined"
-            :feedback="errors.provisionMode || '自部署 / 第三方'"
+            :feedback="errors.provisionMode || '当前仅支持自部署; 第三方暂未实现'"
           >
             <NSelect
               v-model:value="form.provisionMode"

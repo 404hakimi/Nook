@@ -63,7 +63,7 @@ const form = reactive<IpPoolCoreUpdateDTO>({
   region: '',
   ipTypeId: '',
   ipAddress: '',
-  provisionMode: 2,
+  provisionMode: 1,
   remark: ''
 })
 
@@ -71,7 +71,7 @@ function fill(p: ResourceIpPool) {
   form.region = p.region ?? ''
   form.ipTypeId = p.ipTypeId ?? ''
   form.ipAddress = p.ipAddress ?? ''
-  form.provisionMode = p.provisionMode ?? 2
+  form.provisionMode = p.provisionMode ?? 1
   form.remark = p.remark ?? ''
 }
 
@@ -148,7 +148,9 @@ async function onSubmit() {
       <NFormItem label="部署模式" required :feedback="errors.provisionMode" :validation-status="errors.provisionMode ? 'error' : undefined">
         <NRadioGroup v-model:value="form.provisionMode">
           <NRadio :value="1">自部署 (SSH + 一键装 dante)</NRadio>
-          <NRadio :value="2">第三方 (仅记录现成 SOCKS5)</NRadio>
+          <NRadio :value="2" :disabled="true">
+            第三方 (Coming Soon, 暂未实现)
+          </NRadio>
         </NRadioGroup>
       </NFormItem>
       <NFormItem label="备注">
