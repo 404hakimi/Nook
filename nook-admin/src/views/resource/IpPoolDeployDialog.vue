@@ -3,6 +3,7 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { CheckCircle2, Rocket, Shuffle } from 'lucide-vue-next'
 import {
   NButton,
+  NCard,
   NCheckbox,
   NForm,
   NFormItem,
@@ -323,7 +324,14 @@ function close() {
       require-mark-placement="right-hanging"
       size="small"
     >
-      <div class="text-sm font-semibold mb-2">资源归属 (装机成功后落主表)</div>
+      <!-- Card 1: 资源归属 (落主表) -->
+      <NCard size="small" :bordered="true" class="mb-3">
+        <template #header>
+          <div class="text-sm font-semibold">① 资源归属</div>
+        </template>
+        <template #header-extra>
+          <span class="text-xs text-zinc-400">落 resource_ip_pool 主表</span>
+        </template>
       <div class="grid grid-cols-1 sm:grid-cols-6 gap-x-4">
         <div class="sm:col-span-2">
           <NFormItem
@@ -362,8 +370,16 @@ function close() {
           </NFormItem>
         </div>
       </div>
+      </NCard>
 
-      <div class="text-sm font-semibold mb-2 mt-2">SSH 凭据 (装机用 + 落 credential 子表)</div>
+      <!-- Card 2: SSH 凭据 (装机用 + 落 credential 子表) -->
+      <NCard size="small" :bordered="true" class="mb-3">
+        <template #header>
+          <div class="text-sm font-semibold">② SSH 凭据</div>
+        </template>
+        <template #header-extra>
+          <span class="text-xs text-zinc-400">装机用 + 落 credential 子表</span>
+        </template>
       <div class="grid grid-cols-1 sm:grid-cols-6 gap-x-4">
         <div class="sm:col-span-3">
           <NFormItem
@@ -420,9 +436,16 @@ function close() {
         </NFormItem>
       </div>
 
-      <div class="text-sm font-semibold mt-4 mb-2">
-        超时配置
-      </div>
+      </NCard>
+
+      <!-- Card 3: 超时配置 -->
+      <NCard size="small" :bordered="true" class="mb-3">
+        <template #header>
+          <div class="text-sm font-semibold">③ 超时配置</div>
+        </template>
+        <template #header-extra>
+          <span class="text-xs text-zinc-400">SSH 各阶段超时秒数</span>
+        </template>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4">
         <NFormItem
           :validation-status="errors.sshTimeoutSeconds ? 'error' : undefined"
@@ -490,7 +513,16 @@ function close() {
         </NFormItem>
       </div>
 
-      <div class="text-sm font-semibold mt-4 mb-2">SOCKS5 服务参数</div>
+      </NCard>
+
+      <!-- Card 4: SOCKS5 服务参数 (落 socks5 子表) -->
+      <NCard size="small" :bordered="true" class="mb-3">
+        <template #header>
+          <div class="text-sm font-semibold">④ SOCKS5 服务参数</div>
+        </template>
+        <template #header-extra>
+          <span class="text-xs text-zinc-400">dante 业务配置, 落 socks5 子表</span>
+        </template>
       <div class="grid grid-cols-1 sm:grid-cols-4 gap-x-4">
         <NFormItem
           label="SOCKS5 端口"
@@ -556,10 +588,16 @@ function close() {
         </NFormItem>
       </div>
 
-      <div class="text-sm font-semibold mt-4 mb-2">
-        高级配置
-        <span class="text-xs text-zinc-400 ml-2 font-normal">(dante 日志 / 自启等; 保留默认即可)</span>
-      </div>
+      </NCard>
+
+      <!-- Card 5: dante 配置 + 装机产物 (落 install 子表; 默认值前端给, 保留即可) -->
+      <NCard size="small" :bordered="true" class="mb-3">
+        <template #header>
+          <div class="text-sm font-semibold">⑤ dante 配置 + 装机产物</div>
+        </template>
+        <template #header-extra>
+          <span class="text-xs text-zinc-400">默认值前端兜底, 后端校验</span>
+        </template>
       <div class="grid grid-cols-1 sm:grid-cols-4 gap-x-4">
         <div class="sm:col-span-2">
           <NFormItem>
@@ -624,7 +662,7 @@ function close() {
       <!-- 装机产物路径 (落 install 子表; 都有 default, 大多场景不用改) -->
       <details class="mt-3 cursor-pointer">
         <summary class="text-sm font-semibold text-zinc-500 select-none">
-          高级 - 装机产物路径 (落 resource_ip_pool_install 子表)
+          更多路径 (sockd.conf / PAM / htpasswd / systemd unit; 默认即可)
         </summary>
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-x-4 mt-2">
           <NFormItem
@@ -661,6 +699,7 @@ function close() {
           </NFormItem>
         </div>
       </details>
+      </NCard>
     </NForm>
 
     <!-- 输出区 -->
