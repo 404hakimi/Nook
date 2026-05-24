@@ -43,7 +43,7 @@
         <!-- 跨业务模块: op_log 服务 + 通过 system-api 拿 admin realName/username -->
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-module-operation-server</artifactId>
+            <artifactId>nook-module-operation-api</artifactId>
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>
