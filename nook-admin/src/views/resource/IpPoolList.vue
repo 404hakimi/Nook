@@ -18,7 +18,6 @@ import {
   Search,
   Server as ServerIcon,
   Trash2,
-  Undo2,
   Users,
   Wrench,
   Zap
@@ -47,7 +46,6 @@ import {
   deleteIpPool,
   getIpPoolSummary,
   pageIpPool,
-  releaseIpPool,
   transitionIpPoolLifecycle,
   type ResourceIpPool,
   type ResourceIpPoolQuery,
@@ -201,26 +199,25 @@ function statusTagType(status: string): 'success' | 'info' | 'warning' | 'defaul
   }
 }
 
-// ===== lifecycle 流转 =====
-const LIFECYCLE_DROPDOWN_OPTIONS = [
-  { label: '装机中 INSTALLING', key: 'INSTALLING' },
-  { label: '待上线 READY', key: 'READY' },
-  { label: '运行中 LIVE', key: 'LIVE' },
-  { label: '已退役 RETIRED', key: 'RETIRED' }
+// ===== lifecycle 流转 (admin 只暴露 2 项: 退役 / 重新启用; INSTALLING/READY 是装机内部态不放出口) =====
+type LifecycleAction = { label: string; from: string; to: string; danger?: boolean }
+const LIFECYCLE_ACTIONS: LifecycleAction[] = [
+  { label: '退役 (停止分配)', from: 'LIVE', to: 'RETIRED', danger: true },
+  { label: '重新启用', from: 'RETIRED', to: 'LIVE' }
 ]
 
-async function onLifecycleSelect(ip: ResourceIpPool, target: string) {
-  if (ip.lifecycleState === target) return
-  const targetLabel = IP_POOL_LIFECYCLE_LABELS[target] || target
+async function onLifecycleSelect(ip: ResourceIpPool, action: LifecycleAction) {
+  if (ip.lifecycleState !== action.from) return
   const ok = await confirm({
-    title: '切换生命周期',
-    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS[ip.lifecycleState]} 切到 ${targetLabel}?`,
-    confirmText: '切换'
+    title: action.label,
+    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS[action.from]} 切到 ${IP_POOL_LIFECYCLE_LABELS[action.to]}?`,
+    type: action.danger ? 'warning' : 'info',
+    confirmText: action.label
   })
   if (!ok) return
   try {
-    await transitionIpPoolLifecycle(ip.id, target)
-    message.success(`已切换到 ${targetLabel}`)
+    await transitionIpPoolLifecycle(ip.id, action.to)
+    message.success(`已${action.label}`)
     loadList()
     loadSummary()
   } catch { /* */ }
@@ -280,22 +277,6 @@ async function onDelete(ip: ResourceIpPool) {
   try {
     await deleteIpPool(ip.id)
     message.success('已删除')
-    onSaved()
-  } catch { /* */ }
-}
-
-// ===== 退订 (occupied → cooling) =====
-async function onRelease(ip: ResourceIpPool) {
-  const ok = await confirm({
-    title: '退订 IP',
-    message: `把 ${ip.ipAddress} 置为冷却中?`,
-    type: 'warning',
-    confirmText: '退订'
-  })
-  if (!ok) return
-  try {
-    await releaseIpPool(ip.id)
-    message.success('已置冷却')
     onSaved()
   } catch { /* */ }
 }
@@ -389,11 +370,13 @@ async function copySocks5Url(ip: ResourceIpPool) {
 }
 
 /**
- * 卡片"更多"下拉: 拆 3 个子菜单 (运维 / 生命周期 / 占用·删除).
- * 装机/重装已在卡片底部内联展示, 这里不再重复.
+ * 卡片"更多"下拉: 运维子菜单 (跟 lifecycle 流转项 + 删除拍平).
+ *
+ * - 装机/重装已在卡片底部内联展示, 这里不重复
+ * - 退订到 cooling 已删除 (revoke 链路内部走 releaseToCoolingForRevoke; admin 不再有手动入口)
+ * - lifecycle 只暴露 退役 / 重新启用 (INSTALLING/READY 是装机内部状态, 不放出口)
  */
 function moreOptionsFor(ip: ResourceIpPool) {
-  // 运维子菜单 (依赖 SSH 凭据已落库的, 才放出口)
   const opsChildren = [
     canManage(ip)
       ? { label: '查看 dante 状态', key: 'status', icon: () => h(NIcon, null, { default: () => h(Eye) }) }
@@ -410,21 +393,14 @@ function moreOptionsFor(ip: ResourceIpPool) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ].filter(Boolean) as any[]
 
-  // 生命周期流转子菜单: 当前态高亮 disabled
-  const lifecycleChildren = LIFECYCLE_DROPDOWN_OPTIONS.map((o) => ({
-    ...o,
-    key: `lc:${o.key}`,
-    disabled: ip.lifecycleState === o.key
-  }))
-
-  // 占用·删除子菜单
-  const dangerChildren = [
-    ip.status === 'OCCUPIED'
-      ? { label: '退订到 cooling', key: 'release', icon: () => h(NIcon, null, { default: () => h(Undo2) }) }
-      : null,
-    { label: '删除 IP', key: 'delete', icon: () => h(NIcon, null, { default: () => h(Trash2) }) }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ].filter(Boolean) as any[]
+  // lifecycle 流转: 只在 from 态匹配时显示
+  const lifecycleItems = LIFECYCLE_ACTIONS
+    .filter((a) => ip.lifecycleState === a.from)
+    .map((a) => ({
+      label: a.label,
+      key: `lc:${a.to}`,
+      icon: () => h(NIcon, null, { default: () => h(Activity) })
+    }))
 
   return [
     opsChildren.length > 0
@@ -435,33 +411,26 @@ function moreOptionsFor(ip: ResourceIpPool) {
           children: opsChildren
         }
       : null,
-    {
-      label: '生命周期',
-      key: 'menu-lifecycle',
-      icon: () => h(NIcon, null, { default: () => h(Activity) }),
-      children: lifecycleChildren
-    },
-    {
-      label: '占用 · 删除',
-      key: 'menu-danger',
-      icon: () => h(NIcon, null, { default: () => h(Trash2) }),
-      children: dangerChildren
-    }
+    ...lifecycleItems,
+    (opsChildren.length > 0 || lifecycleItems.length > 0) ? { type: 'divider', key: 'd-end' } : null,
+    { label: '删除 IP', key: 'delete', icon: () => h(NIcon, null, { default: () => h(Trash2) }) }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ].filter(Boolean) as any[]
 }
 
 function onMoreSelect(ip: ResourceIpPool, key: string) {
   switch (key) {
-    case 'deploy': return openDeploy(ip)
     case 'status': return openStatus(ip)
     case 'log': return openLog(ip)
     case 'provision': return openProvision(ip)
     case 'sync': return openSyncCreds(ip)
-    case 'release': return onRelease(ip)
     case 'delete': return onDelete(ip)
     default:
-      if (key.startsWith('lc:')) return onLifecycleSelect(ip, key.slice(3))
+      if (key.startsWith('lc:')) {
+        const targetState = key.slice(3)
+        const action = LIFECYCLE_ACTIONS.find((a) => a.to === targetState && a.from === ip.lifecycleState)
+        if (action) return onLifecycleSelect(ip, action)
+      }
   }
 }
 

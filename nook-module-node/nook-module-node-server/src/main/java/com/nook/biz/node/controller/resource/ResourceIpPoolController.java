@@ -134,18 +134,6 @@ public class ResourceIpPoolController {
     }
 
     /**
-     * 退订 IP 池: occupied → cooling 状态切换; 回 available 由调度器 sweep 完成
-     *
-     * @param id IP 池编号
-     * @return 是否成功
-     */
-    @PostMapping("/release")
-    public Result<Boolean> releaseIpPool(@RequestParam("id") String id) {
-        resourceIpPoolService.releaseToCooling(id);
-        return Result.ok(true);
-    }
-
-    /**
      * 切换 lifecycle_state (上线 / 退役流转)
      *
      * @param id    IP 池编号

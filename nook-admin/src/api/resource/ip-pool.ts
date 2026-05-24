@@ -272,11 +272,6 @@ export function deleteIpPool(id: string) {
   return request.delete<unknown, void>('/admin/resource/ip-pool/delete', { params: { id } })
 }
 
-/** 退订: occupied → cooling, 一段时间后由调度器扫回 available. */
-export function releaseIpPool(id: string) {
-  return request.post<unknown, void>('/admin/resource/ip-pool/release', null, { params: { id } })
-}
-
 /** 切换 lifecycle_state; admin 上线 / 退役流转用. */
 export function transitionIpPoolLifecycle(id: string, state: string) {
   return request.post<unknown, boolean>(

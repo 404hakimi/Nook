@@ -80,13 +80,6 @@ public interface ResourceIpPoolService {
     ResourceIpPoolDO occupyById(String id, String memberUserId);
 
     /**
-     * 退订到冷却态 (外部入口; 带 bound-client 守卫)
-     *
-     * @param id IP 池编号
-     */
-    void releaseToCooling(String id);
-
-    /**
      * 退订到冷却态 (revoke 链路内部使用; 跟外层事务共享)
      *
      * @param id IP 池编号

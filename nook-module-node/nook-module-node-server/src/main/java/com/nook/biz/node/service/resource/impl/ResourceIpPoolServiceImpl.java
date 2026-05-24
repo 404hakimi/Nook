@@ -37,7 +37,6 @@ import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -194,39 +193,14 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void releaseToCoolingForRevoke(String id) {
-        // revoke 链路: 跟外层 (revokeDbOnly) 同事务, 看得到 deleteById 删的 client; 不做 bound 检查.
-        doMarkCooling(id, /* checkBound= */ false);
-    }
-
-    @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void releaseToCooling(String id) {
-        // user-facing: 独立事务 + 带 bound 守卫. doMarkCooling 抛错时 REQUIRES_NEW 自身 rollback 不污染外层
-        doMarkCooling(id, /* checkBound= */ true);
-    }
-
-    /** releaseToCooling 与 releaseToCoolingForRevoke 共用核心逻辑; checkBound 控制是否做 bound 守卫. */
-    private void doMarkCooling(String id, boolean checkBound) {
-        // 软存在校验: IP 已被删 → 没什么可退订的, no-op 返回; 比 validateExists 抛错更友好 (revoke 场景常见)
+        // 跟外层 revoke 事务共享; 软存在校验 + ip_type 容错, 失败仅 warn 不阻断 revoke
         ResourceIpPoolDO exist = resourceIpPoolMapper.selectById(id);
         if (exist == null) {
             log.info("[ip-pool] RELEASE skip ipId={} (IP 行已不存在, 无需操作)", id);
             return;
         }
-        // 守卫: 有 client 还引用此 IP, 拒绝退订 (避免 client status 与 pool status 漂移);
-        // revoke 链路在外层事务先 deleteById 删 client; 若走 REQUIRES_NEW 看不到外层未 commit 的 delete,
-        // 反而会误判 bound != null 把 release 拒了 → IP 卡在 occupied. 因此 revoke 路径 checkBound=false 跳过.
-        if (checkBound) {
-            XrayClientDO bound = xrayClientMapper.selectByIpId(id);
-            if (bound != null) {
-                throw new BusinessException(ResourceErrorCode.IP_POOL_HAS_BOUND_CLIENT,
-                        exist.getIpAddress(), bound.getMemberUserId());
-            }
-        }
-        // ip_type.cooling_minutes 是 NOT NULL 列; 家宽 IP 通常需要更久
         ResourceIpTypeDO type = resourceIpTypeMapper.selectById(exist.getIpTypeId());
         if (ObjectUtil.isNull(type) || ObjectUtil.isNull(type.getCoolingMinutes())) {
-            // ip_type 也丢了说明数据严重错位; 不强抛阻断 revoke, 仅 warn 让运维处理
             log.warn("[ip-pool] RELEASE ipId={} ip={} 找不到 ip_type={}, 跳过 cooling 切换",
                     id, exist.getIpAddress(), exist.getIpTypeId());
             return;
