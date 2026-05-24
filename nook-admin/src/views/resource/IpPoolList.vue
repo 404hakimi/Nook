@@ -1,31 +1,23 @@
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import {
-  Activity,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Copy,
   Eye,
-  FileText,
   Globe2,
-  KeyRound,
-  MoreHorizontal,
-  Pencil,
   Plus,
   RefreshCcw,
   Rocket,
   Search,
   Server as ServerIcon,
-  Trash2,
   Users,
-  Wrench,
   Zap
 } from 'lucide-vue-next'
 import {
   NButton,
   NCard,
-  NDropdown,
   NEmpty,
   NIcon,
   NInput,
@@ -56,6 +48,7 @@ import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/res
 import IpPoolDeployDialog from './IpPoolDeployDialog.vue'
 import IpPoolCreateDialog from './IpPoolCreateDialog.vue'
 import IpPoolCreateChoiceDialog from './IpPoolCreateChoiceDialog.vue'
+import IpPoolDetailDialog from './IpPoolDetailDialog.vue'
 import IpPoolTestDialog from './IpPoolTestDialog.vue'
 import IpPoolSyncCredsDialog from './IpPoolSyncCredsDialog.vue'
 import IpPoolStatusDialog from './IpPoolStatusDialog.vue'
@@ -199,31 +192,42 @@ function statusTagType(status: string): 'success' | 'info' | 'warning' | 'defaul
   }
 }
 
-// ===== lifecycle 流转 (admin 只暴露 2 项: 退役 / 重新启用; INSTALLING/READY 是装机内部态不放出口) =====
-type LifecycleAction = { label: string; from: string; to: string; danger?: boolean }
-const LIFECYCLE_ACTIONS: LifecycleAction[] = [
-  { label: '退役 (停止分配)', from: 'LIVE', to: 'RETIRED', danger: true },
-  { label: '重新启用', from: 'RETIRED', to: 'LIVE' }
-]
-
-async function onLifecycleSelect(ip: ResourceIpPool, action: LifecycleAction) {
-  if (ip.lifecycleState !== action.from) return
+// ===== lifecycle 流转 (admin 只暴露 2 项: 退役 / 重新启用; INSTALLING/READY 是装机内部态) =====
+async function onLifecycleRetire(ip: ResourceIpPool) {
+  if (ip.lifecycleState !== 'LIVE') return
   const ok = await confirm({
-    title: action.label,
-    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS[action.from]} 切到 ${IP_POOL_LIFECYCLE_LABELS[action.to]}?`,
-    type: action.danger ? 'warning' : 'info',
-    confirmText: action.label
+    title: '退役 (停止分配)',
+    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS.LIVE} 切到 ${IP_POOL_LIFECYCLE_LABELS.RETIRED}? 退役后 allocator 不再分配此 IP.`,
+    type: 'warning',
+    confirmText: '退役'
   })
   if (!ok) return
   try {
-    await transitionIpPoolLifecycle(ip.id, action.to)
-    message.success(`已${action.label}`)
-    loadList()
-    loadSummary()
+    await transitionIpPoolLifecycle(ip.id, 'RETIRED')
+    message.success('已退役')
+    onSaved()
+    void refreshDetail()
   } catch { /* */ }
 }
 
-// ===== 分段编辑 (4 个独立 dialog) =====
+async function onLifecycleRestore(ip: ResourceIpPool) {
+  if (ip.lifecycleState !== 'RETIRED') return
+  const ok = await confirm({
+    title: '重新启用',
+    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS.RETIRED} 切回 ${IP_POOL_LIFECYCLE_LABELS.LIVE}?`,
+    type: 'info',
+    confirmText: '重新启用'
+  })
+  if (!ok) return
+  try {
+    await transitionIpPoolLifecycle(ip.id, 'LIVE')
+    message.success('已重新启用')
+    onSaved()
+    void refreshDetail()
+  } catch { /* */ }
+}
+
+// ===== 分段编辑 (4 个独立 dialog; 入口在详情 dialog 工具栏) =====
 const coreEditOpen = ref(false)
 const credentialEditOpen = ref(false)
 const billingEditOpen = ref(false)
@@ -235,37 +239,18 @@ function openCredentialEdit(ip: ResourceIpPool) { editingIp.value = ip; credenti
 function openBillingEdit(ip: ResourceIpPool) { editingIp.value = ip; billingEditOpen.value = true }
 function openSocks5Edit(ip: ResourceIpPool) { editingIp.value = ip; socks5EditOpen.value = true }
 
-const EDIT_DROPDOWN_OPTIONS = [
-  { label: '核心信息 (区域 / 类型 / IP / 部署模式)', key: 'core' },
-  { label: 'SSH 凭据', key: 'credential' },
-  { label: '账面 (带宽 / 成本 / 到期)', key: 'billing' },
-  { label: 'dante 配置 + 限速', key: 'socks5' }
-]
-
-function onEditSelect(ip: ResourceIpPool, key: string) {
-  switch (key) {
-    case 'core': openCoreEdit(ip); break
-    case 'credential': openCredentialEdit(ip); break
-    case 'billing': openBillingEdit(ip); break
-    case 'socks5': openSocks5Edit(ip); break
-  }
-}
-
-// ===== 装 landing agent (provisionMode=1 才有意义) =====
+// ===== 装 landing agent (入口在详情 dialog) =====
 const provisionOpen = ref(false)
 const provisionIpId = ref<string | null>(null)
-
-function openProvision(ip: ResourceIpPool) {
-  provisionIpId.value = ip.id
-  provisionOpen.value = true
-}
+function openProvision(ip: ResourceIpPool) { provisionIpId.value = ip.id; provisionOpen.value = true }
 
 function onSaved() {
   loadList()
   loadSummary()
+  void refreshDetail()
 }
 
-// ===== 删除 =====
+// ===== 删除 (入口在详情 dialog) =====
 async function onDelete(ip: ResourceIpPool) {
   const ok = await confirm({
     title: '删除 IP',
@@ -277,6 +262,7 @@ async function onDelete(ip: ResourceIpPool) {
   try {
     await deleteIpPool(ip.id)
     message.success('已删除')
+    detailOpen.value = false  // 删除后关详情
     onSaved()
   } catch { /* */ }
 }
@@ -369,69 +355,22 @@ async function copySocks5Url(ip: ResourceIpPool) {
   }
 }
 
-/**
- * 卡片"更多"下拉: 运维子菜单 (跟 lifecycle 流转项 + 删除拍平).
- *
- * - 装机/重装已在卡片底部内联展示, 这里不重复
- * - 退订到 cooling 已删除 (revoke 链路内部走 releaseToCoolingForRevoke; admin 不再有手动入口)
- * - lifecycle 只暴露 退役 / 重新启用 (INSTALLING/READY 是装机内部状态, 不放出口)
- */
-function moreOptionsFor(ip: ResourceIpPool) {
-  const opsChildren = [
-    canManage(ip)
-      ? { label: '查看 dante 状态', key: 'status', icon: () => h(NIcon, null, { default: () => h(Eye) }) }
-      : null,
-    canManage(ip)
-      ? { label: '查看日志', key: 'log', icon: () => h(NIcon, null, { default: () => h(FileText) }) }
-      : null,
-    ip.provisionMode === 1
-      ? { label: '装 landing agent', key: 'provision', icon: () => h(NIcon, null, { default: () => h(ServerIcon) }) }
-      : null,
-    ip.provisionMode === 1 && canTest(ip)
-      ? { label: '同步 SOCKS5 凭据', key: 'sync', icon: () => h(NIcon, null, { default: () => h(KeyRound) }) }
-      : null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ].filter(Boolean) as any[]
+// ===== 详情 dialog =====
+const detailOpen = ref(false)
+const detailIpId = ref<string | null>(null)
+const detailDialogRef = ref<InstanceType<typeof IpPoolDetailDialog> | null>(null)
 
-  // lifecycle 流转: 只在 from 态匹配时显示
-  const lifecycleItems = LIFECYCLE_ACTIONS
-    .filter((a) => ip.lifecycleState === a.from)
-    .map((a) => ({
-      label: a.label,
-      key: `lc:${a.to}`,
-      icon: () => h(NIcon, null, { default: () => h(Activity) })
-    }))
-
-  return [
-    opsChildren.length > 0
-      ? {
-          label: '运维',
-          key: 'menu-ops',
-          icon: () => h(NIcon, null, { default: () => h(Wrench) }),
-          children: opsChildren
-        }
-      : null,
-    ...lifecycleItems,
-    (opsChildren.length > 0 || lifecycleItems.length > 0) ? { type: 'divider', key: 'd-end' } : null,
-    { label: '删除 IP', key: 'delete', icon: () => h(NIcon, null, { default: () => h(Trash2) }) }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ].filter(Boolean) as any[]
+function openDetail(ip: ResourceIpPool) {
+  detailIpId.value = ip.id
+  detailOpen.value = true
 }
 
-function onMoreSelect(ip: ResourceIpPool, key: string) {
-  switch (key) {
-    case 'status': return openStatus(ip)
-    case 'log': return openLog(ip)
-    case 'provision': return openProvision(ip)
-    case 'sync': return openSyncCreds(ip)
-    case 'delete': return onDelete(ip)
-    default:
-      if (key.startsWith('lc:')) {
-        const targetState = key.slice(3)
-        const action = LIFECYCLE_ACTIONS.find((a) => a.to === targetState && a.from === ip.lifecycleState)
-        if (action) return onLifecycleSelect(ip, action)
-      }
-  }
+/** 详情 dialog 内任意操作完成后, 重拉 detail (e.g. 编辑/装机/lifecycle) */
+async function refreshDetail() {
+  if (!detailOpen.value) return
+  try {
+    await detailDialogRef.value?.refresh()
+  } catch { /* */ }
 }
 
 onMounted(async () => {
@@ -573,7 +512,7 @@ onMounted(async () => {
           class="ip-card"
           :class="[`ip-card--lc-${ip.lifecycleState.toLowerCase()}`]"
         >
-          <!-- header: IP + 部署模式 chip + 更多 -->
+          <!-- header: IP + 部署模式 chip (右上角无更多按钮; 所有 admin 操作走详情 dialog) -->
           <div class="ip-card__header">
             <div class="ip-card__title">
               <NIcon :size="18" class="ip-card__title-icon"><Globe2 /></NIcon>
@@ -587,15 +526,6 @@ onMounted(async () => {
                 style="background: rgba(160,160,160,0.18); color: #555"
               >第三方</NTag>
             </div>
-            <NDropdown
-              trigger="click"
-              :options="moreOptionsFor(ip)"
-              @select="(k: string) => onMoreSelect(ip, k)"
-            >
-              <NButton size="small" quaternary circle title="更多操作">
-                <template #icon><NIcon><MoreHorizontal /></NIcon></template>
-              </NButton>
-            </NDropdown>
           </div>
 
           <!-- region + type + 状态徽章 -->
@@ -651,7 +581,7 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- footer 操作: 测试 / 编辑▾ / 装机 (按 lifecycle 显示) -->
+          <!-- footer 操作: 测试 / 装机·重装 / 详情 — 高频操作内联, admin 走详情 -->
           <div class="ip-card__footer">
             <NButton
               v-if="canTest(ip)"
@@ -659,22 +589,16 @@ onMounted(async () => {
               quaternary
               type="warning"
               title="拨号自检 SOCKS5"
-              @click="openTest(ip)"
+              @click.stop="openTest(ip)"
             >
               <template #icon><NIcon><Zap /></NIcon></template>
               测试
             </NButton>
-            <NDropdown trigger="click" :options="EDIT_DROPDOWN_OPTIONS" @select="(k: string) => onEditSelect(ip, k)">
-              <NButton size="small" quaternary title="编辑分段配置">
-                <template #icon><NIcon><Pencil /></NIcon></template>
-                编辑
-              </NButton>
-            </NDropdown>
             <NButton
               v-if="ip.provisionMode === 1 && (ip.lifecycleState === 'INSTALLING' || ip.lifecycleState === 'READY')"
               size="small"
               type="primary"
-              @click="openDeploy(ip)"
+              @click.stop="openDeploy(ip)"
             >
               <template #icon><NIcon><Rocket /></NIcon></template>
               装机
@@ -684,11 +608,15 @@ onMounted(async () => {
               size="small"
               quaternary
               type="info"
-              @click="openDeploy(ip)"
               title="重装 dante"
+              @click.stop="openDeploy(ip)"
             >
               <template #icon><NIcon><Rocket /></NIcon></template>
               重装
+            </NButton>
+            <NButton size="small" quaternary @click.stop="openDetail(ip)">
+              <template #icon><NIcon><Eye /></NIcon></template>
+              详情
             </NButton>
           </div>
         </div>
@@ -730,6 +658,26 @@ onMounted(async () => {
     />
 
     <IpPoolDeployDialog v-model="deployOpen" :ip-id="deployIpId" @installed="onDeployInstalled" />
+
+    <!-- 详情 dialog: 顶部工具栏含所有 admin 操作, emit 上抛给父组件打开对应 sub-dialog -->
+    <IpPoolDetailDialog
+      ref="detailDialogRef"
+      v-model="detailOpen"
+      :ip-id="detailIpId"
+      @edit-core="openCoreEdit"
+      @edit-credential="openCredentialEdit"
+      @edit-billing="openBillingEdit"
+      @edit-socks5="openSocks5Edit"
+      @deploy="openDeploy"
+      @test="openTest"
+      @sync-creds="openSyncCreds"
+      @view-status="openStatus"
+      @view-log="openLog"
+      @provision-agent="openProvision"
+      @lifecycle-retire="onLifecycleRetire"
+      @lifecycle-restore="onLifecycleRestore"
+      @delete="onDelete"
+    />
 
     <IpPoolTestDialog v-model="testOpen" :ip="testTarget" />
     <IpPoolSyncCredsDialog v-model="syncCredsOpen" :ip="syncCredsTarget" @synced="onSynced" />
