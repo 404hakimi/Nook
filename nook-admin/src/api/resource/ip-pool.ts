@@ -473,7 +473,6 @@ export interface Socks5InstallDTO {
   confPath: string
   pamFile: string
   pwdFile: string
-  systemdUnit: string
 }
 
 /**

@@ -78,9 +78,9 @@ htpasswd -bcB "$PWDFILE" "$SOCKS_USER" "$SOCKS_PASS"
 chmod 600 "$PWDFILE"
 
 log "写 $DANTE_CONF (port=$SOCKS_PORT log='$LOG_LEVEL')..."
-# DANTE_CONF 可能在 INSTALL_DIR 子目录, 先建目录
+# DANTE_CONF 在 INSTALL_DIR 子目录, 先建目录
 mkdir -p "$(dirname "$DANTE_CONF")"
-if [[ -f "$DANTE_CONF" && ! -L "$DANTE_CONF" ]]; then
+if [[ -f "$DANTE_CONF" ]]; then
     cp "$DANTE_CONF" "${DANTE_CONF}.bak.$(date +%s)"
 fi
 cat > "$DANTE_CONF" <<DANTECONF
@@ -114,30 +114,24 @@ socks block {
 DANTECONF
 chmod 644 "$DANTE_CONF"
 
-# apt 包的 danted.service 默认读 /etc/danted.conf; 用户配的 DANTE_CONF 若不在那, 用 symlink 桥接 (运维 cd /home/socks5/etc 看真文件)
-if [[ "$DANTE_CONF" != "/etc/danted.conf" ]]; then
-    if [[ -e /etc/danted.conf && ! -L /etc/danted.conf ]]; then
-        mv /etc/danted.conf "/etc/danted.conf.apt-orig.$(date +%s)"
-    fi
-    ln -sfn "$DANTE_CONF" /etc/danted.conf
-    log "symlink /etc/danted.conf → $DANTE_CONF (apt 包默认读路径桥接)"
-fi
-
 # logoutput 不会自己 mkdir
 LOG_DIR=$(dirname "$LOG_PATH")
 [[ "$LOG_DIR" != "." && "$LOG_DIR" != "/" ]] && mkdir -p "$LOG_DIR"
 touch "$LOG_PATH"
 chmod 644 "$LOG_PATH"
 
-# apt 自带 ${SYSTEMD_UNIT}.service 把 /home 设 InaccessibleDirectories + /var 设 ReadOnlyDirectories,
-# 不解除 dante 看不到 /home/socks5/, 也写不进 /var/log/.
-log "写 systemd drop-in 解除 sandbox..."
+# Nook 装机 drop-in: 同时做两件事
+#   1) 解除 apt 包默认 sandbox: InaccessibleDirectories=/home + ReadOnlyDirectories=/var, 不解除 dante 看不到 /home/socks5/, 也写不进 /var/log/
+#   2) 覆盖 ExecStart 让 danted 读自定义 conf 路径 (不再用 apt 默认的 /etc/danted.conf), 用户运维 cd /home/socks5/etc 看真文件
+log "写 systemd drop-in (解除 sandbox + 覆盖 ExecStart → $DANTE_CONF)..."
 mkdir -p "/etc/systemd/system/${SYSTEMD_UNIT}.service.d"
-cat > "/etc/systemd/system/${SYSTEMD_UNIT}.service.d/nook.conf" <<'DROPIN'
-# Nook override: 解除 apt 包默认的 sandbox 限制
+cat > "/etc/systemd/system/${SYSTEMD_UNIT}.service.d/nook.conf" <<DROPIN
+# Nook override: 解除 apt 包 sandbox + 改 conf 路径
 [Service]
 InaccessibleDirectories=
 ReadOnlyDirectories=
+ExecStart=
+ExecStart=/usr/sbin/danted -f $DANTE_CONF
 DROPIN
 
 systemctl stop "${SYSTEMD_UNIT}" >/dev/null 2>&1 || true

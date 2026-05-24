@@ -120,13 +120,10 @@ public class ResourceIpSocksInstallReqVO {
     @Size(max = 255)
     private String pamFile;
 
-    /** htpasswd 密码文件路径; 前端 default '/etc/danted/sockd.passwd'. */
+    /** htpasswd 密码文件路径; 前端 default '/home/socks5/etc/sockd.passwd'. */
     @NotBlank(message = "pwdFile 必填")
     @Size(max = 255)
     private String pwdFile;
 
-    /** systemd 服务名; 前端 default 'danted'. */
-    @NotBlank(message = "systemdUnit 必填")
-    @Size(max = 64)
-    private String systemdUnit;
+    // systemd unit 固定 'danted' (apt 包提供), 不做入参; 装机脚本走 drop-in 覆盖 ExecStart 指向 confPath
 }

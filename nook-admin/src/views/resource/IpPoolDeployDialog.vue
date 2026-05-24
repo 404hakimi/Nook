@@ -127,12 +127,12 @@ const form = reactive({
 
   // 装机产物路径 (落 install 子表; 前端 default 集中到 INSTALL_DIR 下方便 SSH 进机器探查)
   // PAM 例外: Linux PAM 库硬编码读 /etc/pam.d/<service>, 必须留 OS 位置
-  // sockd.conf 写到 INSTALL_DIR 下, 装机脚本同时建 symlink /etc/danted.conf → 实际路径 (apt 包默认读 /etc/danted.conf)
+  // sockd.conf 写到 INSTALL_DIR 下; 装机脚本通过 systemd drop-in 覆盖 ExecStart=/usr/sbin/danted -f <confPath>
+  // systemd unit 固定 'danted' (apt 包提供), 用户不需要改 → 不做 form 字段; 后端固定写 'danted' 到 install 子表
   installDir: '/home/socks5',
   confPath: '/home/socks5/etc/danted.conf',
   pamFile: '/etc/pam.d/sockd',
-  pwdFile: '/home/socks5/etc/sockd.passwd',
-  systemdUnit: 'danted'
+  pwdFile: '/home/socks5/etc/sockd.passwd'
 })
 
 const ipTypeOptions = computed(() =>
@@ -179,8 +179,7 @@ watch(
       installDir: '/home/socks5',
       confPath: '/home/socks5/etc/danted.conf',
       pamFile: '/etc/pam.d/sockd',
-      pwdFile: '/home/socks5/etc/sockd.passwd',
-      systemdUnit: 'danted'
+      pwdFile: '/home/socks5/etc/sockd.passwd'
     })
   }
 )
@@ -197,7 +196,6 @@ function validate() {
   if (!form.confPath.trim()) errors.confPath = '请输入 sockd.conf 路径'
   if (!form.pamFile.trim()) errors.pamFile = '请输入 PAM 配置路径'
   if (!form.pwdFile.trim()) errors.pwdFile = '请输入密码文件路径'
-  if (!form.systemdUnit.trim()) errors.systemdUnit = '请输入 systemd unit 名'
   if (form.sshTimeoutSeconds < 5 || form.sshTimeoutSeconds > 600) errors.sshTimeoutSeconds = 'SSH 握手超时 5-600 秒'
   if (form.sshOpTimeoutSeconds < 5 || form.sshOpTimeoutSeconds > 300) errors.sshOpTimeoutSeconds = 'SSH 单条命令超时 5-300 秒'
   if (form.sshUploadTimeoutSeconds < 5 || form.sshUploadTimeoutSeconds > 600) errors.sshUploadTimeoutSeconds = 'SCP 上传超时 5-600 秒'
@@ -251,8 +249,7 @@ async function onSubmit() {
       installDir: form.installDir.trim(),
       confPath: form.confPath.trim(),
       pamFile: form.pamFile.trim(),
-      pwdFile: form.pwdFile.trim(),
-      systemdUnit: form.systemdUnit.trim()
+      pwdFile: form.pwdFile.trim()
     }
     await installSocks5Stream(dto, appendOutput, abortCtrl.signal)
     deployed.value = true
@@ -664,7 +661,7 @@ function close() {
       <!-- 装机产物路径 (落 install 子表; 都有 default, 大多场景不用改) -->
       <details class="mt-3 cursor-pointer">
         <summary class="text-sm font-semibold text-zinc-500 select-none">
-          更多路径 (sockd.conf / PAM / htpasswd / systemd unit; 默认即可)
+          更多路径 (sockd.conf / PAM / htpasswd; 默认即可)
         </summary>
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-x-4 mt-2">
           <NFormItem
@@ -694,14 +691,10 @@ function close() {
             <NInput v-model:value="form.pwdFile" :disabled="installing"
                     :input-props="{ style: 'font-family: monospace' }" />
           </NFormItem>
-          <NFormItem
-            label="systemd unit"
-            :validation-status="errors.systemdUnit ? 'error' : undefined"
-            :feedback="errors.systemdUnit"
-          >
-            <NInput v-model:value="form.systemdUnit" :disabled="installing"
-                    :input-props="{ style: 'font-family: monospace' }" />
-          </NFormItem>
+        </div>
+        <div class="text-xs text-zinc-500 mt-1">
+          systemd unit 固定 <code class="font-mono">danted</code> (apt 包提供); 装机用 drop-in 覆盖
+          <code class="font-mono">ExecStart=/usr/sbin/danted -f &lt;sockd.conf&gt;</code> 指到自定义路径
         </div>
       </details>
       </NCard>

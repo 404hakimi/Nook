@@ -165,7 +165,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
             install.setConfPath(r.getConfPath());
             install.setPamFile(r.getPamFile());
             install.setPwdFile(r.getPwdFile());
-            install.setSystemdUnit(r.getSystemdUnit());
+            install.setSystemdUnit(DANTE_UNIT);  // 固定 'danted' (apt 包提供), 不接受前端入参
             install.setAutostartEnabled(Boolean.TRUE.equals(r.getAutostartEnabled()) ? 1 : 0);
             install.setFirewallEnabled(Boolean.TRUE.equals(r.getInstallUfw()) ? 1 : 0);
             install.setLogRotateEnabled(Boolean.TRUE.equals(r.getLogRotate()) ? 1 : 0);
@@ -344,7 +344,8 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 Map.entry("CONF_PATH", r.getConfPath()),
                 Map.entry("PAM_FILE", r.getPamFile()),
                 Map.entry("PWD_FILE", r.getPwdFile()),
-                Map.entry("SYSTEMD_UNIT", r.getSystemdUnit()),
+                // systemd unit 固定 'danted' (apt 包提供), 装机用 drop-in 覆盖 ExecStart
+                Map.entry("SYSTEMD_UNIT", DANTE_UNIT),
                 Map.entry("AUTOSTART_ENABLED", Boolean.TRUE.equals(r.getAutostartEnabled()) ? "1" : "0"),
                 Map.entry("LOG_ROTATE_ENABLED", Boolean.TRUE.equals(r.getLogRotate()) ? "1" : "0"));
     }
