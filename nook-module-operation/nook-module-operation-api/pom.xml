@@ -6,17 +6,19 @@
 
     <parent>
         <groupId>com.nook</groupId>
-        <artifactId>nook</artifactId>
+        <artifactId>nook-module-operation</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>nook-module-operation</artifactId>
-    <packaging>pom</packaging>
-    <description>危险操作排队模块聚合: api (对外契约) + server (实现 + dal)</description>
+    <artifactId>nook-module-operation-api</artifactId>
+    <description>Operation 模块对外契约: enums + spi + dto + event (零业务依赖).</description>
 
-    <modules>
-        <module>nook-module-operation-api</module>
-        <module>nook-module-operation-server</module>
-    </modules>
+    <dependencies>
+        <!-- ErrorCode 接口 + BusinessException 在 nook-common -->
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-common</artifactId>
+        </dependency>
+    </dependencies>
 </project>

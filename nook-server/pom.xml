@@ -25,7 +25,7 @@
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-module-operation</artifactId>
+            <artifactId>nook-module-operation-server</artifactId>
         </dependency>
         <dependency>
             <groupId>com.nook</groupId>

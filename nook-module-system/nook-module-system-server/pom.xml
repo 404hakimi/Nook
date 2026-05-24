@@ -35,7 +35,7 @@
         <!-- 提供 OpLogEnricher SPI; system 模块给 op_log 补 operator (admin) realName/username -->
         <dependency>
             <groupId>com.nook</groupId>
-            <artifactId>nook-module-operation</artifactId>
+            <artifactId>nook-module-operation-api</artifactId>
         </dependency>
     </dependencies>
 </project>

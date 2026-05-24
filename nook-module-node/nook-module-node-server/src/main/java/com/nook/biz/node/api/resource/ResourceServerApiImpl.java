@@ -12,7 +12,9 @@ import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 资源服务器 Api 实现类
@@ -49,5 +51,10 @@ public class ResourceServerApiImpl implements ResourceServerApi {
                 BeanUtils.toBean(req, ResourceServerPageReqVO.class));
         return PageResult.of(page.getTotal(),
                 BeanUtils.toBean(page.getRecords(), ResourceServerRespDTO.class));
+    }
+
+    @Override
+    public Map<String, String> getServerNameMap(Collection<String> serverIds) {
+        return resourceServerService.getServerNameMap(serverIds);
     }
 }

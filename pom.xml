@@ -123,7 +123,12 @@
             </dependency>
             <dependency>
                 <groupId>com.nook</groupId>
-                <artifactId>nook-module-operation</artifactId>
+                <artifactId>nook-module-operation-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nook</groupId>
+                <artifactId>nook-module-operation-server</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

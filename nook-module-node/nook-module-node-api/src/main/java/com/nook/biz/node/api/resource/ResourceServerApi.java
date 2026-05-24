@@ -4,7 +4,9 @@ import com.nook.biz.node.api.resource.dto.ResourceServerPageReqDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.common.web.response.PageResult;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 资源服务器 Api 接口
@@ -43,4 +45,12 @@ public interface ResourceServerApi {
      * @return PageResult; records 元素是 server 视图
      */
     PageResult<ResourceServerRespDTO> page(ResourceServerPageReqDTO reqDTO);
+
+    /**
+     * 批量获得服务器名称 (跨模块 enrich op_log / agent_task 列表用)
+     *
+     * @param serverIds 服务器编号集合
+     * @return 服务器编号 → 服务器名称
+     */
+    Map<String, String> getServerNameMap(Collection<String> serverIds);
 }
