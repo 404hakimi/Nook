@@ -68,6 +68,16 @@ public class ResourceIpPoolRespVO {
 
     private String installDir;
 
+    /** 装机完成时间 (install 子表 installed_at; null = 未装机) */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime installedAt;
+
+    /** landing agent 鉴权 token (主表 agent_token; 装机时自动生成) */
+    private String agentToken;
+
+    /** dante 限速 Mbps (socks5 子表 bandwidth_limit_mbps; 0/null = 不限速) */
+    private Integer bandwidthLimitMbps;
+
     private String sshHost;
 
     private Integer sshPort;

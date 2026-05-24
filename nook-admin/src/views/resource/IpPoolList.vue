@@ -50,7 +50,6 @@ import IpPoolCreateDialog from './IpPoolCreateDialog.vue'
 import IpPoolCreateChoiceDialog from './IpPoolCreateChoiceDialog.vue'
 import IpPoolDetailDialog from './IpPoolDetailDialog.vue'
 import IpPoolTestDialog from './IpPoolTestDialog.vue'
-import IpPoolStatusDialog from './IpPoolStatusDialog.vue'
 import IpPoolLogDialog from './IpPoolLogDialog.vue'
 import IpPoolCoreEditDialog from './dialogs/IpPoolCoreEditDialog.vue'
 import IpPoolCredentialEditDialog from './dialogs/IpPoolCredentialEditDialog.vue'
@@ -308,10 +307,6 @@ function canManage(ip: ResourceIpPool): boolean {
 const testOpen = ref(false)
 const testTarget = ref<ResourceIpPool | null>(null)
 function openTest(ip: ResourceIpPool) { testTarget.value = ip; testOpen.value = true }
-
-const statusOpen = ref(false)
-const statusTarget = ref<ResourceIpPool | null>(null)
-function openStatus(ip: ResourceIpPool) { statusTarget.value = ip; statusOpen.value = true }
 
 const logOpen = ref(false)
 const logTarget = ref<ResourceIpPool | null>(null)
@@ -664,7 +659,6 @@ onMounted(async () => {
       @edit-socks5="openSocks5Edit"
       @deploy="openDeploy"
       @test="openTest"
-      @view-status="openStatus"
       @view-log="openLog"
       @provision-agent="openProvision"
       @lifecycle-retire="onLifecycleRetire"
@@ -673,7 +667,6 @@ onMounted(async () => {
     />
 
     <IpPoolTestDialog v-model="testOpen" :ip="testTarget" />
-    <IpPoolStatusDialog v-model="statusOpen" :ip="statusTarget" @changed="loadList" />
     <IpPoolLogDialog v-model="logOpen" :ip="logTarget" />
 
     <!-- 分段编辑 dialog; v-if 让每次切换 IP 重建 dialog, watch immediate=true 立即 fetch 回填 -->

@@ -97,6 +97,7 @@ public interface ResourceIpPoolConvert {
         vo.setSocks5Username(socks5.getSocks5Username());
         vo.setSocks5Password(socks5.getSocks5Password());
         vo.setLogLevel(socks5.getLogLevel());
+        vo.setBandwidthLimitMbps(socks5.getBandwidthLimitMbps());
     }
 
     static void enrichInstall(ResourceIpPoolRespVO vo, ResourceIpPoolInstallDO install) {
@@ -105,6 +106,7 @@ public interface ResourceIpPoolConvert {
         vo.setLogPath(install.getLogPath());
         vo.setAutostartEnabled(install.getAutostartEnabled());
         vo.setFirewallEnabled(install.getFirewallEnabled());
+        vo.setInstalledAt(install.getInstalledAt());
     }
 
     static void enrichRuntime(ResourceIpPoolRespVO vo, ResourceIpPoolRuntimeDO runtime) {

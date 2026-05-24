@@ -40,6 +40,10 @@ export interface ResourceIpPool {
   firewallEnabled?: number
   /** SOCKS5 安装目录; 默认 /home/socks5; logs/info.txt 等运维资产放这里. */
   installDir?: string
+  /** 装机完成时间 (install 子表 installed_at; null = 未装机) */
+  installedAt?: string
+  /** landing agent 鉴权 token (装机时自动生成; mask 展示) */
+  agentToken?: string
   /** SSH 主机 (默认 = ipAddress); 后续运维 (详情/日志/切自启) 用 */
   sshHost?: string
   /** SSH 端口 (默认 22). */
