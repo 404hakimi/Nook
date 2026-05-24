@@ -9,14 +9,12 @@ import {
   NFormItem,
   NInputNumber,
   NModal,
-  NSelect,
   NSpace,
   NSpin,
   NTag,
   useMessage
 } from 'naive-ui'
 import {
-  QUOTA_RESET_POLICY_OPTIONS,
   THROTTLE_STATE_LABELS,
   getIpPoolBilling,
   getIpPoolCapacity,
@@ -47,11 +45,10 @@ const submitting = ref(false)
 const loading = ref(false)
 const errors = reactive<Record<string, string>>({})
 
-// ===== 容量 (capacity 子表) =====
+// ===== 容量 (capacity 子表; quota_reset_policy 由后端默认填 CALENDAR_MONTH, 这里不暴露给 admin) =====
 const capacityForm = reactive({
   bandwidthLimitMbps: 0,
-  monthlyTrafficGb: null as number | null,
-  quotaResetPolicy: 'CALENDAR_MONTH' as string | null
+  monthlyTrafficGb: null as number | null
 })
 // 远端 agent 上报的累计字段 (只读展示)
 const capacityRuntime = reactive({
@@ -70,12 +67,9 @@ const billingForm = reactive({
   expiresAtTs: null as number | null
 })
 
-const quotaResetOptions = QUOTA_RESET_POLICY_OPTIONS.map((o) => ({ label: o.label, value: o.value }))
-
 function fillCapacity(c: IpPoolCapacity | null) {
   capacityForm.bandwidthLimitMbps = c?.bandwidthLimitMbps ?? 0
   capacityForm.monthlyTrafficGb = c?.monthlyTrafficGb ?? null
-  capacityForm.quotaResetPolicy = c?.quotaResetPolicy ?? 'CALENDAR_MONTH'
   capacityRuntime.usedTrafficBytes = c?.usedTrafficBytes ?? 0
   capacityRuntime.rxBytes = c?.rxBytes ?? 0
   capacityRuntime.txBytes = c?.txBytes ?? 0
@@ -159,8 +153,7 @@ async function onSubmit() {
     await Promise.all([
       updateIpPoolCapacity(props.ipId, {
         bandwidthLimitMbps: capacityForm.bandwidthLimitMbps,
-        monthlyTrafficGb: capacityForm.monthlyTrafficGb ?? undefined,
-        quotaResetPolicy: capacityForm.quotaResetPolicy ?? undefined
+        monthlyTrafficGb: capacityForm.monthlyTrafficGb ?? undefined
       }),
       updateIpPoolBilling(props.ipId, {
         bandwidthMbps: billingForm.bandwidthMbps ?? undefined,
@@ -208,7 +201,7 @@ async function onSubmit() {
         月流量上限触发后系统自动停止把该 IP 分配给新订阅.
       </NAlert>
       <NForm :model="capacityForm" label-placement="top" size="small">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
           <NFormItem
             label="实际限速 Mbps (0=不限)"
             :feedback="errors.bandwidthLimitMbps"
@@ -222,9 +215,6 @@ async function onSubmit() {
             :validation-status="errors.monthlyTrafficGb ? 'error' : undefined"
           >
             <NInputNumber v-model:value="capacityForm.monthlyTrafficGb" :min="0" :max="10000000" class="w-full" />
-          </NFormItem>
-          <NFormItem label="周期重置策略">
-            <NSelect v-model:value="capacityForm.quotaResetPolicy" :options="quotaResetOptions" />
           </NFormItem>
         </div>
 

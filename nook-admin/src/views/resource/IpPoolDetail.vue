@@ -724,7 +724,6 @@ const heartbeatDotColor = computed(() => {
                 {{ detail.throttleState === 'THROTTLED' ? '已触发限流' : '正常' }}
               </NTag>
             </div>
-            <div class="info-row info-row--full"><span class="k">重置策略</span><span class="v">{{ detail.quotaResetPolicy || 'CALENDAR_MONTH' }}</span></div>
           </div>
 
           <div class="section-title mt-4">账面 — 财务记录</div>
