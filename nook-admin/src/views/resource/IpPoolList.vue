@@ -12,6 +12,7 @@ import {
   Rocket,
   Search,
   Server as ServerIcon,
+  Trash2,
   Users,
   Zap
 } from 'lucide-vue-next'
@@ -607,6 +608,22 @@ onMounted(async () => {
               <template #icon><NIcon><Eye /></NIcon></template>
               详情
             </NButton>
+            <div class="flex-1" />
+            <NTooltip placement="top">
+              <template #trigger>
+                <NButton
+                  size="small"
+                  quaternary
+                  type="error"
+                  circle
+                  title="删除 IP"
+                  @click.stop="onDelete(ip)"
+                >
+                  <template #icon><NIcon><Trash2 /></NIcon></template>
+                </NButton>
+              </template>
+              <div class="text-xs">删除 IP (不可恢复)</div>
+            </NTooltip>
           </div>
         </div>
       </div>
@@ -663,7 +680,6 @@ onMounted(async () => {
       @provision-agent="openProvision"
       @lifecycle-retire="onLifecycleRetire"
       @lifecycle-restore="onLifecycleRestore"
-      @delete="onDelete"
     />
 
     <IpPoolTestDialog v-model="testOpen" :ip="testTarget" />

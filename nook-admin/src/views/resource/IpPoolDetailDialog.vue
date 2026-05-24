@@ -13,8 +13,6 @@ import {
   RefreshCcw,
   Rocket,
   Server as ServerIcon,
-  Trash2,
-  Wifi,
   XCircle,
   Zap
 } from 'lucide-vue-next'
@@ -26,8 +24,6 @@ import {
   NIcon,
   NModal,
   NSpin,
-  NTabs,
-  NTabPane,
   NTag,
   NTooltip,
   useMessage
@@ -45,19 +41,15 @@ import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/res
 import { formatDateTime } from '@/utils/date'
 
 /**
- * IP 池条目详情 — 6 tab workflow 视图.
+ * IP 池条目详情 — 部署进度 step 卡当 nav.
  *
- * Tabs (按部署 workflow 排序):
- *   ① 概览       — 部署进度 + 端口可达 + 状态徽章
- *   ② SSH 信息   — 凭据 + 编辑入口 + 连通性
- *   ③ SOCKS5 服务 — dante 配置 + 服务状态 + 编辑/装机/拨测/日志
- *   ④ Agent      — token + 心跳 + 健康徽章 + 安装入口
- *   ⑤ 服务器信息  — host / kernel / OS / mem / disk / UFW (走 socks5-status)
- *   ⑥ 账面       — 带宽 / 流量 / 月费 / 到期
+ * 4 个 step (= 装机 workflow): SSH 凭据 → 部署 SOCKS5 → 安装 Agent → 心跳健康.
+ * 每个 step 卡都可点击切换 (done=绿, pending=灰但可点; 不卡步骤), 切换后下方展示该 step 的内容 + 编辑/操作按钮.
+ * 账面信息折到底部小卡片, 危险操作 (退役 / 删除) 在最底部.
  *
- * 视图 / 编辑严格分离: 每 tab 顶部有自己的 actions area, 不再有统一 dropdown.
- * 底部 footer 危险区域 (退役 / 启用 / 删除) 跟视图分离.
- * socks5-status 响应缓存到 statusData, 概览 / SOCKS5 / 服务器 tabs 共享展示.
+ * 数据源:
+ *   - detail = getIpPoolDetail 主 + 5 子表合并
+ *   - statusData = getSocks5Status (按需拉, 用于端口可达 / 远端 systemd / 主机 info)
  */
 interface Props {
   modelValue: boolean
@@ -76,7 +68,6 @@ const emit = defineEmits<{
   (e: 'provision-agent', ip: ResourceIpPool): void
   (e: 'lifecycle-retire', ip: ResourceIpPool): void
   (e: 'lifecycle-restore', ip: ResourceIpPool): void
-  (e: 'delete', ip: ResourceIpPool): void
   (e: 'refresh'): void
 }>()
 
@@ -85,10 +76,11 @@ const loading = ref(false)
 const detail = ref<ResourceIpPool | null>(null)
 const error = ref<string>('')
 const ipTypes = ref<ResourceIpType[]>([])
-const activeTab = ref<'overview' | 'ssh' | 'socks5' | 'agent' | 'server' | 'billing'>('overview')
 let ipTypesLoaded = false
 
-// ===== 远端状态 (socks5-status 一次加载, 多 tab 共用) =====
+type StepKey = 'ssh' | 'socks5' | 'agent' | 'health'
+const activeStep = ref<StepKey>('ssh')
+
 const statusLoading = ref(false)
 const statusData = ref<Socks5ServiceStatus | null>(null)
 const statusError = ref<string>('')
@@ -113,7 +105,6 @@ function statusTagType(status?: string) {
     case 'OCCUPIED': return 'warning'
     case 'AVAILABLE': return 'success'
     case 'COOLING': return 'info'
-    case 'RESERVED': return 'default'
     default: return 'default'
   }
 }
@@ -123,12 +114,9 @@ const socks5Endpoint = computed(() => {
   return `${detail.value.ipAddress}:${detail.value.socks5Port}`
 })
 
-/** SOCKS5 凭据齐才能拨测 */
 const canTest = computed(() =>
   !!detail.value?.ipAddress && !!detail.value?.socks5Port
-  && !!detail.value?.socks5Username && !!detail.value?.socks5Password
-)
-/** 自部署 + SSH 密码齐才能拉远端状态 / 日志 */
+  && !!detail.value?.socks5Username && !!detail.value?.socks5Password)
 const canManage = computed(() => detail.value?.provisionMode === 1 && !!detail.value?.sshPassword)
 const isSelfDeploy = computed(() => detail.value?.provisionMode === 1)
 const isLive = computed(() => detail.value?.lifecycleState === 'LIVE')
@@ -140,51 +128,12 @@ const sshComplete = computed(() =>
 const socks5Installed = computed(() =>
   !!detail.value?.installedAt && detail.value?.lifecycleState === 'LIVE')
 
-// ===== 部署进度时间线 (4 step) =====
-interface DeployStep {
-  key: string
-  label: string
-  done: boolean
-  hint?: string
-}
-const deploySteps = computed<DeployStep[]>(() => [
-  {
-    key: 'ssh',
-    label: 'SSH 凭据',
-    done: sshComplete.value,
-    hint: sshComplete.value ? `${detail.value?.sshUser}@${detail.value?.sshHost}` : '在 SSH 信息 tab 配置'
-  },
-  {
-    key: 'socks5',
-    label: '部署 SOCKS5',
-    done: socks5Installed.value,
-    hint: socks5Installed.value
-      ? `已装机 ${formatDateTime(detail.value?.installedAt)}`
-      : '在 SOCKS5 tab 装机'
-  },
-  {
-    key: 'agent',
-    label: '安装 Agent',
-    done: !!detail.value?.agentToken,
-    hint: detail.value?.agentToken ? '已注册 token' : '在 Agent tab 安装'
-  },
-  {
-    key: 'health',
-    label: '心跳健康',
-    done: isAgentOnline.value,
-    hint: detail.value?.lastHealthAt
-      ? `最近心跳 ${relativeTime(detail.value.lastHealthAt)}`
-      : '装好 agent 后会自动上报'
-  }
-])
-
 const isAgentOnline = computed(() => {
   if (!detail.value?.lastHealthAt) return false
   const last = new Date(detail.value.lastHealthAt).getTime()
   return Date.now() - last < 5 * 60 * 1000
 })
 
-/** 把 ISO datetime 转 "刚刚 / 5 分钟前 / 1 小时前 / 2 天前" */
 function relativeTime(iso?: string): string {
   if (!iso) return '-'
   const t = new Date(iso).getTime()
@@ -197,20 +146,55 @@ function relativeTime(iso?: string): string {
   return `${Math.floor(sec / 86400)} 天前`
 }
 
-const agentHealthLabel = computed(() => {
-  if (!detail.value?.agentToken) return { text: '未安装', type: 'default' as const }
-  if (!detail.value?.lastHealthAt) return { text: '已装未上线', type: 'warning' as const }
-  return isAgentOnline.value
-    ? { text: '在线', type: 'success' as const }
-    : { text: '离线', type: 'error' as const }
-})
+// ===== 4 个 step (cards = nav) =====
+interface Step {
+  key: StepKey
+  idx: number
+  label: string
+  done: boolean
+  hint: string
+}
+const steps = computed<Step[]>(() => [
+  {
+    key: 'ssh',
+    idx: 1,
+    label: 'SSH 凭据',
+    done: sshComplete.value,
+    hint: sshComplete.value
+      ? `${detail.value?.sshUser}@${detail.value?.sshHost}:${detail.value?.sshPort ?? 22}`
+      : '未配置'
+  },
+  {
+    key: 'socks5',
+    idx: 2,
+    label: '部署 SOCKS5',
+    done: socks5Installed.value,
+    hint: socks5Installed.value
+      ? `:${detail.value?.socks5Port} / ${detail.value?.socks5Username || '-'}`
+      : (detail.value?.socks5Port ? `已配 :${detail.value.socks5Port} 未装机` : '未配置')
+  },
+  {
+    key: 'agent',
+    idx: 3,
+    label: '安装 Agent',
+    done: !!detail.value?.agentToken,
+    hint: detail.value?.agentToken ? '已注册 token' : '未安装'
+  },
+  {
+    key: 'health',
+    idx: 4,
+    label: '心跳健康',
+    done: isAgentOnline.value,
+    hint: detail.value?.lastHealthAt
+      ? (isAgentOnline.value ? `在线 · ${relativeTime(detail.value.lastHealthAt)}` : `离线 · ${relativeTime(detail.value.lastHealthAt)}`)
+      : '未上报'
+  }
+])
 
-// ===== 远端探测 — 端口可达性 + dante listening =====
-/** 用 statusData 推 SSH/SOCKS5 可达性. statusData 不存在 = 未探测 */
+// ===== 远端探测 =====
 const sshReachable = computed<'unknown' | 'open' | 'closed'>(() => {
   if (statusError.value) return 'closed'
   if (!statusData.value) return 'unknown'
-  // status 拿到了 hostInfo 就说明 SSH 通了 (探测脚本就是 SSH 跑出来的)
   return statusData.value.hostInfo ? 'open' : 'unknown'
 })
 const socks5Listening = computed<'unknown' | 'listening' | 'down'>(() => {
@@ -240,7 +224,6 @@ async function loadDetail(id: string) {
   loading.value = true
   error.value = ''
   detail.value = null
-  // 切 IP 时清掉远端状态缓存
   statusData.value = null
   statusError.value = ''
   try {
@@ -252,11 +235,10 @@ async function loadDetail(id: string) {
   }
 }
 
-/** 拉远端 socks5-status (SSH + dante + hostInfo 一把抓; SOCKS5/服务器 tabs 共用) */
 async function loadStatus() {
   if (!props.ipId) return
   if (!canManage.value) {
-    statusError.value = '需要先配置 SSH 凭据才能探测'
+    statusError.value = '需要 SSH 凭据齐才能探测'
     return
   }
   statusLoading.value = true
@@ -270,7 +252,6 @@ async function loadStatus() {
   }
 }
 
-/** 父组件刷新事件: 重拉 detail + 失效 status 缓存 */
 async function refresh() {
   if (props.ipId) {
     await loadDetail(props.ipId)
@@ -283,7 +264,7 @@ watch(
   () => [props.modelValue, props.ipId],
   ([open, ipId]) => {
     if (!open) return
-    activeTab.value = 'overview'
+    activeStep.value = 'ssh'
     void ensureIpTypes()
     if (typeof ipId === 'string' && ipId.length > 0) {
       void loadDetail(ipId)
@@ -295,9 +276,9 @@ watch(
   { immediate: false }
 )
 
-/** 切到需要远端状态的 tab 时, 若未加载过则自动拉一次 (减少用户手动点击) */
-watch(activeTab, (tab) => {
-  if ((tab === 'server' || tab === 'socks5') && !statusData.value && !statusLoading.value
+/** 切到 SOCKS5 / 心跳 step 时自动拉一次远端状态 (减少手动点) */
+watch(activeStep, (step) => {
+  if ((step === 'socks5' || step === 'health') && !statusData.value && !statusLoading.value
       && !statusError.value && canManage.value) {
     void loadStatus()
   }
@@ -307,7 +288,6 @@ function close() {
   emit('update:modelValue', false)
 }
 
-/** 屏蔽 agent_token / SOCKS5 密码 等敏感字段的展示 (保留前 6 后 4) */
 function maskSecret(s?: string): string {
   if (!s) return '-'
   if (s.length <= 12) return s.slice(0, 2) + '****' + s.slice(-2)
@@ -328,7 +308,6 @@ function maskSecret(s?: string): string {
       <div class="flex items-center gap-2">
         <NIcon :size="18" :depth="2"><Globe2 /></NIcon>
         <span>IP 详情</span>
-        <span v-if="detail" class="font-mono text-sm text-zinc-500">{{ detail.ipAddress }}</span>
       </div>
     </template>
     <template v-if="detail" #header-extra>
@@ -341,128 +320,72 @@ function maskSecret(s?: string): string {
       <NEmpty v-if="!loading && !detail && error" :description="error" />
 
       <div v-else-if="detail" class="detail-body">
-        <NTabs v-model:value="activeTab" type="line" size="small" animated>
-          <!-- ============ Tab 1: 概览 ============ -->
-          <NTabPane name="overview" tab="概览">
-            <!-- 部署进度时间线 -->
-            <div class="section">
-              <div class="section__title">部署进度</div>
-              <div class="deploy-steps">
-                <div
-                  v-for="(step, idx) in deploySteps"
-                  :key="step.key"
-                  class="deploy-step"
-                  :class="{ 'deploy-step--done': step.done }"
-                >
-                  <div class="deploy-step__dot">
-                    <NIcon v-if="step.done" :size="14"><CheckCircle2 /></NIcon>
-                    <span v-else>{{ idx + 1 }}</span>
-                  </div>
-                  <div class="deploy-step__body">
-                    <div class="deploy-step__label">{{ step.label }}</div>
-                    <div class="deploy-step__hint">{{ step.hint }}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <!-- ============ Header 紧凑: IP + 资源归属 + 占用 ============ -->
+        <div class="ip-header">
+          <div class="ip-header__main">
+            <span class="ip-header__addr font-mono">{{ detail.ipAddress }}</span>
+            <NButton quaternary size="tiny" circle @click="copyToClipboard(detail.ipAddress, 'IP 地址')">
+              <template #icon><NIcon><Copy /></NIcon></template>
+            </NButton>
+            <NTag size="small" :type="statusTagType(detail.status)">
+              {{ IP_POOL_STATUS_LABELS[detail.status] || detail.status }}
+            </NTag>
+            <NTag size="small" :type="detail.provisionMode === 1 ? 'success' : 'warning'">
+              {{ detail.provisionMode === 1 ? '自部署' : '第三方' }}
+            </NTag>
+            <NButton size="tiny" quaternary @click="emit('edit-core', detail)" title="编辑核心信息">
+              <template #icon><NIcon><Pencil /></NIcon></template>
+            </NButton>
+          </div>
+          <div class="ip-header__meta">
+            <span>{{ detail.region || '-' }}</span>
+            <span class="text-zinc-400 mx-1">·</span>
+            <span>{{ ipTypeName(detail.ipTypeId) }}</span>
+            <template v-if="detail.occupiedByMemberId">
+              <span class="text-zinc-400 mx-2">|</span>
+              <span>占用: <span class="font-mono">{{ detail.occupiedByMemberId }}</span></span>
+              <span v-if="detail.occupiedAt" class="text-zinc-400 ml-1">({{ formatDateTime(detail.occupiedAt) }})</span>
+            </template>
+            <template v-if="detail.remark">
+              <span class="text-zinc-400 mx-2">|</span>
+              <span class="ip-header__remark">备注: {{ detail.remark }}</span>
+            </template>
+          </div>
+        </div>
 
-            <!-- 端口可达性 -->
-            <div class="section">
-              <div class="section__title-row">
-                <span class="section__title">端口可达</span>
-                <NButton
-                  size="tiny"
-                  quaternary
-                  :loading="statusLoading"
-                  :disabled="!canManage"
-                  @click="loadStatus"
-                >
-                  <template #icon><NIcon><Plug /></NIcon></template>
-                  {{ statusData ? '重新探测' : '探测' }}
-                </NButton>
-              </div>
-              <div v-if="!canManage" class="section__tip text-warning">
-                <NIcon :size="14"><AlertCircle /></NIcon>
-                需要 SSH 凭据齐才能探测; 去 SSH 信息 tab 补全
-              </div>
-              <div v-else class="port-grid">
-                <div class="port-card" :class="`port-card--${sshReachable}`">
-                  <div class="port-card__icon"><NIcon :size="20"><KeyRound /></NIcon></div>
-                  <div class="port-card__body">
-                    <div class="port-card__label">SSH</div>
-                    <div class="port-card__value">{{ detail.sshHost || '-' }}:{{ detail.sshPort ?? 22 }}</div>
-                  </div>
-                  <NTag size="small" :type="sshReachable === 'open' ? 'success' : (sshReachable === 'closed' ? 'error' : 'default')">
-                    {{ sshReachable === 'open' ? '可达' : (sshReachable === 'closed' ? '不可达' : '未探测') }}
-                  </NTag>
-                </div>
-                <div class="port-card" :class="`port-card--${socks5Listening}`">
-                  <div class="port-card__icon"><NIcon :size="20"><Wifi /></NIcon></div>
-                  <div class="port-card__body">
-                    <div class="port-card__label">SOCKS5 (dante)</div>
-                    <div class="port-card__value">{{ detail.ipAddress }}:{{ detail.socks5Port ?? '-' }}</div>
-                  </div>
-                  <NTag size="small" :type="socks5Listening === 'listening' ? 'success' : (socks5Listening === 'down' ? 'error' : 'default')">
-                    {{ socks5Listening === 'listening' ? '监听中' : (socks5Listening === 'down' ? '未监听' : '未探测') }}
-                  </NTag>
-                </div>
-              </div>
-              <div v-if="statusError" class="section__tip text-error mt-2">
-                <NIcon :size="14"><XCircle /></NIcon> {{ statusError }}
-              </div>
+        <!-- ============ 部署进度 step cards (= 主导航) ============ -->
+        <div class="section-title">
+          <span>部署进度</span>
+          <span class="section-title__hint">点击切换查看 / 编辑</span>
+        </div>
+        <div class="step-cards">
+          <div
+            v-for="step in steps"
+            :key="step.key"
+            class="step-card"
+            :class="{
+              'step-card--active': activeStep === step.key,
+              'step-card--done': step.done,
+              'step-card--pending': !step.done
+            }"
+            @click="activeStep = step.key"
+          >
+            <div class="step-card__dot">
+              <NIcon v-if="step.done" :size="14"><CheckCircle2 /></NIcon>
+              <span v-else>{{ step.idx }}</span>
             </div>
-
-            <!-- 资源归属 + 状态 -->
-            <div class="section">
-              <div class="section__title">资源归属</div>
-              <NDescriptions bordered size="small" label-placement="left" :column="2">
-                <NDescriptionsItem label="IP 地址">
-                  <div class="flex items-center gap-2">
-                    <span class="font-mono">{{ detail.ipAddress }}</span>
-                    <NButton quaternary size="tiny" circle @click="copyToClipboard(detail.ipAddress, 'IP 地址')">
-                      <template #icon><NIcon><Copy /></NIcon></template>
-                    </NButton>
-                  </div>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="部署模式">
-                  <NTag size="small" :type="detail.provisionMode === 1 ? 'success' : 'warning'">
-                    {{ detail.provisionMode === 1 ? '自部署' : '第三方' }}
-                  </NTag>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="区域">{{ detail.region || '-' }}</NDescriptionsItem>
-                <NDescriptionsItem label="类型">{{ ipTypeName(detail.ipTypeId) }}</NDescriptionsItem>
-                <NDescriptionsItem label="lifecycle">
-                  <NTag size="small" :type="IP_POOL_LIFECYCLE_TAG_TYPE[detail.lifecycleState] || 'default'">
-                    {{ IP_POOL_LIFECYCLE_LABELS[detail.lifecycleState] || detail.lifecycleState }}
-                  </NTag>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="占用状态">
-                  <NTag size="small" :type="statusTagType(detail.status)">
-                    {{ IP_POOL_STATUS_LABELS[detail.status] || detail.status }}
-                  </NTag>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="当前会员">
-                  <span class="font-mono text-xs">{{ detail.occupiedByMemberId || '-' }}</span>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="占用时间">{{ formatDateTime(detail.occupiedAt) }}</NDescriptionsItem>
-                <NDescriptionsItem v-if="detail.coolingUntil" label="冷却到期">
-                  {{ formatDateTime(detail.coolingUntil) }}
-                </NDescriptionsItem>
-                <NDescriptionsItem label="创建时间">{{ formatDateTime(detail.createdAt) }}</NDescriptionsItem>
-                <NDescriptionsItem v-if="detail.remark" :span="2" label="备注">{{ detail.remark }}</NDescriptionsItem>
-              </NDescriptions>
-              <div class="section__actions">
-                <NButton size="small" quaternary @click="emit('edit-core', detail)">
-                  <template #icon><NIcon><Pencil /></NIcon></template>
-                  编辑核心信息
-                </NButton>
-              </div>
+            <div class="step-card__body">
+              <div class="step-card__label">{{ step.label }}</div>
+              <div class="step-card__hint">{{ step.hint }}</div>
             </div>
-          </NTabPane>
+          </div>
+        </div>
 
-          <!-- ============ Tab 2: SSH 信息 ============ -->
-          <NTabPane name="ssh" tab="SSH 信息">
-            <div class="tab-actions">
+        <!-- ============ 当前 step 内容 ============ -->
+        <div class="step-content">
+          <!-- ===== Step 1: SSH 凭据 ===== -->
+          <template v-if="activeStep === 'ssh'">
+            <div class="step-content__actions">
               <NButton size="small" type="primary" @click="emit('edit-credential', detail)">
                 <template #icon><NIcon><Pencil /></NIcon></template>
                 编辑 SSH 凭据
@@ -478,53 +401,47 @@ function maskSecret(s?: string): string {
                 测试连通性
               </NButton>
             </div>
-
             <div v-if="!detail.sshHost" class="empty-hint">
-              <NIcon :size="20"><AlertCircle /></NIcon>
+              <NIcon :size="18"><AlertCircle /></NIcon>
               <div>
                 <div class="font-semibold">尚未配置 SSH 凭据</div>
-                <div class="text-xs text-zinc-500 mt-1">
-                  部署 SOCKS5 / 装 agent / 查日志都依赖 SSH; 点上面"编辑 SSH 凭据"开始
-                </div>
+                <div class="text-xs text-zinc-500 mt-1">装机 / 装 agent / 看日志都依赖 SSH</div>
               </div>
             </div>
-            <NDescriptions v-else bordered size="small" label-placement="left" :column="1">
-              <NDescriptionsItem label="SSH host">
-                <div class="flex items-center gap-2">
+            <NDescriptions v-else bordered size="small" label-placement="left" :column="2">
+              <NDescriptionsItem label="host">
+                <div class="flex items-center gap-1">
                   <span class="font-mono text-xs">{{ detail.sshHost }}</span>
                   <NButton quaternary size="tiny" circle @click="copyToClipboard(detail.sshHost, 'SSH host')">
                     <template #icon><NIcon><Copy /></NIcon></template>
                   </NButton>
                 </div>
               </NDescriptionsItem>
-              <NDescriptionsItem label="SSH port">{{ detail.sshPort ?? 22 }}</NDescriptionsItem>
-              <NDescriptionsItem label="SSH user">
+              <NDescriptionsItem label="port">{{ detail.sshPort ?? 22 }}</NDescriptionsItem>
+              <NDescriptionsItem label="user">
                 <span class="font-mono text-xs">{{ detail.sshUser || '-' }}</span>
               </NDescriptionsItem>
-              <NDescriptionsItem label="SSH password">
+              <NDescriptionsItem label="password">
                 <NTag v-if="detail.sshPassword" size="small" type="success">已配置 (mask)</NTag>
                 <NTag v-else size="small" type="warning">未配置</NTag>
               </NDescriptionsItem>
-              <NDescriptionsItem label="连通性">
-                <div class="flex items-center gap-2">
-                  <NTag v-if="sshReachable === 'unknown'" size="small">未探测</NTag>
-                  <NTag v-else-if="sshReachable === 'open'" size="small" type="success">
-                    <template #icon><NIcon><CheckCircle2 /></NIcon></template>
-                    可达
-                  </NTag>
-                  <NTag v-else size="small" type="error">
-                    <template #icon><NIcon><XCircle /></NIcon></template>
-                    不可达
-                  </NTag>
-                  <span v-if="statusError" class="text-xs text-error">{{ statusError }}</span>
-                </div>
+              <NDescriptionsItem :span="2" label="连通性">
+                <NTag v-if="sshReachable === 'unknown'" size="small">未探测</NTag>
+                <NTag v-else-if="sshReachable === 'open'" size="small" type="success">
+                  <template #icon><NIcon><CheckCircle2 /></NIcon></template>
+                  可达
+                </NTag>
+                <NTag v-else size="small" type="error">
+                  <template #icon><NIcon><XCircle /></NIcon></template>
+                  不可达 <span v-if="statusError" class="ml-1">({{ statusError }})</span>
+                </NTag>
               </NDescriptionsItem>
             </NDescriptions>
-          </NTabPane>
+          </template>
 
-          <!-- ============ Tab 3: SOCKS5 服务 ============ -->
-          <NTabPane name="socks5" tab="SOCKS5 服务">
-            <div class="tab-actions">
+          <!-- ===== Step 2: 部署 SOCKS5 ===== -->
+          <template v-else-if="activeStep === 'socks5'">
+            <div class="step-content__actions">
               <NButton size="small" type="primary" @click="emit('edit-socks5', detail)">
                 <template #icon><NIcon><Pencil /></NIcon></template>
                 编辑 dante 配置
@@ -566,103 +483,97 @@ function maskSecret(s?: string): string {
                 @click="loadStatus"
               >
                 <template #icon><NIcon><RefreshCcw /></NIcon></template>
-                刷新状态
+                刷新远端
               </NButton>
             </div>
 
-            <!-- dante 业务配置 -->
-            <div class="section">
-              <div class="section__title">dante 配置</div>
-              <div v-if="!socks5Endpoint" class="empty-hint">
-                <NIcon :size="20"><AlertCircle /></NIcon>
-                <div>
-                  <div class="font-semibold">尚未配置 SOCKS5</div>
-                  <div class="text-xs text-zinc-500 mt-1">点 "编辑 dante 配置" 填端口/用户/密码</div>
-                </div>
+            <div v-if="!socks5Endpoint" class="empty-hint">
+              <NIcon :size="18"><AlertCircle /></NIcon>
+              <div>
+                <div class="font-semibold">尚未配置 SOCKS5</div>
+                <div class="text-xs text-zinc-500 mt-1">点 "编辑 dante 配置" 填端口/用户/密码</div>
               </div>
-              <NDescriptions v-else bordered size="small" label-placement="left" :column="2">
-                <NDescriptionsItem label="端点">
-                  <div class="flex items-center gap-2">
-                    <span class="font-mono">{{ socks5Endpoint }}</span>
-                    <NButton quaternary size="tiny" circle @click="copyToClipboard(socks5Endpoint, 'SOCKS5 端点')">
-                      <template #icon><NIcon><Copy /></NIcon></template>
-                    </NButton>
-                  </div>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="用户名">
-                  <span class="font-mono text-xs">{{ detail.socks5Username || '-' }}</span>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="密码">
-                  <NTag v-if="detail.socks5Password" size="small" type="success">已配置 (mask)</NTag>
-                  <NTag v-else size="small" type="warning">未配置</NTag>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="日志级别">
-                  <span class="font-mono text-xs">{{ detail.logLevel || '-' }}</span>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="限速">
-                  <NTag size="small" :type="detail.bandwidthLimitMbps ? 'warning' : 'default'">
-                    {{ detail.bandwidthLimitMbps ? `${detail.bandwidthLimitMbps} Mbps` : '不限速' }}
-                  </NTag>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="装机目录">
-                  <span class="font-mono text-xs">{{ detail.installDir || '-' }}</span>
-                </NDescriptionsItem>
-                <NDescriptionsItem :span="2" label="日志路径">
-                  <span class="font-mono text-xs">{{ detail.logPath || '-' }}</span>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="systemd 自启">
-                  <NTag size="small" :type="detail.autostartEnabled ? 'success' : 'default'">
-                    {{ detail.autostartEnabled ? '已启用' : '未启用' }}
-                  </NTag>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="UFW">
-                  <NTag size="small" :type="detail.firewallEnabled ? 'success' : 'default'">
-                    {{ detail.firewallEnabled ? '已配置' : '未配置' }}
-                  </NTag>
-                </NDescriptionsItem>
-                <NDescriptionsItem v-if="detail.installedAt" label="装机时间" :span="2">
-                  {{ formatDateTime(detail.installedAt) }}
-                </NDescriptionsItem>
-              </NDescriptions>
             </div>
+            <NDescriptions v-else bordered size="small" label-placement="left" :column="2">
+              <NDescriptionsItem label="端点">
+                <div class="flex items-center gap-1">
+                  <span class="font-mono">{{ socks5Endpoint }}</span>
+                  <NButton quaternary size="tiny" circle @click="copyToClipboard(socks5Endpoint, 'SOCKS5 端点')">
+                    <template #icon><NIcon><Copy /></NIcon></template>
+                  </NButton>
+                </div>
+              </NDescriptionsItem>
+              <NDescriptionsItem label="用户">
+                <span class="font-mono text-xs">{{ detail.socks5Username || '-' }}</span>
+              </NDescriptionsItem>
+              <NDescriptionsItem label="密码">
+                <NTag v-if="detail.socks5Password" size="small" type="success">已配置 (mask)</NTag>
+                <NTag v-else size="small" type="warning">未配置</NTag>
+              </NDescriptionsItem>
+              <NDescriptionsItem label="限速">
+                <NTag size="small" :type="detail.bandwidthLimitMbps ? 'warning' : 'default'">
+                  {{ detail.bandwidthLimitMbps ? `${detail.bandwidthLimitMbps} Mbps` : '不限速' }}
+                </NTag>
+              </NDescriptionsItem>
+              <NDescriptionsItem label="日志级别">
+                <span class="font-mono text-xs">{{ detail.logLevel || '-' }}</span>
+              </NDescriptionsItem>
+              <NDescriptionsItem label="自启 / UFW">
+                <NTag size="small" :type="detail.autostartEnabled ? 'success' : 'default'">
+                  自启: {{ detail.autostartEnabled ? 'on' : 'off' }}
+                </NTag>
+                <NTag size="small" :type="detail.firewallEnabled ? 'success' : 'default'" class="ml-1">
+                  UFW: {{ detail.firewallEnabled ? 'on' : 'off' }}
+                </NTag>
+              </NDescriptionsItem>
+              <NDescriptionsItem :span="2" label="装机目录 / 日志路径">
+                <div class="font-mono text-xs">{{ detail.installDir || '-' }}</div>
+                <div class="font-mono text-xs text-zinc-500">{{ detail.logPath || '-' }}</div>
+              </NDescriptionsItem>
+              <NDescriptionsItem v-if="detail.installedAt" :span="2" label="装机时间">
+                {{ formatDateTime(detail.installedAt) }}
+              </NDescriptionsItem>
+            </NDescriptions>
 
-            <!-- 远端 dante 实时状态 -->
-            <div v-if="canManage" class="section">
-              <div class="section__title">远端 dante 状态</div>
-              <div v-if="!statusData && !statusLoading && !statusError" class="section__tip">
-                还未拉取; 点上面 "刷新状态" 按钮
-              </div>
-              <div v-else-if="statusError" class="section__tip text-error">
-                {{ statusError }}
-              </div>
-              <NDescriptions v-else-if="statusData" bordered size="small" label-placement="left" :column="2">
+            <!-- 远端 systemd 实时状态 -->
+            <div v-if="canManage && statusData" class="sub-section">
+              <div class="sub-section__title">远端 dante 状态</div>
+              <NDescriptions bordered size="small" label-placement="left" :column="2">
                 <NDescriptionsItem label="systemd">
                   <NTag size="small" :type="statusData.active === 'active' ? 'success' : 'error'">
                     {{ statusData.active || 'unknown' }}
                   </NTag>
-                </NDescriptionsItem>
-                <NDescriptionsItem label="开机自启">
-                  <span class="text-xs">{{ statusData.enabled || '-' }}</span>
+                  <NTag size="small" type="default" class="ml-1">
+                    自启: {{ statusData.enabled || '-' }}
+                  </NTag>
                 </NDescriptionsItem>
                 <NDescriptionsItem label="版本">
                   <span class="font-mono text-xs">{{ statusData.version || '-' }}</span>
                 </NDescriptionsItem>
+                <NDescriptionsItem label="端口可达">
+                  <NTag
+                    size="small"
+                    :type="socks5Listening === 'listening' ? 'success' : 'error'"
+                  >
+                    {{ socks5Listening === 'listening' ? '监听中' : '未监听' }}
+                  </NTag>
+                </NDescriptionsItem>
                 <NDescriptionsItem label="进程启动">
                   <span class="text-xs">{{ statusData.uptimeFrom || '-' }}</span>
                 </NDescriptionsItem>
-                <NDescriptionsItem :span="2" label="监听端口">
-                  <pre class="status-pre">{{ statusData.listening || '-' }}</pre>
-                </NDescriptionsItem>
-                <NDescriptionsItem v-if="statusData.ufwStatus" :span="2" label="UFW">
-                  <pre class="status-pre">{{ statusData.ufwStatus }}</pre>
+                <NDescriptionsItem v-if="statusData.listening" :span="2" label="监听">
+                  <pre class="status-pre">{{ statusData.listening }}</pre>
                 </NDescriptionsItem>
               </NDescriptions>
             </div>
-          </NTabPane>
+            <div v-else-if="canManage && statusError" class="sub-section__hint text-error">
+              <NIcon :size="14"><XCircle /></NIcon> {{ statusError }}
+            </div>
+          </template>
 
-          <!-- ============ Tab 4: Agent ============ -->
-          <NTabPane name="agent" tab="Agent">
-            <div class="tab-actions">
+          <!-- ===== Step 3: 安装 Agent ===== -->
+          <template v-else-if="activeStep === 'agent'">
+            <div class="step-content__actions">
               <NButton
                 v-if="isSelfDeploy"
                 size="small"
@@ -675,7 +586,7 @@ function maskSecret(s?: string): string {
             </div>
 
             <div v-if="!isSelfDeploy" class="empty-hint">
-              <NIcon :size="20"><AlertCircle /></NIcon>
+              <NIcon :size="18"><AlertCircle /></NIcon>
               <div>第三方 SOCKS5 不需要 landing agent</div>
             </div>
             <NDescriptions v-else bordered size="small" label-placement="left" :column="1">
@@ -692,28 +603,17 @@ function maskSecret(s?: string): string {
                   <span class="text-xs">出于安全, token 仅 mask 展示</span>
                 </NTooltip>
               </NDescriptionsItem>
-              <NDescriptionsItem label="健康状态">
-                <NTag size="small" :type="agentHealthLabel.type">
-                  {{ agentHealthLabel.text }}
-                </NTag>
-              </NDescriptionsItem>
-              <NDescriptionsItem v-if="detail.lastHealthAt" label="最近心跳">
-                <span class="text-xs">
-                  {{ relativeTime(detail.lastHealthAt) }}
-                  <span class="text-zinc-400 ml-1">({{ formatDateTime(detail.lastHealthAt) }})</span>
-                </span>
-              </NDescriptionsItem>
-              <NDescriptionsItem label="说明">
+              <NDescriptionsItem :span="1" label="说明">
                 <span class="text-xs text-zinc-500">
-                  agent 装好后会向后台每 30s 心跳; 在线 = 5min 内有心跳
+                  agent 装好后会向后台每 30s 心跳; 心跳详情见下一步 "心跳健康"
                 </span>
               </NDescriptionsItem>
             </NDescriptions>
-          </NTabPane>
+          </template>
 
-          <!-- ============ Tab 5: 服务器信息 ============ -->
-          <NTabPane name="server" tab="服务器">
-            <div class="tab-actions">
+          <!-- ===== Step 4: 心跳健康 + 服务器信息 ===== -->
+          <template v-else-if="activeStep === 'health'">
+            <div class="step-content__actions">
               <NButton
                 size="small"
                 quaternary
@@ -722,117 +622,154 @@ function maskSecret(s?: string): string {
                 @click="loadStatus"
               >
                 <template #icon><NIcon><RefreshCcw /></NIcon></template>
-                {{ statusData ? '刷新' : '拉取主机信息' }}
+                {{ statusData ? '刷新主机信息' : '拉取主机信息' }}
               </NButton>
             </div>
 
-            <div v-if="!canManage" class="empty-hint">
-              <NIcon :size="20"><AlertCircle /></NIcon>
-              <div>需要 SSH 凭据齐才能拉远端主机信息</div>
-            </div>
-            <div v-else-if="!statusData && !statusLoading && !statusError" class="section__tip">
-              点上面 "拉取主机信息" 探测远端
-            </div>
-            <div v-else-if="statusError" class="section__tip text-error">{{ statusError }}</div>
-            <NDescriptions
-              v-else-if="statusData?.hostInfo"
-              bordered
-              size="small"
-              label-placement="left"
-              :column="2"
-            >
-              <NDescriptionsItem label="主机名">
-                <span class="font-mono text-xs">{{ statusData.hostInfo.hostname || '-' }}</span>
-              </NDescriptionsItem>
-              <NDescriptionsItem label="时区">{{ statusData.hostInfo.timezone || '-' }}</NDescriptionsItem>
-              <NDescriptionsItem :span="2" label="OS">
-                <span class="text-xs">{{ statusData.hostInfo.osRelease || '-' }}</span>
-              </NDescriptionsItem>
-              <NDescriptionsItem :span="2" label="内核">
-                <span class="font-mono text-xs">{{ statusData.hostInfo.kernel || '-' }}</span>
-              </NDescriptionsItem>
-              <NDescriptionsItem label="系统已运行">
-                <span class="text-xs">{{ statusData.hostInfo.systemUptime || '-' }}</span>
-              </NDescriptionsItem>
-              <NDescriptionsItem label="Load avg">
-                <span class="font-mono text-xs">{{ statusData.hostInfo.loadAvg || '-' }}</span>
-              </NDescriptionsItem>
-              <NDescriptionsItem :span="2" label="内存">
-                <pre class="status-pre">{{ statusData.hostInfo.memory || '-' }}</pre>
-              </NDescriptionsItem>
-              <NDescriptionsItem :span="2" label="磁盘">
-                <pre class="status-pre">{{ statusData.hostInfo.disk || '-' }}</pre>
-              </NDescriptionsItem>
-            </NDescriptions>
-            <div v-else class="section__tip">远端未返回 hostInfo</div>
-          </NTabPane>
-
-          <!-- ============ Tab 6: 账面 ============ -->
-          <NTabPane name="billing" tab="账面">
-            <div class="tab-actions">
-              <NButton size="small" type="primary" @click="emit('edit-billing', detail)">
-                <template #icon><NIcon><Pencil /></NIcon></template>
-                编辑账面
-              </NButton>
+            <!-- 心跳块 -->
+            <div class="sub-section">
+              <div class="sub-section__title">心跳健康</div>
+              <NDescriptions bordered size="small" label-placement="left" :column="2">
+                <NDescriptionsItem label="健康状态">
+                  <NTag
+                    v-if="!detail.agentToken"
+                    size="small"
+                  >未安装 agent</NTag>
+                  <NTag
+                    v-else-if="!detail.lastHealthAt"
+                    size="small"
+                    type="warning"
+                  >已装未上线</NTag>
+                  <NTag
+                    v-else-if="isAgentOnline"
+                    size="small"
+                    type="success"
+                  >
+                    <template #icon><NIcon><CheckCircle2 /></NIcon></template>
+                    在线
+                  </NTag>
+                  <NTag v-else size="small" type="error">
+                    <template #icon><NIcon><XCircle /></NIcon></template>
+                    离线
+                  </NTag>
+                </NDescriptionsItem>
+                <NDescriptionsItem label="最近心跳">
+                  <span v-if="detail.lastHealthAt" class="text-xs">
+                    {{ relativeTime(detail.lastHealthAt) }}
+                    <span class="text-zinc-400 ml-1">({{ formatDateTime(detail.lastHealthAt) }})</span>
+                  </span>
+                  <span v-else class="text-xs text-zinc-400">-</span>
+                </NDescriptionsItem>
+              </NDescriptions>
             </div>
 
-            <NDescriptions bordered size="small" label-placement="left" :column="2">
-              <NDescriptionsItem label="采购带宽">
-                <span class="font-mono">{{ detail.bandwidthMbps == null ? '∞' : `${detail.bandwidthMbps} Mbps` }}</span>
-              </NDescriptionsItem>
-              <NDescriptionsItem label="采购流量">
-                <span class="font-mono">{{ detail.trafficQuotaGb == null ? '∞' : `${detail.trafficQuotaGb} GB` }}</span>
-              </NDescriptionsItem>
-              <NDescriptionsItem label="月度成本">
-                <span class="font-mono">{{ detail.costMonthlyUsd != null ? `${detail.costMonthlyUsd} USD` : '-' }}</span>
-              </NDescriptionsItem>
-              <NDescriptionsItem label="账单日">
-                <span class="font-mono">{{ detail.billingCycleDay != null ? `每月 ${detail.billingCycleDay} 号` : '-' }}</span>
-              </NDescriptionsItem>
-              <NDescriptionsItem :span="2" label="到期日">
-                <span class="font-mono">{{ detail.expiresAt || '-' }}</span>
-              </NDescriptionsItem>
-            </NDescriptions>
-          </NTabPane>
-        </NTabs>
+            <!-- 服务器主机信息块 -->
+            <div class="sub-section">
+              <div class="sub-section__title">服务器主机信息 (远端探测)</div>
+              <div v-if="!canManage" class="sub-section__hint">
+                <NIcon :size="14"><AlertCircle /></NIcon>
+                需要 SSH 凭据齐才能拉远端
+              </div>
+              <div v-else-if="!statusData && !statusLoading && !statusError" class="sub-section__hint">
+                未拉取; 点上面 "拉取主机信息"
+              </div>
+              <div v-else-if="statusError" class="sub-section__hint text-error">
+                <NIcon :size="14"><XCircle /></NIcon> {{ statusError }}
+              </div>
+              <NDescriptions
+                v-else-if="statusData?.hostInfo"
+                bordered
+                size="small"
+                label-placement="left"
+                :column="2"
+              >
+                <NDescriptionsItem label="主机名">
+                  <span class="font-mono text-xs">{{ statusData.hostInfo.hostname || '-' }}</span>
+                </NDescriptionsItem>
+                <NDescriptionsItem label="时区">{{ statusData.hostInfo.timezone || '-' }}</NDescriptionsItem>
+                <NDescriptionsItem :span="2" label="OS">
+                  <span class="text-xs">{{ statusData.hostInfo.osRelease || '-' }}</span>
+                </NDescriptionsItem>
+                <NDescriptionsItem :span="2" label="内核">
+                  <span class="font-mono text-xs">{{ statusData.hostInfo.kernel || '-' }}</span>
+                </NDescriptionsItem>
+                <NDescriptionsItem label="系统已运行">
+                  <span class="text-xs">{{ statusData.hostInfo.systemUptime || '-' }}</span>
+                </NDescriptionsItem>
+                <NDescriptionsItem label="Load avg">
+                  <span class="font-mono text-xs">{{ statusData.hostInfo.loadAvg || '-' }}</span>
+                </NDescriptionsItem>
+                <NDescriptionsItem :span="2" label="内存">
+                  <pre class="status-pre">{{ statusData.hostInfo.memory || '-' }}</pre>
+                </NDescriptionsItem>
+                <NDescriptionsItem :span="2" label="磁盘">
+                  <pre class="status-pre">{{ statusData.hostInfo.disk || '-' }}</pre>
+                </NDescriptionsItem>
+              </NDescriptions>
+              <div v-else class="sub-section__hint">远端未返回 hostInfo</div>
+            </div>
+          </template>
+        </div>
 
-        <!-- ============ 底部危险区域 (跟视图分离) ============ -->
-        <div class="danger-zone">
-          <div class="danger-zone__title">
-            <NIcon :size="14"><AlertCircle /></NIcon>
-            <span>危险操作</span>
-          </div>
-          <div class="danger-zone__actions">
-            <NButton
-              v-if="isLive"
-              size="small"
-              quaternary
-              type="warning"
-              @click="emit('lifecycle-retire', detail)"
-            >
-              <template #icon><NIcon><Activity /></NIcon></template>
-              退役 (停止分配)
-            </NButton>
-            <NButton
-              v-else-if="isRetired"
-              size="small"
-              quaternary
-              type="success"
-              @click="emit('lifecycle-restore', detail)"
-            >
-              <template #icon><NIcon><Activity /></NIcon></template>
-              重新启用
-            </NButton>
-            <NButton
-              size="small"
-              quaternary
-              type="error"
-              @click="emit('delete', detail)"
-            >
-              <template #icon><NIcon><Trash2 /></NIcon></template>
-              删除 IP
+        <!-- ============ 账面信息 (折叠/紧凑展示) ============ -->
+        <div class="billing-block">
+          <div class="billing-block__head">
+            <div class="billing-block__title">账面</div>
+            <NButton size="tiny" quaternary @click="emit('edit-billing', detail)">
+              <template #icon><NIcon><Pencil /></NIcon></template>
+              编辑
             </NButton>
           </div>
+          <div class="billing-block__body">
+            <div class="billing-cell">
+              <div class="billing-cell__label">带宽</div>
+              <div class="billing-cell__value">{{ detail.bandwidthMbps == null ? '∞' : `${detail.bandwidthMbps} Mbps` }}</div>
+            </div>
+            <div class="billing-cell">
+              <div class="billing-cell__label">流量</div>
+              <div class="billing-cell__value">{{ detail.trafficQuotaGb == null ? '∞' : `${detail.trafficQuotaGb} GB` }}</div>
+            </div>
+            <div class="billing-cell">
+              <div class="billing-cell__label">月费</div>
+              <div class="billing-cell__value">{{ detail.costMonthlyUsd != null ? `${detail.costMonthlyUsd} USD` : '-' }}</div>
+            </div>
+            <div class="billing-cell">
+              <div class="billing-cell__label">账单日</div>
+              <div class="billing-cell__value">{{ detail.billingCycleDay != null ? `每月 ${detail.billingCycleDay}` : '-' }}</div>
+            </div>
+            <div class="billing-cell">
+              <div class="billing-cell__label">到期</div>
+              <div class="billing-cell__value">{{ detail.expiresAt || '-' }}</div>
+            </div>
+            <div class="billing-cell">
+              <div class="billing-cell__label">创建</div>
+              <div class="billing-cell__value text-xs">{{ formatDateTime(detail.createdAt) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ 底部 lifecycle 流转 (删除在卡片做) ============ -->
+        <div v-if="isLive || isRetired" class="lifecycle-bar">
+          <NButton
+            v-if="isLive"
+            size="small"
+            quaternary
+            type="warning"
+            @click="emit('lifecycle-retire', detail)"
+          >
+            <template #icon><NIcon><Activity /></NIcon></template>
+            退役 (停止分配)
+          </NButton>
+          <NButton
+            v-else-if="isRetired"
+            size="small"
+            quaternary
+            type="success"
+            @click="emit('lifecycle-restore', detail)"
+          >
+            <template #icon><NIcon><Activity /></NIcon></template>
+            重新启用
+          </NButton>
         </div>
       </div>
     </NSpin>
@@ -849,66 +786,80 @@ function maskSecret(s?: string): string {
 .detail-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
-/* ===== Tab 内部 actions 区域 (视图/编辑分离) ===== */
-.tab-actions {
+/* ===== 紧凑 Header ===== */
+.ip-header {
+  padding: 8px 12px;
+  background: var(--n-action-color, #fafafa);
+  border-radius: 6px;
+  border: 1px solid var(--n-border-color, #efeff5);
+}
+.ip-header__main {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 0 12px 0;
-  margin-bottom: 12px;
-  border-bottom: 1px dashed var(--n-divider-color, #efeff5);
+  gap: 8px;
   flex-wrap: wrap;
 }
-
-/* ===== section 通用 ===== */
-.section {
-  margin-bottom: 16px;
-}
-.section__title {
-  font-size: 13px;
+.ip-header__addr {
+  font-size: 16px;
   font-weight: 600;
-  color: var(--n-text-color-2, #555);
-  margin-bottom: 8px;
+  color: var(--n-text-color-1, #222);
 }
-.section__title-row {
+.ip-header__meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--n-text-color-2, #666);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ip-header__remark {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Section 标题 ===== */
+.section-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-text-color-2, #555);
 }
-.section__title-row .section__title { margin-bottom: 0; }
-.section__tip {
-  font-size: 12px;
-  color: var(--n-text-color-3, #999);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.section__actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
+.section-title__hint {
+  font-size: 11px;
+  color: var(--n-text-color-3, #aaa);
+  font-weight: normal;
 }
 
-/* ===== 部署进度时间线 ===== */
-.deploy-steps {
+/* ===== 部署进度 step cards (= 主导航) ===== */
+.step-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
-.deploy-step {
+.step-card {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   padding: 10px 12px;
   border: 1px solid var(--n-border-color, #efeff5);
   border-radius: 6px;
   background: var(--n-card-color, #fff);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  min-width: 0;
 }
-.deploy-step__dot {
+.step-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+.step-card__dot {
   flex-shrink: 0;
   width: 24px;
   height: 24px;
@@ -921,60 +872,69 @@ function maskSecret(s?: string): string {
   font-size: 12px;
   font-weight: 600;
 }
-.deploy-step--done .deploy-step__dot {
+.step-card--done .step-card__dot {
   background: var(--n-success-color, #18a058);
 }
-.deploy-step--done {
-  border-color: color-mix(in srgb, var(--n-success-color, #18a058) 40%, transparent);
+.step-card--done {
+  border-color: color-mix(in srgb, var(--n-success-color, #18a058) 30%, var(--n-border-color, #efeff5));
 }
-.deploy-step__body { min-width: 0; flex: 1; }
-.deploy-step__label {
+.step-card--pending {
+  /* 灰色: 没操作就是灰, 但仍可点 (不卡步骤) */
+  background: #fafafa;
+}
+.step-card--active {
+  border-color: var(--n-primary-color, #2080f0);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--n-primary-color, #2080f0) 18%, transparent);
+}
+.step-card__body { min-width: 0; flex: 1; }
+.step-card__label {
   font-size: 13px;
   font-weight: 600;
   color: var(--n-text-color-1, #222);
 }
-.deploy-step__hint {
+.step-card__hint {
   font-size: 11px;
   color: var(--n-text-color-3, #999);
   margin-top: 2px;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ===== 端口卡片 ===== */
-.port-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-.port-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+/* ===== Step 内容区 ===== */
+.step-content {
+  padding: 14px;
   border: 1px solid var(--n-border-color, #efeff5);
   border-radius: 6px;
   background: var(--n-card-color, #fff);
+  border-top: 2px solid var(--n-primary-color, #2080f0);
 }
-.port-card--open, .port-card--listening {
-  border-color: color-mix(in srgb, var(--n-success-color, #18a058) 30%, transparent);
-}
-.port-card--closed, .port-card--down {
-  border-color: color-mix(in srgb, var(--n-error-color, #d03050) 30%, transparent);
-}
-.port-card__icon {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+.step-content__actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  background: var(--n-action-color, #f5f5f5);
-  color: var(--n-text-color-2, #666);
+  gap: 6px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px dashed var(--n-divider-color, #efeff5);
+  flex-wrap: wrap;
 }
-.port-card__body { flex: 1; min-width: 0; }
-.port-card__label { font-size: 11px; color: var(--n-text-color-3, #999); }
-.port-card__value { font-size: 13px; font-family: monospace; color: var(--n-text-color-1, #222); }
+.sub-section {
+  margin-top: 16px;
+}
+.sub-section__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--n-text-color-2, #666);
+  margin-bottom: 8px;
+}
+.sub-section__hint {
+  font-size: 12px;
+  color: var(--n-text-color-3, #999);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+}
 
 /* ===== 空态提示 ===== */
 .empty-hint {
@@ -997,38 +957,69 @@ function maskSecret(s?: string): string {
   padding: 6px 8px;
   border-radius: 4px;
   margin: 0;
-  max-height: 200px;
+  max-height: 180px;
   overflow: auto;
+}
+
+/* ===== 账面紧凑卡 ===== */
+.billing-block {
+  border: 1px solid var(--n-border-color, #efeff5);
+  border-radius: 6px;
+  padding: 10px 14px;
+  background: var(--n-card-color, #fff);
+}
+.billing-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.billing-block__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-text-color-2, #555);
+}
+.billing-block__body {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+.billing-cell {
+  padding: 6px 8px;
+  border: 1px solid var(--n-border-color, #efeff5);
+  border-radius: 4px;
+  background: var(--n-action-color, #fafafa);
+  min-width: 0;
+}
+.billing-cell__label {
+  font-size: 11px;
+  color: var(--n-text-color-3, #999);
+  margin-bottom: 2px;
+}
+.billing-cell__value {
+  font-size: 13px;
+  font-family: monospace;
+  color: var(--n-text-color-1, #222);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===== 颜色辅助 ===== */
 .text-error { color: var(--n-error-color, #d03050); }
 .text-warning { color: var(--n-warning-color, #f0a020); }
 
-/* ===== 底部危险区域 ===== */
-.danger-zone {
-  margin-top: 16px;
-  padding: 12px 16px;
-  border: 1px solid color-mix(in srgb, var(--n-error-color, #d03050) 30%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--n-error-color, #d03050) 5%, transparent);
+/* ===== lifecycle 流转栏 (退役/启用; 删除走卡片) ===== */
+.lifecycle-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.danger-zone__title {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--n-error-color, #d03050);
-}
-.danger-zone__actions {
-  display: flex;
-  align-items: center;
+  justify-content: flex-end;
   gap: 6px;
+  padding: 4px 0;
+}
+
+@media (max-width: 720px) {
+  .step-cards { grid-template-columns: repeat(2, 1fr); }
+  .billing-block__body { grid-template-columns: repeat(3, 1fr); }
 }
 </style>
