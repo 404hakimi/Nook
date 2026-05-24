@@ -17,8 +17,10 @@ NEW_FIREWALL_ENABLED="{{FIREWALL_ENABLED}}"
 SSH_PORT="{{SSH_PORT}}"
 INSTALL_DIR="{{INSTALL_DIR}}"
 
-DANTE_CONF=/etc/danted.conf
-PWDFILE=/etc/danted/sockd.passwd
+# 路径从 install 子表读, 跟装机时一致
+DANTE_CONF="{{CONF_PATH}}"
+PWDFILE="{{PWD_FILE}}"
+SYSTEMD_UNIT="{{SYSTEMD_UNIT}}"
 
 if [ -t 1 ]; then
     GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
@@ -106,9 +108,9 @@ elif ! grep -qF "log: $NEW_LOG_LEVEL" "$DANTE_CONF"; then
 fi
 
 if [[ "$NEW_AUTOSTART_ENABLED" == "1" || "$NEW_AUTOSTART_ENABLED" == "true" ]]; then
-    systemctl enable danted >/dev/null 2>&1 || true
+    systemctl enable "$SYSTEMD_UNIT" >/dev/null 2>&1 || true
 else
-    systemctl disable danted >/dev/null 2>&1 || true
+    systemctl disable "$SYSTEMD_UNIT" >/dev/null 2>&1 || true
 fi
 
 # 规则差异检测代价大, 直接 reset + 重建
@@ -132,10 +134,11 @@ fi
 
 if [[ "$NEED_RESTART" == "1" ]]; then
     # 老条目 sync 时补 systemd drop-in (apt 包默认 sandbox 把 /home 关掉 + /var 只读, 必须解除)
-    if [[ ! -f /etc/systemd/system/danted.service.d/nook.conf ]]; then
+    DROPIN_DIR="/etc/systemd/system/${SYSTEMD_UNIT}.service.d"
+    if [[ ! -f "$DROPIN_DIR/nook.conf" ]]; then
         log "补 systemd drop-in 解除 sandbox..."
-        mkdir -p /etc/systemd/system/danted.service.d
-        cat > /etc/systemd/system/danted.service.d/nook.conf <<'DROPIN'
+        mkdir -p "$DROPIN_DIR"
+        cat > "$DROPIN_DIR/nook.conf" <<'DROPIN'
 # Nook override: 解除 apt 包默认的 sandbox 限制
 [Service]
 InaccessibleDirectories=
@@ -155,15 +158,15 @@ DROPIN
     # Nook 走 root 跑 dante 不用 nobody (sed 兜底, 老 conf 还是 nobody 时迁移)
     sed -i 's/^user\.notprivileged:.*$/user.notprivileged: root/' "$DANTE_CONF" 2>/dev/null || true
 
-    log "重启 danted (port / log 变化导致)..."
-    systemctl restart danted
+    log "重启 $SYSTEMD_UNIT (port / log 变化导致)..."
+    systemctl restart "$SYSTEMD_UNIT"
     sleep 1
-    if ! systemctl is-active --quiet danted; then
-        err "danted restart 失败!"
-        journalctl -u danted -n 30 --no-pager
+    if ! systemctl is-active --quiet "$SYSTEMD_UNIT"; then
+        err "$SYSTEMD_UNIT restart 失败!"
+        journalctl -u "$SYSTEMD_UNIT" -n 30 --no-pager
         exit 1
     fi
-    log "✔ danted 已重启, 监听 :$NEW_SOCKS_PORT"
+    log "✔ $SYSTEMD_UNIT 已重启, 监听 :$NEW_SOCKS_PORT"
 else
     log "✔ 仅凭据变化, PAM 自动重读, 零 downtime"
 fi
@@ -172,7 +175,7 @@ PUB=$(curl -s --max-time 10 \
     --socks5 "$NEW_SOCKS_USER:$NEW_SOCKS_PASS@127.0.0.1:$NEW_SOCKS_PORT" \
     https://ipinfo.io/ip 2>/dev/null || echo "TEST_FAILED")
 if [[ "$PUB" == "TEST_FAILED" ]]; then
-    warn "自检失败, 但服务状态 OK; journalctl -u danted 看具体原因"
+    warn "自检失败, 但服务状态 OK; journalctl -u $SYSTEMD_UNIT 看具体原因"
 else
     log "自检通过, 出网 IP: $PUB"
 fi

@@ -304,6 +304,9 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 Map.entry("LOG_LEVEL", socks5.getLogLevel()),
                 Map.entry("LOG_PATH", install.getLogPath()),
                 Map.entry("INSTALL_DIR", install.getInstallDir()),
+                Map.entry("CONF_PATH", install.getConfPath()),
+                Map.entry("PWD_FILE", install.getPwdFile()),
+                Map.entry("SYSTEMD_UNIT", install.getSystemdUnit()),
                 Map.entry("FIREWALL_ENABLED", String.valueOf(install.getFirewallEnabled())),
                 Map.entry("AUTOSTART_ENABLED", String.valueOf(install.getAutostartEnabled())));
     }
@@ -338,6 +341,10 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 Map.entry("LOG_LEVEL", r.getLogLevel()),
                 Map.entry("LOG_PATH", r.getLogPath()),
                 Map.entry("INSTALL_DIR", r.getInstallDir()),
+                Map.entry("CONF_PATH", r.getConfPath()),
+                Map.entry("PAM_FILE", r.getPamFile()),
+                Map.entry("PWD_FILE", r.getPwdFile()),
+                Map.entry("SYSTEMD_UNIT", r.getSystemdUnit()),
                 Map.entry("AUTOSTART_ENABLED", Boolean.TRUE.equals(r.getAutostartEnabled()) ? "1" : "0"),
                 Map.entry("LOG_ROTATE_ENABLED", Boolean.TRUE.equals(r.getLogRotate()) ? "1" : "0"));
     }

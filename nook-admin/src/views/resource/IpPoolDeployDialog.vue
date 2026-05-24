@@ -125,11 +125,13 @@ const form = reactive({
   autostartEnabled: true,
   logRotate: true,
 
-  // 装机产物路径 (落 install 子表; 前端 default, 后端 @NotBlank 校验, 不再兜底)
+  // 装机产物路径 (落 install 子表; 前端 default 集中到 INSTALL_DIR 下方便 SSH 进机器探查)
+  // PAM 例外: Linux PAM 库硬编码读 /etc/pam.d/<service>, 必须留 OS 位置
+  // sockd.conf 写到 INSTALL_DIR 下, 装机脚本同时建 symlink /etc/danted.conf → 实际路径 (apt 包默认读 /etc/danted.conf)
   installDir: '/home/socks5',
-  confPath: '/etc/danted.conf',
+  confPath: '/home/socks5/etc/danted.conf',
   pamFile: '/etc/pam.d/sockd',
-  pwdFile: '/etc/danted/sockd.passwd',
+  pwdFile: '/home/socks5/etc/sockd.passwd',
   systemdUnit: 'danted'
 })
 
@@ -175,9 +177,9 @@ watch(
       autostartEnabled: true,
       logRotate: true,
       installDir: '/home/socks5',
-      confPath: '/etc/danted.conf',
+      confPath: '/home/socks5/etc/danted.conf',
       pamFile: '/etc/pam.d/sockd',
-      pwdFile: '/etc/danted/sockd.passwd',
+      pwdFile: '/home/socks5/etc/sockd.passwd',
       systemdUnit: 'danted'
     })
   }
@@ -674,10 +676,13 @@ function close() {
                     :input-props="{ style: 'font-family: monospace' }" />
           </NFormItem>
           <NFormItem
-            label="PAM file"
             :validation-status="errors.pamFile ? 'error' : undefined"
             :feedback="errors.pamFile"
           >
+            <template #label>
+              <span>PAM file</span>
+              <span class="text-xs text-zinc-400 ml-2">OS 强制 /etc/pam.d/</span>
+            </template>
             <NInput v-model:value="form.pamFile" :disabled="installing"
                     :input-props="{ style: 'font-family: monospace' }" />
           </NFormItem>
