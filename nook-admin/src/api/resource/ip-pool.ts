@@ -209,7 +209,7 @@ export const IP_POOL_LIFECYCLE_LABELS: Record<string, string> = {
   INSTALLING: '装机中',
   READY: '待上线',
   LIVE: '运行中',
-  RETIRED: '已退役'
+  RETIRED: '已停用'
 }
 
 export const IP_POOL_LIFECYCLE_TAG_TYPE: Record<string, 'info' | 'warning' | 'success' | 'default'> = {
@@ -224,7 +224,7 @@ export const IP_POOL_LIFECYCLE_OPTIONS = [
   { label: '装机中', value: 'INSTALLING' },
   { label: '待上线', value: 'READY' },
   { label: '运行中', value: 'LIVE' },
-  { label: '已退役', value: 'RETIRED' }
+  { label: '已停用', value: 'RETIRED' }
 ]
 
 /** 占用状态 → 中文标签 (v3: 4 值 ENUM, 不再是 number). */

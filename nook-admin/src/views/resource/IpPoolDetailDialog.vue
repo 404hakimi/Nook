@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
 import {
-  Activity,
   AlertCircle,
   CheckCircle2,
   Copy,
@@ -45,7 +44,7 @@ import { formatDateTime } from '@/utils/date'
  *
  * 4 个 step (= 装机 workflow): SSH 凭据 → 部署 SOCKS5 → 安装 Agent → 心跳健康.
  * 每个 step 卡都可点击切换 (done=绿, pending=灰但可点; 不卡步骤), 切换后下方展示该 step 的内容 + 编辑/操作按钮.
- * 账面信息折到底部小卡片, 危险操作 (退役 / 删除) 在最底部.
+ * 账面信息折到底部小卡片. lifecycle 流转 (停用/启用) + 删除走列表卡片操作行, 不在详情.
  *
  * 数据源:
  *   - detail = getIpPoolDetail 主 + 5 子表合并
@@ -66,8 +65,6 @@ const emit = defineEmits<{
   (e: 'test', ip: ResourceIpPool): void
   (e: 'view-log', ip: ResourceIpPool): void
   (e: 'provision-agent', ip: ResourceIpPool): void
-  (e: 'lifecycle-retire', ip: ResourceIpPool): void
-  (e: 'lifecycle-restore', ip: ResourceIpPool): void
   (e: 'refresh'): void
 }>()
 
@@ -122,7 +119,6 @@ const isSelfDeploy = computed(() => detail.value?.provisionMode === 1)
 const isLive = computed(() => detail.value?.lifecycleState === 'LIVE')
 const isInstalling = computed(() =>
   detail.value?.lifecycleState === 'INSTALLING' || detail.value?.lifecycleState === 'READY')
-const isRetired = computed(() => detail.value?.lifecycleState === 'RETIRED')
 const sshComplete = computed(() =>
   !!detail.value?.sshHost && !!detail.value?.sshUser && !!detail.value?.sshPassword)
 const socks5Installed = computed(() =>
@@ -748,29 +744,6 @@ function maskSecret(s?: string): string {
           </div>
         </div>
 
-        <!-- ============ 底部 lifecycle 流转 (删除在卡片做) ============ -->
-        <div v-if="isLive || isRetired" class="lifecycle-bar">
-          <NButton
-            v-if="isLive"
-            size="small"
-            quaternary
-            type="warning"
-            @click="emit('lifecycle-retire', detail)"
-          >
-            <template #icon><NIcon><Activity /></NIcon></template>
-            退役 (停止分配)
-          </NButton>
-          <NButton
-            v-else-if="isRetired"
-            size="small"
-            quaternary
-            type="success"
-            @click="emit('lifecycle-restore', detail)"
-          >
-            <template #icon><NIcon><Activity /></NIcon></template>
-            重新启用
-          </NButton>
-        </div>
       </div>
     </NSpin>
 
@@ -1009,14 +982,6 @@ function maskSecret(s?: string): string {
 .text-error { color: var(--n-error-color, #d03050); }
 .text-warning { color: var(--n-warning-color, #f0a020); }
 
-/* ===== lifecycle 流转栏 (退役/启用; 删除走卡片) ===== */
-.lifecycle-bar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 4px 0;
-}
 
 @media (max-width: 720px) {
   .step-cards { grid-template-columns: repeat(2, 1fr); }

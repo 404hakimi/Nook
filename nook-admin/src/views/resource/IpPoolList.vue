@@ -7,6 +7,8 @@ import {
   Copy,
   Eye,
   Globe2,
+  PauseCircle,
+  PlayCircle,
   Plus,
   RefreshCcw,
   Rocket,
@@ -191,36 +193,36 @@ function statusTagType(status: string): 'success' | 'info' | 'warning' | 'defaul
   }
 }
 
-// ===== lifecycle 流转 (admin 只暴露 2 项: 退役 / 重新启用; INSTALLING/READY 是装机内部态) =====
-async function onLifecycleRetire(ip: ResourceIpPool) {
+// ===== lifecycle 流转 (admin 只暴露 2 项: 停用 / 启用; INSTALLING/READY 是装机内部态) =====
+async function onSuspend(ip: ResourceIpPool) {
   if (ip.lifecycleState !== 'LIVE') return
   const ok = await confirm({
-    title: '退役 (停止分配)',
-    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS.LIVE} 切到 ${IP_POOL_LIFECYCLE_LABELS.RETIRED}? 退役后 allocator 不再分配此 IP.`,
+    title: '停用 IP',
+    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS.LIVE} 切到 ${IP_POOL_LIFECYCLE_LABELS.RETIRED}? 停用后 allocator 不再分配此 IP, 现有占用不受影响.`,
     type: 'warning',
-    confirmText: '退役'
+    confirmText: '停用'
   })
   if (!ok) return
   try {
     await transitionIpPoolLifecycle(ip.id, 'RETIRED')
-    message.success('已退役')
+    message.success('已停用')
     onSaved()
     void refreshDetail()
   } catch { /* */ }
 }
 
-async function onLifecycleRestore(ip: ResourceIpPool) {
+async function onActivate(ip: ResourceIpPool) {
   if (ip.lifecycleState !== 'RETIRED') return
   const ok = await confirm({
-    title: '重新启用',
-    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS.RETIRED} 切回 ${IP_POOL_LIFECYCLE_LABELS.LIVE}?`,
+    title: '启用 IP',
+    message: `把 IP ${ip.ipAddress} 从 ${IP_POOL_LIFECYCLE_LABELS.RETIRED} 切回 ${IP_POOL_LIFECYCLE_LABELS.LIVE}? 启用后 allocator 可再次分配此 IP.`,
     type: 'info',
-    confirmText: '重新启用'
+    confirmText: '启用'
   })
   if (!ok) return
   try {
     await transitionIpPoolLifecycle(ip.id, 'LIVE')
-    message.success('已重新启用')
+    message.success('已启用')
     onSaved()
     void refreshDetail()
   } catch { /* */ }
@@ -382,7 +384,7 @@ onMounted(async () => {
         <div class="stat-card__body">
           <div class="stat-card__label">总 IP</div>
           <div class="stat-card__value">{{ summary.total }}</div>
-          <div class="stat-card__hint">全量, 含已退役</div>
+          <div class="stat-card__hint">全量, 含已停用</div>
         </div>
         <div class="stat-card__icon">
           <NIcon :size="28"><Globe2 /></NIcon>
@@ -609,6 +611,34 @@ onMounted(async () => {
               详情
             </NButton>
             <div class="flex-1" />
+            <NTooltip v-if="ip.lifecycleState === 'LIVE'" placement="top">
+              <template #trigger>
+                <NButton
+                  size="small"
+                  quaternary
+                  type="warning"
+                  circle
+                  @click.stop="onSuspend(ip)"
+                >
+                  <template #icon><NIcon><PauseCircle /></NIcon></template>
+                </NButton>
+              </template>
+              <div class="text-xs">停用 (停止分配; 现有占用不受影响)</div>
+            </NTooltip>
+            <NTooltip v-else-if="ip.lifecycleState === 'RETIRED'" placement="top">
+              <template #trigger>
+                <NButton
+                  size="small"
+                  quaternary
+                  type="success"
+                  circle
+                  @click.stop="onActivate(ip)"
+                >
+                  <template #icon><NIcon><PlayCircle /></NIcon></template>
+                </NButton>
+              </template>
+              <div class="text-xs">启用 (恢复分配)</div>
+            </NTooltip>
             <NTooltip placement="top">
               <template #trigger>
                 <NButton
@@ -616,7 +646,6 @@ onMounted(async () => {
                   quaternary
                   type="error"
                   circle
-                  title="删除 IP"
                   @click.stop="onDelete(ip)"
                 >
                   <template #icon><NIcon><Trash2 /></NIcon></template>
@@ -678,8 +707,6 @@ onMounted(async () => {
       @test="openTest"
       @view-log="openLog"
       @provision-agent="openProvision"
-      @lifecycle-retire="onLifecycleRetire"
-      @lifecycle-restore="onLifecycleRestore"
     />
 
     <IpPoolTestDialog v-model="testOpen" :ip="testTarget" />
