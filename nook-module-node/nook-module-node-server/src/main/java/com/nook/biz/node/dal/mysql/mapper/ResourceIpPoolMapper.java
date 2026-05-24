@@ -111,6 +111,30 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPoolDO> {
                 .eq(ResourceIpPoolDO::getId, id));
     }
 
+    /**
+     * 核心字段更新 (白名单 5 字段; 显式排除 lifecycle_state / status / occupied_xxx / agent_token 防误覆盖).
+     * 编辑核心信息时, 占用 / 装机 / 心跳状态字段绝不能被入参带 null 而被清空.
+     *
+     * @param id            IP 池编号
+     * @param region        区域码
+     * @param ipTypeId      IP 类型编号
+     * @param ipAddress     IP 地址
+     * @param provisionMode 部署模式
+     * @param remark        备注; null = 清空
+     * @return 受影响行数
+     */
+    default int updateCoreById(String id, String region, String ipTypeId, String ipAddress,
+                               Integer provisionMode, String remark) {
+        return update(null, Wrappers.<ResourceIpPoolDO>lambdaUpdate()
+                .set(ResourceIpPoolDO::getRegion, region)
+                .set(ResourceIpPoolDO::getIpTypeId, ipTypeId)
+                .set(ResourceIpPoolDO::getIpAddress, ipAddress)
+                .set(ResourceIpPoolDO::getProvisionMode, provisionMode)
+                .set(ResourceIpPoolDO::getRemark, remark)
+                .set(ResourceIpPoolDO::getUpdatedAt, LocalDateTime.now())
+                .eq(ResourceIpPoolDO::getId, id));
+    }
+
     /** 列表分页, keyword 模糊匹 ip_address; lifecycle/status/region/ipType 精确过滤. */
     default IPage<ResourceIpPoolDO> selectPageByQuery(IPage<ResourceIpPoolDO> page, ResourceIpPoolPageReqVO reqVO) {
         return selectPage(page, Wrappers.<ResourceIpPoolDO>lambdaQuery()

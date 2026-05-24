@@ -29,7 +29,8 @@ public class ResourceIpPoolInstallServiceImpl implements ResourceIpPoolInstallSe
         if (exist == null) {
             installMapper.insert(entity);
         } else {
-            installMapper.updateById(entity);
+            // patch 式: 只更新入参非 null 字段, 防全字段覆盖 last_dante_uptime / installed_at 等运行态
+            installMapper.updateBySelective(entity);
         }
     }
 

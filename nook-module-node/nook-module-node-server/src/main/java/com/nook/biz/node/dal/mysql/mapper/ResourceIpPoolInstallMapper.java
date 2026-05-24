@@ -42,4 +42,17 @@ public interface ResourceIpPoolInstallMapper extends BaseMapper<ResourceIpPoolIn
                 .set(ResourceIpPoolInstallDO::getUpdatedAt, LocalDateTime.now())
                 .eq(ResourceIpPoolInstallDO::getIpId, ipId));
     }
+
+    /**
+     * 补丁式更新: 只更新 patch 中非 null 字段, updated_at 自动刷新.
+     * 跟其他子表 mapper 同语义, 防全字段 updateById 覆盖装机产物.
+     *
+     * @param patch 待更新字段 (ipId 必填; 其他字段 null = 不动)
+     * @return 受影响行数
+     */
+    default int updateBySelective(ResourceIpPoolInstallDO patch) {
+        return update(patch, Wrappers.<ResourceIpPoolInstallDO>lambdaUpdate()
+                .set(ResourceIpPoolInstallDO::getUpdatedAt, LocalDateTime.now())
+                .eq(ResourceIpPoolInstallDO::getIpId, patch.getIpId()));
+    }
 }

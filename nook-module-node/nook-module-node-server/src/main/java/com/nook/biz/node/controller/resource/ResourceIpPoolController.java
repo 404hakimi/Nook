@@ -73,20 +73,6 @@ public class ResourceIpPoolController {
     }
 
     /**
-     * 整体更新 IP 池
-     *
-     * @param id          IP 池编号
-     * @param updateReqVO 更新入参
-     * @return 是否成功
-     */
-    @PutMapping("/update")
-    public Result<Boolean> updateIpPool(@RequestParam("id") String id,
-                                        @Valid @RequestBody ResourceIpPoolSaveReqVO updateReqVO) {
-        resourceIpPoolService.updateIpPool(id, updateReqVO);
-        return Result.ok(true);
-    }
-
-    /**
      * 删除 IP 池
      *
      * @param id IP 池编号

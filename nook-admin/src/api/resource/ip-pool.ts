@@ -268,10 +268,6 @@ export function createIpPool(dto: ResourceIpPoolSaveDTO) {
   return request.post<unknown, ResourceIpPool>('/admin/resource/ip-pool/create', dto)
 }
 
-export function updateIpPool(id: string, dto: ResourceIpPoolSaveDTO) {
-  return request.put<unknown, ResourceIpPool>('/admin/resource/ip-pool/update', dto, { params: { id } })
-}
-
 export function deleteIpPool(id: string) {
   return request.delete<unknown, void>('/admin/resource/ip-pool/delete', { params: { id } })
 }

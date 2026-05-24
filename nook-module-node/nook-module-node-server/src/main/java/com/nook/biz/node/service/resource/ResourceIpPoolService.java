@@ -30,14 +30,6 @@ public interface ResourceIpPoolService {
     String createIpPool(ResourceIpPoolSaveReqVO createReqVO);
 
     /**
-     * 整体更新 IP 池
-     *
-     * @param id          IP 池编号
-     * @param updateReqVO 更新入参
-     */
-    void updateIpPool(String id, ResourceIpPoolSaveReqVO updateReqVO);
-
-    /**
      * 更新 IP 池核心字段
      *
      * @param id    IP 池编号

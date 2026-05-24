@@ -120,45 +120,6 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void updateIpPool(String id, ResourceIpPoolSaveReqVO updateReqVO) {
-        ipPoolValidator.validateExists(id);
-        ipPoolValidator.validateIpTypeExists(updateReqVO.getIpTypeId());
-        ipPoolValidator.validateIpAddressUnique(id, updateReqVO.getIpAddress());
-
-        // 1) 主表
-        ResourceIpPoolDO updateObj = BeanUtils.toBean(updateReqVO, ResourceIpPoolDO.class);
-        updateObj.setId(id);
-        resourceIpPoolMapper.updateById(updateObj);
-
-        // 2) credential 子表 (NOT_NULL 策略, ssh_password 留空保留原值)
-        ResourceIpPoolCredentialDO credPatch = BeanUtils.toBean(updateReqVO, ResourceIpPoolCredentialDO.class);
-        credPatch.setIpId(id);
-        if (StrUtil.isBlank(credPatch.getSshPassword())) {
-            credPatch.setSshPassword(null);
-        }
-        credentialMapper.updateBySelective(credPatch);
-
-        // 3) billing 子表
-        ResourceIpPoolBillingDO billPatch = BeanUtils.toBean(updateReqVO, ResourceIpPoolBillingDO.class);
-        billPatch.setIpId(id);
-        billingMapper.updateBySelective(billPatch);
-
-        // 4) socks5 子表 (socks5_password 留空保留原值)
-        ResourceIpPoolSocks5DO socks5Patch = BeanUtils.toBean(updateReqVO, ResourceIpPoolSocks5DO.class);
-        socks5Patch.setIpId(id);
-        if (StrUtil.isBlank(socks5Patch.getSocks5Password())) {
-            socks5Patch.setSocks5Password(null);
-        }
-        socks5Mapper.updateBySelective(socks5Patch);
-
-        // 5) install 子表 (装机事实, 全字段覆盖; 装机产物本就该跟入参对齐)
-        ResourceIpPoolInstallDO installPatch = BeanUtils.toBean(updateReqVO, ResourceIpPoolInstallDO.class);
-        installPatch.setIpId(id);
-        installMapper.updateById(installPatch);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
     public void deleteIpPool(String id) {
         // 校验 IP 池条目存在
         ResourceIpPoolDO exist = ipPoolValidator.validateExists(id);
@@ -321,9 +282,9 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
         ipPoolValidator.validateIpTypeExists(reqVO.getIpTypeId());
         ipPoolValidator.validateIpAddressUnique(id, reqVO.getIpAddress());
 
-        ResourceIpPoolDO updateObj = BeanUtils.toBean(reqVO, ResourceIpPoolDO.class);
-        updateObj.setId(id);
-        resourceIpPoolMapper.updateById(updateObj);
+        // 白名单 5 字段; lifecycle/status/occupied/agent_token 显式不动 (防误清运行态)
+        resourceIpPoolMapper.updateCoreById(id, reqVO.getRegion(), reqVO.getIpTypeId(),
+                reqVO.getIpAddress(), reqVO.getProvisionMode(), reqVO.getRemark());
     }
 
     @Override

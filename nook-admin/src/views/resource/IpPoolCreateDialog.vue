@@ -13,8 +13,7 @@ import {
   NInputNumber,
   NModal,
   NSelect,
-  NSpace,
-  useMessage
+  NSpace
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import {
@@ -63,7 +62,6 @@ const emit = defineEmits<{
   (e: 'install-now', ipId: string): void
 }>()
 
-const message = useMessage()
 const { confirm } = useConfirm()
 const submitting = ref(false)
 const errors = reactive<Record<string, string>>({})
@@ -105,10 +103,10 @@ const form = reactive({
   sshUser: 'root',
   sshPassword: '',
 
-  // ③ SOCKS5 服务参数 (落 socks5 子表)
+  // ③ SOCKS5 服务参数 (落 socks5 子表); 默认值预填: 随机端口 + 8 位用户 + 16 位密码
   socksPort: randomSocksPort(),
-  socksUser: '',
-  socksPass: '',
+  socksUser: randomSocksUser(),
+  socksPass: randomSocksPass(),
   logLevel: DANTE_LOG_LEVEL_DEFAULT,
 
   // ④ dante / install 配置 (落 install 子表)
@@ -155,8 +153,8 @@ watch(
       sshUser: 'root',
       sshPassword: '',
       socksPort: randomSocksPort(),
-      socksUser: '',
-      socksPass: '',
+      socksUser: randomSocksUser(),
+      socksPass: randomSocksPass(),
       logLevel: DANTE_LOG_LEVEL_DEFAULT,
       installDir: '/home/socks5',
       logPath: '',
@@ -216,13 +214,12 @@ async function onSubmit() {
       systemdUnit: 'danted'
     }
     const created = await createIpPool(dto)
-    message.success(`已创建 (lifecycle=INSTALLING); 接下来装机生效`)
     emit('created', created.id)
 
-    // 询问是否立即装机
+    // 询问是否立即装机 (单一对话框, 不再额外 toast)
     const ok = await confirm({
-      title: '是否立即装机?',
-      message: `IP ${form.ipAddress} 已落库, 但 dante 服务还没起. 现在装机会 SSH 远端跑 install 脚本 + 切 lifecycle=LIVE.`,
+      title: 'IP 已落库, 现在装机?',
+      message: `IP ${form.ipAddress} 已创建 (lifecycle=INSTALLING). 装机会 SSH 到 ${form.sshHost} 跑 dante install + 自动切 LIVE.`,
       type: 'info',
       confirmText: '立即装机',
       cancelText: '稍后再装'
