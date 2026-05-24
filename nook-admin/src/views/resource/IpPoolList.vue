@@ -698,58 +698,74 @@ onMounted(async () => {
 <template>
   <div class="space-y-4">
     <!-- 顶部统计卡片 (点击 = 切换过滤; 再点同一个清掉过滤) -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <NCard size="small" hoverable class="cursor-pointer" @click="() => { query.lifecycleState = undefined; query.status = undefined; query.pageNo = 1; loadList() }">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-xs text-zinc-500">总 IP</div>
-            <div class="text-2xl font-semibold">{{ summary.total }}</div>
-          </div>
-          <NIcon size="22" depth="3"><Globe2 /></NIcon>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <!-- 卡片 1: 总 IP (zinc/灰色 - neutral) -->
+      <div
+        class="stat-card stat-card--zinc"
+        :class="{ 'stat-card--active': !query.lifecycleState && !query.status }"
+        @click="() => { query.lifecycleState = undefined; query.status = undefined; query.pageNo = 1; loadList() }"
+      >
+        <div class="stat-card__accent" />
+        <div class="stat-card__body">
+          <div class="stat-card__label">总 IP</div>
+          <div class="stat-card__value">{{ summary.total }}</div>
+          <div class="stat-card__hint">全量, 含已退役</div>
         </div>
-      </NCard>
-      <NCard
-        size="small" hoverable
-        class="cursor-pointer"
-        :style="query.lifecycleState === 'LIVE' ? 'border-color: var(--n-color-target,#18a058)' : ''"
+        <div class="stat-card__icon">
+          <NIcon :size="28"><Globe2 /></NIcon>
+        </div>
+      </div>
+
+      <!-- 卡片 2: 已部署 LIVE (green) -->
+      <div
+        class="stat-card stat-card--green"
+        :class="{ 'stat-card--active': query.lifecycleState === 'LIVE' }"
         @click="applyStatsFilter({ lifecycleState: 'LIVE' })"
       >
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-xs text-zinc-500">已部署 (LIVE)</div>
-            <div class="text-2xl font-semibold" style="color: var(--n-color-target,#18a058)">{{ summary.live }}</div>
-          </div>
-          <NIcon size="22" :color="'#18a058'"><Rocket /></NIcon>
+        <div class="stat-card__accent" />
+        <div class="stat-card__body">
+          <div class="stat-card__label">已部署 LIVE</div>
+          <div class="stat-card__value">{{ summary.live }}</div>
+          <div class="stat-card__hint">SOCKS5 已起 + 可对外服务</div>
         </div>
-      </NCard>
-      <NCard
-        size="small" hoverable
-        class="cursor-pointer"
-        :style="query.status === 'AVAILABLE' ? 'border-color: #2080f0' : ''"
+        <div class="stat-card__icon">
+          <NIcon :size="28"><Rocket /></NIcon>
+        </div>
+      </div>
+
+      <!-- 卡片 3: 可分配 AVAILABLE (blue) -->
+      <div
+        class="stat-card stat-card--blue"
+        :class="{ 'stat-card--active': query.status === 'AVAILABLE' }"
         @click="applyStatsFilter({ status: 'AVAILABLE' })"
       >
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-xs text-zinc-500">可分配</div>
-            <div class="text-2xl font-semibold" style="color: #2080f0">{{ summary.available }}</div>
-          </div>
-          <NIcon size="22" :color="'#2080f0'"><CheckCircle2 /></NIcon>
+        <div class="stat-card__accent" />
+        <div class="stat-card__body">
+          <div class="stat-card__label">可分配</div>
+          <div class="stat-card__value">{{ summary.available }}</div>
+          <div class="stat-card__hint">allocator 可给新订阅</div>
         </div>
-      </NCard>
-      <NCard
-        size="small" hoverable
-        class="cursor-pointer"
-        :style="query.status === 'OCCUPIED' ? 'border-color: #f0a020' : ''"
+        <div class="stat-card__icon">
+          <NIcon :size="28"><CheckCircle2 /></NIcon>
+        </div>
+      </div>
+
+      <!-- 卡片 4: 已占用 OCCUPIED (orange) -->
+      <div
+        class="stat-card stat-card--orange"
+        :class="{ 'stat-card--active': query.status === 'OCCUPIED' }"
         @click="applyStatsFilter({ status: 'OCCUPIED' })"
       >
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-xs text-zinc-500">已占用</div>
-            <div class="text-2xl font-semibold" style="color: #f0a020">{{ summary.occupied }}</div>
-          </div>
-          <NIcon size="22" :color="'#f0a020'"><Users /></NIcon>
+        <div class="stat-card__accent" />
+        <div class="stat-card__body">
+          <div class="stat-card__label">已占用</div>
+          <div class="stat-card__value">{{ summary.occupied }}</div>
+          <div class="stat-card__hint">已分配给会员订阅</div>
         </div>
-      </NCard>
+        <div class="stat-card__icon">
+          <NIcon :size="28"><Users /></NIcon>
+        </div>
+      </div>
     </div>
 
     <!-- 顶部搜索栏 -->
@@ -895,3 +911,76 @@ onMounted(async () => {
     />
   </div>
 </template>
+
+<style scoped>
+/* ===== Stats 卡片: 左侧色条 accent + 大图标 + hover 抬升 + active 边框高亮 ===== */
+.stat-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  background: var(--n-card-color, #fff);
+  border: 1px solid var(--n-border-color, #efeff5);
+  border-radius: 8px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.stat-card--active {
+  border-color: currentColor;
+  box-shadow: 0 0 0 1px currentColor inset;
+}
+.stat-card__accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: currentColor;
+}
+.stat-card__body {
+  flex: 1;
+  min-width: 0;
+}
+.stat-card__label {
+  font-size: 13px;
+  color: var(--n-text-color-3, #707070);
+  margin-bottom: 4px;
+}
+.stat-card__value {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: currentColor;
+}
+.stat-card__hint {
+  font-size: 11px;
+  color: var(--n-text-color-3, #909399);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-card__icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  color: currentColor;
+}
+
+/* 颜色 accent: 把 currentColor 设到卡片上, 子元素 (accent / value / icon) 全部继承 */
+.stat-card--zinc   { color: #71717a; }
+.stat-card--green  { color: #18a058; }
+.stat-card--blue   { color: #2080f0; }
+.stat-card--orange { color: #f0a020; }
+</style>
