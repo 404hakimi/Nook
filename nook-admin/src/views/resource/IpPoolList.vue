@@ -336,26 +336,11 @@ function openDeploy() {
   deployOpen.value = true
 }
 
-/** 部署成功后用户点 "添加到 IP 池": 把凭据 + dante 高级配置一并交给 FormDialog 预填走 create 流程。 */
-function onAddToPoolFromDeploy(payload: {
-  ipAddress: string
-  socks5Port: number
-  socks5Username: string
-  socks5Password: string
-  logLevel?: string
-  logPath?: string
-  autostartEnabled: number
-  firewallEnabled: number
-  installDir?: string
-  sshHost: string
-  sshPort: number
-  sshUser: string
-  sshPassword: string
-}) {
-  formMode.value = 'create'
-  formIp.value = null
-  formSocksPrefill.value = payload
-  formOpen.value = true
+/** Phase 4: 装机成功 → 后端事务内一次性入池 → 推 ipId 回前端 → 刷新列表 */
+function onDeployInstalled(ipId: string) {
+  // 不需要二次操作, 直接刷新列表; 用户后续从列表点行进详情看新装的 IP
+  void ipId
+  void loadList()
 }
 
 /** SOCKS5 凭据是否齐全, 决定是否能触发"测试"按钮 (拨号需要这些参数)。 */
@@ -840,8 +825,13 @@ onMounted(async () => {
       @choose-self-deploy="openDeploy"
     />
 
-    <!-- 独立部署 SOCKS5 弹框: 从 choice dialog 选自部署进入; 成功后 "添加到 IP 池" 走 onAddToPoolFromDeploy 接力 -->
-    <IpPoolDeployDialog v-model="deployOpen" @add-to-pool="onAddToPoolFromDeploy" />
+    <!-- 部署 SOCKS5 弹框: 装机成功后后端事务内一次性落 6 行, 推 ipId 回前端刷新列表 -->
+    <IpPoolDeployDialog
+      v-model="deployOpen"
+      :ip-types="ipTypes"
+      :regions="regions"
+      @installed="onDeployInstalled"
+    />
 
     <!-- SOCKS5 测试弹框: 让用户选 echo-IP 端点 + 看完整请求结果 -->
     <IpPoolTestDialog v-model="testOpen" :ip="testTarget" />

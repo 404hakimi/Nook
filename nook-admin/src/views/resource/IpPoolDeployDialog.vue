@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { CheckCircle2, Plus, Rocket, Shuffle } from 'lucide-vue-next'
+import { CheckCircle2, Rocket, Shuffle } from 'lucide-vue-next'
 import {
   NButton,
   NCheckbox,
@@ -24,35 +24,27 @@ import {
   type Socks5InstallDTO
 } from '@/api/resource/ip-pool'
 
+interface IpTypeOption {
+  id: string
+  code: string
+  name: string
+}
+
+interface RegionOption {
+  code: string
+  displayName?: string
+}
+
 interface Props {
   modelValue: boolean
+  ipTypes: IpTypeOption[]
+  regions: RegionOption[]
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
-  /** 部署成功后用户点 "添加到 IP 池", 把这些字段交给父组件预填到新增表单。 */
-  (e: 'add-to-pool', payload: {
-    ipAddress: string
-    socks5Port: number
-    socks5Username: string
-    socks5Password: string
-    /** dante 日志级别 (空格分隔关键字). */
-    logLevel?: string
-    /** dante logoutput 路径; 空 = 用 installDir/logs/sockd.log 兜底. */
-    logPath?: string
-    /** systemd 开机自启 (1/0). */
-    autostartEnabled: number
-    /** UFW 是否配置 (1/0). */
-    firewallEnabled: number
-    /** SOCKS5 安装目录. */
-    installDir?: string
-    /** SSH 主机 (= sshHost form 值, 通常 = ipAddress); 后续运维操作 (详情/日志) 用 */
-    sshHost: string
-    sshPort: number
-    sshUser: string
-    /** SSH 密码; 跟 SOCKS5 密码同口径明文落库, 后台受信网络场景. */
-    sshPassword: string
-  }): void
+  /** 装机成功 + 后端事务内一次性入池后, 推 ipId 给父组件刷新列表 */
+  (e: 'installed', ipId: string): void
 }>()
 
 const message = useMessage()
@@ -104,7 +96,12 @@ function randomSocksPass(): string {
 }
 
 const form = reactive({
-  // SSH 凭据 (一次性, 不入库)
+  // 主表: 资源归属 (Phase 4 装机自动入池新加)
+  region: '',
+  ipTypeId: '',
+  remark: '',
+
+  // SSH 凭据 (装机用 + 落 credential 子表)
   sshHost: '',
   sshPort: 22,
   sshUser: 'root',
@@ -115,48 +112,39 @@ const form = reactive({
   sshUploadTimeoutSeconds: 180,
   installTimeoutSeconds: 600,
 
-  // SOCKS5 服务参数 (部署后用作 IP 池录入凭据)
+  // SOCKS5 服务参数 (落 socks5 子表)
   socksPort: randomSocksPort(),
   socksUser: '',
   socksPass: '',
   installUfw: true,
 
-  // dante 高级配置 (有合理默认, 让用户改 log / 自启 / 防火墙时不用改部署脚本)
-  // logLevel 走预设下拉, 默认 "警告"; 自由字符串依然合法但不再开口
+  // dante 业务配置
   logLevel: DANTE_LOG_LEVEL_DEFAULT,
-  /** 日志路径; 留空走 {installDir}/logs/sockd.log 兜底, placeholder 即兜底值 */
   logPath: '',
   autostartEnabled: true,
   logRotate: true,
-  /** SOCKS5 安装目录; logs/info.txt 等运维资产放这里, 跟 xray 部署习惯一致 */
-  installDir: '/home/socks5'
+
+  // 装机产物路径 (落 install 子表; 前端 default, 后端 @NotBlank 校验, 不再兜底)
+  installDir: '/home/socks5',
+  confPath: '/etc/danted.conf',
+  pamFile: '/etc/pam.d/sockd',
+  pwdFile: '/etc/danted/sockd.passwd',
+  systemdUnit: 'danted'
 })
+
+const ipTypeOptions = computed(() =>
+  props.ipTypes.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))
+)
+const regionOptions = computed(() =>
+  props.regions.map((r) => ({ label: `${r.code}${r.displayName ? ' ' + r.displayName : ''}`, value: r.code }))
+)
 
 /** logPath 占位符随 installDir 联动, 给用户看出兜底规则. */
 const logPathPlaceholder = computed(
   () => `${form.installDir.trim() || '/home/socks5'}/logs/sockd.log`
 )
 
-/**
- * 部署完成后, "添加到 IP 池" 按钮把这些值发给父组件; ipAddress 默认 = sshHost (出网 IP).
- * 高级配置同步带过去, 否则 IP 池条目记录的 dante 配置会跟远端实际状态对不上.
- */
-const deployedSocks5 = computed(() => ({
-  ipAddress: form.sshHost.trim(),
-  socks5Port: form.socksPort,
-  socks5Username: form.socksUser.trim(),
-  socks5Password: form.socksPass,
-  logLevel: form.logLevel.trim() || undefined,
-  // 留空 → 用 placeholder 兜底, 接力到 IP 池表单时已是实际路径
-  logPath: form.logPath.trim() || logPathPlaceholder.value,
-  autostartEnabled: form.autostartEnabled ? 1 : 0,
-  firewallEnabled: form.installUfw ? 1 : 0,
-  installDir: form.installDir.trim() || undefined,
-  sshHost: form.sshHost.trim(),
-  sshPort: form.sshPort,
-  sshUser: form.sshUser.trim(),
-  sshPassword: form.sshPassword
-}))
+// Phase 4: 装机成功后由后端事务内一次性落库; "添加到 IP 池" 二次按钮已废弃
 
 watch(
   () => props.modelValue,
@@ -166,6 +154,9 @@ watch(
     output.value = ''
     deployed.value = false
     Object.assign(form, {
+      region: '',
+      ipTypeId: props.ipTypes[0]?.id ?? '',
+      remark: '',
       sshHost: '',
       sshPort: 22,
       sshUser: 'root',
@@ -174,7 +165,6 @@ watch(
       sshOpTimeoutSeconds: 60,
       sshUploadTimeoutSeconds: 180,
       installTimeoutSeconds: 600,
-      // 每次打开都重新随机, 避免用户反复用同一端口
       socksPort: randomSocksPort(),
       socksUser: '',
       socksPass: '',
@@ -183,17 +173,28 @@ watch(
       logPath: '',
       autostartEnabled: true,
       logRotate: true,
-      installDir: '/home/socks5'
+      installDir: '/home/socks5',
+      confPath: '/etc/danted.conf',
+      pamFile: '/etc/pam.d/sockd',
+      pwdFile: '/etc/danted/sockd.passwd',
+      systemdUnit: 'danted'
     })
   }
 )
 
 function validate() {
   Object.keys(errors).forEach((k) => delete errors[k])
+  if (!form.region.trim()) errors.region = '请选区域'
+  if (!form.ipTypeId) errors.ipTypeId = '请选 IP 类型'
   if (!form.sshHost.trim()) errors.sshHost = '请输入 SSH 主机'
   if (form.sshPort < 1 || form.sshPort > 65535) errors.sshPort = '端口范围 1-65535'
   if (!form.sshUser.trim()) errors.sshUser = '请输入 SSH 用户'
   if (!form.sshPassword) errors.sshPassword = '请填 SSH 密码'
+  if (!form.installDir.trim()) errors.installDir = '请输入安装目录'
+  if (!form.confPath.trim()) errors.confPath = '请输入 sockd.conf 路径'
+  if (!form.pamFile.trim()) errors.pamFile = '请输入 PAM 配置路径'
+  if (!form.pwdFile.trim()) errors.pwdFile = '请输入密码文件路径'
+  if (!form.systemdUnit.trim()) errors.systemdUnit = '请输入 systemd unit 名'
   if (form.sshTimeoutSeconds < 5 || form.sshTimeoutSeconds > 600) errors.sshTimeoutSeconds = 'SSH 握手超时 5-600 秒'
   if (form.sshOpTimeoutSeconds < 5 || form.sshOpTimeoutSeconds > 300) errors.sshOpTimeoutSeconds = 'SSH 单条命令超时 5-300 秒'
   if (form.sshUploadTimeoutSeconds < 5 || form.sshUploadTimeoutSeconds > 600) errors.sshUploadTimeoutSeconds = 'SCP 上传超时 5-600 秒'
@@ -204,11 +205,15 @@ function validate() {
   return Object.keys(errors).length === 0
 }
 
+/** 装机成功后, 后端通过 lineSink 推 `[nook] ✔ 已落库 ipId=XXX` 一行; 前端正则提取 */
+const IP_ID_MARKER_RE = /\[nook\] ✔ 已落库 ipId=([a-f0-9]{32})/i
+let parsedIpId: string = ''
+
 async function onSubmit() {
   if (!validate()) return
   const ok = await confirm({
     title: '部署 SOCKS5',
-    message: `在 ${form.sshHost}:${form.sshPort} 部署 SOCKS5 (端口 ${form.socksPort})?`,
+    message: `在 ${form.sshHost}:${form.sshPort} 部署 SOCKS5 (端口 ${form.socksPort}); 装机成功后会自动入池 (region=${form.region}).`,
     type: 'warning',
     confirmText: '开始部署'
   })
@@ -216,10 +221,14 @@ async function onSubmit() {
 
   installing.value = true
   deployed.value = false
+  parsedIpId = ''
   output.value = ''
   abortCtrl = new AbortController()
   try {
     const dto: Socks5InstallDTO = {
+      region: form.region.trim(),
+      ipTypeId: form.ipTypeId,
+      remark: form.remark.trim() || undefined,
       sshHost: form.sshHost.trim(),
       sshPort: form.sshPort,
       sshUser: form.sshUser.trim(),
@@ -232,15 +241,25 @@ async function onSubmit() {
       socksUser: form.socksUser.trim(),
       socksPass: form.socksPass,
       installUfw: form.installUfw,
-      logLevel: form.logLevel.trim() || undefined,
+      logLevel: form.logLevel.trim(),
       logPath: form.logPath.trim() || logPathPlaceholder.value,
       autostartEnabled: form.autostartEnabled,
       logRotate: form.logRotate,
-      installDir: form.installDir.trim() || undefined
+      installDir: form.installDir.trim(),
+      confPath: form.confPath.trim(),
+      pamFile: form.pamFile.trim(),
+      pwdFile: form.pwdFile.trim(),
+      systemdUnit: form.systemdUnit.trim()
     }
     await installSocks5Stream(dto, appendOutput, abortCtrl.signal)
     deployed.value = true
-    message.success('部署完成, 可一键添加到 IP 池')
+    if (parsedIpId) {
+      message.success(`部署完成, 已自动入池 (ipId=${parsedIpId.slice(0, 8)}...)`)
+      emit('installed', parsedIpId)
+      emit('update:modelValue', false)
+    } else {
+      message.warning('部署完成但未解析到 ipId, 请手动刷新列表确认')
+    }
   } catch (e) {
     if ((e as Error).name === 'AbortError') {
       appendOutput('\n[nook] 用户已取消, 远端脚本可能已经在跑(无法终止)\n')
@@ -255,15 +274,16 @@ async function onSubmit() {
   }
 }
 
-function onAddToPool() {
-  emit('add-to-pool', deployedSocks5.value)
-  emit('update:modelValue', false)
-}
-
 const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g
 
 function appendOutput(chunk: string) {
-  output.value += chunk.replace(ANSI_RE, '')
+  const clean = chunk.replace(ANSI_RE, '')
+  output.value += clean
+  // 提取 backend 推的 ipId marker, 用于装机成功后自动跳详情
+  if (!parsedIpId) {
+    const m = clean.match(IP_ID_MARKER_RE)
+    if (m) parsedIpId = m[1]
+  }
   nextTick(() => {
     if (outputRef.value) {
       outputRef.value.scrollTop = outputRef.value.scrollHeight
@@ -303,7 +323,47 @@ function close() {
       require-mark-placement="right-hanging"
       size="small"
     >
-      <div class="text-sm font-semibold mb-2">SSH 凭据 (一次性)</div>
+      <div class="text-sm font-semibold mb-2">资源归属 (装机成功后落主表)</div>
+      <div class="grid grid-cols-1 sm:grid-cols-6 gap-x-4">
+        <div class="sm:col-span-2">
+          <NFormItem
+            label="区域"
+            required
+            :validation-status="errors.region ? 'error' : undefined"
+            :feedback="errors.region"
+          >
+            <NSelect
+              v-model:value="form.region"
+              :options="regionOptions"
+              :disabled="installing"
+              filterable
+              placeholder="选区域 / 输入过滤"
+            />
+          </NFormItem>
+        </div>
+        <div class="sm:col-span-2">
+          <NFormItem
+            label="IP 类型"
+            required
+            :validation-status="errors.ipTypeId ? 'error' : undefined"
+            :feedback="errors.ipTypeId"
+          >
+            <NSelect
+              v-model:value="form.ipTypeId"
+              :options="ipTypeOptions"
+              :disabled="installing"
+              placeholder="选 IP 类型"
+            />
+          </NFormItem>
+        </div>
+        <div class="sm:col-span-2">
+          <NFormItem label="备注">
+            <NInput v-model:value="form.remark" :disabled="installing" placeholder="可选, 运营备注" />
+          </NFormItem>
+        </div>
+      </div>
+
+      <div class="text-sm font-semibold mb-2 mt-2">SSH 凭据 (装机用 + 落 credential 子表)</div>
       <div class="grid grid-cols-1 sm:grid-cols-6 gap-x-4">
         <div class="sm:col-span-3">
           <NFormItem
@@ -560,6 +620,47 @@ function close() {
           </NFormItem>
         </div>
       </div>
+
+      <!-- 装机产物路径 (落 install 子表; 都有 default, 大多场景不用改) -->
+      <details class="mt-3 cursor-pointer">
+        <summary class="text-sm font-semibold text-zinc-500 select-none">
+          高级 - 装机产物路径 (落 resource_ip_pool_install 子表)
+        </summary>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-x-4 mt-2">
+          <NFormItem
+            label="sockd.conf"
+            :validation-status="errors.confPath ? 'error' : undefined"
+            :feedback="errors.confPath"
+          >
+            <NInput v-model:value="form.confPath" :disabled="installing"
+                    :input-props="{ style: 'font-family: monospace' }" />
+          </NFormItem>
+          <NFormItem
+            label="PAM file"
+            :validation-status="errors.pamFile ? 'error' : undefined"
+            :feedback="errors.pamFile"
+          >
+            <NInput v-model:value="form.pamFile" :disabled="installing"
+                    :input-props="{ style: 'font-family: monospace' }" />
+          </NFormItem>
+          <NFormItem
+            label="htpasswd file"
+            :validation-status="errors.pwdFile ? 'error' : undefined"
+            :feedback="errors.pwdFile"
+          >
+            <NInput v-model:value="form.pwdFile" :disabled="installing"
+                    :input-props="{ style: 'font-family: monospace' }" />
+          </NFormItem>
+          <NFormItem
+            label="systemd unit"
+            :validation-status="errors.systemdUnit ? 'error' : undefined"
+            :feedback="errors.systemdUnit"
+          >
+            <NInput v-model:value="form.systemdUnit" :disabled="installing"
+                    :input-props="{ style: 'font-family: monospace' }" />
+          </NFormItem>
+        </div>
+      </details>
     </NForm>
 
     <!-- 输出区 -->
@@ -588,18 +689,8 @@ function close() {
     <template #footer>
       <NSpace justify="end">
         <NButton size="small" :disabled="installing" @click="close">关闭</NButton>
-        <!-- 部署成功后展示 "添加到 IP 池"; 失败状态再次点 "开始部署" 重试 -->
+        <!-- Phase 4: 装机成功 → 后端事务内一次性落库; 不再需要 "添加到 IP 池" 二次操作 -->
         <NButton
-          v-if="deployed"
-          type="success"
-          size="small"
-          @click="onAddToPool"
-        >
-          <template #icon><NIcon><Plus /></NIcon></template>
-          添加到 IP 池
-        </NButton>
-        <NButton
-          v-else
           type="primary"
           size="small"
           :loading="installing"

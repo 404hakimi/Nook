@@ -4,16 +4,33 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * SOCKS5 落地节点部署入参; SSH 凭据用完即弃, 不绑定 IP 池条目.
+ * SOCKS5 落地节点部署入参; 装机成功后由 backend 事务内一次性落 5 子表 (主表 + cred + billing + socks5 + install + runtime).
  *
  * @author nook
  */
 @Data
 public class ResourceIpSocksInstallReqVO {
+
+    // ===== 主表 (resource_ip_pool): 资源归属 =====
+
+    @NotBlank(message = "region 必填")
+    @Size(max = 32)
+    @Pattern(regexp = "^[A-Z][A-Z0-9\\-]+$", message = "区域码须大写, 如 JP-TYO / HK")
+    private String region;
+
+    @NotBlank(message = "ipTypeId 必填")
+    @Size(max = 36)
+    private String ipTypeId;
+
+    @Size(max = 255)
+    private String remark;
+
+    // ===== SSH 凭据 (装机用 + 落 credential 子表) =====
 
     @NotBlank(message = "sshHost 必填")
     @Size(max = 128)
@@ -50,6 +67,8 @@ public class ResourceIpSocksInstallReqVO {
     @NotNull(message = "installTimeoutSeconds 必填")
     @Min(value = 60) @Max(value = 3600)
     private Integer installTimeoutSeconds;
+
+    // ===== dante 业务配置 (落 socks5 子表) =====
 
     @NotNull(message = "socksPort 必填")
     @Min(value = 1) @Max(value = 65535)
@@ -88,4 +107,26 @@ public class ResourceIpSocksInstallReqVO {
     @NotBlank(message = "installDir 必填")
     @Size(max = 255)
     private String installDir;
+
+    // ===== 装机产物路径 (落 install 子表; 前端 default; 后端只校验非空) =====
+
+    /** sockd.conf 绝对路径; 前端 default '/etc/danted.conf'. */
+    @NotBlank(message = "confPath 必填")
+    @Size(max = 255)
+    private String confPath;
+
+    /** PAM 配置文件路径; 前端 default '/etc/pam.d/sockd'. */
+    @NotBlank(message = "pamFile 必填")
+    @Size(max = 255)
+    private String pamFile;
+
+    /** htpasswd 密码文件路径; 前端 default '/etc/danted/sockd.passwd'. */
+    @NotBlank(message = "pwdFile 必填")
+    @Size(max = 255)
+    private String pwdFile;
+
+    /** systemd 服务名; 前端 default 'danted'. */
+    @NotBlank(message = "systemdUnit 必填")
+    @Size(max = 64)
+    private String systemdUnit;
 }

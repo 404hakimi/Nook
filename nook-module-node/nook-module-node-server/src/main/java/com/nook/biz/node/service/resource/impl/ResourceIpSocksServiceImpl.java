@@ -12,14 +12,23 @@ import com.nook.biz.node.controller.resource.vo.Socks5StatusRespVO;
 import com.nook.biz.node.convert.socks5.Socks5OpsConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
+import com.nook.biz.node.api.enums.ResourceIpPoolLifecycleEnum;
+import com.nook.biz.node.api.enums.ResourceIpPoolProvisionModeEnum;
+import com.nook.biz.node.api.enums.ResourceIpPoolStatusEnum;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolInstallDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolRuntimeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolBillingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolCredentialMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolInstallMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolRuntimeMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolSocks5Mapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
+import com.nook.common.web.error.CommonErrorCode;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
@@ -42,11 +51,15 @@ import com.nook.framework.ssh.core.SshSessions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HexFormat;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
@@ -66,20 +79,120 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     private final XrayServerValidator xrayServerValidator;
     private final XrayOutboundCli outboundCli;
     private final ServerProbe serverProbe;
+    private final ResourceIpPoolMapper ipPoolMapper;
     private final ResourceIpPoolCredentialMapper credentialMapper;
+    private final ResourceIpPoolBillingMapper billingMapper;
     private final ResourceIpPoolSocks5Mapper socks5Mapper;
     private final ResourceIpPoolInstallMapper installMapper;
+    private final ResourceIpPoolRuntimeMapper runtimeMapper;
+    private final TransactionTemplate transactionTemplate;
 
     /** dante 的 systemd unit 名 (apt 包默认), 跟 install / update 脚本里 systemctl 操作的 unit 对齐. */
     private static final String DANTE_UNIT = "danted";
 
     @Override
     public void installSocks5(ResourceIpSocksInstallReqVO reqVO, Consumer<String> lineSink) {
+        // 1. 装机前查重: 同 IP 已在池里 → 拒绝, 防 admin 反复装机导致脏数据
+        ipPoolValidator.validateIpAddressUnique(null, reqVO.getSshHost());
+
+        // 2. SSH 跑装机脚本 (副作用不可回滚, 放事务外)
         SessionCredential cred = buildAdHocCred(reqVO);
         Map<String, String> vars = buildVars(reqVO);
         Duration installTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
         SshSessions.runAdHocVoid(cred, session ->
                 scriptCatalog.run(session, NookScripts.SOCKS5_INSTALL, vars, installTimeout, lineSink));
+
+        // 3. 装机成功 → 事务内一次性落 6 行 (主表 + 5 子表); 失败抛错, 远端服务已起来但 admin 可手动清理
+        String ipId = persistFromInstall(reqVO);
+
+        // 4. 把 ipId 通过 lineSink 透回前端, 客户端解析这一行拿 id 跳转详情页
+        lineSink.accept("[nook] ✔ 已落库 ipId=" + ipId + "\n");
+        log.info("[install-socks5] OK ipId={} ip={} provisionMode=SELF_DEPLOY", ipId, reqVO.getSshHost());
+    }
+
+    /** 装机成功后事务内一次性落 6 行 (主表 + 5 子表); 跟 ResourceIpPoolServiceImpl.createIpPool 同结构 */
+    private String persistFromInstall(ResourceIpSocksInstallReqVO r) {
+        return transactionTemplate.execute(status -> {
+            LocalDateTime now = LocalDateTime.now();
+            // 主表
+            ResourceIpPoolDO main = new ResourceIpPoolDO();
+            main.setRegion(r.getRegion());
+            main.setIpTypeId(r.getIpTypeId());
+            main.setIpAddress(r.getSshHost());
+            main.setLifecycleState(ResourceIpPoolLifecycleEnum.LIVE.getState());
+            main.setStatus(ResourceIpPoolStatusEnum.AVAILABLE.getState());
+            main.setProvisionMode(ResourceIpPoolProvisionModeEnum.SELF_DEPLOY.getMode());
+            main.setAgentToken(generateAgentToken());
+            main.setRemark(r.getRemark());
+            ipPoolMapper.insert(main);
+            String ipId = main.getId();
+
+            // credential 子表 (SSH 凭据从入参落库, 后续运维 status / 日志接口要用)
+            ResourceIpPoolCredentialDO cred = new ResourceIpPoolCredentialDO();
+            cred.setIpId(ipId);
+            cred.setSshHost(r.getSshHost());
+            cred.setSshPort(r.getSshPort());
+            cred.setSshUser(r.getSshUser());
+            cred.setSshPassword(r.getSshPassword());
+            cred.setCreatedAt(now);
+            cred.setUpdatedAt(now);
+            credentialMapper.insert(cred);
+
+            // billing 子表 (空占位, admin 后续编辑)
+            ResourceIpPoolBillingDO bill = new ResourceIpPoolBillingDO();
+            bill.setIpId(ipId);
+            bill.setCreatedAt(now);
+            bill.setUpdatedAt(now);
+            billingMapper.insert(bill);
+
+            // socks5 子表 (dante 业务配置)
+            ResourceIpPoolSocks5DO socks5 = new ResourceIpPoolSocks5DO();
+            socks5.setIpId(ipId);
+            socks5.setSocks5Port(r.getSocksPort());
+            socks5.setSocks5Username(r.getSocksUser());
+            socks5.setSocks5Password(r.getSocksPass());
+            socks5.setLogLevel(r.getLogLevel());
+            socks5.setBandwidthLimitMbps(0);
+            socks5.setCreatedAt(now);
+            socks5.setUpdatedAt(now);
+            socks5Mapper.insert(socks5);
+
+            // install 子表 (装机产物; 跟 xray_server 同语义)
+            ResourceIpPoolInstallDO install = new ResourceIpPoolInstallDO();
+            install.setIpId(ipId);
+            install.setInstallDir(r.getInstallDir());
+            install.setLogPath(r.getLogPath());
+            install.setConfPath(r.getConfPath());
+            install.setPamFile(r.getPamFile());
+            install.setPwdFile(r.getPwdFile());
+            install.setSystemdUnit(r.getSystemdUnit());
+            install.setAutostartEnabled(Boolean.TRUE.equals(r.getAutostartEnabled()) ? 1 : 0);
+            install.setFirewallEnabled(Boolean.TRUE.equals(r.getInstallUfw()) ? 1 : 0);
+            install.setLogRotateEnabled(Boolean.TRUE.equals(r.getLogRotate()) ? 1 : 0);
+            install.setInstalledAt(now);
+            installMapper.insert(install);
+
+            // runtime 子表占位 (agent 接管后由心跳填)
+            ResourceIpPoolRuntimeDO runtime = new ResourceIpPoolRuntimeDO();
+            runtime.setIpId(ipId);
+            runtime.setTempUnhealthy(0);
+            runtime.setConsecutiveMiss(0);
+            runtime.setUpdatedAt(now);
+            runtimeMapper.insert(runtime);
+
+            return ipId;
+        });
+    }
+
+    /** SHA256(UUID + UUID) → 64 char hex; 跟 DB agent_token CHAR(64) 长度对齐 */
+    private static String generateAgentToken() {
+        String raw = UUID.randomUUID() + UUID.randomUUID().toString();
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(md.digest(raw.getBytes()));
+        } catch (Exception e) {
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "SHA-256 不可用: " + e.getMessage());
+        }
     }
 
     @Override

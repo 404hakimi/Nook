@@ -436,38 +436,44 @@ export function testIpPoolSocks5(id: string, params: Socks5TestParams) {
 
 // ===== SOCKS5 独立部署 (走 nook-biz-node Socks5Controller, 流式 HTTP, 不绑定 IP 池条目) =====
 
+/**
+ * SOCKS5 装机入参. 装机成功后 backend 事务内一次性落 6 行 (主表 + 5 子表),
+ * 通过 lineSink 推 `[nook] ✔ 已落库 ipId=<id>` 给前端跳详情.
+ *
+ * 默认值规则: 前端 form 给 default, 后端 @NotBlank/@NotNull 强校验, 不再 blankToDefault 兜底.
+ */
 export interface Socks5InstallDTO {
-  // 远端主机 SSH 凭据 (一次性, 不存)
+  // 主表: 资源归属
+  region: string
+  ipTypeId: string
+  remark?: string
+
+  // SSH 凭据 (落 credential 子表)
   sshHost: string
   sshPort: number
   sshUser: string
-  /** SSH 密码 (必填) */
   sshPassword: string
-  /** SSH 会话握手超时(秒); 5-600 */
   sshTimeoutSeconds: number
-  /** SSH 单条命令超时(秒); 5-300 */
   sshOpTimeoutSeconds: number
-  /** SCP 上传超时(秒); 5-600 */
   sshUploadTimeoutSeconds: number
-  /** 安装脚本最大耗时(秒); 60-3600 */
   installTimeoutSeconds: number
 
-  // SOCKS5 服务参数 — 部署成功后由前端按需调 createIpPool 落库
+  // dante 业务配置 (落 socks5 子表)
   socksPort: number
   socksUser: string
   socksPass: string
+  logLevel: string
   installUfw: boolean
 
-  /** dante log 关键字 (空格分隔); 留空走默认 'connect disconnect error'. */
-  logLevel?: string
-  /** dante logoutput 路径; 留空走默认 $INSTALL_DIR/logs/sockd.log. */
-  logPath?: string
-  /** systemd 开机自启 (不传默认 true). */
-  autostartEnabled?: boolean
-  /** SOCKS5 安装目录; 留空走默认 /home/socks5. */
-  installDir?: string
-  /** logrotate 日志轮转 (sockd.log 50M 触发滚 + gzip); 不传默认 true. */
-  logRotate?: boolean
+  // 装机产物 (落 install 子表; 前端 default, 后端校验)
+  logPath: string
+  autostartEnabled: boolean
+  logRotate: boolean
+  installDir: string
+  confPath: string
+  pamFile: string
+  pwdFile: string
+  systemdUnit: string
 }
 
 /**
