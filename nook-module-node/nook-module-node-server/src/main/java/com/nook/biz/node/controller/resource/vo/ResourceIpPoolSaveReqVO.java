@@ -104,12 +104,6 @@ public class ResourceIpPoolSaveReqVO {
     @Size(max = 255)
     private String sshPassword;
 
-    @Min(value = 1) @Max(value = 1_000_000)
-    private Integer bandwidthMbps;
-
-    @Min(value = 1) @Max(value = 10_000_000)
-    private Integer trafficQuotaGb;
-
     /** 月度成本 USD. */
     private BigDecimal costMonthlyUsd;
 

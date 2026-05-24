@@ -15,14 +15,6 @@ import java.time.LocalDate;
 @Data
 public class ResourceIpPoolBillingUpdateReqVO {
 
-    /** 采购带宽上限 Mbps; 仅账面记录, 不参与 enforce. */
-    @Min(value = 1) @Max(value = 1_000_000)
-    private Integer bandwidthMbps;
-
-    /** 采购流量上限 GB; 仅账面记录. */
-    @Min(value = 1) @Max(value = 10_000_000)
-    private Integer trafficQuotaGb;
-
     private BigDecimal costMonthlyUsd;
 
     @Min(value = 1, message = "账单日 1-28")

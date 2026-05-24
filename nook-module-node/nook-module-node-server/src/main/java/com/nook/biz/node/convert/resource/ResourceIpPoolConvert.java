@@ -90,8 +90,6 @@ public interface ResourceIpPoolConvert {
 
     static void enrichBilling(ResourceIpPoolRespVO vo, ResourceIpPoolBillingDO bill) {
         if (vo == null || bill == null) return;
-        vo.setBandwidthMbps(bill.getBandwidthMbps());
-        vo.setTrafficQuotaGb(bill.getTrafficQuotaGb());
         vo.setCostMonthlyUsd(bill.getCostMonthlyUsd());
         vo.setBillingCycleDay(bill.getBillingCycleDay());
         vo.setExpiresAt(bill.getExpiresAt());

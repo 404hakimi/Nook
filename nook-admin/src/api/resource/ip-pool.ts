@@ -52,10 +52,6 @@ export interface ResourceIpPool {
   sshUser?: string
   /** 明文 SSH 密码; 后台受信网络场景下发. */
   sshPassword?: string
-  /** 采购带宽上限 (Mbps); 仅账面记录 (实际限速看 bandwidthLimitMbps). */
-  bandwidthMbps?: number
-  /** 采购流量上限 (GB); 仅账面记录 (实际配额看 monthlyTrafficGb). */
-  trafficQuotaGb?: number
   /** 月度成本 USD. */
   costMonthlyUsd?: number
   /** 账单日 1-28. */
@@ -95,11 +91,9 @@ export interface IpPoolCredential {
   sshPassword?: string
 }
 
-/** 账面 (仅记录, 不 enforce). */
+/** 账面 (纯财务记录; 实际带宽/流量配额在 IpPoolCapacity). */
 export interface IpPoolBilling {
   ipId?: string
-  bandwidthMbps?: number
-  trafficQuotaGb?: number
   costMonthlyUsd?: number
   billingCycleDay?: number
   expiresAt?: string
@@ -185,10 +179,6 @@ export interface ResourceIpPoolSaveDTO {
   sshUser?: string
   /** SSH 密码; Update 留空 = 保留原值. */
   sshPassword?: string
-  /** 采购带宽上限 (Mbps); 留空 = 不限/未填. */
-  bandwidthMbps?: number
-  /** 采购流量上限 (GB); 留空 = 不限/未填. */
-  trafficQuotaGb?: number
   /** 月度成本 USD. */
   costMonthlyUsd?: number
   /** 账单日 1-28. */

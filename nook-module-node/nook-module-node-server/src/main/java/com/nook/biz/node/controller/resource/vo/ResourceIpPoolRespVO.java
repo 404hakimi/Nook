@@ -106,10 +106,6 @@ public class ResourceIpPoolRespVO {
 
     private String sshPassword;
 
-    private Integer bandwidthMbps;
-
-    private Integer trafficQuotaGb;
-
     /** 月度成本 USD. */
     private BigDecimal costMonthlyUsd;
 

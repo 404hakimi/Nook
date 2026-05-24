@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * IP 池账面 DO (1:1, 采购账面记录)
+ * IP 池账面 DO (1:1, 纯财务记录; 实际带宽/流量配额在 capacity 子表)
  *
  * @author nook
  */
@@ -19,12 +19,6 @@ public class ResourceIpPoolBillingDO {
 
     @TableId
     private String ipId;
-
-    /** 采购带宽上限 Mbps; 仅账面记录, 不参与 enforce. */
-    private Integer bandwidthMbps;
-
-    /** 采购流量上限 GB; 仅账面记录. */
-    private Integer trafficQuotaGb;
 
     private BigDecimal costMonthlyUsd;
 

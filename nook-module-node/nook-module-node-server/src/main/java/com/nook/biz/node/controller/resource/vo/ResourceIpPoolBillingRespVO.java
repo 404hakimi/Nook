@@ -15,8 +15,6 @@ import java.time.LocalDate;
 public class ResourceIpPoolBillingRespVO {
 
     private String ipId;
-    private Integer bandwidthMbps;
-    private Integer trafficQuotaGb;
     private BigDecimal costMonthlyUsd;
     private Integer billingCycleDay;
 
