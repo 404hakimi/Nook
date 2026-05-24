@@ -212,7 +212,6 @@ const formSocksPrefill = ref<{
   logPath?: string
   autostartEnabled?: number
   firewallEnabled?: number
-  firewallAllowFrom?: string
   installDir?: string
   sshHost?: string
   sshPort?: number
@@ -343,7 +342,6 @@ function onAddToPoolFromDeploy(payload: {
   logPath?: string
   autostartEnabled: number
   firewallEnabled: number
-  firewallAllowFrom?: string
   installDir?: string
   sshHost: string
   sshPort: number
@@ -544,7 +542,6 @@ const columns = computed<DataTableColumns<ResourceIpPool>>(() => [
       ])
     }
   },
-  { title: '分配次数', key: 'assignCount', render: (row) => row.assignCount ?? 0 },
   {
     title: '当前会员',
     key: 'occupiedByMemberId',

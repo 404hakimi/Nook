@@ -189,7 +189,6 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
                 candidate.setStatus(ResourceIpPoolStatusEnum.OCCUPIED.getState());
                 candidate.setOccupiedByMemberId(memberUserId);
                 candidate.setOccupiedAt(LocalDateTime.now());
-                candidate.setAssignCount(candidate.getAssignCount() + 1);
                 return candidate;
             }
         }
@@ -212,10 +211,8 @@ public class ResourceIpPoolServiceImpl implements ResourceIpPoolService {
         exist.setStatus(ResourceIpPoolStatusEnum.OCCUPIED.getState());
         exist.setOccupiedByMemberId(memberUserId);
         exist.setOccupiedAt(now);
-        int newCount = (exist.getAssignCount() == null ? 0 : exist.getAssignCount()) + 1;
-        exist.setAssignCount(newCount);
-        log.info("[ip-pool] OCCUPY ipId={} ip={} member={} count={}",
-                id, exist.getIpAddress(), memberUserId, newCount);
+        log.info("[ip-pool] OCCUPY ipId={} ip={} member={}",
+                id, exist.getIpAddress(), memberUserId);
         return exist;
     }
 

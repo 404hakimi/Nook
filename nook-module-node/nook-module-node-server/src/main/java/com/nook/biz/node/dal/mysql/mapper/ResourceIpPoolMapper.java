@@ -27,7 +27,7 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPoolDO> {
     /**
      * 按 region + ip_type_id 找一个可分配的 IP.
      * 硬约束: lifecycle=LIVE AND status=AVAILABLE.
-     * 优先 assign_count 低 (轮换避免某 IP 一直被同人用).
+     * 按 created_at 升序取最旧的可用 IP, 让池里行轮转使用避免长期闲置.
      *
      * @return null 表示池子里没货
      */
@@ -37,7 +37,7 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPoolDO> {
                 .eq(ResourceIpPoolDO::getStatus, ResourceIpPoolStatusEnum.AVAILABLE.getState())
                 .eq(StrUtil.isNotBlank(region), ResourceIpPoolDO::getRegion, region)
                 .eq(StrUtil.isNotBlank(ipTypeId), ResourceIpPoolDO::getIpTypeId, ipTypeId)
-                .orderByAsc(ResourceIpPoolDO::getAssignCount)
+                .orderByAsc(ResourceIpPoolDO::getCreatedAt)
                 .last("LIMIT 1"));
     }
 
@@ -79,7 +79,6 @@ public interface ResourceIpPoolMapper extends BaseMapper<ResourceIpPoolDO> {
                 .set(ResourceIpPoolDO::getOccupiedByMemberId, memberUserId)
                 .set(ResourceIpPoolDO::getOccupiedAt, at)
                 .set(ResourceIpPoolDO::getUpdatedAt, LocalDateTime.now())
-                .setSql("assign_count = assign_count + 1")
                 .eq(ResourceIpPoolDO::getId, id)
                 .eq(ResourceIpPoolDO::getStatus, ResourceIpPoolStatusEnum.AVAILABLE.getState()));
     }

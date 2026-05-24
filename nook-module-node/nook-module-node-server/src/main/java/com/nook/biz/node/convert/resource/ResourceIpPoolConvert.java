@@ -94,7 +94,6 @@ public interface ResourceIpPoolConvert {
         vo.setLogPath(socks5.getLogPath());
         vo.setAutostartEnabled(socks5.getAutostartEnabled());
         vo.setFirewallEnabled(socks5.getFirewallEnabled());
-        vo.setFirewallAllowFrom(socks5.getFirewallAllowFrom());
         vo.setInstallDir(socks5.getInstallDir());
     }
 

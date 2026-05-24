@@ -70,9 +70,6 @@ public class ResourceIpPoolSaveReqVO {
     private Integer firewallEnabled;
 
     @Size(max = 255)
-    private String firewallAllowFrom;
-
-    @Size(max = 255)
     private String installDir;
 
     @Size(max = 128)

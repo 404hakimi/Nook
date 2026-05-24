@@ -20,7 +20,6 @@ public class ResourceIpPoolSocks5RespVO {
     private String logPath;
     private Integer autostartEnabled;
     private Integer firewallEnabled;
-    private String firewallAllowFrom;
     private String installDir;
 
     /** dante 实际限速 Mbps; 0=不限. */

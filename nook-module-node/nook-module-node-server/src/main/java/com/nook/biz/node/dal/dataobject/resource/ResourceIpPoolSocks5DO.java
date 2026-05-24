@@ -38,9 +38,6 @@ public class ResourceIpPoolSocks5DO {
     /** 部署时是否配 UFW (1/0). */
     private Integer firewallEnabled;
 
-    /** UFW allow 来源 CIDR; NULL=0.0.0.0/0. */
-    private String firewallAllowFrom;
-
     /** dante 安装目录; danted.conf 仍在 /etc/danted.conf. */
     private String installDir;
 

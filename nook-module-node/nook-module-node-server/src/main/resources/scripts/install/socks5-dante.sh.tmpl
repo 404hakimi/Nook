@@ -14,7 +14,6 @@ LOG_LEVEL="{{LOG_LEVEL}}"
 LOG_PATH="{{LOG_PATH}}"
 AUTOSTART_ENABLED="{{AUTOSTART_ENABLED}}"
 FIREWALL_ENABLED="{{FIREWALL_ENABLED}}"
-ALLOW_FROM="{{ALLOW_FROM}}"
 INSTALL_DIR="{{INSTALL_DIR}}"
 
 DANTE_CONF=/etc/danted.conf
@@ -152,19 +151,19 @@ fi
 log "✔ dante SOCKS5 监听 0.0.0.0:$SOCKS_PORT"
 
 if [[ "$FIREWALL_ENABLED" == "1" || "$FIREWALL_ENABLED" == "true" ]]; then
-    log "配置 UFW (allow_from=$ALLOW_FROM)..."
+    log "配置 UFW..."
     apt-get install -y -qq ufw
     ufw --force reset >/dev/null
     ufw default deny incoming >/dev/null
     ufw default allow outgoing >/dev/null
     # SSH 端口走入参防止改过端口的远端被 reset 锁外面
     ufw allow "${SSH_PORT}/tcp" comment "SSH" >/dev/null
-    ufw allow from "$ALLOW_FROM" to any port "$SOCKS_PORT" proto tcp >/dev/null
-    ufw allow from "$ALLOW_FROM" to any port "$SOCKS_PORT" proto udp >/dev/null
+    ufw allow "${SOCKS_PORT}/tcp" comment "SOCKS5" >/dev/null
+    ufw allow "${SOCKS_PORT}/udp" comment "SOCKS5" >/dev/null
     ufw --force enable >/dev/null
-    log "UFW: SSH(${SSH_PORT}) + SOCKS5(${SOCKS_PORT}) 已放行, 仅允许来源 $ALLOW_FROM"
+    log "UFW: SSH(${SSH_PORT}) + SOCKS5(${SOCKS_PORT}) 已放行"
 else
-    warn "FIREWALL_ENABLED=0, 跳过 UFW 配置 (SOCKS5 端口对全网开放)"
+    warn "FIREWALL_ENABLED=0, 跳过 UFW 配置"
 fi
 
 log "自检 SOCKS5 拨号..."
@@ -190,7 +189,7 @@ danted_conf: $DANTE_CONF
 pam_file: $PAM_FILE
 pwdfile: $PWDFILE
 autostart: $AUTOSTART_ENABLED
-firewall: $FIREWALL_ENABLED (allow_from: $ALLOW_FROM)
+firewall: $FIREWALL_ENABLED
 
 # 常用排障命令
 systemctl status danted
@@ -225,7 +224,6 @@ echo ""
 echo -e "${GREEN}━━━━━━━━ 落地节点安装完成 (dante-server) ━━━━━━━━${NC}"
 echo "  SOCKS5 地址:  $PUB:$SOCKS_PORT"
 echo "  用户/密码:    $SOCKS_USER / ********"
-echo "  允许来源:     $ALLOW_FROM"
 echo "  出网网卡:     $EXT_IF (出网 IP: $PUB)"
 echo "  自启:         $AUTOSTART_ENABLED"
 echo "  安装目录:     $INSTALL_DIR (info.txt + logs/)"

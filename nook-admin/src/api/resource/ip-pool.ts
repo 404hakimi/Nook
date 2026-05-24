@@ -27,7 +27,6 @@ export interface ResourceIpPool {
   occupiedAt?: string
   coolingUntil?: string
   reservedExpiresAt?: string
-  assignCount?: number
   lastHealthAt?: string
   /** 部署模式: 1=自部署 2=第三方. */
   provisionMode?: number
@@ -39,8 +38,6 @@ export interface ResourceIpPool {
   autostartEnabled?: number
   /** 部署时是否配 UFW (1=配 0=跳过). */
   firewallEnabled?: number
-  /** UFW allow 来源 CIDR; 空 = 0.0.0.0/0. */
-  firewallAllowFrom?: string
   /** SOCKS5 安装目录; 默认 /home/socks5; logs/info.txt 等运维资产放这里. */
   installDir?: string
   /** SSH 主机 (默认 = ipAddress); 后续运维 (详情/日志/切自启) 用 */
@@ -106,7 +103,6 @@ export interface IpPoolSocks5 {
   logPath: string
   autostartEnabled?: number
   firewallEnabled?: number
-  firewallAllowFrom?: string
   installDir?: string
   /** dante 实际限速 Mbps; 0=不限. */
   bandwidthLimitMbps?: number
@@ -142,8 +138,6 @@ export interface ResourceIpPoolSaveDTO {
   autostartEnabled?: number
   /** 部署时是否配 UFW (1/0); 留空默认 1. */
   firewallEnabled?: number
-  /** UFW allow 来源 CIDR; 空 = 0.0.0.0/0. */
-  firewallAllowFrom?: string
   /** SOCKS5 安装目录; 默认 /home/socks5. */
   installDir?: string
   /** SSH 主机 (默认 = ipAddress). */
@@ -462,8 +456,6 @@ export interface Socks5InstallDTO {
   socksPort: number
   socksUser: string
   socksPass: string
-  /** UFW allow from 来源 CIDR; 推荐填中转线路服务器公网 IP */
-  allowFrom?: string
   installUfw: boolean
 
   /** dante log 关键字 (空格分隔); 留空走默认 'connect disconnect error'. */

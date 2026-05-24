@@ -622,7 +622,6 @@ function buildGraphNodeView(): PanelView {
     { label: 'ipType', value: ipPool.ipTypeId ?? '—', mono: true },
     { label: '占用会员', value: ipPool.occupiedByMemberId ?? '—', mono: true },
     { label: '占用时间', value: ipPool.occupiedAt ?? '—' },
-    { label: '分配次数', value: ipPool.assignCount != null ? String(ipPool.assignCount) : '—', copyable: false },
     { label: 'SOCKS5 端口', value: ipPool.socks5Port != null ? String(ipPool.socks5Port) : '—', mono: true },
     { label: 'SOCKS5 用户', value: ipPool.socks5Username ?? '—', mono: true }
   ] : null

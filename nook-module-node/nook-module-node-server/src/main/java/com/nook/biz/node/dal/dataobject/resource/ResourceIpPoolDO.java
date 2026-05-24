@@ -1,6 +1,5 @@
 package com.nook.biz.node.dal.dataobject.resource;
 
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.nook.biz.node.api.enums.ResourceIpPoolLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceIpPoolProvisionModeEnum;
@@ -50,13 +49,8 @@ public class ResourceIpPoolDO extends BaseEntity {
     /** status=RESERVED 时填超时时间. */
     private LocalDateTime reservedExpiresAt;
 
-    private Integer assignCount;
-
     /** Agent 鉴权 token; 装机一次性 SHA256 生成 (落地机也跑 nook-agent). */
     private String agentToken;
 
     private String remark;
-
-    @TableLogic
-    private Integer deleted;
 }

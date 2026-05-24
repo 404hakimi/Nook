@@ -35,7 +35,6 @@ interface SocksPrefill {
   logPath?: string
   autostartEnabled?: number
   firewallEnabled?: number
-  firewallAllowFrom?: string
   installDir?: string
   /** SSH 凭据接力: 部署成功必填, 后续 详情/日志/切自启 运维操作要用. */
   sshHost?: string
@@ -98,8 +97,6 @@ const form = reactive({
   autostartEnabled: 1,
   /** UFW 是否配 (1=配 0=跳过). */
   firewallEnabled: 1,
-  /** UFW allow 来源 CIDR; 空 = 0.0.0.0/0. */
-  firewallAllowFrom: '',
   /** SOCKS5 安装目录; logs / info.txt 等运维资产放这里. */
   installDir: '/home/socks5',
   /** SSH 主机; 留空 = 用 ipAddress 作为兜底 (后端处理). */
@@ -136,7 +133,6 @@ function fill(ip: ResourceIpPool) {
   form.logPath = ip.logPath ?? ''
   form.autostartEnabled = ip.autostartEnabled ?? 1
   form.firewallEnabled = ip.firewallEnabled ?? 1
-  form.firewallAllowFrom = ip.firewallAllowFrom ?? ''
   form.installDir = ip.installDir ?? '/home/socks5'
   form.sshHost = ip.sshHost ?? ''
   form.sshPort = ip.sshPort ?? 22
@@ -160,7 +156,6 @@ function reset() {
   form.logPath = ''
   form.autostartEnabled = 1
   form.firewallEnabled = 1
-  form.firewallAllowFrom = ''
   form.installDir = '/home/socks5'
   form.sshHost = ''
   form.sshPort = 22
@@ -202,7 +197,6 @@ watch(
         if (p.logPath != null) form.logPath = p.logPath
         if (p.autostartEnabled != null) form.autostartEnabled = p.autostartEnabled
         if (p.firewallEnabled != null) form.firewallEnabled = p.firewallEnabled
-        if (p.firewallAllowFrom != null) form.firewallAllowFrom = p.firewallAllowFrom
         if (p.installDir != null) form.installDir = p.installDir
         if (p.sshHost != null) form.sshHost = p.sshHost
         if (p.sshPort != null) form.sshPort = p.sshPort
@@ -251,7 +245,6 @@ async function onSubmit() {
       logPath: form.logPath.trim() || logPathPlaceholder.value,
       autostartEnabled: form.autostartEnabled,
       firewallEnabled: form.firewallEnabled,
-      firewallAllowFrom: form.firewallAllowFrom.trim() || undefined,
       installDir: form.installDir.trim() || undefined,
       sshHost: form.sshHost.trim() || undefined,
       sshPort: form.sshPort || undefined,
@@ -428,19 +421,6 @@ function close() {
               :value="form.firewallEnabled"
               :options="[{label: '启用', value: 1}, {label: '禁用', value: 0}]"
               @update:value="(v: number) => (form.firewallEnabled = v)"
-            />
-          </NFormItem>
-
-          <NFormItem>
-            <template #label>
-              <span>UFW 允许来源</span>
-              <span class="text-xs text-zinc-400 ml-2">空 = 0.0.0.0/0</span>
-            </template>
-            <NInput
-              v-model:value="form.firewallAllowFrom"
-              placeholder="留空 = 0.0.0.0/0"
-              :disabled="form.firewallEnabled === 0"
-              :input-props="{ style: 'font-family: monospace' }"
             />
           </NFormItem>
 

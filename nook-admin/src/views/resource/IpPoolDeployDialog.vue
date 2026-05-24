@@ -44,8 +44,6 @@ const emit = defineEmits<{
     autostartEnabled: number
     /** UFW 是否配置 (1/0). */
     firewallEnabled: number
-    /** UFW allow_from CIDR; 空 = 0.0.0.0/0. */
-    firewallAllowFrom?: string
     /** SOCKS5 安装目录. */
     installDir?: string
     /** SSH 主机 (= sshHost form 值, 通常 = ipAddress); 后续运维操作 (详情/日志) 用 */
@@ -121,7 +119,6 @@ const form = reactive({
   socksPort: randomSocksPort(),
   socksUser: '',
   socksPass: '',
-  allowFrom: '',
   installUfw: true,
 
   // dante 高级配置 (有合理默认, 让用户改 log / 自启 / 防火墙时不用改部署脚本)
@@ -154,7 +151,6 @@ const deployedSocks5 = computed(() => ({
   logPath: form.logPath.trim() || logPathPlaceholder.value,
   autostartEnabled: form.autostartEnabled ? 1 : 0,
   firewallEnabled: form.installUfw ? 1 : 0,
-  firewallAllowFrom: form.allowFrom.trim() || undefined,
   installDir: form.installDir.trim() || undefined,
   sshHost: form.sshHost.trim(),
   sshPort: form.sshPort,
@@ -182,7 +178,6 @@ watch(
       socksPort: randomSocksPort(),
       socksUser: '',
       socksPass: '',
-      allowFrom: '',
       installUfw: true,
       logLevel: DANTE_LOG_LEVEL_DEFAULT,
       logPath: '',
@@ -236,7 +231,6 @@ async function onSubmit() {
       socksPort: form.socksPort,
       socksUser: form.socksUser.trim(),
       socksPass: form.socksPass,
-      allowFrom: form.allowFrom.trim() || undefined,
       installUfw: form.installUfw,
       logLevel: form.logLevel.trim() || undefined,
       logPath: form.logPath.trim() || logPathPlaceholder.value,
@@ -495,24 +489,9 @@ function close() {
           </NInputGroup>
         </NFormItem>
 
-        <div class="sm:col-span-3">
-          <NFormItem>
-            <template #label>
-              <span>UFW allow_from</span>
-              <span class="text-xs text-zinc-400 ml-2">推荐填中转线路公网 IP</span>
-            </template>
-            <NInput
-              v-model:value="form.allowFrom"
-              placeholder="留空 = 0.0.0.0/0"
-              :disabled="installing"
-              :input-props="{ style: 'font-family: monospace' }"
-            />
-          </NFormItem>
-        </div>
-
-        <NFormItem label=" ">
+        <NFormItem label="UFW">
           <NCheckbox v-model:checked="form.installUfw" :disabled="installing">
-            配置 UFW
+            配置 UFW (放行 SOCKS5 端口)
           </NCheckbox>
         </NFormItem>
       </div>

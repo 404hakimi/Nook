@@ -55,8 +55,6 @@ public class ResourceIpPoolRespVO {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime reservedExpiresAt;
 
-    private Integer assignCount;
-
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastHealthAt;
 
@@ -67,8 +65,6 @@ public class ResourceIpPoolRespVO {
     private Integer autostartEnabled;
 
     private Integer firewallEnabled;
-
-    private String firewallAllowFrom;
 
     private String installDir;
 

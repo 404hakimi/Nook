@@ -41,9 +41,6 @@ public class ResourceIpPoolSocks5UpdateReqVO {
     private Integer firewallEnabled;
 
     @Size(max = 255)
-    private String firewallAllowFrom;
-
-    @Size(max = 255)
     private String installDir;
 
     /** dante 实际限速 Mbps; 0=不限. */

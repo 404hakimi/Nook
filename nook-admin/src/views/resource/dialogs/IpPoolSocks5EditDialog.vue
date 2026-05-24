@@ -44,7 +44,6 @@ const form = reactive<IpPoolSocks5>({
   logPath: '/home/socks5/logs/sockd.log',
   autostartEnabled: 1,
   firewallEnabled: 1,
-  firewallAllowFrom: '',
   installDir: '/home/socks5',
   bandwidthLimitMbps: 0
 })
@@ -58,7 +57,6 @@ function fill(s: IpPoolSocks5 | null) {
   form.logPath = s.logPath ?? '/home/socks5/logs/sockd.log'
   form.autostartEnabled = s.autostartEnabled ?? 1
   form.firewallEnabled = s.firewallEnabled ?? 1
-  form.firewallAllowFrom = s.firewallAllowFrom ?? ''
   form.installDir = s.installDir ?? '/home/socks5'
   form.bandwidthLimitMbps = s.bandwidthLimitMbps ?? 0
 }
@@ -95,7 +93,6 @@ async function onSubmit() {
       logPath: form.logPath.trim(),
       autostartEnabled: form.autostartEnabled ?? undefined,
       firewallEnabled: form.firewallEnabled ?? undefined,
-      firewallAllowFrom: form.firewallAllowFrom?.trim() || undefined,
       installDir: form.installDir?.trim() || undefined,
       bandwidthLimitMbps: form.bandwidthLimitMbps ?? 0
     })
@@ -161,9 +158,6 @@ async function onSubmit() {
           </NFormItem>
           <NFormItem label="UFW 防火墙启用">
             <NSwitch :value="form.firewallEnabled === 1" @update:value="(v: boolean) => (form.firewallEnabled = v ? 1 : 0)" />
-          </NFormItem>
-          <NFormItem label="UFW allow from (空=0.0.0.0/0)">
-            <NInput v-model:value="form.firewallAllowFrom" placeholder="如 1.2.3.4/32" :input-props="{ style: 'font-family: monospace' }" />
           </NFormItem>
         </div>
       </NForm>

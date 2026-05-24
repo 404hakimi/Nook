@@ -14,7 +14,6 @@ NEW_LOG_LEVEL="{{LOG_LEVEL}}"
 NEW_LOG_PATH="{{LOG_PATH}}"
 NEW_AUTOSTART_ENABLED="{{AUTOSTART_ENABLED}}"
 NEW_FIREWALL_ENABLED="{{FIREWALL_ENABLED}}"
-NEW_ALLOW_FROM="{{ALLOW_FROM}}"
 SSH_PORT="{{SSH_PORT}}"
 INSTALL_DIR="{{INSTALL_DIR}}"
 
@@ -115,14 +114,14 @@ fi
 # 规则差异检测代价大, 直接 reset + 重建
 if [[ "$NEW_FIREWALL_ENABLED" == "1" || "$NEW_FIREWALL_ENABLED" == "true" ]]; then
     if command -v ufw >/dev/null; then
-        log "重写 UFW (allow_from=$NEW_ALLOW_FROM)..."
+        log "重写 UFW..."
         ufw --force reset >/dev/null
         ufw default deny incoming >/dev/null
         ufw default allow outgoing >/dev/null
         # SSH 端口走入参防止改过端口的远端被 reset 锁外面
         ufw allow "${SSH_PORT}/tcp" comment "SSH" >/dev/null
-        ufw allow from "$NEW_ALLOW_FROM" to any port "$NEW_SOCKS_PORT" proto tcp >/dev/null
-        ufw allow from "$NEW_ALLOW_FROM" to any port "$NEW_SOCKS_PORT" proto udp >/dev/null
+        ufw allow "${NEW_SOCKS_PORT}/tcp" comment "SOCKS5" >/dev/null
+        ufw allow "${NEW_SOCKS_PORT}/udp" comment "SOCKS5" >/dev/null
         ufw --force enable >/dev/null
     else
         warn "FIREWALL_ENABLED=1 但 ufw 未装, 跳过"
@@ -189,7 +188,7 @@ log_path: $NEW_LOG_PATH (level: $NEW_LOG_LEVEL)
 danted_conf: $DANTE_CONF
 pwdfile: $PWDFILE
 autostart: $NEW_AUTOSTART_ENABLED
-firewall: $NEW_FIREWALL_ENABLED (allow_from: $NEW_ALLOW_FROM)
+firewall: $NEW_FIREWALL_ENABLED
 
 # 常用排障命令
 systemctl status danted

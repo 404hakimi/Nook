@@ -187,7 +187,6 @@ function openIpPoolPage() {
             </NTag>
           </div>
         </NDescriptionsItem>
-        <NDescriptionsItem label="分配次数">{{ detail.assignCount ?? 0 }}</NDescriptionsItem>
         <NDescriptionsItem label="当前会员">
           <span class="font-mono text-xs">{{ detail.occupiedByMemberId || '-' }}</span>
         </NDescriptionsItem>

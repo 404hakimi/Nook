@@ -63,10 +63,6 @@ public class ResourceIpSocksInstallReqVO {
     @Size(max = 255)
     private String socksPass;
 
-    /** UFW allow_from 来源 CIDR; 留空 = 0.0.0.0/0; 推荐填中转线路服务器的公网 IP. */
-    @Size(max = 255)
-    private String allowFrom;
-
     @NotNull(message = "installUfw 必填")
     private Boolean installUfw;
 
