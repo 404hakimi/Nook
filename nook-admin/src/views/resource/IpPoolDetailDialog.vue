@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   Activity,
   AlertCircle,
   CheckCircle2,
   Copy,
-  ExternalLink,
   FileText,
   Globe2,
   KeyRound,
@@ -83,7 +81,6 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
-const router = useRouter()
 const loading = ref(false)
 const detail = ref<ResourceIpPool | null>(null)
 const error = ref<string>('')
@@ -308,11 +305,6 @@ watch(activeTab, (tab) => {
 
 function close() {
   emit('update:modelValue', false)
-}
-
-function openIpPoolPage() {
-  const href = router.resolve({ name: 'resource-ip-pool' }).href
-  window.open(href, '_blank')
 }
 
 /** 屏蔽 agent_token / SOCKS5 密码 等敏感字段的展示 (保留前 6 后 4) */
@@ -846,11 +838,7 @@ function maskSecret(s?: string): string {
     </NSpin>
 
     <template #footer>
-      <div class="flex justify-between items-center">
-        <NButton quaternary size="small" :disabled="!detail" @click="openIpPoolPage">
-          <template #icon><NIcon><ExternalLink /></NIcon></template>
-          打开 IP 池管理
-        </NButton>
+      <div class="flex justify-end">
         <NButton size="small" @click="close">关闭</NButton>
       </div>
     </template>
