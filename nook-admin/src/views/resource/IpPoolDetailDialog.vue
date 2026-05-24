@@ -59,7 +59,6 @@ const emit = defineEmits<{
   (e: 'edit-socks5', ip: ResourceIpPool): void
   (e: 'deploy', ip: ResourceIpPool): void
   (e: 'test', ip: ResourceIpPool): void
-  (e: 'sync-creds', ip: ResourceIpPool): void
   (e: 'view-status', ip: ResourceIpPool): void
   (e: 'view-log', ip: ResourceIpPool): void
   (e: 'provision-agent', ip: ResourceIpPool): void
@@ -208,9 +207,6 @@ const opsDropdownOptions = computed(() => [
     : null,
   isSelfDeploy.value
     ? { label: '装 landing agent', key: 'provision', icon: () => h(NIcon, null, { default: () => h(ServerIcon) }) }
-    : null,
-  isSelfDeploy.value && canTest.value
-    ? { label: '同步 SOCKS5 凭据', key: 'sync', icon: () => h(NIcon, null, { default: () => h(KeyRound) }) }
     : null
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ].filter(Boolean) as any[])
@@ -222,7 +218,6 @@ function onOpsSelect(key: string) {
     case 'status': emit('view-status', ip); break
     case 'log': emit('view-log', ip); break
     case 'provision': emit('provision-agent', ip); break
-    case 'sync': emit('sync-creds', ip); break
   }
 }
 </script>

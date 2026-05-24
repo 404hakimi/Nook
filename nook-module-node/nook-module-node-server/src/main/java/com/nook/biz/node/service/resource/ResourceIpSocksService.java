@@ -1,7 +1,5 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.resource.vo.ResourceIpSocksInstallReqVO;
-import com.nook.biz.node.controller.resource.vo.ResourceIpSocksSyncCredsReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestRespVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
@@ -32,15 +30,6 @@ public interface ResourceIpSocksService {
      * @return 测试结果
      */
     ResourceIpSocksTestRespVO testSocks5(String ipId, ResourceIpSocksTestReqVO reqVO);
-
-    /**
-     * 流式同步 SOCKS5 凭据
-     *
-     * @param ipId     IP 池编号
-     * @param reqVO    同步入参
-     * @param lineSink 每行 stdout 的消费回调
-     */
-    void syncSocks5Creds(String ipId, ResourceIpSocksSyncCredsReqVO reqVO, Consumer<String> lineSink);
 
     /**
      * 获得 SOCKS5 运行状态

@@ -29,14 +29,6 @@ public class NookScripts {
             "SOCKS5 落地节点 (dante-server + PAM)",
             Set.of());
 
-    public static final ScriptModule SOCKS5_UPDATE_CREDS = new ScriptModule(
-            "socks5-update-creds",
-            ScriptCategory.OPS,
-            "scripts/ops/socks5-update-creds.sh.tmpl",
-            "nook-update-socks5-creds",
-            "SOCKS5 端口 / 用户 / 密码 / 日志 / 防火墙热改",
-            Set.of());
-
     public static final ScriptModule MODULE_PREPARE_ENV = m("module-prepare-env",
             "scripts/modules/00-prepare-env.sh.tmpl", "环境探测 + apt 公共依赖");
     public static final ScriptModule MODULE_TIMEZONE = m("module-timezone",
@@ -66,7 +58,7 @@ public class NookScripts {
     public static final String INSTALL_XRAY_TMP_PREFIX = "nook-install-xray";
 
     private static final List<ScriptModule> ALL = List.of(
-            SOCKS5_INSTALL, SOCKS5_UPDATE_CREDS,
+            SOCKS5_INSTALL,
             MODULE_PREPARE_ENV, MODULE_TIMEZONE, MODULE_SWAP, MODULE_BBR,
             MODULE_UFW, MODULE_ACME_TLS, MODULE_LOGROTATE, MODULE_XRAY, MODULE_FINALIZE);
 

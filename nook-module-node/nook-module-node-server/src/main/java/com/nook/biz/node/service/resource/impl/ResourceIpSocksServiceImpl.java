@@ -3,14 +3,11 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.controller.resource.vo.HostInfoRespVO;
-import com.nook.biz.node.controller.resource.vo.ResourceIpSocksSyncCredsReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestRespVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.resource.vo.Socks5StatusRespVO;
 import com.nook.biz.node.convert.socks5.Socks5OpsConvert;
-import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 import com.nook.biz.node.api.enums.ResourceIpPoolLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceIpPoolProvisionModeEnum;
 import com.nook.biz.node.api.enums.ResourceIpPoolStatusEnum;
@@ -26,10 +23,8 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolInstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolRuntimeMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceIpPoolSocks5Mapper;
-import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
-import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
 import com.nook.framework.ssh.script.ScriptCatalog;
@@ -38,14 +33,11 @@ import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.biz.node.framework.socks5.probe.Socks5Prober;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
-import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
 import com.nook.biz.node.service.resource.ResourceIpSocksService;
 import com.nook.biz.node.validator.ResourceIpPoolValidator;
-import com.nook.biz.node.validator.XrayServerValidator;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSession;
-import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,9 +66,6 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     private final ScriptCatalog scriptCatalog;
     private final Socks5Prober socks5Prober;
     private final ResourceIpPoolValidator ipPoolValidator;
-    private final XrayClientMapper xrayClientMapper;
-    private final XrayServerValidator xrayServerValidator;
-    private final XrayOutboundCli outboundCli;
     private final ServerProbe serverProbe;
     private final ResourceIpPoolMapper ipPoolMapper;
     private final ResourceIpPoolCredentialMapper credentialMapper;
@@ -204,105 +193,6 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
                 reqVO.getEchoUrl(), reqVO.getConnectTimeoutMs(), reqVO.getReadTimeoutMs());
         return Socks5OpsConvert.INSTANCE.convert(snap);
     }
-
-    @Override
-    public void syncSocks5Creds(String ipId, ResourceIpSocksSyncCredsReqVO reqVO, Consumer<String> lineSink) {
-        // 1. 拉 IP 池, 校验 provisionMode 自部署 + SOCKS5 配置齐
-        ResourceIpPoolDO ip = ipPoolValidator.validateExists(ipId);
-        if (ip.getProvisionMode() == null || ip.getProvisionMode() != 1) {
-            throw new BusinessException(ResourceErrorCode.IP_POOL_NOT_SELF_DEPLOY, ip.getIpAddress());
-        }
-        ResourceIpPoolSocks5DO socks5 = socks5Mapper.selectById(ipId);
-        if (StrUtil.isBlank(ip.getIpAddress()) || socks5 == null
-                || ObjectUtil.isNull(socks5.getSocks5Port())
-                || StrUtil.isBlank(socks5.getSocks5Username()) || StrUtil.isBlank(socks5.getSocks5Password())) {
-            throw new BusinessException(ResourceErrorCode.IP_POOL_SOCKS5_INCOMPLETE, ip.getIpAddress());
-        }
-        ResourceIpPoolInstallDO install = installMapper.selectById(ipId);
-        if (install == null) {
-            throw new BusinessException(ResourceErrorCode.IP_POOL_SOCKS5_INCOMPLETE, ip.getIpAddress());
-        }
-
-        // 2. SSH 到 landing 跑 update-dante-creds.sh; 走 ad-hoc cred (用户每次输 SSH 密码)
-        lineSink.accept("[nook] === 阶段 1/2: 同步 landing dante 配置 ===\n");
-        SessionCredential landingCred = buildSyncCred(ip, reqVO);
-        // SSH 端口走入参不走 DB 现值; sync 这次握手用的就是 reqVO.sshPort, UFW 跟着放行才合理
-        Map<String, String> vars = buildSyncVars(ip, socks5, install, reqVO.getSshPort());
-        Duration scriptTimeout = Duration.ofSeconds(reqVO.getInstallTimeoutSeconds());
-        SshSessions.runAdHocVoid(landingCred, session ->
-                scriptCatalog.run(session, NookScripts.SOCKS5_UPDATE_CREDS, vars, scriptTimeout, lineSink));
-
-        // 反查 xray_client (IP 跟 client 一一对应, 至多 1 行); 没绑 client 就完事
-        lineSink.accept("\n[nook] === 阶段 2/2: 重建 fra-line outbound (新凭据生效) ===\n");
-        XrayClientDO client = xrayClientMapper.selectByIpId(ipId);
-        if (client == null) {
-            lineSink.accept("[nook] 无 client 绑定此 IP, 跳过 outbound 重建\n");
-            log.info("[ip-pool] SYNC-CREDS ipId={} ip={} 无 client", ipId, ip.getIpAddress());
-            return;
-        }
-
-        // 4. SSH 到 client 所在 xray server (走 stored cred), 仅 rmo + ado outbound
-        XrayServerDO server = xrayServerValidator.validateExists(client.getServerId());
-        String outboundTag = client.getId();
-        int apiPort = server.getXrayApiPort();
-        String xrayBin = server.getXrayBinaryPath();
-
-        lineSink.accept(String.format("[nook] SSH xray server=%s, 重建 outbound tag=%s ...\n",
-                client.getServerId(), outboundTag));
-        SshSession session = SshSessions.acquire(client.getServerId(), SshSessionScope.SHARED);
-        try {
-            outboundCli.removeOutbound(session, xrayBin, apiPort, outboundTag);
-        } catch (BusinessException be) {
-            if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) {
-                throw be;
-            }
-            lineSink.accept("[nook] 远端原本无该 outbound, 跳过 rmo\n");
-        }
-        outboundCli.addSocksOutbound(session, xrayBin, apiPort, outboundTag,
-                ip.getIpAddress(), socks5.getSocks5Port(),
-                socks5.getSocks5Username(), socks5.getSocks5Password());
-        lineSink.accept("[nook] outbound " + outboundTag + " 已用新凭据重建\n");
-        lineSink.accept("[nook] === 同步完成 ===\n");
-        log.info("[ip-pool] SYNC-CREDS ipId={} ip={} client={} outbound={}",
-                ipId, ip.getIpAddress(), client.getId(), outboundTag);
-    }
-
-    /** sync-creds 专用 cred: host 自动 = ip.ipAddress, user/password/超时 走入参. */
-    private SessionCredential buildSyncCred(ResourceIpPoolDO ip, ResourceIpSocksSyncCredsReqVO r) {
-        return SessionCredential.builder()
-                .serverId("ad-hoc:" + ip.getIpAddress())
-                .sshHost(ip.getIpAddress())
-                .sshPort(r.getSshPort())
-                .sshUser(r.getSshUser())
-                .sshPassword(r.getSshPassword())
-                .sshTimeoutSeconds(r.getSshTimeoutSeconds())
-                .sshOpTimeoutSeconds(r.getSshOpTimeoutSeconds())
-                .sshUploadTimeoutSeconds(r.getSshUploadTimeoutSeconds())
-                .installTimeoutSeconds(r.getInstallTimeoutSeconds())
-                .build();
-    }
-
-    /** sync-creds 模板变量: socks5 业务字段 + install 装机产物联合渲染, sshPort 单独传入. */
-    private Map<String, String> buildSyncVars(ResourceIpPoolDO ip, ResourceIpPoolSocks5DO socks5,
-                                              ResourceIpPoolInstallDO install, int sshPort) {
-        return Map.ofEntries(
-                Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
-                Map.entry("SOCKS_PORT", String.valueOf(socks5.getSocks5Port())),
-                Map.entry("SSH_PORT", String.valueOf(sshPort)),
-                Map.entry("SOCKS_USER", socks5.getSocks5Username()),
-                Map.entry("SOCKS_PASS", socks5.getSocks5Password()),
-                Map.entry("LOG_LEVEL", socks5.getLogLevel()),
-                Map.entry("LOG_PATH", install.getLogPath()),
-                Map.entry("INSTALL_DIR", install.getInstallDir()),
-                Map.entry("CONF_PATH", install.getConfPath()),
-                Map.entry("PWD_FILE", install.getPwdFile()),
-                Map.entry("SYSTEMD_UNIT", install.getSystemdUnit()),
-                Map.entry("FIREWALL_ENABLED", String.valueOf(install.getFirewallEnabled())),
-                Map.entry("AUTOSTART_ENABLED", String.valueOf(install.getAutostartEnabled())));
-    }
-
-    // installSocks5 / buildInstallVars / buildSshCred 已改成 DB-driven (Phase 5);
-    // 旧的 ResourceIpSocksInstallReqVO 不再用于装机, 全部装机参数从 DB 子表读
 
     // ===== status / autostart / log: 走 IP 池 credential 子表存储的 SSH 凭据 =====
 

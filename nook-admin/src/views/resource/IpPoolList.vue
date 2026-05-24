@@ -50,7 +50,6 @@ import IpPoolCreateDialog from './IpPoolCreateDialog.vue'
 import IpPoolCreateChoiceDialog from './IpPoolCreateChoiceDialog.vue'
 import IpPoolDetailDialog from './IpPoolDetailDialog.vue'
 import IpPoolTestDialog from './IpPoolTestDialog.vue'
-import IpPoolSyncCredsDialog from './IpPoolSyncCredsDialog.vue'
 import IpPoolStatusDialog from './IpPoolStatusDialog.vue'
 import IpPoolLogDialog from './IpPoolLogDialog.vue'
 import IpPoolCoreEditDialog from './dialogs/IpPoolCoreEditDialog.vue'
@@ -309,11 +308,6 @@ function canManage(ip: ResourceIpPool): boolean {
 const testOpen = ref(false)
 const testTarget = ref<ResourceIpPool | null>(null)
 function openTest(ip: ResourceIpPool) { testTarget.value = ip; testOpen.value = true }
-
-const syncCredsOpen = ref(false)
-const syncCredsTarget = ref<ResourceIpPool | null>(null)
-function openSyncCreds(ip: ResourceIpPool) { syncCredsTarget.value = ip; syncCredsOpen.value = true }
-function onSynced() { loadList() }
 
 const statusOpen = ref(false)
 const statusTarget = ref<ResourceIpPool | null>(null)
@@ -670,7 +664,6 @@ onMounted(async () => {
       @edit-socks5="openSocks5Edit"
       @deploy="openDeploy"
       @test="openTest"
-      @sync-creds="openSyncCreds"
       @view-status="openStatus"
       @view-log="openLog"
       @provision-agent="openProvision"
@@ -680,7 +673,6 @@ onMounted(async () => {
     />
 
     <IpPoolTestDialog v-model="testOpen" :ip="testTarget" />
-    <IpPoolSyncCredsDialog v-model="syncCredsOpen" :ip="syncCredsTarget" @synced="onSynced" />
     <IpPoolStatusDialog v-model="statusOpen" :ip="statusTarget" @changed="loadList" />
     <IpPoolLogDialog v-model="logOpen" :ip="logTarget" />
 

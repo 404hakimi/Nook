@@ -2,7 +2,6 @@ package com.nook.biz.node.controller.resource;
 
 import com.nook.biz.node.config.Socks5Properties;
 import com.nook.framework.web.WebStreamingProperties;
-import com.nook.biz.node.controller.resource.vo.ResourceIpSocksSyncCredsReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceIpSocksTestRespVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
@@ -67,24 +66,6 @@ public class ResourceIpSocksController {
                                                         @Valid @RequestBody ResourceIpSocksTestReqVO reqVO) {
         ResourceIpSocksTestRespVO result = resourceIpSocksService.testSocks5(id, reqVO);
         return Result.ok(result);
-    }
-
-    /**
-     * 流式同步 SOCKS5 凭据: landing dante config 热更新 + fra-line outbound 重建
-     *
-     * @param id    IP 池编号
-     * @param reqVO 同步入参
-     * @return 流式响应
-     */
-    @PostMapping(value = "/sync-creds", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
-    public ResponseBodyEmitter syncCreds(@RequestParam("id") String id,
-                                         @Valid @RequestBody ResourceIpSocksSyncCredsReqVO reqVO) {
-        long secs = reqVO != null && reqVO.getInstallTimeoutSeconds() != null
-                ? reqVO.getInstallTimeoutSeconds() : 120L;
-        Duration emitterTimeout = Duration.ofSeconds(secs).plus(webStreamingProperties.getEmitterBuffer());
-        String streamKey = "socks5-sync:" + id;
-        return streamingSupport.stream(streamKey, emitterTimeout,
-                lineSink -> resourceIpSocksService.syncSocks5Creds(id, reqVO, lineSink));
     }
 
     /**

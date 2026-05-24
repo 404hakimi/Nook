@@ -455,62 +455,6 @@ export function testIpPoolSocks5(id: string, params: Socks5TestParams) {
 // ===== SOCKS5 装机 (针对已落库的 IP 池条目; 配置先落库, 装机走 SSH 跑脚本 + lifecycle 切 LIVE) =====
 
 /**
- * SOCKS5 凭据热同步入参; SSH 凭据 ad-hoc (一次性), SOCKS5 内容从 DB 现值读, 不在入参里.
- */
-export interface Socks5SyncCredsDTO {
-  sshUser: string
-  sshPassword: string
-  sshPort: number
-  sshTimeoutSeconds: number
-  sshOpTimeoutSeconds: number
-  sshUploadTimeoutSeconds: number
-  installTimeoutSeconds: number
-}
-
-/**
- * 流式同步 SOCKS5 凭据 — landing dante config 热更新 + fra-line outbound 重建.
- * 跟 installSocks5Stream 同款 chunked transfer 模式.
- */
-export async function syncSocks5CredsStream(
-  ipId: string,
-  dto: Socks5SyncCredsDTO,
-  onChunk: (chunk: string) => void,
-  signal?: AbortSignal
-): Promise<void> {
-  const userStore = useUserStore()
-  const res = await fetch(`/api/admin/resource/ip-pool/sync-creds?id=${encodeURIComponent(ipId)}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: userStore.token
-    },
-    body: JSON.stringify(dto),
-    signal
-  })
-  if (res.status === 401) {
-    userStore.clear()
-    throw new Error('登录已过期, 请重新登录')
-  }
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`)
-  }
-  if (!res.body) {
-    throw new Error('当前浏览器不支持流式响应 (Response.body 为空)')
-  }
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    const text = decoder.decode(value, { stream: true })
-    if (text) onChunk(text)
-  }
-  const tail = decoder.decode()
-  if (tail) onChunk(tail)
-}
-
-/**
  * 流式装机 SOCKS5 — 针对已存在的 IP 池条目 (lifecycle=INSTALLING/READY) 跑装机脚本.
  *
  * 装机成功后端: update install.installed_at + 主表 lifecycle → LIVE + agent_token 补全
