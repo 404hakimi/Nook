@@ -13,7 +13,7 @@ public class AgentInstallMetaRespVO {
     /** Backend 公网 URL (nook.agent.backend-public-url config 读); 前端可改. */
     private String backendUrl;
 
-    /** Frontline + 选了 server 才填: xray binary 绝对路径 (xray_node 表读). */
+    /** Frontline + 选了 server 才填: xray binary 绝对路径 (xray_server 表读). */
     private String xrayBin;
 
     /** Frontline + 选了 server 才填: xray api server 端口 (loopback). */

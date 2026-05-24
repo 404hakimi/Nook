@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { NDescriptions, NDescriptionsItem, NModal, NSpace, NButton, NTag } from 'naive-ui'
-import type { XrayNode } from '@/api/xray/node'
+import type { XrayServer } from '@/api/xray/xray-server'
+import type { XrayConfig } from '@/api/xray/xray-config'
 import { formatDateTime } from '@/utils/date'
 
 interface Props {
   modelValue: boolean
-  node?: XrayNode | null
+  server?: XrayServer | null
+  config?: XrayConfig | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -15,24 +17,23 @@ const emit = defineEmits<{
 
 /**
  * 全部路径来自后端 RespVO 字段: xray_binary_path / xray_config_path / xray_share_dir / xray_log_dir
- * 由 install 流程落库, systemd_unit_path / binary_symlink_path 是后端常量回填.
- * 前端零拼接 — 单点真理在 DB.
+ * 由装机流程落库, systemd_unit_path 是后端常量回填.
  */
 const installPaths = computed(() => {
-  const n = props.node
-  if (!n) return []
+  const s = props.server
+  if (!s) return []
   const logSuffix = '{access,error}.log'
   const rows = [
-    { label: '二进制包', value: n.xrayBinaryPath },
-    { label: 'config', value: n.xrayConfigPath },
-    { label: 'share', value: n.xrayShareDir },
-    { label: 'log', value: n.xrayLogDir ? `${n.xrayLogDir.replace(/\/+$/, '')}/${logSuffix}` : '' },
-    { label: 'systemd', value: n.xraySystemdUnitPath }
+    { label: '二进制包', value: s.xrayBinaryPath },
+    { label: 'config', value: s.xrayConfigPath },
+    { label: 'share', value: s.xrayShareDir },
+    { label: 'log', value: s.xrayLogDir ? `${s.xrayLogDir.replace(/\/+$/, '')}/${logSuffix}` : '' },
+    { label: 'systemd', value: s.xraySystemdUnitPath }
   ]
   return rows.filter((r) => !!r.value)
 })
 
-const hasTls = computed(() => !!props.node?.domain)
+const hasTls = computed(() => !!props.config?.domain)
 
 function close() {
   emit('update:modelValue', false)
@@ -49,17 +50,17 @@ function close() {
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <template #header>
-      <span>Xray 节点详情</span>
+      <span>Xray 装机详情</span>
     </template>
     <template #header-extra>
-      <span v-if="node" class="text-xs text-zinc-500">
-        {{ node.serverName || node.serverId }}
-        <span v-if="node.serverHost">({{ node.serverHost }})</span>
+      <span v-if="server" class="text-xs text-zinc-500">
+        {{ server.serverName || server.serverId }}
+        <span v-if="server.serverHost">({{ server.serverHost }})</span>
       </span>
     </template>
 
-    <div v-if="node" class="space-y-4">
-      <!-- 基础参数 -->
+    <div v-if="server" class="space-y-4">
+      <!-- 实例元数据 (xray_server) -->
       <NDescriptions
         :column="2"
         size="small"
@@ -68,24 +69,26 @@ function close() {
         label-align="left"
       >
         <NDescriptionsItem label="Xray 版本">
-          <NTag v-if="node.xrayVersion" size="small" type="info" :bordered="false">{{ node.xrayVersion }}</NTag>
+          <NTag v-if="server.xrayVersion" size="small" type="info" :bordered="false">{{ server.xrayVersion }}</NTag>
           <span v-else class="text-zinc-400">-</span>
         </NDescriptionsItem>
         <NDescriptionsItem label="API 端口">
-          <span class="font-mono text-xs">127.0.0.1:{{ node.xrayApiPort ?? '-' }}</span>
-        </NDescriptionsItem>
-        <NDescriptionsItem label="落地数上限">
-          <span class="font-mono text-xs">{{ node.touchdownSize ?? '-' }}</span>
+          <span class="font-mono text-xs">127.0.0.1:{{ server.xrayApiPort ?? '-' }}</span>
         </NDescriptionsItem>
         <NDescriptionsItem label="共享 inbound 端口">
-          <span class="font-mono text-xs">{{ node.sharedInboundPort ?? '-' }}</span>
+          <span class="font-mono text-xs">{{ config?.sharedInboundPort ?? '-' }}</span>
+        </NDescriptionsItem>
+        <NDescriptionsItem label="协议 / 传输">
+          <span class="font-mono text-xs">
+            {{ config?.protocol ?? '-' }}<span v-if="config?.transport"> + {{ config.transport }}</span>
+          </span>
         </NDescriptionsItem>
         <NDescriptionsItem label="WS Path" :span="2">
-          <span class="font-mono text-xs">{{ node.wsPath || '-' }}</span>
+          <span class="font-mono text-xs">{{ config?.wsPath || '-' }}</span>
         </NDescriptionsItem>
       </NDescriptions>
 
-      <!-- 安装路径派生 -->
+      <!-- 安装路径 (xray_server) -->
       <div>
         <div class="text-xs font-semibold text-zinc-500 mb-2">安装路径</div>
         <div class="rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/40 p-3 grid grid-cols-1 gap-y-1">
@@ -103,32 +106,32 @@ function close() {
         </div>
       </div>
 
-      <!-- TLS / 域名 (走域名时才显示) -->
-      <div v-if="hasTls">
+      <!-- TLS / 域名 (xray_config, 走域名时才显示) -->
+      <div v-if="hasTls && config">
         <div class="text-xs font-semibold text-zinc-500 mb-2">TLS / 域名</div>
         <NDescriptions :column="1" size="small" bordered label-placement="left" label-align="left">
           <NDescriptionsItem label="域名">
-            <span class="font-mono text-xs">{{ node.domain }}</span>
+            <span class="font-mono text-xs">{{ config.domain }}</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="证书路径">
-            <span class="font-mono text-xs">{{ node.tlsCertPath || '-' }}</span>
+            <span class="font-mono text-xs">{{ config.tlsCertPath || '-' }}</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="私钥路径">
-            <span class="font-mono text-xs">{{ node.tlsKeyPath || '-' }}</span>
+            <span class="font-mono text-xs">{{ config.tlsKeyPath || '-' }}</span>
           </NDescriptionsItem>
         </NDescriptions>
       </div>
 
-      <!-- 时间戳 -->
+      <!-- 时间戳 (xray_server) -->
       <NDescriptions :column="1" size="small" bordered label-placement="left" label-align="left">
         <NDescriptionsItem label="最近一次部署">
-          <span class="text-xs">{{ node.installedAt ? formatDateTime(node.installedAt) : '-' }}</span>
+          <span class="text-xs">{{ server.installedAt ? formatDateTime(server.installedAt) : '-' }}</span>
         </NDescriptionsItem>
         <NDescriptionsItem label="上次探测 xray 启动">
-          <span class="text-xs">{{ node.lastXrayUptime ? formatDateTime(node.lastXrayUptime) : '-' }}</span>
+          <span class="text-xs">{{ server.lastXrayUptime ? formatDateTime(server.lastXrayUptime) : '-' }}</span>
         </NDescriptionsItem>
         <NDescriptionsItem label="记录更新于">
-          <span class="text-xs">{{ node.updatedAt ? formatDateTime(node.updatedAt) : '-' }}</span>
+          <span class="text-xs">{{ server.updatedAt ? formatDateTime(server.updatedAt) : '-' }}</span>
         </NDescriptionsItem>
       </NDescriptions>
     </div>

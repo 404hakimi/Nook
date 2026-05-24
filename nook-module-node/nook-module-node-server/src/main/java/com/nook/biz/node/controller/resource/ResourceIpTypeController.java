@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 管理后台 - IP 类型
+ * 管理后台 - IP 类型 Controller
  *
  * @author nook
  */
@@ -26,6 +26,11 @@ public class ResourceIpTypeController {
 
     private final ResourceIpTypeService resourceIpTypeService;
 
+    /**
+     * 获得 IP 类型列表
+     *
+     * @return IP 类型列表
+     */
     @GetMapping("/list")
     public Result<List<ResourceIpTypeRespVO>> getIpTypeList() {
         List<ResourceIpTypeDO> list = resourceIpTypeService.getIpTypeList();

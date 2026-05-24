@@ -20,7 +20,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 import java.time.Duration;
 
 /**
- * 管理后台 - 服务器通用运维操作; swap / bbr 等独立触发, 跟 xray install 解耦
+ * 管理后台 - 服务器通用运维 Controller (swap / bbr 等独立触发, 跟 xray install 解耦)
  *
  * @author nook
  */
@@ -36,6 +36,13 @@ public class ResourceServerOpsController {
     private final ResourceServerCredentialService credentialService;
     private final WebStreamingProperties webStreamingProperties;
 
+    /**
+     * 启用 swap 分区 (流式) ; 跟 xray install 同 emitter 模式
+     *
+     * @param id    server 编号
+     * @param reqVO swap 入参
+     * @return 流式响应
+     */
     @PostMapping(value = "/enable-swap", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter enableSwap(@RequestParam("id") String id,
                                           @Valid @RequestBody EnableSwapReqVO reqVO) {
@@ -43,6 +50,12 @@ public class ResourceServerOpsController {
                 lineSink -> resourceServerOpsService.enableSwap(id, reqVO, lineSink));
     }
 
+    /**
+     * 启用 BBR 拥塞控制 (流式)
+     *
+     * @param id server 编号
+     * @return 流式响应
+     */
     @PostMapping(value = "/enable-bbr", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter enableBbr(@RequestParam("id") String id) {
         return streamingSupport.stream("ops-bbr:" + id, emitterTimeout(id),

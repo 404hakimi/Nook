@@ -2,7 +2,11 @@ package com.nook.biz.node.api.resource.dto;
 
 import lombok.Data;
 
-/** Server NIC 流量配额 + 已用 (rx/tx 拆开 + 双向合计). */
+/**
+ * 服务器 NIC 流量配额 + 已用 RespDTO
+ *
+ * @author nook
+ */
 @Data
 public class ResourceServerCapacityRespDTO {
 
@@ -14,6 +18,9 @@ public class ResourceServerCapacityRespDTO {
 
     /** 线路机出站接口实际限速 Mbps; 0=不限. agent 跑 tc qdisc 真实 enforce (业务阈值, 不是云厂商账面承诺). */
     private Integer bandwidthLimitMbps;
+
+    /** 单 server 客户端数硬上限; 0=不限. allocator 候选过滤 + xray inbound 客户数闸. */
+    private Integer clientMaxCount;
 
     /** 当周期下行字节. */
     private Long rxBytes;

@@ -22,7 +22,7 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- 跨模块业务调用走 node-api (ResourceServerApi / XrayNodeApi / ...); 不再 import node-server 内部 -->
+        <!-- 跨模块业务调用走 node-api (ResourceServerApi / XrayServerApi / ...); 不再 import node-server 内部 -->
         <dependency>
             <groupId>com.nook</groupId>
             <artifactId>nook-module-node-api</artifactId>

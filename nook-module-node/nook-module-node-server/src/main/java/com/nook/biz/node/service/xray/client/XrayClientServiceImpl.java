@@ -10,16 +10,18 @@ import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
+import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
+import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayRoutingCli;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
+import com.nook.biz.node.service.xray.config.XrayConfigService;
+import com.nook.biz.node.service.xray.server.XrayServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
-import com.nook.biz.node.validator.XrayNodeValidator;
-import com.nook.biz.node.service.xray.node.XrayNodeService;
+import com.nook.biz.node.validator.XrayServerValidator;
 import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.dto.OpEnqueueRequest;
@@ -57,8 +59,9 @@ public class XrayClientServiceImpl implements XrayClientService {
     private final XrayInboundCli inboundCli;
     private final XrayOutboundCli outboundCli;
     private final XrayRoutingCli routingCli;
-    private final XrayNodeService xrayNodeService;
-    private final XrayNodeValidator xrayNodeValidator;
+    private final XrayServerService xrayServerService;
+    private final XrayConfigService xrayConfigService;
+    private final XrayServerValidator xrayServerValidator;
     private final ResourceServerValidator serverValidator;
     private final ResourceServerCredentialService credentialService;
     private final XrayClientValidator clientValidator;
@@ -118,26 +121,28 @@ public class XrayClientServiceImpl implements XrayClientService {
     @Override
     public XrayClientCredentialRespVO getXrayClientCredential(String inboundEntityId) {
         XrayClientDO e = getXrayClient(inboundEntityId);
-        // 凭据里的协议 / 传输 / 端口 / listen IP 全部来自 xray_node, 因为这是 server 级共享 inbound 的属性
-        XrayNodeDO node = xrayNodeValidator.validateExists(e.getServerId());
+        // 凭据里的协议 / 传输 / 端口 / listen IP 全部来自 xray_config (server 级共享 inbound)
+        xrayServerValidator.validateExists(e.getServerId());
+        XrayConfigDO cfg = xrayConfigService.get(e.getServerId());
         XrayClientCredentialRespVO vo = new XrayClientCredentialRespVO();
         vo.setId(e.getId());
         vo.setClientUuid(e.getClientUuid());
         vo.setClientEmail(e.getClientEmail());
-        vo.setProtocol(node.getProtocol());
+        if (cfg == null) return vo;
+        vo.setProtocol(cfg.getProtocol());
         // host: 有 domain 优先 (CDN / TLS), 否则回退 server 公网 IP
-        if (StrUtil.isNotBlank(node.getDomain())) {
-            vo.setServerHost(node.getDomain());
+        if (StrUtil.isNotBlank(cfg.getDomain())) {
+            vo.setServerHost(cfg.getDomain());
         } else {
             serverValidator.validateExists(e.getServerId());
             vo.setServerHost(credentialService.requireByServerId(e.getServerId()).getHost());
         }
-        vo.setListenPort(node.getSharedInboundPort());
-        vo.setTransport(node.getTransport());
-        vo.setWsPath(node.getWsPath());
-        boolean hasTls = StrUtil.isNotBlank(node.getTlsCertPath()) && StrUtil.isNotBlank(node.getDomain());
+        vo.setListenPort(cfg.getSharedInboundPort());
+        vo.setTransport(cfg.getTransport());
+        vo.setWsPath(cfg.getWsPath());
+        boolean hasTls = StrUtil.isNotBlank(cfg.getTlsCertPath()) && StrUtil.isNotBlank(cfg.getDomain());
         vo.setTlsEnabled(hasTls);
-        vo.setSni(hasTls ? node.getDomain() : null);
+        vo.setSni(hasTls ? cfg.getDomain() : null);
         return vo;
     }
 
@@ -145,14 +150,14 @@ public class XrayClientServiceImpl implements XrayClientService {
     public XrayClientSyncStatusRespVO getSyncStatus(String serverId) {
         XrayClientSyncStatusRespVO vo = newEmptySyncStatus(serverId);
 
-        // server 未装过 xray (无 xray_node) → reachable=false 静默返回
-        XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
-        if (node == null) {
-            log.debug("[reconciler] 同步状态查询跳过 服务器={} (无 xray 节点)", serverId);
+        // server 未装过 xray (无 xray_server) → reachable=false 静默返回
+        XrayServerDO server = xrayServerService.get(serverId);
+        if (server == null) {
+            log.debug("[reconciler] 同步状态查询跳过 服务器={} (无 xray 实例)", serverId);
             return vo;
         }
-        int apiPort = node.getXrayApiPort();
-        String xrayBin = node.getXrayBinaryPath();
+        int apiPort = server.getXrayApiPort();
+        String xrayBin = server.getXrayBinaryPath();
 
         // SSH 不通 → reachable=false 静默返回
         SshSession session;

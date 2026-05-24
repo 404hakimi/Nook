@@ -12,7 +12,7 @@ import java.util.List;
 public interface ResourceIpTypeService {
 
     /**
-     * 获得所有 IP 类型, 按 sort_order 升序
+     * 获得 IP 类型列表
      *
      * @return IP 类型列表
      */

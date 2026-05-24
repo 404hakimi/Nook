@@ -11,18 +11,18 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 public interface ResourceServerCapacityService {
 
     /**
-     * 取容量
+     * 获得服务器容量
      *
-     * @param serverId server 主键
-     * @return DO; 不存在返 null
+     * @param serverId 服务器编号
+     * @return 服务器容量
      */
     ResourceServerCapacityDO get(String serverId);
 
     /**
-     * 更新业务阈值 (月流量 / 限定带宽); rx/tx/used 由 agent NIC 上报路径走 applyNicTraffic
+     * 更新业务阈值
      *
-     * @param serverId server 主键
-     * @param reqVO    业务阈值
+     * @param serverId 服务器编号
+     * @param reqVO    阈值入参
      */
     void updateQuota(String serverId, ResourceServerCapacityUpdateReqVO reqVO);
 }

@@ -240,7 +240,7 @@ async function loadInstallMeta(force = false) {
   }
 }
 
-/** Frontline 选了 server 但 xray_node 没记录 → 装机会失败. */
+/** Frontline 选了 server 但 xray_server 没记录 → 装机会失败. */
 const xrayMissing = computed(() =>
   selectedRole.value === 'frontline'
   && !!selectedHostId.value
@@ -524,7 +524,7 @@ onUnmounted(() => { stopPolling(); if (deployAbort) deployAbort.abort() })
             </template>
             <div class="space-y-3 mt-2">
               <NAlert v-if="xrayMissing" type="error" :show-icon="false" size="small">
-                ⚠ 该 server 未装 xray (xray_node 表无记录), frontline 装机会失败. 请先到 xray 管理装上.
+                ⚠ 该 server 未装 xray (xray_server 表无记录), frontline 装机会失败. 请先到 xray 管理装上.
               </NAlert>
               <NAlert v-if="hostKind === 'IP_POOL'" type="info" :show-icon="false" size="small">
                 Landing 模式装机: 走 resource_ip_pool.ssh_credential 子表 (sshHost 空 = ip_address 兜底). dante 装机 / 限速由 agent 拉 task 后处理, 这里只装 nook-landing-agent 自身.

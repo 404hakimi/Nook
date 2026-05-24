@@ -10,7 +10,7 @@ import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
-import com.nook.biz.node.api.xray.dto.XrayNodeRespDTO;
+import com.nook.biz.node.api.xray.dto.XrayServerRespDTO;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import org.mapstruct.Mapper;
@@ -65,7 +65,7 @@ public interface AdminAgentConvert {
      * @param rt   runtime (null = 从未心跳)
      * @param cap  capacity (null = 从未上报 NIC)
      * @param cfg  agent_runtime_config (null = 从未配置)
-     * @param xray xray_node (null = 未装 xray); 卡片显示装机完备度用
+     * @param xray xray_server (null = 未装 xray); 卡片显示装机完备度用
      * @param now  当前时刻, 用于算 elapsedSec
      * @return 列表项 VO
      */
@@ -74,7 +74,7 @@ public interface AdminAgentConvert {
                                                 ResourceServerRuntimeRespDTO rt,
                                                 ResourceServerCapacityRespDTO cap,
                                                 AgentRuntimeConfigDO cfg,
-                                                XrayNodeRespDTO xray,
+                                                XrayServerRespDTO xray,
                                                 LocalDateTime now) {
         AdminAgentListItemRespVO vo = new AdminAgentListItemRespVO();
         vo.setServerId(s.getId());

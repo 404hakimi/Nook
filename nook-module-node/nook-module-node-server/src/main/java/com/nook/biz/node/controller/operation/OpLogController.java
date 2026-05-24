@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 管理后台 - 操作日志
+ * 管理后台 - 操作日志 Controller
  *
  * @author nook
  */
@@ -40,6 +40,12 @@ public class OpLogController {
     private final SystemUserApi systemUserApi;
     private final XrayClientService xrayClientService;
 
+    /**
+     * 获得操作日志分页
+     *
+     * @param pageReqVO 分页条件
+     * @return 操作日志分页 (含 server / 操作人 / target 友好名)
+     */
     @GetMapping("/page")
     public Result<PageResult<OpLogRespVO>> getOpLogPage(@ModelAttribute OpLogPageReqVO pageReqVO) {
         PageResult<OpLogDO> pageResult = opLogService.page(pageReqVO.getPageNo(), pageReqVO.getPageSize(),
@@ -58,6 +64,12 @@ public class OpLogController {
                 serverNames, operatorNames, targetNames));
     }
 
+    /**
+     * 获得操作日志详情
+     *
+     * @param id 操作日志编号
+     * @return 操作日志详情
+     */
     @GetMapping("/get")
     public Result<OpLogRespVO> getOpLog(@RequestParam("id") String id) {
         OpLogDO entity = opLogService.findById(id);
@@ -69,6 +81,12 @@ public class OpLogController {
                 serverNames, operatorNames, targetNames));
     }
 
+    /**
+     * 取消排队中的操作
+     *
+     * @param id 操作日志编号
+     * @return 是否取消成功
+     */
     @PostMapping("/cancel")
     public Result<Boolean> cancelOpLog(@RequestParam("id") String id) {
         boolean cancelled = opLogService.cancelQueued(id);

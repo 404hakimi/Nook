@@ -17,8 +17,8 @@ import com.nook.biz.node.api.resource.dto.ResourceIpPoolCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceIpPoolRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
-import com.nook.biz.node.api.xray.XrayNodeApi;
-import com.nook.biz.node.api.xray.dto.XrayNodeRespDTO;
+import com.nook.biz.node.api.xray.XrayServerApi;
+import com.nook.biz.node.api.xray.dto.XrayServerRespDTO;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSessions;
 import com.nook.framework.ssh.script.ScriptCatalog;
@@ -48,7 +48,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
     private final ResourceServerCredentialApi resourceServerCredentialApi;
     private final ResourceIpPoolApi resourceIpPoolApi;
     private final ResourceIpPoolCredentialApi resourceIpPoolCredentialApi;
-    private final XrayNodeApi xrayNodeApi;
+    private final XrayServerApi xrayServerApi;
     private final ScriptCatalog scriptCatalog;
     private final AgentInstallValidator agentInstallValidator;
     private final AgentProperties agentProperties;
@@ -169,10 +169,10 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
             vo.setInstallTimeoutSeconds(cred.getInstallTimeoutSeconds());
         }
         if (AgentRole.FRONTLINE.getCode().equals(role)) {
-            XrayNodeRespDTO xrayNode = xrayNodeApi.getByServerId(serverId);
-            if (xrayNode != null) {
-                vo.setXrayBin(xrayNode.getXrayBinaryPath());
-                vo.setXrayApiPort(xrayNode.getXrayApiPort());
+            XrayServerRespDTO xray = xrayServerApi.getByServerId(serverId);
+            if (xray != null) {
+                vo.setXrayBin(xray.getXrayBinaryPath());
+                vo.setXrayApiPort(xray.getXrayApiPort());
             }
         }
     }

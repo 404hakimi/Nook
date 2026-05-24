@@ -26,14 +26,24 @@ public class ResourceRegionController {
 
     private final ResourceRegionService resourceRegionService;
 
-    /** 已启用区域 (表单下拉用). */
+    /**
+     * 获得已启用区域列表 (表单下拉用)
+     *
+     * @return 已启用区域列表
+     */
     @GetMapping("/enabled")
     public Result<List<ResourceRegionRespVO>> listEnabled() {
         List<ResourceRegionDO> list = resourceRegionService.listEnabled();
         return Result.ok(CollectionUtils.convertList(list, e -> BeanUtils.toBean(e, ResourceRegionRespVO.class)));
     }
 
-    /** 全量列表 (admin 管理). */
+    /**
+     * 获得区域全量列表 (admin 管理用; 支持关键字 + 启用状态过滤)
+     *
+     * @param keyword 关键字
+     * @param enabled 启用状态
+     * @return 区域列表
+     */
     @GetMapping("/list")
     public Result<List<ResourceRegionRespVO>> list(@RequestParam(required = false) String keyword,
                                                     @RequestParam(required = false) Integer enabled) {

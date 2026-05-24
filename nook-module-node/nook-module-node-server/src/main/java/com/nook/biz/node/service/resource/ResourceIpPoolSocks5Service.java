@@ -11,18 +11,18 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
 public interface ResourceIpPoolSocks5Service {
 
     /**
-     * 取 dante 配置
+     * 获得 dante 配置 + 限速
      *
-     * @param ipId IP 池 id
-     * @return DO; 不存在返 null
+     * @param ipId IP 池编号
+     * @return socks5 配置
      */
     ResourceIpPoolSocks5DO get(String ipId);
 
     /**
-     * 更新 dante 配置; socks5Password 留空 = 保留原值; 改 bandwidthLimitMbps 时走链路校验.
+     * 更新 dante 配置 + 限速
      *
-     * @param ipId  IP 池 id
-     * @param reqVO 待保存
+     * @param ipId  IP 池编号
+     * @param reqVO socks5 入参
      */
     void update(String ipId, ResourceIpPoolSocks5UpdateReqVO reqVO);
 }

@@ -18,11 +18,11 @@ import {
   xrayAutostart,
   type XrayServiceStatus
 } from '@/api/xray/server'
-import type { XrayNode } from '@/api/xray/node'
+import type { XrayServer } from '@/api/xray/xray-server'
 
 interface Props {
   modelValue: boolean
-  node?: XrayNode | null
+  server?: XrayServer | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -37,7 +37,7 @@ const autostartLoading = ref(false)
 const serviceStatus = ref<XrayServiceStatus | null>(null)
 
 watch(
-  () => [props.modelValue, props.node?.serverId],
+  () => [props.modelValue, props.server?.serverId],
   ([open]) => {
     if (open) {
       serviceStatus.value = null
@@ -47,10 +47,10 @@ watch(
 )
 
 async function runStatus() {
-  if (!props.node || statusLoading.value) return
+  if (!props.server || statusLoading.value) return
   statusLoading.value = true
   try {
-    serviceStatus.value = await getXrayServiceStatus(props.node.serverId)
+    serviceStatus.value = await getXrayServiceStatus(props.server.serverId)
   } catch (e) {
     serviceStatus.value = null
     message.error('拉 Xray 服务状态失败: ' + ((e as Error).message ?? ''))
@@ -95,8 +95,8 @@ const autostartHint = computed(() => {
  * static / masked 不应该弹切换, NSwitch 在这种情况直接 disabled.
  */
 async function onAutostartToggle(target: boolean) {
-  if (!props.node || autostartLoading.value) return
-  const label = props.node.serverName || props.node.serverId.slice(0, 12)
+  if (!props.server || autostartLoading.value) return
+  const label = props.server.serverName || props.server.serverId.slice(0, 12)
   const ok = await confirm({
     title: target ? '开启开机自启' : '关闭开机自启',
     message: target
@@ -108,7 +108,7 @@ async function onAutostartToggle(target: boolean) {
   if (!ok) return
   autostartLoading.value = true
   try {
-    await xrayAutostart(props.node.serverId, target)
+    await xrayAutostart(props.server.serverId, target)
     message.success(`${label}: ${target ? '已开启自启' : '已关闭自启'}`)
     // 后端切完成后立即重拉 service status, 让 NSwitch 反映新状态
     await runStatus()
@@ -148,8 +148,8 @@ function autostartRailStyle({ checked }: { checked: boolean }) {
       <span>Xray 服务状态</span>
     </template>
     <template #header-extra>
-      <span v-if="node" class="text-xs text-zinc-500">
-        {{ node.serverName || node.serverId }} <span v-if="node.serverHost">({{ node.serverHost }})</span>
+      <span v-if="server" class="text-xs text-zinc-500">
+        {{ server.serverName || server.serverId }} <span v-if="server.serverHost">({{ server.serverHost }})</span>
       </span>
     </template>
 

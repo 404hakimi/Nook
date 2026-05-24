@@ -11,18 +11,18 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolBillingDO;
 public interface ResourceIpPoolBillingService {
 
     /**
-     * 取账面
+     * 获得 IP 池账面
      *
-     * @param ipId IP 池 id
-     * @return DO; 不存在返 null
+     * @param ipId IP 池编号
+     * @return 账面
      */
     ResourceIpPoolBillingDO get(String ipId);
 
     /**
-     * 更新账面
+     * 更新 IP 池账面
      *
-     * @param ipId  IP 池 id
-     * @param reqVO 待保存
+     * @param ipId  IP 池编号
+     * @param reqVO 账面入参
      */
     void update(String ipId, ResourceIpPoolBillingUpdateReqVO reqVO);
 }

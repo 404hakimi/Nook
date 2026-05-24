@@ -207,7 +207,7 @@ function openIpDetail(ipId: string) {
   ipDetailOpen.value = true
 }
 
-// ===== 行操作: 平铺一行小按钮 (跟 IpPoolList / XrayNodeList 风格一致) =====
+// ===== 行操作: 平铺一行小按钮 =====
 
 // ===== 表格列定义 =====
 const columns = computed<DataTableColumns<XrayClient>>(() => [

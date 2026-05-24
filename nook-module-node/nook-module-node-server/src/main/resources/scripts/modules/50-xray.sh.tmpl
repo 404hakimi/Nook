@@ -1,13 +1,12 @@
 # Module 50 — xray binary + 共享 inbound (vmess+ws, users 空) + 仅 api/blackhole 两个静态 outbound.
 # 业务出站 (tag=clientId 的 socks5) 全部靠 `xray api ado` 动态加; restart 兜底走 blackhole 防 IP 泄漏.
 
-log "=== Module 50: Xray 安装 (版本: {{XRAY_VERSION}}, 安装到: {{INSTALL_DIR}}, 落地上限: {{TOUCHDOWN_SIZE}}) ==="
+log "=== Module 50: Xray 安装 (版本: {{XRAY_VERSION}}, 安装到: {{INSTALL_DIR}}, 客户数上限: {{CLIENT_MAX_COUNT}}) ==="
 
 INSTALL_DIR="{{INSTALL_DIR}}"
 LOG_DIR="{{LOG_DIR}}"
 XRAY_VERSION="{{XRAY_VERSION}}"
 XRAY_API_PORT={{XRAY_API_PORT}}
-TOUCHDOWN_SIZE={{TOUCHDOWN_SIZE}}
 LOG_LEVEL="{{LOG_LEVEL}}"
 RESTART_POLICY="{{RESTART_POLICY}}"
 ENABLE_ON_BOOT="{{ENABLE_ON_BOOT}}"
@@ -19,7 +18,7 @@ DOMAIN="{{DOMAIN}}"
 TLS_CERT_PATH="{{TLS_CERT_PATH}}"
 TLS_KEY_PATH="{{TLS_KEY_PATH}}"
 
-# 路径全部由 Java 计算 + 经模板下发, 跟 xray_node 表 DB 字段一一对应 (单点真理).
+# 路径全部由 Java 计算 + 经模板下发, 跟 xray_server 表 DB 字段一一对应 (单点真理).
 # 脚本不再自己拼 "$INSTALL_DIR/bin/xray" 这种, 防止 Java 端跟脚本端布局漂移.
 XRAY_BIN="{{XRAY_BINARY_PATH}}"
 XRAY_CONFIG="{{XRAY_CONFIG_PATH}}"

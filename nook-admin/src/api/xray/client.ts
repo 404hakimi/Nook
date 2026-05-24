@@ -4,7 +4,7 @@ import request from '@/api/request'
  * Xray client 实体 (一个会员在某线路+落地 IP 上的 client 凭据); 与后端 ClientRespVO 对齐.
  *
  * inbound 维度 (protocol / transport / listenIp / listenPort) 不存 xray_client, 是 server 级共享配置;
- * 后端 convert 时按 serverId 关联 xray_node + 常量 enrich, server 未装 xray 时这些字段会为空.
+ * 后端 convert 时按 serverId 关联 xray_config + 常量 enrich, server 未装 xray 时这些字段会为空.
  */
 export interface XrayClient {
   id: string
@@ -25,7 +25,7 @@ export interface XrayClient {
   transport?: string
   /** 共享 inbound 监听 IP (后端 enrich, 来源 XrayConstants). */
   listenIp?: string
-  /** 共享 inbound 监听端口 (后端 enrich, 来源 xray_node.sharedInboundPort). */
+  /** 共享 inbound 监听端口 (后端 enrich, 来源 xray_config.sharedInboundPort). */
   listenPort?: number
   clientUuid: string
   clientEmail: string

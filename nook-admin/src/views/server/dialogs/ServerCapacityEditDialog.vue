@@ -32,12 +32,14 @@ const loading = ref(false)
 
 const form = reactive({
   monthlyTrafficGb: null as number | null,
-  bandwidthLimitMbps: null as number | null
+  bandwidthLimitMbps: null as number | null,
+  clientMaxCount: null as number | null
 })
 
 function fill(c: ServerCapacity | null) {
   form.monthlyTrafficGb = c?.monthlyTrafficGb ?? null
   form.bandwidthLimitMbps = c?.bandwidthLimitMbps ?? null
+  form.clientMaxCount = c?.clientMaxCount ?? null
 }
 
 watch(() => [props.modelValue, props.serverId], async ([open]) => {
@@ -56,7 +58,8 @@ async function onSubmit() {
   try {
     await updateServerCapacity(props.serverId, {
       monthlyTrafficGb: form.monthlyTrafficGb ?? 0,
-      bandwidthLimitMbps: form.bandwidthLimitMbps ?? 0
+      bandwidthLimitMbps: form.bandwidthLimitMbps ?? 0,
+      clientMaxCount: form.clientMaxCount ?? 0
     })
     message.success('已保存')
     emit('saved')
@@ -78,7 +81,7 @@ async function onSubmit() {
   >
     <NSpin :show="loading">
       <NAlert type="info" :show-icon="false" size="small" class="mb-3">
-        业务阈值: <strong>限定带宽</strong> 由 agent tc qdisc 真实 enforce; <strong>月流量阈值</strong> 是 throttle 状态机 90% 触发的基数. 0 = 不限.
+        业务阈值: <strong>限定带宽</strong> 由 agent tc qdisc 真实 enforce; <strong>月流量阈值</strong> 是 throttle 状态机 90% 触发的基数; <strong>客户数上限</strong> 是 allocator 选 server 时的硬上限. 0 = 不限.
       </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
@@ -87,6 +90,9 @@ async function onSubmit() {
           </NFormItem>
           <NFormItem label="月流量阈值 GB (0=不限)">
             <NInputNumber v-model:value="form.monthlyTrafficGb" :min="0" :max="1000000" class="w-full" />
+          </NFormItem>
+          <NFormItem label="客户数上限 (0=不限)">
+            <NInputNumber v-model:value="form.clientMaxCount" :min="0" :max="100000" class="w-full" />
           </NFormItem>
         </div>
       </NForm>

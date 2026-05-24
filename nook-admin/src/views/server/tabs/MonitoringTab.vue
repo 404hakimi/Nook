@@ -221,7 +221,7 @@ const heartbeatColor = computed(() => {
               <span class="metric-unit">/ — 个</span>
             </div>
             <div class="metric-sub mt-2 text-xs text-zinc-400">
-              已分配数待接 xray client count API; 上限读 xray_node.touchdownSize
+              已分配数待接 xray client count API; 上限读 capacity.clientMaxCount
             </div>
           </div>
         </NCard>

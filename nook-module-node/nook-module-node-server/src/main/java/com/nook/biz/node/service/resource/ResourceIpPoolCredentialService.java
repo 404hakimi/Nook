@@ -11,26 +11,26 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 public interface ResourceIpPoolCredentialService {
 
     /**
-     * 取凭据
+     * 获得 SSH 凭据
      *
-     * @param ipId IP 池 id
-     * @return DO; 不存在返 null
+     * @param ipId IP 池编号
+     * @return SSH 凭据
      */
     ResourceIpPoolCredentialDO get(String ipId);
 
     /**
-     * 取凭据; 缺失抛 IP_POOL_SSH_CRED_MISSING.
+     * 获得 SSH 凭据 (必存)
      *
-     * @param ipId IP 池 id
-     * @return DO
+     * @param ipId IP 池编号
+     * @return SSH 凭据
      */
     ResourceIpPoolCredentialDO requireByIpId(String ipId);
 
     /**
-     * 更新凭据; sshPassword 留空 = 保留原值.
+     * 更新 SSH 凭据
      *
-     * @param ipId  IP 池 id
-     * @param reqVO 待保存
+     * @param ipId  IP 池编号
+     * @param reqVO 凭据入参
      */
     void update(String ipId, ResourceIpPoolCredentialUpdateReqVO reqVO);
 }

@@ -11,7 +11,7 @@ import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.resource.vo.Socks5StatusRespVO;
 import com.nook.biz.node.convert.socks5.Socks5OpsConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
+import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceIpPoolSocks5DO;
@@ -31,7 +31,7 @@ import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
 import com.nook.biz.node.service.resource.ResourceIpSocksService;
 import com.nook.biz.node.validator.ResourceIpPoolValidator;
-import com.nook.biz.node.validator.XrayNodeValidator;
+import com.nook.biz.node.validator.XrayServerValidator;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSession;
@@ -61,7 +61,7 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
     private final Socks5Prober socks5Prober;
     private final ResourceIpPoolValidator ipPoolValidator;
     private final XrayClientMapper xrayClientMapper;
-    private final XrayNodeValidator xrayNodeValidator;
+    private final XrayServerValidator xrayServerValidator;
     private final XrayOutboundCli outboundCli;
     private final ServerProbe serverProbe;
     private final ResourceIpPoolCredentialMapper credentialMapper;
@@ -132,10 +132,10 @@ public class ResourceIpSocksServiceImpl implements ResourceIpSocksService {
         }
 
         // 4. SSH 到 client 所在 xray server (走 stored cred), 仅 rmo + ado outbound
-        XrayNodeDO node = xrayNodeValidator.validateExists(client.getServerId());
+        XrayServerDO server = xrayServerValidator.validateExists(client.getServerId());
         String outboundTag = client.getId();
-        int apiPort = node.getXrayApiPort();
-        String xrayBin = node.getXrayBinaryPath();
+        int apiPort = server.getXrayApiPort();
+        String xrayBin = server.getXrayBinaryPath();
 
         lineSink.accept(String.format("[nook] SSH xray server=%s, 重建 outbound tag=%s ...\n",
                 client.getServerId(), outboundTag));

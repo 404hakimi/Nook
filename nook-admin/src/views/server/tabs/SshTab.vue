@@ -118,7 +118,6 @@ function afterEdit() { load() }
             <NIcon class="section-icon"><KeyRound :size="14" /></NIcon>
             <span>登录凭据</span>
             <NTag size="tiny" type="warning" class="ml-1">敏感信息</NTag>
-            <span v-if="detail?.lifecycleState === 'LIVE'" class="text-xs text-orange-500 ml-2">⚠ LIVE 后 host/port 已硬锁</span>
           </div>
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 6rem">

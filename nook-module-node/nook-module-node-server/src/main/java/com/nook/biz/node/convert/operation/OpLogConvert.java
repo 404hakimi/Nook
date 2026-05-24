@@ -57,7 +57,7 @@ public interface OpLogConvert {
                                                        Map<String, String> serverNames,
                                                        Map<String, String> operatorNames,
                                                        Map<String, String> targetNames) {
-        List<OpLogRespVO> rows = page.getRecords().stream().map(this::convertForList).toList();
+        List<OpLogRespVO> rows = CollectionUtils.convertList(page.getRecords(), this::convertForList);
         for (OpLogRespVO v : rows) {
             fillNames(v, serverNames, operatorNames, targetNames);
         }

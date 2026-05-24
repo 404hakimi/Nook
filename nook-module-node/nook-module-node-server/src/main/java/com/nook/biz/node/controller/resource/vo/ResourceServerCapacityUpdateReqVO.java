@@ -21,4 +21,9 @@ public class ResourceServerCapacityUpdateReqVO {
     @Min(value = 0)
     @Max(value = 100000)
     private Integer bandwidthLimitMbps;
+
+    /** 单 server 客户端数硬上限; 0=不限. allocator 候选过滤 + xray inbound 客户数闸. */
+    @Min(value = 0)
+    @Max(value = 100000)
+    private Integer clientMaxCount;
 }

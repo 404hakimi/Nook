@@ -2,13 +2,13 @@ package com.nook.biz.node.service.xray.client;
 
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
+import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper.TrafficCounterRow;
 import com.nook.biz.node.framework.xray.cli.XrayStatsCli;
 import com.nook.biz.node.framework.xray.cli.snapshot.XrayUserTrafficSnapshot;
-import com.nook.biz.node.service.xray.node.XrayNodeService;
+import com.nook.biz.node.service.xray.server.XrayServerService;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
@@ -35,19 +35,19 @@ public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSamp
 
     private final XrayClientMapper xrayClientMapper;
     private final XrayClientTrafficMapper xrayClientTrafficMapper;
-    private final XrayNodeService xrayNodeService;
+    private final XrayServerService xrayServerService;
     private final XrayStatsCli xrayStatsCli;
 
     @Override
     public SampleStat sampleServerTraffic(String serverId) {
         if (StrUtil.isBlank(serverId)) return SampleStat.EMPTY;
-        // server 尚未装 xray (无 xray_node 行) 不算采样失败, 静默跳过
-        XrayNodeDO node = xrayNodeService.getXrayNode(serverId);
-        if (node == null) {
-            log.debug("[traffic-sample] 服务器={} 无 xray 节点记录, 跳过", serverId);
+        // server 尚未装 xray (无 xray_server 行) 不算采样失败, 静默跳过
+        XrayServerDO server = xrayServerService.get(serverId);
+        if (server == null) {
+            log.debug("[traffic-sample] 服务器={} 无 xray 实例记录, 跳过", serverId);
             return SampleStat.EMPTY;
         }
-        return sampleServerTraffic(node);
+        return sampleServerTraffic(server);
     }
 
     @Override
@@ -89,15 +89,15 @@ public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSamp
     }
 
     @Override
-    public SampleStat sampleServerTraffic(XrayNodeDO node) {
-        if (node == null || StrUtil.isBlank(node.getServerId())) return SampleStat.EMPTY;
-        String serverId = node.getServerId();
+    public SampleStat sampleServerTraffic(XrayServerDO server) {
+        if (server == null || StrUtil.isBlank(server.getServerId())) return SampleStat.EMPTY;
+        String serverId = server.getServerId();
 
         // ① 拉远端内存计数器的当前累计值 (不清零); 增量由 DB 用"当前值 - 上次值"算
         Map<String, XrayUserTrafficSnapshot> counters;
         try {
             SshSession session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
-            counters = xrayStatsCli.readAllUserTraffics(session, node.getXrayBinaryPath(), node.getXrayApiPort(), false);
+            counters = xrayStatsCli.readAllUserTraffics(session, server.getXrayBinaryPath(), server.getXrayApiPort(), false);
         } catch (RuntimeException e) {
             log.warn("[traffic-sample] 服务器={} SSH 拉计数器失败, 跳过本轮: {}", serverId, e.getMessage());
             return SampleStat.EMPTY;

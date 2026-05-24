@@ -308,7 +308,7 @@ export function updateIpPoolSocks5(id: string, dto: IpPoolSocks5) {
 
 // ===== SOCKS5 落地节点 运维 (走 IP 池条目存储的 SSH 凭据, 不再问用户) =====
 
-/** SOCKS5 (dante) 服务运行状态; 与 xray Status 同口径, 让前端复刻 XrayNodeStatusDialog. */
+/** SOCKS5 (dante) 服务运行状态; 与 xray Status 同口径. */
 export interface Socks5ServiceStatus {
   /** systemd unit, 固定 "danted" */
   unit?: string

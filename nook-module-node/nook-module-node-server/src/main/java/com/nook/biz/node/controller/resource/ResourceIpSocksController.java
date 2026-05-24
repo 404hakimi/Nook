@@ -26,7 +26,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 import java.time.Duration;
 
 /**
- * 管理后台 - SOCKS5 落地节点; 跟 ResourceIpPoolController 共用 /admin/resource/ip-pool 前缀
+ * 管理后台 - SOCKS5 落地节点 Controller
  *
  * @author nook
  */
@@ -41,9 +41,14 @@ public class ResourceIpSocksController {
     private final WebStreamingProperties webStreamingProperties;
     private final Socks5Properties socks5Properties;
 
+    /**
+     * 流式安装 SOCKS5 (dante); chunked transfer
+     *
+     * @param reqVO 装机入参
+     * @return 流式响应
+     */
     @PostMapping(value = "/install-socks5", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter installSocks5(@Valid @RequestBody ResourceIpSocksInstallReqVO reqVO) {
-        // 缺 installTimeoutSeconds 走兜底, service validator 仍会拒空请求
         long secs = reqVO != null && reqVO.getInstallTimeoutSeconds() != null
                 ? reqVO.getInstallTimeoutSeconds() : socks5Properties.getDefaultInstallTimeoutSeconds();
         Duration emitterTimeout = Duration.ofSeconds(secs).plus(webStreamingProperties.getEmitterBuffer());
@@ -52,6 +57,13 @@ public class ResourceIpSocksController {
                 lineSink -> resourceIpSocksService.installSocks5(reqVO, lineSink));
     }
 
+    /**
+     * 探活 SOCKS5 (走目标 IP, 验证 socks5 拨号 + 出网 IP)
+     *
+     * @param id    IP 池编号
+     * @param reqVO 探活入参
+     * @return 探活结果
+     */
     @PostMapping("/test-socks5")
     public Result<ResourceIpSocksTestRespVO> testSocks5(@RequestParam("id") String id,
                                                         @Valid @RequestBody ResourceIpSocksTestReqVO reqVO) {
@@ -60,8 +72,11 @@ public class ResourceIpSocksController {
     }
 
     /**
-     * 流式同步 SOCKS5 凭据: landing dante config 热更新 + fra-line outbound 重建.
-     * 同 install-socks5 一样走 chunked transfer; 前端 fetch + ReadableStream 边读边显示.
+     * 流式同步 SOCKS5 凭据: landing dante config 热更新 + fra-line outbound 重建
+     *
+     * @param id    IP 池编号
+     * @param reqVO 同步入参
+     * @return 流式响应
      */
     @PostMapping(value = "/sync-creds", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter syncCreds(@RequestParam("id") String id,
@@ -74,13 +89,24 @@ public class ResourceIpSocksController {
                 lineSink -> resourceIpSocksService.syncSocks5Creds(id, reqVO, lineSink));
     }
 
-    /** SOCKS5 (dante) systemd 运行状态 + version / 监听端口; 用 IP 池条目存储的 SSH 凭据. */
+    /**
+     * 获得 SOCKS5 (dante) systemd 运行状态 + version / 监听端口
+     *
+     * @param id IP 池编号
+     * @return SOCKS5 状态
+     */
     @GetMapping("/socks5-status")
     public Result<Socks5StatusRespVO> getSocks5Status(@RequestParam("id") String id) {
         return Result.ok(resourceIpSocksService.getSocks5Status(id));
     }
 
-    /** 切 dante 开机自启 (systemctl enable/disable + DB.autostart_enabled 同步). */
+    /**
+     * 切 dante 开机自启 (systemctl enable/disable + DB.autostart_enabled 同步)
+     *
+     * @param id      IP 池编号
+     * @param enabled 是否开机自启
+     * @return 是否成功
+     */
     @PostMapping("/socks5-autostart")
     public Result<Boolean> setSocks5Autostart(@RequestParam("id") String id,
                                               @RequestParam("enabled") boolean enabled) {
@@ -88,7 +114,15 @@ public class ResourceIpSocksController {
         return Result.ok(true);
     }
 
-    /** SOCKS5 落地节点 dante 日志 (journalctl -u danted), 跟 xray service-log 同语义. */
+    /**
+     * 获得 dante journal 日志 (journalctl -u danted)
+     *
+     * @param id      IP 池编号
+     * @param lines   行数 (默认 100)
+     * @param level   级别过滤
+     * @param keyword 关键词过滤
+     * @return 日志
+     */
     @GetMapping("/socks5-log")
     public Result<ServiceLogRespVO> getSocks5Log(@RequestParam("id") String id,
                                                  @RequestParam(value = "lines", required = false) Integer lines,
@@ -98,8 +132,12 @@ public class ResourceIpSocksController {
     }
 
     /**
-     * SOCKS5 dante 自己的日志文件 (DB.log_path 指向); 跟 systemd journal 互补.
-     * journal 看启动/失败, file 看真正的拨号记录, 前端 LogDialog 顶部切换.
+     * 获得 dante 日志文件 (DB.log_path 指向); 跟 journal 互补
+     *
+     * @param id      IP 池编号
+     * @param lines   行数
+     * @param keyword 关键词过滤
+     * @return 日志
      */
     @GetMapping("/socks5-log-file")
     public Result<ServiceLogRespVO> getSocks5LogFile(@RequestParam("id") String id,

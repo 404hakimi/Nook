@@ -12,97 +12,95 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * Xray Client Service 接口
- *
- * <p>负责 Xray client 全生命周期 (开通 / 吊销 / 轮换 / 查流量); 远端走 SSH + xray CLI.
+ * Xray 客户端 Service 接口
  *
  * @author nook
  */
 public interface XrayClientService {
 
     /**
-     * 获得 Xray Client; 不存在抛 CLIENT_NOT_FOUND
+     * 获得 xray 客户端
      *
-     * @param id xray_client.id
-     * @return Xray Client
+     * @param id 客户端编号
+     * @return xray 客户端
      */
     XrayClientDO getXrayClient(String id);
 
     /**
-     * 分页查询 Xray Client
+     * 获得 xray 客户端分页
      *
-     * @param pageReqVO 分页 + 过滤条件
-     * @return 分页结果
+     * @param pageReqVO 分页条件
+     * @return 客户端分页
      */
     PageResult<XrayClientDO> getXrayClientPage(XrayClientPageReqVO pageReqVO);
 
     /**
-     * 开通 Xray Client; 远端 addUser 成功后才落 DB; 同 (memberUserId, ipId) 已存在抛 CLIENT_DUPLICATE
+     * 开通 xray 客户端
      *
      * @param createReqVO 开通入参
-     * @return 新开通的 Client
+     * @return 新开通的客户端
      */
     XrayClientDO provisionXrayClient(XrayClientProvisionReqVO createReqVO);
 
     /**
-     * 吊销 Xray Client; 远端先删再硬删 DB
+     * 吊销 xray 客户端
      *
-     * @param id xray_client.id
+     * @param id 客户端编号
      */
     void revokeXrayClient(String id);
 
     /**
-     * 轮换协议密钥 (del 旧 → add 新 → update DB), 中途失败标 status=3 待 reconciler 修复
+     * 轮换协议密钥
      *
-     * @param id xray_client.id
-     * @return 轮换后的 Client
+     * @param id 客户端编号
+     * @return 轮换后的客户端
      */
     XrayClientDO rotateXrayClient(String id);
 
     /**
-     * 获得 Xray Client 协议级凭据明文 (UUID + 服务器 host), 拼订阅链接用; 与 list/detail 的 mask 行为区分
+     * 获得协议级凭据明文
      *
-     * @param id xray_client.id
-     * @return 凭据信息
+     * @param id 客户端编号
+     * @return 协议级凭据
      */
     XrayClientCredentialRespVO getXrayClientCredential(String id);
 
     /**
-     * 获得 server 远端 vs DB 对账结果; 返回 ok / 缺失 / 孤儿 三类 tag
+     * 获得 server 远端 vs DB 同步态
      *
-     * @param serverId resource_server.id
-     * @return 对账结果
+     * @param serverId 服务器编号
+     * @return 同步态
      */
     XrayClientSyncStatusRespVO getSyncStatus(String serverId);
 
     /**
-     * 把单条 Xray Client 推到远端 (幂等: 远端有就先删再加); 失败标 status=3 抛错
+     * 单客户端补推到远端
      *
-     * @param id xray_client.id
+     * @param id 客户端编号
      */
     void syncXrayClient(String id);
 
     /**
-     * 把 server 下所有 status≠2 的 client 全推一遍; 失败行收集到报告, 单条失败不阻断整批
+     * server 下客户端全量重放
      *
-     * @param serverId resource_server.id
-     * @return Replay 报告
+     * @param serverId 服务器编号
+     * @return 重放报告
      */
     XrayClientReplayReportRespVO replayServer(String serverId);
 
     /**
-     * 批量取 clientEmail (list enrich 用); 走 selectBatchIds 避免 N+1; 已物理删的 client 不进结果 map
+     * 批量获得客户端 email
      *
-     * @param clientIds id 集合; null / 空返空 map
-     * @return Map of clientId → clientEmail
+     * @param clientIds 客户端编号集合
+     * @return 客户端编号 → email
      */
     Map<String, String> getEmailMap(Collection<String> clientIds);
 
     /**
-     * 批量取 Client DO map, 给跨域视图 (如落地占用 view) 一次性补全多字段用.
+     * 批量获得客户端 DO
      *
-     * @param clientIds id 集合; null / 空返空 map
-     * @return Map of clientId → XrayClientDO
+     * @param clientIds 客户端编号集合
+     * @return 客户端编号 → 客户端 DO
      */
     Map<String, XrayClientDO> getXrayClientMap(Collection<String> clientIds);
 }

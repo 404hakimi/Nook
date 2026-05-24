@@ -3,8 +3,7 @@ package com.nook.biz.node.controller.resource.vo;
 import lombok.Data;
 
 /**
- * SOCKS5 (dante) systemd 运行状态 + dante 专属字段 (version / 监听端口); 与 XrayServerStatusRespVO 同口径,
- * 让前端 IpPoolStatusDialog 可以照葫芦画瓢 XrayNodeStatusDialog.
+ * SOCKS5 (dante) systemd 运行状态 + dante 专属字段 (version / 监听端口); 与 XrayServerStatusRespVO 同口径
  *
  * @author nook
  */

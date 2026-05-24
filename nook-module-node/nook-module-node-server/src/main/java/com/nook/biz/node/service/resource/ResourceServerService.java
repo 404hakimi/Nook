@@ -17,65 +17,65 @@ import java.util.Map;
 public interface ResourceServerService {
 
     /**
-     * 创建服务器 (事务内一次性写 主表 + credential + billing + dns + capacity/runtime 占位).
+     * 创建服务器
      *
-     * @param createReqVO 创建参数
-     * @return server.id
+     * @param createReqVO 创建入参
+     * @return 服务器编号
      */
     String createServer(ResourceServerCreateReqVO createReqVO);
 
     /**
-     * 更新核心字段 (lifecycle 走 transitionLifecycle; SSH/账面/DNS 走各自子 service).
+     * 更新服务器核心字段
      *
-     * @param id    server.id
-     * @param reqVO 待更新
+     * @param id    服务器编号
+     * @param reqVO 更新入参
      */
     void updateCore(String id, ResourceServerCoreUpdateReqVO reqVO);
 
     /**
-     * 删除服务器 (软删主表; 子表保留, 数据完整性靠 server.deleted=1 过滤).
+     * 删除服务器
      *
-     * @param id server.id
+     * @param id 服务器编号
      */
     void deleteServer(String id);
 
     /**
-     * 按 id 查服务器.
+     * 获得服务器
      *
-     * @param id server.id
-     * @return DO; 不存在返 null
+     * @param id 服务器编号
+     * @return 服务器
      */
     ResourceServerDO getServer(String id);
 
     /**
-     * 分页 (主表 + host 子表联合过滤).
+     * 获得服务器分页
      *
-     * @param pageReqVO 分页查询条件
-     * @return 分页结果
+     * @param pageReqVO 分页条件
+     * @return 服务器分页
      */
     PageResult<ResourceServerDO> getServerPage(ResourceServerPageReqVO pageReqVO);
 
     /**
-     * 批量按 id 取 DO map.
+     * 批量获得服务器 DO
      *
-     * @param ids server.id 集合
-     * @return Map of serverId → DO
+     * @param ids 服务器编号集合
+     * @return 服务器编号 → 服务器 DO
      */
     Map<String, ResourceServerDO> getServerMap(Collection<String> ids);
 
     /**
-     * 批量按 id 取 name map.
+     * 批量获得服务器名称
      *
-     * @param ids server.id 集合
-     * @return Map of serverId → name
+     * @param ids 服务器编号集合
+     * @return 服务器编号 → 服务器名称
      */
     Map<String, String> getServerNameMap(Collection<String> ids);
 
     /**
-     * lifecycle 流转 (INSTALLING ↔ READY ↔ LIVE → RETIRED; RETIRED 可回 LIVE).
+     * 切换服务器 lifecycle 状态
      *
-     * @param id       server.id
-     * @param newState 目标态
+     * @param id       服务器编号
+     * @param newState 目标 lifecycle 状态
      */
     void transitionLifecycle(String id, String newState);
 }

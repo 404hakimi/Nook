@@ -20,14 +20,14 @@ import {
   type XrayLogFileVariant,
   type XrayLogLevel
 } from '@/api/xray/server'
-import type { XrayNode } from '@/api/xray/node'
+import type { XrayServer } from '@/api/xray/xray-server'
 
 /** 日志源切换: file (xray 自己的 access/error.log, 默认) vs journal (systemctl 启停 / 启动报错). */
 type LogSource = 'file' | 'journal'
 
 interface Props {
   modelValue: boolean
-  node?: XrayNode | null
+  server?: XrayServer | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -90,7 +90,7 @@ function onKeywordEnter() {
 }
 
 watch(
-  () => [props.modelValue, props.node?.serverId],
+  () => [props.modelValue, props.server?.serverId],
   ([open]) => {
     if (open) {
       xrayLog.value = null
@@ -100,18 +100,18 @@ watch(
 )
 
 async function runLog() {
-  if (!props.node || logLoading.value) return
+  if (!props.server || logLoading.value) return
   logLoading.value = true
   try {
     if (logSource.value === 'file') {
       // file 源: 走 xray 自己的 access.log / error.log; 文件本身不分 level
-      xrayLog.value = await getXrayLogFile(props.node.serverId, {
+      xrayLog.value = await getXrayLogFile(props.server.serverId, {
         variant: logVariant.value,
         lines: logLines.value,
         keyword: logKeyword.value || undefined
       })
     } else {
-      xrayLog.value = await getXrayLog(props.node.serverId, {
+      xrayLog.value = await getXrayLog(props.server.serverId, {
         lines: logLines.value,
         level: logLevel.value,
         keyword: logKeyword.value || undefined
@@ -143,8 +143,8 @@ function close() {
       <span>Xray 日志</span>
     </template>
     <template #header-extra>
-      <span v-if="node" class="text-xs text-zinc-500">
-        {{ node.serverName || node.serverId }} <span v-if="node.serverHost">({{ node.serverHost }})</span>
+      <span v-if="server" class="text-xs text-zinc-500">
+        {{ server.serverName || server.serverId }} <span v-if="server.serverHost">({{ server.serverHost }})</span>
       </span>
     </template>
 

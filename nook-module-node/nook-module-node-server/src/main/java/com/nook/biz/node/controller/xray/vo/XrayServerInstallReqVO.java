@@ -16,10 +16,10 @@ import lombok.Data;
 @Data
 public class XrayServerInstallReqVO {
 
-    /** 该 server 最多挂载的落地 IP 数量 (= 客户端数量上限). */
-    @NotNull(message = "touchdownSize 必填")
+    /** 该 server 最多挂载的客户端数 (硬上限); 落到 resource_server_capacity.client_max_count + 装机脚本 inbound 配置 */
+    @NotNull(message = "clientMaxCount 必填")
     @Min(value = 1) @Max(value = 200)
-    private Integer touchdownSize;
+    private Integer clientMaxCount;
 
     /** xray 内置 api server 端口 (loopback). */
     @NotNull(message = "xrayApiPort 必填")
@@ -39,7 +39,7 @@ public class XrayServerInstallReqVO {
     @Size(max = 255)
     private String installDir;
 
-    /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray, 落到 xray_node.xrayBinaryPath. */
+    /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray, 落到 xray_server.xrayBinaryPath. */
     @NotBlank(message = "xrayBinaryPath 必填")
     @Pattern(regexp = "^/.+", message = "xrayBinaryPath 必须是绝对路径")
     @Size(max = 255)

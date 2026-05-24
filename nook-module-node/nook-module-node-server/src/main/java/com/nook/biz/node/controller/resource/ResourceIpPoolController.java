@@ -53,12 +53,25 @@ public class ResourceIpPoolController {
     private final ResourceIpPoolSocks5Service socks5Service;
     private final ResourceIpPoolValidator ipPoolValidator;
 
+    /**
+     * 创建 IP 池
+     *
+     * @param createReqVO 创建入参
+     * @return IP 池详情
+     */
     @PostMapping("/create")
     public Result<ResourceIpPoolRespVO> createIpPool(@Valid @RequestBody ResourceIpPoolSaveReqVO createReqVO) {
         String id = resourceIpPoolService.createIpPool(createReqVO);
         return Result.ok(loadDetail(id));
     }
 
+    /**
+     * 整体更新 IP 池
+     *
+     * @param id          IP 池编号
+     * @param updateReqVO 更新入参
+     * @return 是否成功
+     */
     @PutMapping("/update")
     public Result<Boolean> updateIpPool(@RequestParam("id") String id,
                                         @Valid @RequestBody ResourceIpPoolSaveReqVO updateReqVO) {
@@ -66,18 +79,36 @@ public class ResourceIpPoolController {
         return Result.ok(true);
     }
 
+    /**
+     * 删除 IP 池
+     *
+     * @param id IP 池编号
+     * @return 是否成功
+     */
     @DeleteMapping("/delete")
     public Result<Boolean> deleteIpPool(@RequestParam("id") String id) {
         resourceIpPoolService.deleteIpPool(id);
         return Result.ok(true);
     }
 
+    /**
+     * 获得 IP 池详情
+     *
+     * @param id IP 池编号
+     * @return IP 池详情
+     */
     @GetMapping("/get")
     public Result<ResourceIpPoolRespVO> getIpPool(@RequestParam("id") String id) {
         ipPoolValidator.validateExists(id);
         return Result.ok(loadDetail(id));
     }
 
+    /**
+     * 获得 IP 池分页
+     *
+     * @param pageReqVO 分页条件
+     * @return IP 池分页
+     */
     @GetMapping("/page")
     public Result<PageResult<ResourceIpPoolRespVO>> getIpPoolPage(@ModelAttribute ResourceIpPoolPageReqVO pageReqVO) {
         PageResult<ResourceIpPoolDO> pageResult = resourceIpPoolService.getIpPoolPage(pageReqVO);
@@ -87,14 +118,25 @@ public class ResourceIpPoolController {
                 pageResult, bundle.credentials(), bundle.billings(), bundle.socks5s(), bundle.runtimes()));
     }
 
-    /** 退订: occupied → cooling 状态切换; 回到 available 由调度器 sweep 完成. */
+    /**
+     * 退订 IP 池: occupied → cooling 状态切换; 回 available 由调度器 sweep 完成
+     *
+     * @param id IP 池编号
+     * @return 是否成功
+     */
     @PostMapping("/release")
     public Result<Boolean> releaseIpPool(@RequestParam("id") String id) {
         resourceIpPoolService.releaseToCooling(id);
         return Result.ok(true);
     }
 
-    /** 切换 lifecycle_state; admin 上线 / 退役流转用. */
+    /**
+     * 切换 lifecycle_state (上线 / 退役流转)
+     *
+     * @param id    IP 池编号
+     * @param state 目标 lifecycle 状态
+     * @return 是否成功
+     */
     @PostMapping("/lifecycle")
     public Result<Boolean> transitionLifecycle(@RequestParam("id") String id,
                                                @RequestParam("state") String state) {
@@ -104,7 +146,13 @@ public class ResourceIpPoolController {
 
     // ===== 子表分段编辑 endpoint (admin 拆 4 个对话框各自调) =====
 
-    /** 更新核心字段 (region/ipTypeId/ipAddress/provisionMode/remark; lifecycle 走 /lifecycle). */
+    /**
+     * 更新核心字段 (region/ipTypeId/ipAddress/provisionMode/remark; lifecycle 走 /lifecycle)
+     *
+     * @param id    IP 池编号
+     * @param reqVO 核心字段更新入参
+     * @return 是否成功
+     */
     @PutMapping("/{id}/core")
     public Result<Boolean> updateCore(@PathVariable("id") String id,
                                       @Valid @RequestBody ResourceIpPoolCoreUpdateReqVO reqVO) {
@@ -112,14 +160,25 @@ public class ResourceIpPoolController {
         return Result.ok(true);
     }
 
-    /** 取 SSH 凭据 (编辑 dialog prefill; 密码字段空着, 改密码才填). */
+    /**
+     * 获得 SSH 凭据 (编辑 dialog prefill; 密码字段空着, 改密码才填)
+     *
+     * @param id IP 池编号
+     * @return SSH 凭据
+     */
     @GetMapping("/{id}/credential")
     public Result<ResourceIpPoolCredentialRespVO> getCredential(@PathVariable("id") String id) {
         ipPoolValidator.validateExists(id);
         return Result.ok(ResourceIpPoolConvert.INSTANCE.convertCredential(credentialService.get(id)));
     }
 
-    /** 更新 SSH 凭据 (sshPassword 留空 = 保留原值). */
+    /**
+     * 更新 SSH 凭据 (sshPassword 留空 = 保留原值)
+     *
+     * @param id    IP 池编号
+     * @param reqVO 凭据更新入参
+     * @return 是否成功
+     */
     @PutMapping("/{id}/credential")
     public Result<Boolean> updateCredential(@PathVariable("id") String id,
                                             @Valid @RequestBody ResourceIpPoolCredentialUpdateReqVO reqVO) {
@@ -127,14 +186,25 @@ public class ResourceIpPoolController {
         return Result.ok(true);
     }
 
-    /** 取账面. */
+    /**
+     * 获得账面信息
+     *
+     * @param id IP 池编号
+     * @return 账面信息
+     */
     @GetMapping("/{id}/billing")
     public Result<ResourceIpPoolBillingRespVO> getBilling(@PathVariable("id") String id) {
         ipPoolValidator.validateExists(id);
         return Result.ok(ResourceIpPoolConvert.INSTANCE.convertBilling(billingService.get(id)));
     }
 
-    /** 更新账面. */
+    /**
+     * 更新账面信息
+     *
+     * @param id    IP 池编号
+     * @param reqVO 账面更新入参
+     * @return 是否成功
+     */
     @PutMapping("/{id}/billing")
     public Result<Boolean> updateBilling(@PathVariable("id") String id,
                                          @Valid @RequestBody ResourceIpPoolBillingUpdateReqVO reqVO) {
@@ -142,14 +212,25 @@ public class ResourceIpPoolController {
         return Result.ok(true);
     }
 
-    /** 取 dante 配置 + 限速. */
+    /**
+     * 获得 dante 配置 + 限速
+     *
+     * @param id IP 池编号
+     * @return dante 配置 + 限速
+     */
     @GetMapping("/{id}/socks5")
     public Result<ResourceIpPoolSocks5RespVO> getSocks5(@PathVariable("id") String id) {
         ipPoolValidator.validateExists(id);
         return Result.ok(ResourceIpPoolConvert.INSTANCE.convertSocks5(socks5Service.get(id)));
     }
 
-    /** 更新 dante 配置 + 限速 (socks5Password 留空 = 保留原值; 改限速触发链路校验). */
+    /**
+     * 更新 dante 配置 + 限速 (socks5Password 留空 = 保留原值; 改限速触发链路校验)
+     *
+     * @param id    IP 池编号
+     * @param reqVO socks5 更新入参
+     * @return 是否成功
+     */
     @PutMapping("/{id}/socks5")
     public Result<Boolean> updateSocks5(@PathVariable("id") String id,
                                         @Valid @RequestBody ResourceIpPoolSocks5UpdateReqVO reqVO) {
@@ -157,7 +238,7 @@ public class ResourceIpPoolController {
         return Result.ok(true);
     }
 
-    /** 单 IP 详情: 主 + 4 子表组装. */
+    /** 单 IP 详情: 主 + 4 子表组装 */
     private ResourceIpPoolRespVO loadDetail(String id) {
         ResourceIpPoolDO main = ipPoolValidator.validateExists(id);
         return ResourceIpPoolConvert.INSTANCE.convertWithSubtables(main,

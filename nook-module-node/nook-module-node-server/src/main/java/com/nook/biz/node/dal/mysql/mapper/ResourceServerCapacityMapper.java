@@ -30,10 +30,11 @@ public interface ResourceServerCapacityMapper extends BaseMapper<ResourceServerC
     /**
      * 业务阈值 partial update; null 字段不动 (Wrapper.set 显式 null 会写入, 故 if-set 跳过).
      */
-    default int updateQuota(String serverId, Integer monthlyTrafficGb, Integer bandwidthLimitMbps) {
+    default int updateQuota(String serverId, Integer monthlyTrafficGb, Integer bandwidthLimitMbps, Integer clientMaxCount) {
         return update(null, Wrappers.<ResourceServerCapacityDO>lambdaUpdate()
                 .set(monthlyTrafficGb != null, ResourceServerCapacityDO::getMonthlyTrafficGb, monthlyTrafficGb)
                 .set(bandwidthLimitMbps != null, ResourceServerCapacityDO::getBandwidthLimitMbps, bandwidthLimitMbps)
+                .set(clientMaxCount != null, ResourceServerCapacityDO::getClientMaxCount, clientMaxCount)
                 .set(ResourceServerCapacityDO::getUpdatedAt, LocalDateTime.now())
                 .eq(ResourceServerCapacityDO::getServerId, serverId));
     }

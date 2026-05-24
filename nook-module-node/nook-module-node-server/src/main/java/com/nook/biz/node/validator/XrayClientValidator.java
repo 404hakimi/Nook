@@ -60,18 +60,18 @@ public class XrayClientValidator {
     }
 
     /**
-     * 落地数软上限校验: 该 server 活客户数 ≥ touchdownSize 则不允许再开通.
+     * 客户数硬上限校验: 该 server 活客户数 ≥ clientMaxCount 则不允许再开通.
      *
-     * @param serverId      resource_server.id
-     * @param touchdownSize 该 server 的 touchdownSize (来自 xray_node); null 视为无上限不校验
+     * @param serverId       resource_server.id
+     * @param clientMaxCount 该 server 的客户数上限 (来自 capacity.client_max_count); null/0 视为无上限不校验
      */
-    public void validateTouchdownCapacity(String serverId, Integer touchdownSize) {
-        if (touchdownSize == null) return;
+    public void validateClientMaxCount(String serverId, Integer clientMaxCount) {
+        if (clientMaxCount == null || clientMaxCount == 0) return;
         long activeCount = xrayClientMapper.selectCount(Wrappers.<XrayClientDO>lambdaQuery()
                 .eq(XrayClientDO::getServerId, serverId));
-        if (activeCount >= touchdownSize) {
+        if (activeCount >= clientMaxCount) {
             throw new BusinessException(XrayErrorCode.TOUCHDOWN_LIMIT_REACHED,
-                    serverId, touchdownSize);
+                    serverId, clientMaxCount);
         }
     }
 

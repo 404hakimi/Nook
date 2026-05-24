@@ -2,30 +2,35 @@
 import { onMounted, ref, watch } from 'vue'
 import { Activity, Calendar, FileText, FolderOpen, Info, Lock, Network, RotateCcw, ServerCog } from 'lucide-vue-next'
 import { NAlert, NButton, NCard, NDescriptions, NDescriptionsItem, NIcon, NSpin, NTag, useDialog, useMessage } from 'naive-ui'
-import { pageXrayNode, type XrayNode } from '@/api/xray/node'
+import { getXrayServer, type XrayServer } from '@/api/xray/xray-server'
+import { getXrayConfig, type XrayConfig } from '@/api/xray/xray-config'
 import { xrayRestart } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
-import XrayNodeInstallInfoDialog from '@/views/xray/XrayNodeInstallInfoDialog.vue'
-import XrayNodeStatusDialog from '@/views/xray/XrayNodeStatusDialog.vue'
-import XrayNodeDiffDialog from '@/views/xray/XrayNodeDiffDialog.vue'
-import XrayNodeLogDialog from '@/views/xray/XrayNodeLogDialog.vue'
+import XrayServerInstallInfoDialog from '@/views/xray/XrayServerInstallInfoDialog.vue'
+import XrayServerStatusDialog from '@/views/xray/XrayServerStatusDialog.vue'
+import XrayConfigDiffDialog from '@/views/xray/XrayConfigDiffDialog.vue'
+import XrayServerLogDialog from '@/views/xray/XrayServerLogDialog.vue'
 
 const props = defineProps<{ serverId: string }>()
 
 const message = useMessage()
 const dialog = useDialog()
 
-const node = ref<XrayNode | null>(null)
+const server = ref<XrayServer | null>(null)
+const config = ref<XrayConfig | null>(null)
 const loading = ref(false)
 
 async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    const page = await pageXrayNode({ serverId: props.serverId, pageNo: 1, pageSize: 1 })
-    node.value = page.records?.[0] ?? null
-  } catch {
-    node.value = null
+    // 并发拉两表; xray_server 不存在 → 整个 tab 进 "未装" 分支; xray_config 缺失独立兜 null
+    const [srv, cfg] = await Promise.all([
+      getXrayServer(props.serverId).catch(() => null),
+      getXrayConfig(props.serverId).catch(() => null)
+    ])
+    server.value = srv
+    config.value = cfg
   } finally {
     loading.value = false
   }
@@ -41,7 +46,7 @@ const diffOpen = ref(false)
 const logOpen = ref(false)
 
 function onRestart() {
-  if (!node.value) return
+  if (!server.value) return
   dialog.warning({
     title: '确认重启 xray',
     content: '会短暂中断现有客户连接 (~1-3s).',
@@ -58,13 +63,13 @@ function onRestart() {
 
 <template>
   <NSpin :show="loading">
-    <div v-if="!node && !loading">
+    <div v-if="!server && !loading">
       <NAlert type="warning" :show-icon="false" size="small">
-        该 server 未装 xray. 装 xray 流程暂未在新 UI 集成, 请到 <a href="/xray/nodes" class="text-blue-500">Xray 节点管理</a> 走一键部署 (后续会迁过来).
+        该 server 未装 xray. 装机入口待接入到本 tab.
       </NAlert>
     </div>
 
-    <div v-else-if="node" class="space-y-3">
+    <div v-else-if="server" class="space-y-3">
       <!-- 操作栏 -->
       <div class="flex items-center gap-2 flex-wrap">
         <NButton size="small" @click="installInfoOpen = true">
@@ -90,7 +95,7 @@ function onRestart() {
         </NButton>
       </div>
 
-      <!-- === Section 1: 运行参数 === -->
+      <!-- === Section 1: 运行参数 (xray_server 元数据 + xray_config inbound) === -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
           <div class="section-header">
@@ -100,26 +105,27 @@ function onRestart() {
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
           <NDescriptionsItem label="xray 版本">
-            <NTag size="small" type="info">{{ node.xrayVersion || '?' }}</NTag>
+            <NTag size="small" type="info">{{ server.xrayVersion || '?' }}</NTag>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="API 端口">
+            <span v-if="server.xrayApiPort != null" class="num">{{ server.xrayApiPort }}</span>
+            <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="监听端口">
-            <span v-if="node.sharedInboundPort != null" class="num">{{ node.sharedInboundPort }}</span>
+            <span v-if="config?.sharedInboundPort != null" class="num">{{ config.sharedInboundPort }}</span>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="domain">
-            <code v-if="node.domain" class="kbd">{{ node.domain }}</code>
+            <code v-if="config?.domain" class="kbd">{{ config.domain }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="API 端口">
-            <span v-if="node.xrayApiPort != null" class="num">{{ node.xrayApiPort }}</span>
-            <span v-else class="muted">—</span>
+          <NDescriptionsItem label="协议 / 传输">
+            <NTag v-if="config?.protocol" size="tiny">{{ config.protocol }}</NTag>
+            <NTag v-if="config?.transport" size="tiny" type="info" class="ml-1">{{ config.transport }}</NTag>
+            <span v-if="!config?.protocol && !config?.transport" class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="ws path">
-            <code v-if="node.wsPath" class="kbd">{{ node.wsPath }}</code>
-            <span v-else class="muted">—</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="touchdownSize">
-            <span v-if="node.touchdownSize != null" class="num">{{ node.touchdownSize }}</span>
+            <code v-if="config?.wsPath" class="kbd">{{ config.wsPath }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
         </NDescriptions>
@@ -135,17 +141,17 @@ function onRestart() {
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 6rem">
           <NDescriptionsItem label="cert 路径">
-            <code v-if="node.tlsCertPath" class="kbd">{{ node.tlsCertPath }}</code>
+            <code v-if="config?.tlsCertPath" class="kbd">{{ config.tlsCertPath }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="key 路径">
-            <code v-if="node.tlsKeyPath" class="kbd">{{ node.tlsKeyPath }}</code>
+            <code v-if="config?.tlsKeyPath" class="kbd">{{ config.tlsKeyPath }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
         </NDescriptions>
       </NCard>
 
-      <!-- === Section 3: 文件路径 === -->
+      <!-- === Section 3: 文件路径 (xray_server) === -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
           <div class="section-header">
@@ -155,19 +161,19 @@ function onRestart() {
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
           <NDescriptionsItem label="binary">
-            <code v-if="node.xrayBinaryPath" class="kbd">{{ node.xrayBinaryPath }}</code>
+            <code v-if="server.xrayBinaryPath" class="kbd">{{ server.xrayBinaryPath }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="config">
-            <code v-if="node.xrayConfigPath" class="kbd">{{ node.xrayConfigPath }}</code>
+            <code v-if="server.xrayConfigPath" class="kbd">{{ server.xrayConfigPath }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="share 目录">
-            <code v-if="node.xrayShareDir" class="kbd">{{ node.xrayShareDir }}</code>
+            <code v-if="server.xrayShareDir" class="kbd">{{ server.xrayShareDir }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="log 目录">
-            <code v-if="node.xrayLogDir" class="kbd">{{ node.xrayLogDir }}</code>
+            <code v-if="server.xrayLogDir" class="kbd">{{ server.xrayLogDir }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
         </NDescriptions>
@@ -183,20 +189,20 @@ function onRestart() {
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
           <NDescriptionsItem label="最近启动">
-            <span v-if="node.lastXrayUptime">{{ formatDateTime(node.lastXrayUptime) }}</span>
+            <span v-if="server.lastXrayUptime">{{ formatDateTime(server.lastXrayUptime) }}</span>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="部署完成">
-            <span v-if="node.installedAt">{{ formatDateTime(node.installedAt) }}</span>
+            <span v-if="server.installedAt">{{ formatDateTime(server.installedAt) }}</span>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
         </NDescriptions>
       </NCard>
 
-      <XrayNodeInstallInfoDialog v-model="installInfoOpen" :node="node" />
-      <XrayNodeStatusDialog v-model="statusOpen" :node="node" />
-      <XrayNodeDiffDialog v-model="diffOpen" :node="node" />
-      <XrayNodeLogDialog v-model="logOpen" :node="node" />
+      <XrayServerInstallInfoDialog v-model="installInfoOpen" :server="server" :config="config" />
+      <XrayServerStatusDialog v-model="statusOpen" :server="server" />
+      <XrayConfigDiffDialog v-model="diffOpen" :server="server" />
+      <XrayServerLogDialog v-model="logOpen" :server="server" />
     </div>
   </NSpin>
 </template>

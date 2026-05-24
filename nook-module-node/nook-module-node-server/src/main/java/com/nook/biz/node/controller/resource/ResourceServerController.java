@@ -58,7 +58,12 @@ public class ResourceServerController {
     private final ResourceServerCapacityService capacityService;
     private final ResourceServerValidator serverValidator;
 
-    /** 创建 server (主表 + credential + billing + dns 一次性写). */
+    /**
+     * 创建 server (主表 + credential + billing + dns 一次性写)
+     *
+     * @param createReqVO 创建入参
+     * @return server 详情
+     */
     @PostMapping("/create")
     public Result<ResourceServerRespVO> createServer(@Valid @RequestBody ResourceServerCreateReqVO createReqVO) {
         String id = resourceServerService.createServer(createReqVO);
@@ -66,7 +71,13 @@ public class ResourceServerController {
         return Result.ok(ResourceServerConvert.INSTANCE.convert(server));
     }
 
-    /** 更新核心字段 (name/region/totalIp/maxClients/remark; lifecycle 走 /lifecycle). */
+    /**
+     * 更新核心字段 (name/region/totalIp/remark; lifecycle 走 /lifecycle)
+     *
+     * @param id    server 编号
+     * @param reqVO 核心字段更新入参
+     * @return 是否成功
+     */
     @PutMapping("/{id}/core")
     public Result<Boolean> updateCore(@PathVariable("id") String id,
                                       @Valid @RequestBody ResourceServerCoreUpdateReqVO reqVO) {
@@ -74,7 +85,13 @@ public class ResourceServerController {
         return Result.ok(true);
     }
 
-    /** 更新 SSH 凭据 (LIVE 后 host/port 硬锁; 密码空保留原值). */
+    /**
+     * 更新 SSH 凭据 (LIVE 后 host/port 硬锁; 密码空保留原值)
+     *
+     * @param id    server 编号
+     * @param reqVO 凭据更新入参
+     * @return 是否成功
+     */
     @PutMapping("/{id}/credential")
     public Result<Boolean> updateCredential(@PathVariable("id") String id,
                                             @Valid @RequestBody ResourceServerCredentialUpdateReqVO reqVO) {
@@ -82,7 +99,13 @@ public class ResourceServerController {
         return Result.ok(true);
     }
 
-    /** 更新账面 (idc/带宽/成本/账单日/到期日). */
+    /**
+     * 更新账面 (idc/成本/账单日/到期日)
+     *
+     * @param id    server 编号
+     * @param reqVO 账面更新入参
+     * @return 是否成功
+     */
     @PutMapping("/{id}/billing")
     public Result<Boolean> updateBilling(@PathVariable("id") String id,
                                          @Valid @RequestBody ResourceServerBillingUpdateReqVO reqVO) {
@@ -90,7 +113,13 @@ public class ResourceServerController {
         return Result.ok(true);
     }
 
-    /** 更新 DNS 绑定 (domain/cfZoneId/cfRecordId). */
+    /**
+     * 更新 DNS 绑定 (domain/cfZoneId/cfRecordId)
+     *
+     * @param id    server 编号
+     * @param reqVO DNS 更新入参
+     * @return 是否成功
+     */
     @PutMapping("/{id}/dns")
     public Result<Boolean> updateDns(@PathVariable("id") String id,
                                      @Valid @RequestBody ResourceServerDnsUpdateReqVO reqVO) {
@@ -98,47 +127,85 @@ public class ResourceServerController {
         return Result.ok(true);
     }
 
+    /**
+     * 删除 server (软删主记录, 保留 xray_server / xray_config / agent_task / op_log 历史)
+     *
+     * @param id server 编号
+     * @return 是否成功
+     */
     @DeleteMapping("/delete")
     public Result<Boolean> deleteServer(@RequestParam("id") String id) {
         resourceServerService.deleteServer(id);
         return Result.ok(true);
     }
 
-    /** 取 server 核心字段; SSH/账面/DNS 见配套子接口. */
+    /**
+     * 获得 server 核心字段; SSH / 账面 / DNS 见配套子接口
+     *
+     * @param id server 编号
+     * @return server 核心字段
+     */
     @GetMapping("/get")
     public Result<ResourceServerRespVO> getServer(@RequestParam("id") String id) {
         ResourceServerDO server = serverValidator.validateExists(id);
         return Result.ok(ResourceServerConvert.INSTANCE.convert(server));
     }
 
-    /** 取 SSH 凭据 (UI 编辑 dialog prefill 用; 密码字段空着, 改密码才填). */
+    /**
+     * 获得 SSH 凭据 (编辑 dialog prefill; 密码字段空着, 改密码才填)
+     *
+     * @param id server 编号
+     * @return SSH 凭据
+     */
     @GetMapping("/{id}/credential")
     public Result<ResourceServerCredentialRespVO> getCredential(@PathVariable("id") String id) {
         serverValidator.validateExists(id);
         return Result.ok(ResourceServerCredentialConvert.INSTANCE.convert(credentialService.get(id)));
     }
 
-    /** 取账面. */
+    /**
+     * 获得账面
+     *
+     * @param id server 编号
+     * @return 账面
+     */
     @GetMapping("/{id}/billing")
     public Result<ResourceServerBillingRespVO> getBilling(@PathVariable("id") String id) {
         serverValidator.validateExists(id);
         return Result.ok(ResourceServerBillingConvert.INSTANCE.convert(billingService.get(id)));
     }
 
-    /** 取 DNS 绑定. */
+    /**
+     * 获得 DNS 绑定
+     *
+     * @param id server 编号
+     * @return DNS 绑定
+     */
     @GetMapping("/{id}/dns")
     public Result<ResourceServerDnsRespVO> getDns(@PathVariable("id") String id) {
         serverValidator.validateExists(id);
         return Result.ok(ResourceServerDnsConvert.INSTANCE.convert(dnsService.get(id)));
     }
 
+    /**
+     * 获得 server 分页
+     *
+     * @param pageReqVO 分页条件
+     * @return server 分页
+     */
     @GetMapping("/page")
     public Result<PageResult<ResourceServerRespVO>> getServerPage(@ModelAttribute ResourceServerPageReqVO pageReqVO) {
         PageResult<ResourceServerDO> pageResult = resourceServerService.getServerPage(pageReqVO);
         return Result.ok(ResourceServerConvert.INSTANCE.convertPage(pageResult));
     }
 
-    /** 切换 lifecycle_state; admin 上线 / 退役流转用. */
+    /**
+     * 切换 lifecycle_state (上线 / 退役流转)
+     *
+     * @param id    server 编号
+     * @param state 目标 lifecycle 状态
+     * @return 是否成功
+     */
     @PostMapping("/lifecycle")
     public Result<Boolean> transitionLifecycle(@RequestParam("id") String id,
                                                @RequestParam("state") String state) {
@@ -146,14 +213,25 @@ public class ResourceServerController {
         return Result.ok(true);
     }
 
-    /** 取 server 流量配额 + 已用 (监控面板用); 未上报过 NIC 时返 null. */
+    /**
+     * 获得 server 流量配额 + 已用 (监控面板用); 未上报过 NIC 时返 null
+     *
+     * @param id server 编号
+     * @return 流量配额 + 已用
+     */
     @GetMapping("/capacity")
     public Result<ResourceServerCapacityRespVO> getCapacity(@RequestParam("id") String id) {
         serverValidator.validateExists(id);
         return Result.ok(ResourceServerCapacityConvert.INSTANCE.convert(capacityService.get(id)));
     }
 
-    /** 更新业务阈值 (月流量配额 + 限定带宽); throttle 状态机 + agent tc qdisc 用. */
+    /**
+     * 更新业务阈值 (月流量配额 + 限定带宽 + 客户数上限); throttle 状态机 + agent tc qdisc 用
+     *
+     * @param id    server 编号
+     * @param reqVO 业务阈值更新入参
+     * @return 是否成功
+     */
     @PutMapping("/{id}/capacity")
     public Result<Boolean> updateCapacity(@PathVariable("id") String id,
                                           @RequestBody @Valid ResourceServerCapacityUpdateReqVO reqVO) {

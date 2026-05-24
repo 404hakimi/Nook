@@ -2,7 +2,7 @@ package com.nook.biz.node.convert.xray;
 
 import com.nook.biz.node.controller.xray.vo.XrayClientRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.dal.dataobject.node.XrayNodeDO;
+import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
@@ -18,8 +18,8 @@ import java.util.Set;
 /**
  * ClientDO ↔ VO 转换 + ipAddress / server / 共享 inbound 字段 enrich.
  *
- * <p>inbound 维度字段 (protocol / transport / listenIp / listenPort) 是 server 级共享配置, 存 xray_node;
- * controller 预拉 node map 在 convert 层 enrich, 跟 ipAddress / serverName 同套路.
+ * <p>inbound 维度字段 (protocol / transport / listenIp / listenPort) 是 server 级共享配置, 存 xray_config;
+ * controller 预拉 config map 在 convert 层 enrich, 跟 ipAddress / serverName 同套路.
  *
  * @author nook
  */
@@ -44,11 +44,11 @@ public interface XrayClientConvert {
                                      Map<String, String> ipAddressMap,
                                      Map<String, ResourceServerDO> serverMap,
                                      Map<String, String> hostMap,
-                                     Map<String, XrayNodeDO> nodeMap) {
+                                     Map<String, XrayConfigDO> configMap) {
         XrayClientRespVO vo = convert(entity);
         fillIpAddress(vo, ipAddressMap);
         fillServer(vo, serverMap, hostMap);
-        fillInbound(vo, nodeMap);
+        fillInbound(vo, configMap);
         return vo;
     }
 
@@ -56,12 +56,12 @@ public interface XrayClientConvert {
                                                      Map<String, String> ipAddressMap,
                                                      Map<String, ResourceServerDO> serverMap,
                                                      Map<String, String> hostMap,
-                                                     Map<String, XrayNodeDO> nodeMap) {
+                                                     Map<String, XrayConfigDO> configMap) {
         List<XrayClientRespVO> records = convertList(page.getRecords());
         for (XrayClientRespVO v : records) {
             fillIpAddress(v, ipAddressMap);
             fillServer(v, serverMap, hostMap);
-            fillInbound(v, nodeMap);
+            fillInbound(v, configMap);
         }
         return PageResult.of(page.getTotal(), records);
     }
@@ -71,7 +71,7 @@ public interface XrayClientConvert {
         return CollectionUtils.convertSet(entities, XrayClientDO::getIpId);
     }
 
-    /** 从一批 DO 抽出去重 serverId 集合, 供 controller 一次性批量查 server + xray_node. */
+    /** 从一批 DO 抽出去重 serverId 集合, 供 controller 一次性批量查 server + xray_config. */
     static Set<String> collectServerIds(Collection<XrayClientDO> entities) {
         return CollectionUtils.convertSet(entities, XrayClientDO::getServerId);
     }
@@ -97,15 +97,15 @@ public interface XrayClientConvert {
         }
     }
 
-    /** 共享 inbound 是 server 级配置: 协议 / 传输 / 监听 IP / 监听端口 全部来自 xray_node. server 还没装 xray 时各字段留 null. */
-    private static void fillInbound(XrayClientRespVO vo, Map<String, XrayNodeDO> nodeMap) {
-        if (vo == null || nodeMap == null) return;
-        XrayNodeDO node = nodeMap.get(vo.getServerId());
-        if (node == null) return;
-        vo.setProtocol(node.getProtocol());
-        vo.setTransport(node.getTransport());
-        vo.setListenIp(node.getListenIp());
-        vo.setListenPort(node.getSharedInboundPort());
+    /** 共享 inbound 是 server 级配置: 协议 / 传输 / 监听 IP / 监听端口 全部来自 xray_config. server 还没装 xray 时各字段留 null. */
+    private static void fillInbound(XrayClientRespVO vo, Map<String, XrayConfigDO> configMap) {
+        if (vo == null || configMap == null) return;
+        XrayConfigDO cfg = configMap.get(vo.getServerId());
+        if (cfg == null) return;
+        vo.setProtocol(cfg.getProtocol());
+        vo.setTransport(cfg.getTransport());
+        vo.setListenIp(cfg.getListenIp());
+        vo.setListenPort(cfg.getSharedInboundPort());
     }
 
 }

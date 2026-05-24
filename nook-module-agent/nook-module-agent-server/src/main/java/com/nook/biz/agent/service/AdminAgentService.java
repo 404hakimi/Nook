@@ -9,7 +9,7 @@ import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
-import com.nook.biz.node.api.xray.dto.XrayNodeRespDTO;
+import com.nook.biz.node.api.xray.dto.XrayServerRespDTO;
 import com.nook.common.web.response.PageResult;
 
 import java.util.Collection;
@@ -70,7 +70,7 @@ public interface AdminAgentService {
             Map<String, ResourceServerCredentialRespDTO> credentialMap,
             Map<String, ResourceServerRuntimeRespDTO> runtimeMap,
             Map<String, ResourceServerCapacityRespDTO> capacityMap,
-            Map<String, XrayNodeRespDTO> xrayMap,
+            Map<String, XrayServerRespDTO> xrayMap,
             Map<String, AgentRuntimeConfigDO> cfgMap
     ) { }
 }

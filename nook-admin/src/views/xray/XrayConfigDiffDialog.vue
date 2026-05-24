@@ -22,11 +22,13 @@ import {
   type XrayClient
 } from '@/api/xray/client'
 import { IP_POOL_STATUS_LABELS, pageIpPool, type ResourceIpPool } from '@/api/resource/ip-pool'
-import type { XrayNode } from '@/api/xray/node'
+import type { XrayServer } from '@/api/xray/xray-server'
+import type { XrayConfig } from '@/api/xray/xray-config'
 
 interface Props {
   modelValue: boolean
-  node?: XrayNode | null
+  server?: XrayServer | null
+  config?: XrayConfig | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -92,7 +94,7 @@ const totalOrphan = computed(() => {
 })
 
 watch(
-  () => [props.modelValue, props.node?.serverId],
+  () => [props.modelValue, props.server?.serverId],
   ([open]) => {
     if (open) {
       runRefresh()
@@ -108,12 +110,12 @@ watch(
 )
 
 async function runRefresh() {
-  if (!props.node) return
+  if (!props.server) return
   loading.value = true
   try {
     const [status, clientPage] = await Promise.all([
-      getSyncStatus(props.node.serverId),
-      pageClients({ serverId: props.node.serverId, pageNo: 1, pageSize: 500 })
+      getSyncStatus(props.server.serverId),
+      pageClients({ serverId: props.server.serverId, pageNo: 1, pageSize: 500 })
     ])
     syncStatus.value = status
     clients.value = clientPage.records
@@ -453,7 +455,7 @@ interface PanelView {
 }
 
 /** 当前选中的对象类型: 图节点 / 顶部 chip 之一 */
-type SelectionKind = 'node' | 'server' | 'xray-node' | 'inbound'
+type SelectionKind = 'node' | 'server' | 'xray-server' | 'inbound'
 const selectionKind = shallowRef<SelectionKind | null>(null)
 
 /** 详情面板内容: 按选中对象类型 (graph node / 顶部 chip) 分别构造服务端 + 存储两段视图 */
@@ -461,13 +463,13 @@ const panelView = computed<PanelView | null>(() => {
   const kind = selectionKind.value
   if (!kind) return null
   if (kind === 'server') return buildServerView()
-  if (kind === 'xray-node') return buildXrayNodeView()
+  if (kind === 'xray-server') return buildXrayServerView()
   if (kind === 'inbound') return buildInboundView()
   return buildGraphNodeView()
 })
 
 function buildServerView(): PanelView {
-  const n = props.node
+  const n = props.server
   return {
     title: '服务器',
     status: null,
@@ -496,36 +498,36 @@ function buildServerView(): PanelView {
   }
 }
 
-function buildXrayNodeView(): PanelView {
-  const n = props.node
+function buildXrayServerView(): PanelView {
+  const s = props.server
+  const c = props.config
   return {
-    title: 'Xray 节点',
+    title: 'Xray 实例',
     status: null,
     headerBg: '#efdbff',
     actionClientId: null,
     sections: [
       {
-        heading: '服务端 (xray runtime)',
+        heading: '运行时 (xray 进程)',
         accent: 'blue',
         rows: [
-          { label: 'Xray 版本', value: n?.xrayVersion ?? '—', mono: true },
-          { label: 'gRPC API 端口', value: n?.xrayApiPort != null ? `127.0.0.1:${n.xrayApiPort}` : '—', mono: true },
-          { label: '上次启动', value: n?.lastXrayUptime ?? '—' },
-          { label: '最近部署', value: n?.installedAt ?? '—' }
+          { label: 'Xray 版本', value: s?.xrayVersion ?? '—', mono: true },
+          { label: 'gRPC API 端口', value: s?.xrayApiPort != null ? `127.0.0.1:${s.xrayApiPort}` : '—', mono: true },
+          { label: '上次启动', value: s?.lastXrayUptime ?? '—' },
+          { label: '最近部署', value: s?.installedAt ?? '—' }
         ]
       },
       {
-        heading: '存储 (DB xray_node)',
+        heading: '存储 (DB xray_server + xray_config)',
         accent: 'green',
         rows: [
-          { label: '安装目录', value: n?.xrayInstallDir ?? '—', mono: true },
-          { label: '二进制包', value: n?.xrayBinaryPath ?? '—', mono: true },
-          { label: 'config.json', value: n?.xrayConfigPath ?? '—', mono: true },
-          { label: 'share 目录', value: n?.xrayShareDir ?? '—', mono: true },
-          { label: '日志目录', value: n?.xrayLogDir ?? '—', mono: true },
-          { label: '落地上限', value: n?.touchdownSize != null ? String(n.touchdownSize) : '—', mono: true },
-          { label: 'TLS 证书', value: n?.tlsCertPath ?? '—', mono: true },
-          { label: 'TLS 私钥', value: n?.tlsKeyPath ?? '—', mono: true }
+          { label: '安装目录', value: s?.xrayInstallDir ?? '—', mono: true },
+          { label: '二进制包', value: s?.xrayBinaryPath ?? '—', mono: true },
+          { label: 'config.json', value: s?.xrayConfigPath ?? '—', mono: true },
+          { label: 'share 目录', value: s?.xrayShareDir ?? '—', mono: true },
+          { label: '日志目录', value: s?.xrayLogDir ?? '—', mono: true },
+          { label: 'TLS 证书', value: c?.tlsCertPath ?? '—', mono: true },
+          { label: 'TLS 私钥', value: c?.tlsKeyPath ?? '—', mono: true }
         ]
       }
     ]
@@ -533,7 +535,7 @@ function buildXrayNodeView(): PanelView {
 }
 
 function buildInboundView(): PanelView {
-  const n = props.node
+  const c = props.config
   return {
     title: '共享 inbound',
     status: null,
@@ -545,19 +547,19 @@ function buildInboundView(): PanelView {
         accent: 'blue',
         rows: [
           { label: 'tag', value: 'in_shared', mono: true, active: true },
-          { label: '协议', value: n?.protocol ?? 'vmess', mono: true },
-          { label: '传输', value: n?.transport ?? 'ws', mono: true },
-          { label: '监听 IP', value: n?.listenIp ?? '0.0.0.0', mono: true },
-          { label: '监听端口', value: n?.sharedInboundPort != null ? String(n.sharedInboundPort) : '—', mono: true },
-          { label: 'WS path', value: n?.wsPath ?? '—', mono: true },
-          { label: '对外域名', value: n?.domain ?? '—', mono: true }
+          { label: '协议', value: c?.protocol ?? 'vmess', mono: true },
+          { label: '传输', value: c?.transport ?? 'ws', mono: true },
+          { label: '监听 IP', value: c?.listenIp ?? '0.0.0.0', mono: true },
+          { label: '监听端口', value: c?.sharedInboundPort != null ? String(c.sharedInboundPort) : '—', mono: true },
+          { label: 'WS path', value: c?.wsPath ?? '—', mono: true },
+          { label: '对外域名', value: c?.domain ?? '—', mono: true }
         ]
       },
       {
-        heading: '存储 (DB xray_node)',
+        heading: '存储 (DB xray_config)',
         accent: 'green',
         rows: [
-          { label: '说明', value: 'inbound 配置存在 xray_node 行上; 一服务器一份共享 inbound' }
+          { label: '说明', value: 'inbound 配置存在 xray_config 行上; 一服务器一份共享 inbound' }
         ]
       }
     ]
@@ -714,11 +716,11 @@ async function onSyncOne(clientId: string) {
 }
 
 async function onReplay() {
-  if (!props.node || replayLoading.value || totalStale.value === 0) return
-  const label = props.node.serverName || props.node.serverId.slice(0, 12)
+  if (!props.server || replayLoading.value || totalStale.value === 0) return
+  const label = props.server.serverName || props.server.serverId.slice(0, 12)
   replayLoading.value = true
   try {
-    const report: ReplayReport = await replayServer(props.node.serverId)
+    const report: ReplayReport = await replayServer(props.server.serverId)
     const tip = `总 ${report.totalCount} · 已就绪 ${report.alreadyOkCount} · 推送 ${report.successCount}`
     if (report.failedClientIds.length === 0) {
       message.success(`${label}: 推送完成 (${tip})`)
@@ -783,9 +785,9 @@ onBeforeUnmount(destroyGraph)
       <span>查看差异 (远端 vs DB, 只读)</span>
     </template>
     <template #header-extra>
-      <span v-if="node" class="text-xs text-zinc-500">
-        {{ node.serverName || node.serverId }}
-        <span v-if="node.serverHost">({{ node.serverHost }})</span>
+      <span v-if="server" class="text-xs text-zinc-500">
+        {{ server.serverName || server.serverId }}
+        <span v-if="server.serverHost">({{ server.serverHost }})</span>
       </span>
     </template>
 
@@ -873,20 +875,20 @@ onBeforeUnmount(destroyGraph)
           @click="selectChip('server')"
         >
           <span class="text-[10px] opacity-70">服务器</span>
-          <span class="font-mono">{{ node?.serverName || node?.serverId }}</span>
-          <span v-if="node?.serverHost" class="text-[10px] opacity-60 font-mono">{{ node.serverHost }}</span>
+          <span class="font-mono">{{ server?.serverName || server?.serverId }}</span>
+          <span v-if="server?.serverHost" class="text-[10px] opacity-60 font-mono">{{ server.serverHost }}</span>
         </button>
         <span class="text-zinc-300">→</span>
         <button
           type="button"
           class="inline-flex items-center gap-1 px-2 py-1 rounded cursor-pointer transition-shadow hover:shadow-sm"
-          :class="selectionKind === 'xray-node' ? 'ring-2 ring-purple-300' : ''"
+          :class="selectionKind === 'xray-server' ? 'ring-2 ring-purple-300' : ''"
           style="background:#f9f0ff;border:1px solid #d3adf7;color:#531dab"
-          @click="selectChip('xray-node')"
+          @click="selectChip('xray-server')"
         >
-          <span class="text-[10px] opacity-70">xray 节点</span>
-          <span class="font-mono">api :{{ node?.xrayApiPort ?? '?' }}</span>
-          <span v-if="node?.xrayVersion" class="text-[10px] opacity-60">{{ node.xrayVersion }}</span>
+          <span class="text-[10px] opacity-70">xray 实例</span>
+          <span class="font-mono">api :{{ server?.xrayApiPort ?? '?' }}</span>
+          <span v-if="server?.xrayVersion" class="text-[10px] opacity-60">{{ server.xrayVersion }}</span>
         </button>
         <span class="text-zinc-300">→</span>
         <button
@@ -897,8 +899,8 @@ onBeforeUnmount(destroyGraph)
           @click="selectChip('inbound')"
         >
           <span class="text-[10px] opacity-70">共享 inbound</span>
-          in_shared<span v-if="node?.sharedInboundPort">:{{ node.sharedInboundPort }}</span>
-          <span v-if="node?.protocol" class="text-[10px] opacity-70">{{ node.protocol }}+{{ node.transport }}</span>
+          in_shared<span v-if="config?.sharedInboundPort">:{{ config.sharedInboundPort }}</span>
+          <span v-if="config?.protocol" class="text-[10px] opacity-70">{{ config.protocol }}+{{ config.transport }}</span>
         </button>
         <span class="text-zinc-300">→</span>
         <span class="text-zinc-400">每客户一行: 用户 / 路由规则 / socks5 出站 / 落地 IP</span>

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import NodeClientsSubTable from '@/views/xray/NodeClientsSubTable.vue'
+import ServerXrayClientsTable from '@/views/xray/ServerXrayClientsTable.vue'
 
-defineProps<{ serverId: string }>()
+defineProps<{ serverId: string }>()  // ServerDetail tab 容器, 内层是 Xray 客户端表格
 </script>
 
 <template>
-  <NodeClientsSubTable :server-id="serverId" :embedded="false" />
+  <ServerXrayClientsTable :server-id="serverId" />
 </template>

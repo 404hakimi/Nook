@@ -26,7 +26,7 @@ import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerPageReqDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
-import com.nook.biz.node.api.xray.XrayNodeApi;
+import com.nook.biz.node.api.xray.XrayServerApi;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.error.CommonErrorCode;
@@ -53,7 +53,7 @@ public class AdminAgentServiceImpl implements AdminAgentService {
     private final ResourceServerCredentialApi resourceServerCredentialApi;
     private final ResourceServerRuntimeApi resourceServerRuntimeApi;
     private final ResourceServerCapacityApi resourceServerCapacityApi;
-    private final XrayNodeApi xrayNodeApi;
+    private final XrayServerApi xrayServerApi;
     private final AgentTaskDispatchService agentTaskDispatchService;
     private final AgentBinaryResolver agentBinaryResolver;
     private final AgentRuntimeConfigMapper agentRuntimeConfigMapper;
@@ -76,7 +76,7 @@ public class AdminAgentServiceImpl implements AdminAgentService {
                 resourceServerCredentialApi.listByServerIds(ids),
                 resourceServerRuntimeApi.listByServerIds(ids),
                 resourceServerCapacityApi.listByServerIds(ids),
-                xrayNodeApi.listByServerIds(ids),
+                xrayServerApi.listByServerIds(ids),
                 CollectionUtils.convertMap(
                         agentRuntimeConfigMapper.selectBatchIds(ids),
                         AgentRuntimeConfigDO::getServerId));

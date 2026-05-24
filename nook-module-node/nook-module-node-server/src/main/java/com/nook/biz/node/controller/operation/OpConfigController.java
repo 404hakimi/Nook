@@ -28,7 +28,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * 管理后台 - Op 配置
+ * 管理后台 - Op 配置 Controller
  *
  * @author nook
  */
@@ -40,22 +40,35 @@ public class OpConfigController {
 
     private final OpConfigService opConfigService;
 
+    /**
+     * 获得 op 配置列表
+     *
+     * @return op 配置列表
+     */
     @GetMapping("/list")
     public Result<List<OpConfigRespVO>> getOpConfigList() {
         List<OpConfigDO> list = opConfigService.getOpConfigList();
         return Result.ok(OpConfigConvert.INSTANCE.convertList(list));
     }
 
-    /** 精简列表: 仅 opType + name; 给 OpLog 等页面做下拉 / 名称回填用 */
+    /**
+     * 获得精简 op 配置列表 (opType + name); OpLog 页面下拉 / 名称回填用
+     *
+     * @return 精简 op 配置列表
+     */
     @GetMapping("/simple-list")
     public Result<List<OpConfigSimpleRespVO>> getSimpleOpConfigList() {
         List<OpConfigDO> list = opConfigService.getOpConfigList();
         return Result.ok(OpConfigConvert.INSTANCE.convertSimpleList(list));
     }
 
+    /**
+     * 获得 OpType 下拉选项 (含是否已配置标记)
+     *
+     * @return OpType 下拉选项
+     */
     @GetMapping("/op-type-list")
     public Result<List<OpTypeOptionRespVO>> getOpTypeOptionList() {
-        // 给前端 Create 弹框提供 OpType 下拉 + 是否已配置标记
         Set<String> configured = new HashSet<>();
         for (OpConfigDO row : opConfigService.getOpConfigList()) {
             configured.add(row.getOpType());
@@ -66,12 +79,24 @@ public class OpConfigController {
         return Result.ok(options);
     }
 
+    /**
+     * 获得 op 配置详情
+     *
+     * @param id op 配置编号
+     * @return op 配置详情
+     */
     @GetMapping("/get")
     public Result<OpConfigRespVO> getOpConfig(@RequestParam("id") String id) {
         OpConfigDO entity = opConfigService.getOpConfig(id);
         return Result.ok(OpConfigConvert.INSTANCE.convert(entity));
     }
 
+    /**
+     * 创建 op 配置
+     *
+     * @param createReqVO 创建入参
+     * @return op 配置编号
+     */
     @PostMapping("/create")
     public Result<String> createOpConfig(@Valid @RequestBody OpConfigCreateReqVO createReqVO) {
         String id = opConfigService.createOpConfig(
@@ -85,6 +110,13 @@ public class OpConfigController {
         return Result.ok(id);
     }
 
+    /**
+     * 更新 op 配置
+     *
+     * @param id          op 配置编号
+     * @param updateReqVO 更新入参
+     * @return 是否成功
+     */
     @PutMapping("/update")
     public Result<Boolean> updateOpConfig(@RequestParam("id") String id,
                                           @Valid @RequestBody OpConfigSaveReqVO updateReqVO) {
@@ -98,6 +130,12 @@ public class OpConfigController {
         return Result.ok(true);
     }
 
+    /**
+     * 删除 op 配置
+     *
+     * @param id op 配置编号
+     * @return 是否成功
+     */
     @DeleteMapping("/delete")
     public Result<Boolean> deleteOpConfig(@RequestParam("id") String id) {
         opConfigService.deleteOpConfig(id);

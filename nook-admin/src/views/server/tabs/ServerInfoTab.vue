@@ -166,7 +166,7 @@ function afterEdit() { load(); emit('refresh') }
               删除 server
             </NButton>
           </template>
-          软删主记录, 保留 xray_node / agent_task / op_log 历史, 不可撤销.
+          软删主记录, 保留 xray_server / xray_config / agent_task / op_log 历史, 不可撤销.
         </NPopconfirm>
       </div>
 
@@ -279,6 +279,14 @@ function afterEdit() { load(); emit('refresh') }
               <span class="num">{{ capacity.monthlyTrafficGb }}</span>
               <span class="unit">GB / 月</span>
               <span class="text-xs text-zinc-400 ml-2">90% 触发 THROTTLED</span>
+            </template>
+            <span v-else class="muted">不限</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="客户数上限" :span="2">
+            <template v-if="capacity?.clientMaxCount">
+              <span class="num">{{ capacity.clientMaxCount }}</span>
+              <span class="unit">个</span>
+              <span class="text-xs text-zinc-400 ml-2">allocator 选 server 硬上限</span>
             </template>
             <span v-else class="muted">不限</span>
           </NDescriptionsItem>

@@ -111,7 +111,7 @@ const form = reactive<LineServerInstallDTO>({
   xrayBinaryPath: '',
   xrayConfigPath: '',
   xrayShareDir: '',
-  touchdownSize: 50,
+  clientMaxCount: 50,
   xrayApiPort: 8080,
   logDir: '',
   logLevel: 'warning',
@@ -187,7 +187,7 @@ function validate() {
     errors.installDir = '必须以 / 开头的绝对路径'
   }
   if (form.xrayApiPort < 1 || form.xrayApiPort > 65535) errors.xrayApiPort = '端口范围 1-65535'
-  if (form.touchdownSize < 1 || form.touchdownSize > 200) errors.touchdownSize = '落地数上限 1-200'
+  if (form.clientMaxCount < 1 || form.clientMaxCount > 200) errors.clientMaxCount = '客户数上限 1-200'
   // logDir 留空 OK (后端派生); 给了就必须绝对路径
   if (form.logDir.trim() && !form.logDir.startsWith('/')) {
     errors.logDir = '必须以 / 开头的绝对路径 (留空走默认 <installDir>/logs)'
@@ -238,7 +238,7 @@ async function onSubmit() {
       xrayBinaryPath: form.xrayBinaryPath?.trim() || d.xrayBinaryPath,
       xrayConfigPath: form.xrayConfigPath?.trim() || d.xrayConfigPath,
       xrayShareDir: form.xrayShareDir?.trim() || d.xrayShareDir,
-      touchdownSize: form.touchdownSize,
+      clientMaxCount: form.clientMaxCount,
       xrayApiPort: form.xrayApiPort,
       logDir: form.logDir.trim() || d.logDir,
       logLevel: form.logLevel,
@@ -410,15 +410,15 @@ function close() {
 
         <NFormItem
           required
-          :validation-status="errors.touchdownSize ? 'error' : undefined"
-          :feedback="errors.touchdownSize"
+          :validation-status="errors.clientMaxCount ? 'error' : undefined"
+          :feedback="errors.clientMaxCount"
         >
           <template #label>
-            <span>落地数上限</span>
-            <span class="text-xs text-zinc-400 ml-2">最多挂载的落地 IP 数量 (= 客户端上限)</span>
+            <span>客户数上限</span>
+            <span class="text-xs text-zinc-400 ml-2">该 server 最多挂载的客户端数; 落到 capacity.client_max_count</span>
           </template>
           <NInputNumber
-            v-model:value="form.touchdownSize"
+            v-model:value="form.clientMaxCount"
             :min="1"
             :max="200"
             :disabled="installing"
