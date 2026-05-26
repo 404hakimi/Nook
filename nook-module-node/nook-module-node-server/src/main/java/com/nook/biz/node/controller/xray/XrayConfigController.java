@@ -32,7 +32,7 @@ public class XrayConfigController {
      * @param serverId 服务器编号
      * @return inbound 共享配置
      */
-    @GetMapping("/get")
+    @GetMapping("/get-xray-config")
     public Result<XrayConfigRespVO> getXrayConfig(@RequestParam("serverId") String serverId) {
         XrayConfigDO entity = xrayConfigService.get(serverId);
         if (ObjectUtil.isNull(entity)) return Result.ok(null);

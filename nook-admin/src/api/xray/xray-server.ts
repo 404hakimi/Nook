@@ -29,5 +29,5 @@ export interface XrayServer {
 
 /** 按 serverId 取 xray 实例元数据 (server detail tab 用); 不存在抛 SERVER_STATE_NOT_FOUND */
 export function getXrayServer(serverId: string) {
-  return request.get<unknown, XrayServer>('/admin/xray/server/get', { params: { serverId } })
+  return request.get<unknown, XrayServer>('/admin/xray/server/get-xray-server', { params: { serverId } })
 }

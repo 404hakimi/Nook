@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_ROTATE handler; 业务执行见 ClientOpExecutor.doRotate.
+ * CLIENT_ROTATE handler; 委托 ClientOpExecutor.doRotate
  *
  * @author nook
  */

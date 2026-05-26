@@ -24,20 +24,18 @@ import {
 } from 'naive-ui'
 import {
   getServerCapacity,
-  getServerDetail,
-  type ResourceServer,
   type ServerCapacity
 } from '@/api/resource/server'
 import { getServerSystemInfo, getServerUfwStatus, type ServerSystemInfo } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
-import { AGENT_ONLINE_LABELS, AGENT_ONLINE_TAG_TYPE, type AgentListItem } from '@/api/agent/agent'
+import { AGENT_ONLINE_LABELS, AGENT_ONLINE_TAG_TYPE } from '@/api/agent/agent'
+import type { ServerFrontlineListItem } from '@/api/resource/server'
 
 const props = defineProps<{
   serverId: string
-  agentInfo: AgentListItem | null
+  agentInfo: ServerFrontlineListItem | null
 }>()
 
-const detail = ref<ResourceServer | null>(null)
 const capacity = ref<ServerCapacity | null>(null)
 const loading = ref(false)
 
@@ -70,12 +68,7 @@ async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    const [d, c] = await Promise.all([
-      getServerDetail(props.serverId),
-      getServerCapacity(props.serverId)
-    ])
-    detail.value = d
-    capacity.value = c
+    capacity.value = await getServerCapacity(props.serverId)
   } catch { /* */ } finally {
     loading.value = false
   }
@@ -180,7 +173,7 @@ const heartbeatColor = computed(() => {
           </div>
           <div v-else class="metric-body empty">
             <div class="text-zinc-400 text-sm">暂无数据</div>
-            <div class="text-xs text-zinc-400 mt-1">agent 上报 NIC 流量后填充</div>
+            <div class="text-xs text-zinc-400 mt-1">远端流量上报后填充</div>
           </div>
         </NCard>
 
@@ -215,13 +208,13 @@ const heartbeatColor = computed(() => {
             <NIcon class="metric-icon"><Cpu :size="16" /></NIcon>
             <span class="metric-title">客户配额</span>
           </div>
-          <div v-if="detail" class="metric-body">
+          <div v-if="capacity" class="metric-body">
             <div class="metric-main">
               <span class="metric-num">—</span>
-              <span class="metric-unit">/ — 个</span>
+              <span class="metric-unit">/ {{ capacity.clientMaxCount ?? '—' }} 个</span>
             </div>
             <div class="metric-sub mt-2 text-xs text-zinc-400">
-              已分配数待接 xray client count API; 上限读 capacity.clientMaxCount
+              已分配数待接入
             </div>
           </div>
         </NCard>
@@ -326,7 +319,6 @@ const heartbeatColor = computed(() => {
             <template v-if="capacity?.bandwidthLimitMbps">
               <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
               <span class="unit">Mbps</span>
-              <span class="text-xs text-zinc-400 ml-2">agent tc enforce</span>
             </template>
             <span v-else class="muted">不限</span>
           </NDescriptionsItem>
@@ -358,7 +350,7 @@ const heartbeatColor = computed(() => {
             <NTag size="small" :type="throttled ? 'error' : 'success'">
               {{ throttled ? THROTTLE_LABELS.THROTTLED : THROTTLE_LABELS.NORMAL }}
             </NTag>
-            <span class="text-xs text-zinc-400 ml-2">used ≥ 90% 自动切 THROTTLED, allocator 跳过</span>
+            <span class="text-xs text-zinc-400 ml-2">月用量达 90% 自动切限流, 暂停参与新订阅分配</span>
           </NDescriptionsItem>
         </NDescriptions>
       </NCard>

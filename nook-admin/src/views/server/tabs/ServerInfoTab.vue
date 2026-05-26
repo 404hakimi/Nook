@@ -29,25 +29,23 @@ import {
   getServerBilling,
   getServerCapacity,
   getServerDetail,
-  getServerDns,
+  getServerFrontline,
   SERVER_LIFECYCLE_LABELS,
   SERVER_LIFECYCLE_TAG_TYPE,
   transitionServerLifecycle,
   type ResourceServer,
   type ServerBilling,
   type ServerCapacity,
-  type ServerDns
+  type ServerFrontline
 } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
-import type { AgentListItem } from '@/api/agent/agent'
 import ServerCoreEditDialog from '@/views/server/dialogs/ServerCoreEditDialog.vue'
 import ServerBillingEditDialog from '@/views/server/dialogs/ServerBillingEditDialog.vue'
 import ServerCapacityEditDialog from '@/views/server/dialogs/ServerCapacityEditDialog.vue'
-import ServerDnsEditDialog from '@/views/server/dialogs/ServerDnsEditDialog.vue'
+import ServerFrontlineEditDialog from '@/views/server/dialogs/ServerFrontlineEditDialog.vue'
 
 const props = defineProps<{
   serverId: string
-  agentInfo: AgentListItem | null
 }>()
 const emit = defineEmits<{ refresh: [] }>()
 
@@ -56,7 +54,7 @@ const dialog = useDialog()
 
 const detail = ref<ResourceServer | null>(null)
 const billing = ref<ServerBilling | null>(null)
-const dns = ref<ServerDns | null>(null)
+const frontline = ref<ServerFrontline | null>(null)
 const capacity = ref<ServerCapacity | null>(null)
 const loading = ref(false)
 
@@ -67,12 +65,12 @@ async function load() {
     const [d, b, n, c] = await Promise.all([
       getServerDetail(props.serverId),
       getServerBilling(props.serverId),
-      getServerDns(props.serverId),
+      getServerFrontline(props.serverId),
       getServerCapacity(props.serverId)
     ])
     detail.value = d
     billing.value = b
-    dns.value = n
+    frontline.value = n
     capacity.value = c
   } catch { /* */ } finally {
     loading.value = false
@@ -136,7 +134,7 @@ const expiresTagType = computed(() => {
 const coreEditOpen = ref(false)
 const billingEditOpen = ref(false)
 const capacityEditOpen = ref(false)
-const dnsEditOpen = ref(false)
+const frontlineEditOpen = ref(false)
 
 function afterEdit() { load(); emit('refresh') }
 </script>
@@ -270,7 +268,7 @@ function afterEdit() { load(); emit('refresh') }
             <template v-if="capacity?.bandwidthLimitMbps">
               <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
               <span class="unit">Mbps</span>
-              <span class="text-xs text-zinc-400 ml-2">agent tc qdisc 真实 enforce</span>
+              <span class="text-xs text-zinc-400 ml-2">远端带宽限速值</span>
             </template>
             <span v-else class="muted">不限</span>
           </NDescriptionsItem>
@@ -278,7 +276,7 @@ function afterEdit() { load(); emit('refresh') }
             <template v-if="capacity?.monthlyTrafficGb">
               <span class="num">{{ capacity.monthlyTrafficGb }}</span>
               <span class="unit">GB / 月</span>
-              <span class="text-xs text-zinc-400 ml-2">90% 触发 THROTTLED</span>
+              <span class="text-xs text-zinc-400 ml-2">月用量达 90% 触发限流</span>
             </template>
             <span v-else class="muted">不限</span>
           </NDescriptionsItem>
@@ -286,7 +284,7 @@ function afterEdit() { load(); emit('refresh') }
             <template v-if="capacity?.clientMaxCount">
               <span class="num">{{ capacity.clientMaxCount }}</span>
               <span class="unit">个</span>
-              <span class="text-xs text-zinc-400 ml-2">allocator 选 server 硬上限</span>
+              <span class="text-xs text-zinc-400 ml-2">可分配最大客户数</span>
             </template>
             <span v-else class="muted">不限</span>
           </NDescriptionsItem>
@@ -298,9 +296,9 @@ function afterEdit() { load(); emit('refresh') }
         <template #header>
           <div class="section-header">
             <NIcon class="section-icon"><Globe :size="14" /></NIcon>
-            <span>DNS / Cloudflare</span>
+            <span>线路机扩展</span>
             <span class="flex-1"></span>
-            <NButton size="tiny" quaternary type="primary" @click="dnsEditOpen = true">
+            <NButton size="tiny" quaternary type="primary" @click="frontlineEditOpen = true">
               <template #icon><NIcon><Edit3 :size="12" /></NIcon></template>
               编辑
             </NButton>
@@ -308,15 +306,15 @@ function afterEdit() { load(); emit('refresh') }
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 9rem">
           <NDescriptionsItem label="线路机域名">
-            <code v-if="dns?.domain" class="kbd">{{ dns.domain }}</code>
+            <code v-if="frontline?.domain" class="kbd">{{ frontline.domain }}</code>
             <span v-else class="muted">未配置 (LIVE 前置必填)</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="Cloudflare Zone ID">
-            <code v-if="dns?.cfZoneId" class="kbd text-xs">{{ dns.cfZoneId }}</code>
+            <code v-if="frontline?.cfZoneId" class="kbd text-xs">{{ frontline.cfZoneId }}</code>
             <span v-else class="muted">未配置</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="Cloudflare Record ID">
-            <code v-if="dns?.cfRecordId" class="kbd text-xs">{{ dns.cfRecordId }}</code>
+            <code v-if="frontline?.cfRecordId" class="kbd text-xs">{{ frontline.cfRecordId }}</code>
             <span v-else class="muted">未配置</span>
           </NDescriptionsItem>
         </NDescriptions>
@@ -347,7 +345,7 @@ function afterEdit() { load(); emit('refresh') }
     <ServerCoreEditDialog v-if="detail" v-model="coreEditOpen" :server="detail" @saved="afterEdit" />
     <ServerBillingEditDialog v-model="billingEditOpen" :server-id="serverId" @saved="afterEdit" />
     <ServerCapacityEditDialog v-model="capacityEditOpen" :server-id="serverId" @saved="afterEdit" />
-    <ServerDnsEditDialog v-model="dnsEditOpen" :server-id="serverId" :lifecycle-state="detail?.lifecycleState" @saved="afterEdit" />
+    <ServerFrontlineEditDialog v-model="frontlineEditOpen" :server-id="serverId" :lifecycle-state="detail?.lifecycleState" @saved="afterEdit" />
   </NSpin>
 </template>
 

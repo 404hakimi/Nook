@@ -1,20 +1,16 @@
 package com.nook.biz.agent.service.impl;
 
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.agent.api.enums.AgentHostType;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.controller.vo.AgentInstallMetaRespVO;
 import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
 import com.nook.biz.agent.framework.config.AgentProperties;
 import com.nook.biz.agent.framework.script.AgentScripts;
 import com.nook.biz.agent.service.AgentInstallScriptService;
+import com.nook.biz.agent.service.AgentRuntimeConfigService;
 import com.nook.biz.agent.validator.AgentInstallValidator;
-import com.nook.biz.node.api.resource.ResourceIpPoolApi;
-import com.nook.biz.node.api.resource.ResourceIpPoolCredentialApi;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCredentialApi;
-import com.nook.biz.node.api.resource.dto.ResourceIpPoolCredentialRespDTO;
-import com.nook.biz.node.api.resource.dto.ResourceIpPoolRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.xray.XrayServerApi;
@@ -22,9 +18,12 @@ import com.nook.biz.node.api.xray.dto.XrayServerRespDTO;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSessions;
 import com.nook.framework.ssh.script.ScriptCatalog;
+import com.nook.framework.web.StreamingEndpointSupport;
+import com.nook.framework.web.WebStreamingProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -46,30 +45,38 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
 
     private final ResourceServerApi resourceServerApi;
     private final ResourceServerCredentialApi resourceServerCredentialApi;
-    private final ResourceIpPoolApi resourceIpPoolApi;
-    private final ResourceIpPoolCredentialApi resourceIpPoolCredentialApi;
     private final XrayServerApi xrayServerApi;
     private final ScriptCatalog scriptCatalog;
     private final AgentInstallValidator agentInstallValidator;
+    private final AgentRuntimeConfigService agentRuntimeConfigService;
     private final AgentProperties agentProperties;
+    private final StreamingEndpointSupport streamingSupport;
+    private final WebStreamingProperties webStreamingProperties;
 
     @Override
-    public void installStreaming(String hostId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
-        AgentHostType hostType = reqVO.getHostType() != null ? reqVO.getHostType() : AgentHostType.SERVER;
-        agentInstallValidator.validateRoleHostMatch(reqVO.getRole(), hostType);
-        if (hostType == AgentHostType.SERVER) {
-            installFrontline(hostId, reqVO, lineSink);
-        } else {
-            installLanding(hostId, reqVO, lineSink);
-        }
+    public ResponseBodyEmitter installStream(String sourceId, AgentInstallReqVO reqVO) {
+        AgentRole.fromCode(reqVO.getRole());
+        resourceServerApi.validateExists(sourceId);
+        ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(sourceId);
+        Duration emitterTimeout = Duration.ofSeconds(cred.getInstallTimeoutSeconds())
+                .plus(webStreamingProperties.getEmitterBuffer());
+        return streamingSupport.stream("agent-install:" + sourceId, emitterTimeout,
+                lineSink -> installStreaming(sourceId, reqVO, lineSink));
     }
 
-    /** Frontline (resource_server): xray 必填 + 复用 server 凭据. */
-    private void installFrontline(String serverId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
-        ResourceServerRespDTO srv = resourceServerApi.validateExists(serverId);
-        ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(serverId);
-        agentInstallValidator.validateFrontlinePrerequisite(srv, reqVO);
-        lineSink.accept("[nook] xray: bin=" + reqVO.getXrayBin() + " apiPort=" + reqVO.getXrayApiPort() + "\n");
+    @Override
+    public void installStreaming(String sourceId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
+        agentInstallValidator.validateRole(reqVO.getRole());
+        AgentRole role = AgentRole.fromCode(reqVO.getRole());
+        ResourceServerRespDTO srv = resourceServerApi.validateExists(sourceId);
+        agentInstallValidator.validateServerType(srv, role);
+        ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(sourceId);
+        if (role == AgentRole.FRONTLINE) {
+            agentInstallValidator.validateFrontlinePrerequisite(srv, reqVO);
+            lineSink.accept("[nook] xray: bin=" + reqVO.getXrayBin() + " apiPort=" + reqVO.getXrayApiPort() + "\n");
+        } else {
+            agentInstallValidator.validateLandingPrerequisite(srv);
+        }
 
         String token = srv.getAgentToken();
         String configYaml = buildYaml(reqVO, token);
@@ -77,9 +84,13 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         lineSink.accept("[nook] role: " + reqVO.getRole() + " / server: " + srv.getName() + "\n");
         lineSink.accept("[nook] 渲染 yaml: " + configYaml.length() + " 字节\n");
 
+        // 优先入库 (DB 是单一权威态), 再 SSH 落地; SSH 失败 admin 可按 DB 重做装机
+        agentRuntimeConfigService.recordAsSynced(sourceId, role, configYaml, "system-install");
+        lineSink.accept("[nook] yaml 已入库 (agent_runtime_config), 状态 SYNCED\n");
+
         SessionCredential sshCred = SessionCredential.builder()
                 .serverId(srv.getId())
-                .sshHost(cred.getHost())
+                .sshHost(srv.getIpAddress())
                 .sshPort(cred.getSshPort())
                 .sshUser(cred.getSshUser())
                 .sshPassword(cred.getSshPassword())
@@ -90,39 +101,10 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
                 .build();
         runInstall(sshCred, srv.getName(), reqVO, token, configYaml, lineSink);
 
-        log.info("[installFrontline] 装机完成 serverId={} name={}", serverId, srv.getName());
+        log.info("[install] role={} sourceId={} name={}", reqVO.getRole(), sourceId, srv.getName());
     }
 
-    /** Landing (resource_ip_pool): xray 字段忽略; ssh 凭据走 ip_pool_credential, host 留空时用 ip_address 兜底. */
-    private void installLanding(String ipId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
-        ResourceIpPoolRespDTO ip = resourceIpPoolApi.validateExists(ipId);
-        ResourceIpPoolCredentialRespDTO cred = resourceIpPoolCredentialApi.requireByIpId(ipId);
-        agentInstallValidator.validateLandingPrerequisite(ip);
-
-        String token = ip.getAgentToken();
-        String configYaml = buildYaml(reqVO, token);
-        String displayName = StrUtil.isNotBlank(ip.getRemark()) ? ip.getRemark() : ip.getIpAddress();
-        lineSink.accept("[nook] agent_token: " + StrUtil.subPre(token, 12) + "… (复用 ip_pool 入库时签发)\n");
-        lineSink.accept("[nook] role: " + reqVO.getRole() + " / ip_pool: " + ip.getIpAddress() + "\n");
-        lineSink.accept("[nook] 渲染 yaml: " + configYaml.length() + " 字节\n");
-
-        SessionCredential sshCred = SessionCredential.builder()
-                .serverId(ip.getId())
-                .sshHost(StrUtil.blankToDefault(cred.getSshHost(), ip.getIpAddress()))
-                .sshPort(cred.getSshPort() != null ? cred.getSshPort() : 22)
-                .sshUser(StrUtil.blankToDefault(cred.getSshUser(), "root"))
-                .sshPassword(cred.getSshPassword())
-                .sshTimeoutSeconds(reqVO.getSshTimeoutSeconds())
-                .sshOpTimeoutSeconds(reqVO.getSshOpTimeoutSeconds())
-                .sshUploadTimeoutSeconds(reqVO.getSshUploadTimeoutSeconds())
-                .installTimeoutSeconds(reqVO.getInstallTimeoutSeconds())
-                .build();
-        runInstall(sshCred, displayName, reqVO, token, configYaml, lineSink);
-
-        log.info("[installLanding] 装机完成 ipId={} ipAddress={}", ipId, ip.getIpAddress());
-    }
-
-    /** 共用 SSH 执行段; serverName / ip_address 都以 SERVER_NAME 变量塞给装机脚本. */
+    /** 共用 SSH 执行段; serverName 都以 SERVER_NAME 变量塞给装机脚本. */
     private void runInstall(SessionCredential sshCred, String displayName, AgentInstallReqVO reqVO,
                             String token, String configYaml, Consumer<String> lineSink) {
         Map<String, String> vars = new LinkedHashMap<>();
@@ -141,46 +123,30 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
     }
 
     @Override
-    public AgentInstallMetaRespVO getInstallMeta(String role, AgentHostType hostType, String hostId) {
-        agentInstallValidator.validateRole(role);
-        AgentHostType resolvedHost = hostType != null ? hostType
-                : (AgentRole.LANDING.getCode().equals(role) ? AgentHostType.IP_POOL : AgentHostType.SERVER);
+    public AgentInstallMetaRespVO getInstallMeta(AgentRole role, String sourceId) {
         AgentInstallMetaRespVO vo = new AgentInstallMetaRespVO();
         vo.setBackendUrl(StrUtil.blankToDefault(agentProperties.getBackendPublicUrl(), ""));
-        if (StrUtil.isBlank(hostId)) {
+        if (StrUtil.isBlank(sourceId)) {
             return vo;
         }
-        if (resolvedHost == AgentHostType.SERVER) {
-            fillServerMeta(role, hostId, vo);
-        } else {
-            fillIpPoolMeta(hostId, vo);
-        }
-        return vo;
-    }
-
-    /** Frontline + 选了 server: SSH 默认 + (frontline) xray 信息. */
-    private void fillServerMeta(String role, String serverId, AgentInstallMetaRespVO vo) {
-        resourceServerApi.validateExists(serverId);
-        ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.getByServerId(serverId);
+        ResourceServerRespDTO srv = resourceServerApi.validateExists(sourceId);
+        ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.getByServerId(sourceId);
         if (cred != null) {
             vo.setSshTimeoutSeconds(cred.getSshTimeoutSeconds());
             vo.setSshOpTimeoutSeconds(cred.getSshOpTimeoutSeconds());
             vo.setSshUploadTimeoutSeconds(cred.getSshUploadTimeoutSeconds());
             vo.setInstallTimeoutSeconds(cred.getInstallTimeoutSeconds());
         }
-        if (AgentRole.FRONTLINE.getCode().equals(role)) {
-            XrayServerRespDTO xray = xrayServerApi.getByServerId(serverId);
+        if (role == AgentRole.FRONTLINE) {
+            XrayServerRespDTO xray = xrayServerApi.getByServerId(sourceId);
             if (xray != null) {
                 vo.setXrayBin(xray.getXrayBinaryPath());
                 vo.setXrayApiPort(xray.getXrayApiPort());
             }
+        } else {
+            vo.setIpAddress(srv.getIpAddress());
         }
-    }
-
-    /** Landing + 选了 ipId: 只回 ip_address (admin 展示用); SSH timeouts 由前端写死 default. */
-    private void fillIpPoolMeta(String ipId, AgentInstallMetaRespVO vo) {
-        ResourceIpPoolRespDTO ip = resourceIpPoolApi.validateExists(ipId);
-        vo.setIpAddress(ip.getIpAddress());
+        return vo;
     }
 
     /** 拼 nook-agent config.yml. 所有值 (URL / 路径 / xray) 都来自 DTO, backend 不兜底. */

@@ -1,0 +1,24 @@
+# Module 48 — systemd-journald 容量上限.
+# 防 server 业务日志 (xray/dante/nook-agent) 长期堆积撑爆磁盘.
+#
+# 默认 journal 上限是 磁盘 10% 或 4G (取小), 小盘 VPS 上仍会很快吃满.
+# 设 50M ring buffer + 200M 磁盘水位保护 + 单文件 10M, 滚动自动管.
+#
+# 作用域: journald 全局配置 → 这台机器上所有 service 的 journal 都受限.
+
+log "=== Module 48: 限 systemd-journald 容量 (SystemMaxUse=50M) ==="
+
+mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/nook-cap.conf <<'EOF'
+[Journal]
+SystemMaxUse=50M
+SystemKeepFree=200M
+SystemMaxFileSize=10M
+EOF
+
+# restart 平滑, 不丢已落盘日志; 失败仅 warn, 后续 cron 仍会按新配置生效
+if systemctl restart systemd-journald 2>/dev/null; then
+    log "✔ journald cap 已生效 (50M ring buffer)"
+else
+    warn "journald restart 失败, 配置已写盘, 下次重启生效"
+fi

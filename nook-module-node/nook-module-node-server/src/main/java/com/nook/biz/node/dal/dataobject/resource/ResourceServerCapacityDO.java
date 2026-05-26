@@ -2,6 +2,8 @@ package com.nook.biz.node.dal.dataobject.resource;
 
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
+import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -34,15 +36,10 @@ public class ResourceServerCapacityDO {
     /** 当周期已用流量 = rx + tx (Agent push 时同步更新; 老查询继续可用). UI 换算 GB/MB. */
     private Long usedTrafficBytes;
 
-    /**
-     * 周期重置策略: CALENDAR_MONTH / BILLING_CYCLE / FIXED.
-     * - CALENDAR_MONTH: 每月 1 号重置
-     * - BILLING_CYCLE: 按 resource_server.billing_cycle_day
-     * - FIXED: 永不
-     */
+    /** 周期重置策略 {@link ResourceServerQuotaResetPolicyEnum} */
     private String quotaResetPolicy;
 
-    /** NORMAL / THROTTLED; used 90% → THROTTLED, allocator 跳过. */
+    /** 限流状态 {@link ResourceServerThrottleStateEnum} */
     private String throttleState;
 
     /** 线路机出站接口实际限速 Mbps; 0=不限; agent 跑 tc qdisc 落实. */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch, h } from 'vue'
+import { computed, reactive, ref, watch, h } from 'vue'
 import {
   NButton,
   NForm,
@@ -16,7 +16,8 @@ import {
   type ResourceServer,
   type ResourceServerCoreUpdateDTO
 } from '@/api/resource/server'
-import { listEnabledRegions, type ResourceRegion } from '@/api/resource/region'
+import { useRegionStore } from '@/stores/region'
+import { storeToRefs } from 'pinia'
 import RegionFlag from '@/components/RegionFlag.vue'
 
 const props = defineProps<{
@@ -32,7 +33,8 @@ const message = useMessage()
 const submitting = ref(false)
 const errors = reactive<Record<string, string>>({})
 
-const regions = ref<ResourceRegion[]>([])
+const regionStore = useRegionStore()
+const { list: regions } = storeToRefs(regionStore)
 const regionOptions = computed(() => regions.value.map((r) => ({
   label: r.displayName,
   value: r.code,
@@ -61,14 +63,11 @@ function fill(s: ResourceServer) {
   form.remark = s.remark ?? ''
 }
 
-onMounted(async () => { try { regions.value = await listEnabledRegions() } catch { /* */ } })
-
+// 仅在 dialog 打开时拉字典 (走 store, 全局去重); 关闭状态 mount 不触发请求
 watch(() => [props.modelValue, props.server?.id], async ([open]) => {
   if (!open) return
   Object.keys(errors).forEach((k) => delete errors[k])
-  if (regions.value.length === 0) {
-    try { regions.value = await listEnabledRegions() } catch { /* */ }
-  }
+  await regionStore.ensureLoaded()
   fill(props.server)
 })
 

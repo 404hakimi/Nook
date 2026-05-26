@@ -1,6 +1,7 @@
 package com.nook.biz.node.dal.dataobject.client;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.nook.biz.node.api.enums.XrayClientStatusEnum;
 import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -35,7 +36,7 @@ public class XrayClientDO extends BaseEntity {
     /** 人类可读标识; 推荐格式 member_{memberId}_{ipId}, server 内全局唯一 */
     private String clientEmail;
 
-    /** 1=运行 2=已停 3=待同步 4=远端已不存在 */
+    /** 客户端状态 {@link XrayClientStatusEnum} */
     private Integer status;
 
     private LocalDateTime lastSyncedAt;

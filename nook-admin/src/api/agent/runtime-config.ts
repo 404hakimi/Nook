@@ -13,10 +13,10 @@ export interface AgentRuntimeConfig {
 }
 
 export function getRuntimeConfig(serverId: string) {
-  return request.get<unknown, AgentRuntimeConfig>(`/admin/agent-runtime-config/${serverId}`)
+  return request.get<unknown, AgentRuntimeConfig>('/admin/agent-runtime-config/get-config', { params: { serverId } })
 }
 
 /** 保存 yaml; backend 派 config_reload task, agent 30s 内拉到 + 自重启. 返 taskId. */
 export function saveRuntimeConfig(serverId: string, configYaml: string) {
-  return request.put<unknown, string>(`/admin/agent-runtime-config/${serverId}`, { configYaml })
+  return request.put<unknown, string>('/admin/agent-runtime-config/save-config', { configYaml }, { params: { serverId } })
 }

@@ -18,10 +18,14 @@ import {
   type ServerCredential
 } from '@/api/resource/server'
 
+/**
+ * 编辑 SSH 凭据 (port / user / password / timeouts).
+ * <p>SSH 主机 = server.ip_address (canonical), 改主机请走 "编辑核心信息" dialog. LIVE 后 sshPort 硬锁.
+ */
 const props = defineProps<{
   modelValue: boolean
   serverId: string
-  /** 用于判 LIVE 后 host/port 锁定. */
+  /** 用于判 LIVE 后 sshPort 锁定. */
   lifecycleState?: string
 }>()
 const emit = defineEmits<{
@@ -36,25 +40,23 @@ const errors = reactive<Record<string, string>>({})
 const liveLocked = computed(() => props.lifecycleState === 'LIVE')
 
 const form = reactive<ServerCredential>({
-  host: '',
   sshPort: 22,
   sshUser: 'root',
   sshPassword: '',
   sshTimeoutSeconds: 30,
   sshOpTimeoutSeconds: 30,
-  sshUploadTimeoutSeconds: 60,
+  sshUploadTimeoutSeconds: 300,
   installTimeoutSeconds: 600
 })
 
 function fill(c: ServerCredential | null) {
   if (!c) return
-  form.host = c.host ?? ''
   form.sshPort = c.sshPort ?? 22
   form.sshUser = c.sshUser ?? 'root'
   form.sshPassword = '' // 留空表示不修改
   form.sshTimeoutSeconds = c.sshTimeoutSeconds ?? 30
   form.sshOpTimeoutSeconds = c.sshOpTimeoutSeconds ?? 30
-  form.sshUploadTimeoutSeconds = c.sshUploadTimeoutSeconds ?? 60
+  form.sshUploadTimeoutSeconds = c.sshUploadTimeoutSeconds ?? 300
   form.installTimeoutSeconds = c.installTimeoutSeconds ?? 600
 }
 
@@ -72,7 +74,6 @@ watch(() => [props.modelValue, props.serverId], async ([open]) => {
 
 function validate(): boolean {
   Object.keys(errors).forEach((k) => delete errors[k])
-  if (!form.host?.trim()) errors.host = '主机不能空'
   if (!form.sshPort || form.sshPort < 1 || form.sshPort > 65535) errors.sshPort = '端口 1-65535'
   if (!form.sshUser?.trim()) errors.sshUser = 'SSH 用户不能空'
   if (!form.sshTimeoutSeconds || form.sshTimeoutSeconds < 5 || form.sshTimeoutSeconds > 300) errors.sshTimeoutSeconds = '握手超时 5-300'
@@ -89,7 +90,6 @@ async function onSubmit() {
     await updateServerCredential(props.serverId, {
       ...form,
       sshPassword: form.sshPassword?.trim() || undefined,
-      host: form.host.trim(),
       sshUser: form.sshUser?.trim()
     })
     message.success('已保存; 下次 SSH 走新凭据')
@@ -112,23 +112,20 @@ async function onSubmit() {
   >
     <NSpin :show="loading">
       <NAlert v-if="liveLocked" type="warning" :show-icon="false" size="small" class="mb-3">
-        服务器处于 LIVE 状态, host / SSH 端口已硬锁; 如需修改请先退到 READY (会断 agent 心跳).
+        服务器处于 LIVE 状态, SSH 端口已硬锁; 如需修改请先退到 READY (会断 agent 心跳). SSH 主机改在 "编辑核心信息".
       </NAlert>
       <NAlert v-else type="info" :show-icon="false" size="small" class="mb-3">
-        修改 SSH 凭据会使现有 agent 连接断开, 下次握手走新凭据. 密码留空 = 保留原值.
+        SSH 主机 = IP 地址, 改主机请走 "编辑核心信息" dialog. 修改 SSH 凭据会使现有 agent 连接断开, 下次握手走新凭据. 密码留空 = 保留原值.
       </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-          <NFormItem label="Host / IP" required :feedback="errors.host" :validation-status="errors.host ? 'error' : undefined">
-            <NInput v-model:value="form.host" :disabled="liveLocked" :input-props="{ style: 'font-family: monospace' }" />
-          </NFormItem>
           <NFormItem label="SSH 端口" required :feedback="errors.sshPort" :validation-status="errors.sshPort ? 'error' : undefined">
             <NInputNumber v-model:value="form.sshPort" :min="1" :max="65535" :disabled="liveLocked" class="w-full" />
           </NFormItem>
           <NFormItem label="SSH 用户" required :feedback="errors.sshUser" :validation-status="errors.sshUser ? 'error' : undefined">
             <NInput v-model:value="form.sshUser" />
           </NFormItem>
-          <NFormItem label="SSH 密码 (留空保留原值)">
+          <NFormItem label="SSH 密码 (留空保留原值)" class="sm:col-span-2">
             <NInput
               v-model:value="form.sshPassword"
               type="password"

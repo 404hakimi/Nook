@@ -4,7 +4,11 @@ import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
+import com.nook.biz.node.convert.xray.XrayServerConvert;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
@@ -21,6 +25,9 @@ import com.nook.biz.node.service.xray.config.XrayConfigService;
 import com.nook.biz.node.service.xray.server.XrayServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.XrayServerValidator;
+import com.nook.framework.web.StreamingEndpointSupport;
+import com.nook.framework.web.WebStreamingProperties;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.dto.OpEnqueueRequest;
 import com.nook.biz.operation.api.spi.OpConfigResolver;
@@ -41,9 +48,11 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -69,6 +78,9 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private final CloudflareApiClient cloudflareApiClient;
     private final ResourceServerValidator resourceServerValidator;
     private final ResourceServerCredentialService credentialService;
+    private final ResourceServerService resourceServerService;
+    private final StreamingEndpointSupport streamingSupport;
+    private final WebStreamingProperties webStreamingProperties;
     /** 装机 SSH 调用拆事务外, DB 三表写入由 TransactionTemplate 包同事务 (self-invocation @Transactional 不生效) */
     private final TransactionTemplate transactionTemplate;
 
@@ -82,8 +94,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         // 部署前加 A 记录: 仅走域名路径需要; 失败不阻断, 用户可手动在 CF 面板加
         if (useTls && StrUtil.isNotBlank(reqVO.getCfApiToken())) {
             try {
-                resourceServerValidator.validateExists(serverId);
-                String serverHost = credentialService.requireByServerId(serverId).getHost();
+                String serverHost = resourceServerValidator.validateExists(serverId).getIpAddress();
                 cloudflareApiClient.ensureARecord(reqVO.getCfApiToken(), reqVO.getDomain(), serverHost, false);
                 lineSink.accept("[nook] ✔ Cloudflare A 记录已加: " + reqVO.getDomain() + " → " + serverHost + "\n");
             } catch (Exception cfe) {
@@ -138,6 +149,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         srv.setXrayConfigPath(r.getXrayConfigPath());
         srv.setXrayShareDir(r.getXrayShareDir());
         srv.setXrayLogDir(r.getLogDir());
+        srv.setXraySystemdUnitPath(r.getXraySystemdUnitPath());
         srv.setInstalledAt(LocalDateTime.now());
         xrayServerService.upsert(srv);
 
@@ -155,7 +167,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         xrayConfigService.upsert(cfg);
 
         // 客户数硬上限直接走 capacity.client_max_count; capacity 行由 server 创建路径已占位
-        capacityMapper.updateQuota(serverId, null, null, r.getClientMaxCount());
+        capacityMapper.updateQuota(serverId, null, null, r.getClientMaxCount(), null);
     }
 
     @Override
@@ -239,6 +251,8 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         if (Boolean.TRUE.equals(r.getInstallUfw()))  modules.add(NookScripts.MODULE_UFW);
         if (Boolean.TRUE.equals(r.getUseTls()))      modules.add(NookScripts.MODULE_ACME_TLS);
         if (Boolean.TRUE.equals(r.getLogRotate()))   modules.add(NookScripts.MODULE_LOGROTATE);
+        // journald 容量上限是系统级安全网, 防 service stderr/启停日志撑爆磁盘; 无条件加
+        modules.add(NookScripts.MODULE_JOURNALD_CAP);
         modules.add(NookScripts.MODULE_XRAY);
         modules.add(NookScripts.MODULE_FINALIZE);
         return scriptCatalog.assemble(modules, vars);
@@ -268,12 +282,33 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         vars.put("XRAY_BINARY_PATH",       r.getXrayBinaryPath());
         vars.put("XRAY_CONFIG_PATH",       r.getXrayConfigPath());
         vars.put("XRAY_SHARE_DIR",         r.getXrayShareDir());
-        vars.put("XRAY_SYSTEMD_UNIT_PATH", XrayConstants.SYSTEMD_UNIT_PATH);
+        vars.put("XRAY_SYSTEMD_UNIT_PATH", r.getXraySystemdUnitPath());
         vars.put("USE_TLS", String.valueOf(useTls));
         vars.put("DOMAIN", useTls ? StrUtil.blankToDefault(r.getDomain(), "") : "");
         vars.put("CF_API_TOKEN", useTls ? StrUtil.blankToDefault(r.getCfApiToken(), "") : "");
         vars.put("TLS_CERT_PATH",  useTls ? StrUtil.blankToDefault(r.getTlsCertPath(), "") : "");
         vars.put("TLS_KEY_PATH",   useTls ? StrUtil.blankToDefault(r.getTlsKeyPath(),  "") : "");
         return vars;
+    }
+
+    @Override
+    public XrayServerRespVO getXrayServerDetail(String serverId) {
+        XrayServerDO entity = xrayServerValidator.validateExists(serverId);
+        XrayServerRespVO vo = XrayServerConvert.INSTANCE.convert(entity);
+        Set<String> ids = Collections.singleton(serverId);
+        Map<String, ResourceServerDO> serverMap = resourceServerService.getServerMap(ids);
+        Map<String, String> hostMap = resourceServerService.getIpAddressMap(ids);
+        XrayServerConvert.fillServer(vo, serverMap, hostMap);
+        return vo;
+    }
+
+    @Override
+    public ResponseBodyEmitter installXrayStream(String serverId, XrayServerInstallReqVO reqVO) {
+        resourceServerValidator.validateExists(serverId);
+        int installTimeout = credentialService.requireByServerId(serverId).getInstallTimeoutSeconds();
+        Duration emitterTimeout = Duration.ofSeconds(installTimeout)
+                .plus(webStreamingProperties.getEmitterBuffer());
+        return streamingSupport.stream("install:" + serverId, emitterTimeout,
+                lineSink -> installStreaming(serverId, reqVO, lineSink));
     }
 }

@@ -15,7 +15,7 @@ export interface XrayClient {
   serverHost?: string
   ipId: string
   /**
-   * 落地 IP 地址 (后端按 ipId 在 resource_ip_pool 里 enrich); 已删/缺失时后端会留空, 由前端 fallback 到 ipId 显示.
+   * 落地 IP 地址 (后端按 ipId 在落地机表里 enrich); 已删/缺失时后端会留空, 由前端 fallback 到 ipId 显示.
    */
   ipAddress?: string
   memberUserId: string
@@ -131,27 +131,27 @@ export const CLIENT_STATUS_LABELS: Record<number, string> = {
 // ===== 后端 XrayClientController @ /admin/xray/client =====
 
 export function pageClients(params: XrayClientQuery) {
-  return request.get<unknown, PageResult<XrayClient>>('/admin/xray/client/page', { params })
+  return request.get<unknown, PageResult<XrayClient>>('/admin/xray/client/page-xray-client', { params })
 }
 
 export function provisionClient(dto: XrayClientProvisionDTO) {
-  return request.post<unknown, XrayClient>('/admin/xray/client/create', dto)
+  return request.post<unknown, XrayClient>('/admin/xray/client/create-xray-client', dto)
 }
 
 export function revokeClient(id: string) {
-  return request.delete<unknown, void>('/admin/xray/client/delete', { params: { id } })
+  return request.delete<unknown, void>('/admin/xray/client/delete-xray-client', { params: { id } })
 }
 
 export function rotateClient(id: string) {
-  return request.post<unknown, XrayClient>('/admin/xray/client/rotate', null, { params: { id } })
+  return request.post<unknown, XrayClient>('/admin/xray/client/rotate-xray-client', null, { params: { id } })
 }
 
 export function getClientTraffic(id: string) {
-  return request.get<unknown, XrayClientTraffic>('/admin/xray/client/traffic', { params: { id } })
+  return request.get<unknown, XrayClientTraffic>('/admin/xray/client/get-xray-client-traffic', { params: { id } })
 }
 
 export function resetClientTraffic(id: string) {
-  return request.post<unknown, void>('/admin/xray/client/reset-traffic', null, { params: { id } })
+  return request.post<unknown, void>('/admin/xray/client/reset-xray-client-traffic', null, { params: { id } })
 }
 
 /**
@@ -159,7 +159,7 @@ export function resetClientTraffic(id: string) {
  * 列表 / 详情接口下发的 clientUuid 是 mask 形式 (xxx***xxxx).
  */
 export function getClientCredential(id: string) {
-  return request.get<unknown, XrayClientCredential>('/admin/xray/client/credential', { params: { id } })
+  return request.get<unknown, XrayClientCredential>('/admin/xray/client/get-xray-client-credential', { params: { id } })
 }
 
 // ===== 差异检查 / 同步接口 =====
@@ -203,15 +203,15 @@ export interface ReplayReport {
 
 /** 拉 server 远端 vs DB 差异状态; 不修改任何状态, 只读. */
 export function getSyncStatus(serverId: string) {
-  return request.get<unknown, SyncStatus>('/admin/xray/client/sync-status', { params: { serverId } })
+  return request.get<unknown, SyncStatus>('/admin/xray/client/get-sync-status', { params: { serverId } })
 }
 
 /** 把单条 client 推到远端 (幂等: 远端有就先删再加). */
 export function syncClient(id: string) {
-  return request.post<unknown, void>('/admin/xray/client/sync', null, { params: { id } })
+  return request.post<unknown, void>('/admin/xray/client/sync-xray-client', null, { params: { id } })
 }
 
 /** 把 server 下所有 status≠2 的 client 全推一遍, 返回报告. */
 export function replayServer(serverId: string) {
-  return request.post<unknown, ReplayReport>('/admin/xray/client/replay-server', null, { params: { serverId } })
+  return request.post<unknown, ReplayReport>('/admin/xray/client/replay-xray-server', null, { params: { serverId } })
 }

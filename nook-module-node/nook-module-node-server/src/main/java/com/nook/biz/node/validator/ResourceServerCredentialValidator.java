@@ -1,7 +1,6 @@
 package com.nook.biz.node.validator;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialUpdateReqVO;
@@ -13,7 +12,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * 服务器 SSH 凭据业务校验
+ * 服务器 SSH 凭据业务校验.
+ *
+ * <p>主机地址 = resource_server.ip_address (canonical), 不在凭据表; 这里只校验凭据本身字段
+ * (port / user / password / timeouts). LIVE 后 ssh_port 硬锁 (防止断 agent 心跳).
  *
  * @author nook
  */
@@ -32,31 +34,15 @@ public class ResourceServerCredentialValidator {
         return row;
     }
 
-    public void validateHostUnique(String serverId, String host) {
-        if (StrUtil.isBlank(host)) return;
-        boolean dup = serverId == null
-                ? credentialMapper.existsByHost(host)
-                : credentialMapper.existsByHostExcludingId(host, serverId);
-        if (dup) {
-            throw new BusinessException(ResourceErrorCode.SERVER_HOST_DUPLICATE, host);
-        }
-    }
-
     /**
-     * 编辑校验: 主机唯一 + LIVE 后 host/port 硬锁.
-     *
-     * @param serverId       server 主键
-     * @param current        当前 DB 凭据
-     * @param reqVO          待保存的新值
+     * 编辑校验: LIVE 后 ssh_port 硬锁 (host 改在 server 主表, 由 ResourceServerValidator 管).
      */
     public void validateUpdate(String serverId, ResourceServerCredentialDO current,
                                ResourceServerCredentialUpdateReqVO reqVO) {
-        validateHostUnique(serverId, reqVO.getHost());
         ResourceServerDO srv = serverValidator.validateExists(serverId);
         if (!ResourceServerLifecycleEnum.LIVE.matches(srv.getLifecycleState())) return;
-        boolean hostChanged = !StrUtil.equals(current.getHost(), reqVO.getHost());
         boolean portChanged = !ObjectUtil.equal(current.getSshPort(), reqVO.getSshPort());
-        if (hostChanged || portChanged) {
+        if (portChanged) {
             throw new BusinessException(ResourceErrorCode.SERVER_SSH_LOCKED_AFTER_LIVE);
         }
     }

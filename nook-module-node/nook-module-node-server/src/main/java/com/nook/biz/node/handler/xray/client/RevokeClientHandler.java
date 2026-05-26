@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_REVOKE handler; 业务执行见 ClientOpExecutor.doRevoke.
+ * CLIENT_REVOKE handler; 委托 ClientOpExecutor.doRevoke
  *
  * @author nook
  */

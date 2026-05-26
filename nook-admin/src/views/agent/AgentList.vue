@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref } from 'vue'
-import { ArrowUp, FileCog, History, RefreshCcw } from 'lucide-vue-next'
+import { ArrowUp, FileCog, History, RefreshCcw, Rocket } from 'lucide-vue-next'
 import {
   NBadge,
   NButton,
@@ -17,24 +17,27 @@ import {
   AGENT_ONLINE_LABELS,
   AGENT_ONLINE_TAG_TYPE,
   CONFIG_SYNC_LABELS,
-  CONFIG_SYNC_TAG_TYPE,
-  listAgents,
-  type AgentListItem
+  CONFIG_SYNC_TAG_TYPE
 } from '@/api/agent/agent'
+import {
+  listAllFrontlineServers,
+  type ServerFrontlineListItem
+} from '@/api/resource/server'
 import ConfigEditDialog from './ConfigEditDialog.vue'
-import AgentProvisionDialog from './AgentProvisionDialog.vue'
+import AgentDeployDialog from './AgentDeployDialog.vue'
+import AgentUpgradeDialog from './AgentUpgradeDialog.vue'
 import AgentTaskHistoryDialog from './AgentTaskHistoryDialog.vue'
 import { formatDateTime } from '@/utils/date'
 
 const message = useMessage()
 
-const list = ref<AgentListItem[]>([])
+const list = ref<ServerFrontlineListItem[]>([])
 const loading = ref(false)
 
 async function loadList() {
   loading.value = true
   try {
-    list.value = await listAgents()
+    list.value = await listAllFrontlineServers()
   } catch {
     /* request 拦截器已 toast */
   } finally {
@@ -60,7 +63,7 @@ function parseRole(av?: string): 'frontline' | 'landing' | 'unprovisioned' | 'le
 }
 
 const groups = computed(() => {
-  const groups = { frontline: [] as AgentListItem[], landing: [] as AgentListItem[], unprovisioned: [] as AgentListItem[] }
+  const groups = { frontline: [] as ServerFrontlineListItem[], landing: [] as ServerFrontlineListItem[], unprovisioned: [] as ServerFrontlineListItem[] }
   for (const a of list.value) {
     const r = parseRole(a.agentVersion)
     if (r === 'unprovisioned') groups.unprovisioned.push(a)
@@ -70,32 +73,33 @@ const groups = computed(() => {
   return groups
 })
 
-const currentList = computed(() => groups.value[activeTab.value])
+// ===== 部署 / 升级 (拆两个独立 dialog) =====
+const deployOpen = ref(false)
+const upgradeOpen = ref(false)
+const provisionTarget = ref<ServerFrontlineListItem | null>(null)
 
-// ===== 部署 / 升级 (统一 dialog) =====
-const provisionOpen = ref(false)
-const provisionInitialServerId = ref<string | null>(null)
-const provisionInitialRole = ref<'frontline' | 'landing'>('frontline')
+const provisionRole = computed<'frontline' | 'landing'>(() => {
+  if (!provisionTarget.value) return 'frontline'
+  return parseRole(provisionTarget.value.agentVersion) === 'landing' ? 'landing' : 'frontline'
+})
 
-function openProvision(row?: AgentListItem) {
-  provisionInitialServerId.value = row?.serverId ?? null
-  // 行内点 → 用该 agent role; 顶部点 → 用当前 tab role (未装 tab 默认 frontline)
-  if (row) {
-    const r = parseRole(row.agentVersion)
-    provisionInitialRole.value = r === 'landing' ? 'landing' : 'frontline'
-  } else {
-    provisionInitialRole.value = activeTab.value === 'landing' ? 'landing' : 'frontline'
-  }
-  provisionOpen.value = true
+function openDeploy(row: ServerFrontlineListItem) {
+  provisionTarget.value = row
+  deployOpen.value = true
 }
 
-const columns = computed<DataTableColumns<AgentListItem>>(() => [
+function openUpgrade(row: ServerFrontlineListItem) {
+  provisionTarget.value = row
+  upgradeOpen.value = true
+}
+
+const columns = computed<DataTableColumns<ServerFrontlineListItem>>(() => [
   {
     title: '服务器',
     key: 'serverName',
     render: (row) =>
       h('div', { class: 'flex flex-col leading-tight' }, [
-        h('span', { class: 'font-medium' }, row.serverName),
+        h('span', { class: 'font-medium' }, row.name),
         h('span', { class: 'text-xs text-zinc-500 font-mono' }, row.host)
       ])
   },
@@ -188,17 +192,31 @@ const columns = computed<DataTableColumns<AgentListItem>>(() => [
           },
           { icon: () => h(NIcon, null, { default: () => h(FileCog) }), default: () => '改配置' }
         ),
-        h(
-          NButton,
-          {
-            size: 'tiny',
-            quaternary: true,
-            type: 'primary',
-            onClick: () => openProvision(row),
-            title: '部署 / 升级 Agent (预选这台 server)'
-          },
-          { icon: () => h(NIcon, null, { default: () => h(ArrowUp) }), default: () => '部署/升级' }
-        ),
+        // 已装 → 升级; 未装 → 部署. 两种状态各自一个按钮, 文案/icon 明确, 不再 "部署/升级" 二合一
+        row.agentVersion
+          ? h(
+              NButton,
+              {
+                size: 'tiny',
+                quaternary: true,
+                type: 'success',
+                disabled: row.onlineState === 'OFFLINE' || row.onlineState === 'NEVER',
+                onClick: () => openUpgrade(row),
+                title: '一键升级 binary (走 task 链路, 仅替换 binary)'
+              },
+              { icon: () => h(NIcon, null, { default: () => h(ArrowUp) }), default: () => '升级' }
+            )
+          : h(
+              NButton,
+              {
+                size: 'tiny',
+                quaternary: true,
+                type: 'primary',
+                onClick: () => openDeploy(row),
+                title: 'SSH 自动装 agent (首次部署)'
+              },
+              { icon: () => h(NIcon, null, { default: () => h(Rocket) }), default: () => '部署' }
+            ),
         h(
           NButton,
           {
@@ -215,21 +233,21 @@ const columns = computed<DataTableColumns<AgentListItem>>(() => [
 
 // ===== 改配置弹窗 =====
 const configOpen = ref(false)
-const configTarget = ref<AgentListItem | null>(null)
+const configTarget = ref<ServerFrontlineListItem | null>(null)
 const configTargetRole = computed<'frontline' | 'landing'>(() => {
   const v = configTarget.value?.agentVersion
   if (v && v.startsWith('landing-')) return 'landing'
   return 'frontline'
 })
-function openConfig(row: AgentListItem) {
+function openConfig(row: ServerFrontlineListItem) {
   configTarget.value = row
   configOpen.value = true
 }
 
 // ===== 任务历史弹窗 =====
 const historyOpen = ref(false)
-const historyTarget = ref<AgentListItem | null>(null)
-function openHistory(row: AgentListItem) {
+const historyTarget = ref<ServerFrontlineListItem | null>(null)
+function openHistory(row: ServerFrontlineListItem) {
   historyTarget.value = row
   historyOpen.value = true
 }
@@ -244,10 +262,7 @@ onMounted(loadList)
         <span class="text-sm font-semibold">Agent 状态总览</span>
         <span class="text-xs text-zinc-500">心跳每 1min, 任务轮询 30s, NIC 5min</span>
         <div class="flex-1"></div>
-        <NButton type="info" size="small" @click="openProvision()">
-          <template #icon><NIcon><ArrowUp /></NIcon></template>
-          部署 / 升级 Agent
-        </NButton>
+        <!-- 顶部统一入口去掉; admin 走 server 详情页 → Agent tab 入口, 或者在本表行内点 -->
         <NButton quaternary size="small" :loading="loading" @click="loadList">
           <template #icon><NIcon><RefreshCcw /></NIcon></template>
           刷新
@@ -266,7 +281,7 @@ onMounted(loadList)
             :data="groups.frontline"
             :loading="loading"
             :bordered="false"
-            :row-key="(row: AgentListItem) => row.serverId"
+            :row-key="(row: ServerFrontlineListItem) => row.id"
             size="small"
           />
         </NTabPane>
@@ -279,7 +294,7 @@ onMounted(loadList)
             :data="groups.landing"
             :loading="loading"
             :bordered="false"
-            :row-key="(row: AgentListItem) => row.serverId"
+            :row-key="(row: ServerFrontlineListItem) => row.id"
             size="small"
           />
         </NTabPane>
@@ -292,7 +307,7 @@ onMounted(loadList)
             :data="groups.unprovisioned"
             :loading="loading"
             :bordered="false"
-            :row-key="(row: AgentListItem) => row.serverId"
+            :row-key="(row: ServerFrontlineListItem) => row.id"
             size="small"
           />
         </NTabPane>
@@ -301,21 +316,31 @@ onMounted(loadList)
 
     <ConfigEditDialog
       v-model="configOpen"
-      :server-id="configTarget?.serverId ?? null"
-      :server-name="configTarget?.serverName"
+      :server-id="configTarget?.id ?? null"
+      :server-name="configTarget?.name"
       :role="configTargetRole"
       @saved="loadList"
     />
-    <AgentProvisionDialog
-      v-model="provisionOpen"
-      :initial-server-id="provisionInitialServerId"
-      :initial-role="provisionInitialRole"
-      @dispatched="loadListAfterDispatch"
+    <AgentDeployDialog
+      v-if="provisionTarget"
+      v-model="deployOpen"
+      :source-id="provisionTarget.id"
+      :role="provisionRole"
+      :host-label="provisionTarget.name"
+      @deployed="loadListAfterDispatch"
+    />
+    <AgentUpgradeDialog
+      v-if="provisionTarget"
+      v-model="upgradeOpen"
+      :server-id="provisionTarget.id"
+      :host-label="provisionTarget.name"
+      :agent-info="provisionTarget"
+      @upgraded="loadListAfterDispatch"
     />
     <AgentTaskHistoryDialog
       v-model="historyOpen"
-      :server-id="historyTarget?.serverId ?? null"
-      :server-name="historyTarget?.serverName"
+      :server-id="historyTarget?.id ?? null"
+      :server-name="historyTarget?.name"
     />
   </div>
 </template>

@@ -56,9 +56,16 @@ public class AgentSourceDownloadController {
         response.setHeader("X-Bin-Version", bin.role() + "-" + bin.version());
         response.setHeader("X-Bin-Sha256", bin.sha256());
         response.setContentLengthLong(bin.sizeBytes());
-        try (OutputStream out = response.getOutputStream()) {
-            Files.copy(bin.path(), out);
-            out.flush();
+        // 分块写 + 每块 flush; 防 natapp / 长链路下 Tomcat output buffer 攒满阻塞写,
+        // 上游 idle 检测把 socket RST 掉 (Files.copy 整段写完才 flush, 跨境隧道场景容易触发).
+        try (InputStream in = Files.newInputStream(bin.path());
+             OutputStream out = response.getOutputStream()) {
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+                out.flush();
+            }
         }
         log.info("[downloadBin] serverId={} role={} file={} bytes={}",
                 serverId, role, bin.path().getFileName(), bin.sizeBytes());

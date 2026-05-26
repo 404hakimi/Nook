@@ -20,11 +20,11 @@ import java.util.List;
 @Mapper
 public interface AgentTaskMapper extends BaseMapper<AgentTaskDO> {
 
-    /** 拉某 host 的 PENDING 任务 (≤ N 条, FIFO). */
-    default List<AgentTaskDO> selectPending(String hostType, String hostId, int limit) {
+    /** 拉某 (agentType, sourceId) 的 PENDING 任务 (≤ N 条, FIFO). */
+    default List<AgentTaskDO> selectPending(String agentType, String sourceId, int limit) {
         return selectList(Wrappers.<AgentTaskDO>lambdaQuery()
-                .eq(AgentTaskDO::getHostType, hostType)
-                .eq(AgentTaskDO::getHostId, hostId)
+                .eq(AgentTaskDO::getAgentType, agentType)
+                .eq(AgentTaskDO::getSourceId, sourceId)
                 .eq(AgentTaskDO::getStatus, AgentTaskStatus.PENDING.name())
                 .orderByAsc(AgentTaskDO::getCreatedAt)
                 .last("LIMIT " + Math.max(1, Math.min(limit, 50))));
@@ -49,14 +49,14 @@ public interface AgentTaskMapper extends BaseMapper<AgentTaskDO> {
                 .eq(AgentTaskDO::getId, id));
     }
 
-    /** Admin 看某 host 的 task 分页 (倒序); 支持类型 + 状态可选筛选. */
+    /** Admin 看某 (agentType, sourceId) 的 task 分页 (倒序); 支持类型 + 状态可选筛选. */
     default IPage<AgentTaskDO> selectPageByHost(IPage<AgentTaskDO> page,
-                                                String hostType,
-                                                String hostId,
+                                                String agentType,
+                                                String sourceId,
                                                 AdminAgentTaskPageReqVO reqVO) {
         return selectPage(page, Wrappers.<AgentTaskDO>lambdaQuery()
-                .eq(AgentTaskDO::getHostType, hostType)
-                .eq(AgentTaskDO::getHostId, hostId)
+                .eq(AgentTaskDO::getAgentType, agentType)
+                .eq(AgentTaskDO::getSourceId, sourceId)
                 .eq(StrUtil.isNotBlank(reqVO.getTaskType()), AgentTaskDO::getTaskType, reqVO.getTaskType())
                 .eq(StrUtil.isNotBlank(reqVO.getStatus()), AgentTaskDO::getStatus, reqVO.getStatus())
                 .orderByDesc(AgentTaskDO::getCreatedAt));

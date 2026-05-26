@@ -36,29 +36,29 @@ public class SystemUserController {
     @Resource
     private SystemUserService systemUserService;
 
-    @GetMapping("/page")
+    @GetMapping("/page-user")
     public Result<PageResult<SystemUserRespVO>> getUserPage(@ModelAttribute SystemUserPageReqVO pageReqVO) {
         return Result.ok(SystemUserConvert.INSTANCE.convertPage(systemUserService.page(pageReqVO)));
     }
 
-    @GetMapping("/get")
+    @GetMapping("/get-user")
     public Result<SystemUserRespVO> getUser(@RequestParam("id") String id) {
         return Result.ok(SystemUserConvert.INSTANCE.convert(systemUserService.findById(id)));
     }
 
-    @PostMapping("/create")
+    @PostMapping("/create-user")
     public Result<SystemUserRespVO> createUser(@Valid @RequestBody SystemUserCreateReqVO createReqVO) {
         return Result.ok(SystemUserConvert.INSTANCE.convert(systemUserService.create(createReqVO)));
     }
 
-    @PutMapping("/update")
+    @PutMapping("/update-user")
     public Result<Boolean> updateUser(@RequestParam("id") String id,
                                       @Valid @RequestBody SystemUserUpdateReqVO updateReqVO) {
         systemUserService.update(id, updateReqVO);
         return Result.ok(true);
     }
 
-    @DeleteMapping("/delete")
+    @DeleteMapping("/delete-user")
     public Result<Boolean> deleteUser(@RequestParam("id") String id) {
         systemUserService.delete(id, StpSystemUtil.getLoginIdAsString());
         return Result.ok(true);

@@ -28,21 +28,21 @@ export interface PageResult<T> {
 }
 
 export function pageMemberAccounts(params: MemberAccountQuery) {
-  return request.get<unknown, PageResult<MemberAccount>>('/admin/member/users/page', { params })
+  return request.get<unknown, PageResult<MemberAccount>>('/admin/member/users/page-user', { params })
 }
 
 export function getMemberAccountDetail(id: string) {
-  return request.get<unknown, MemberAccount>(`/admin/member/users/${id}`)
+  return request.get<unknown, MemberAccount>('/admin/member/users/get-user', { params: { id } })
 }
 
 export function disableMemberAccount(id: string) {
-  return request.post<unknown, void>(`/admin/member/users/${id}/disable`)
+  return request.post<unknown, void>('/admin/member/users/disable-user', null, { params: { id } })
 }
 
 export function enableMemberAccount(id: string) {
-  return request.post<unknown, void>(`/admin/member/users/${id}/enable`)
+  return request.post<unknown, void>('/admin/member/users/enable-user', null, { params: { id } })
 }
 
 export function updateMemberAccountRemark(id: string, remark: string) {
-  return request.put<unknown, void>(`/admin/member/users/${id}/remark`, { remark })
+  return request.put<unknown, void>('/admin/member/users/update-remark', { remark }, { params: { id } })
 }

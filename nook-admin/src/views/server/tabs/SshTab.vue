@@ -21,18 +21,20 @@ import {
 } from 'naive-ui'
 import {
   getServerCredential,
-  getServerDetail,
-  type ResourceServer,
-  type ServerCredential
+  type ServerCredential,
+  type ServerFrontlineListItem
 } from '@/api/resource/server'
 import { testServerConnectivity, type ConnectivityTestResult } from '@/api/xray/server'
 import ServerCredentialEditDialog from '@/views/server/dialogs/ServerCredentialEditDialog.vue'
 
-const props = defineProps<{ serverId: string }>()
+const props = defineProps<{
+  serverId: string
+  /** 父组件已拿到的 server 运行时聚合 (含 lifecycleState); credential 编辑 dialog 需要 lifecycle 决定 host/port 是否锁定. */
+  agentInfo: ServerFrontlineListItem | null
+}>()
 
 const message = useMessage()
 
-const detail = ref<ResourceServer | null>(null)
 const credential = ref<ServerCredential | null>(null)
 const loading = ref(false)
 const showPassword = ref(false)
@@ -45,12 +47,7 @@ async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    const [d, c] = await Promise.all([
-      getServerDetail(props.serverId),
-      getServerCredential(props.serverId)
-    ])
-    detail.value = d
-    credential.value = c
+    credential.value = await getServerCredential(props.serverId)
   } catch { /* */ } finally {
     loading.value = false
   }
@@ -123,8 +120,8 @@ function afterEdit() { load() }
         <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 6rem">
           <NDescriptionsItem label="Host">
             <div class="cred-row">
-              <code class="kbd">{{ credential.host }}</code>
-              <NButton text size="tiny" @click="copyText(credential.host, 'Host')" title="复制">
+              <code class="kbd">{{ agentInfo?.host }}</code>
+              <NButton text size="tiny" @click="copyText(agentInfo?.host, 'Host')" title="复制">
                 <template #icon><NIcon><Copy :size="12" /></NIcon></template>
               </NButton>
             </div>
@@ -160,7 +157,7 @@ function afterEdit() { load() }
             </div>
           </NDescriptionsItem>
           <NDescriptionsItem label="SSH 命令">
-            <code class="kbd full-cmd">ssh {{ credential.sshUser || 'root' }}@{{ credential.host }}{{ (credential.sshPort && credential.sshPort !== 22) ? ` -p ${credential.sshPort}` : '' }}</code>
+            <code class="kbd full-cmd">ssh {{ credential.sshUser || 'root' }}@{{ agentInfo?.host }}{{ (credential.sshPort && credential.sshPort !== 22) ? ` -p ${credential.sshPort}` : '' }}</code>
           </NDescriptionsItem>
         </NDescriptions>
       </NCard>
@@ -195,7 +192,7 @@ function afterEdit() { load() }
     <ServerCredentialEditDialog
       v-model="editOpen"
       :server-id="serverId"
-      :lifecycle-state="detail?.lifecycleState"
+      :lifecycle-state="agentInfo?.lifecycleState"
       @saved="afterEdit"
     />
   </NSpin>

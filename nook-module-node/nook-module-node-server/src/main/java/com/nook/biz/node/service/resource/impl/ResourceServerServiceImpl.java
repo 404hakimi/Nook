@@ -5,23 +5,24 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
+import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
+import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
+import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDnsDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCredentialMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerDnsMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
-import com.nook.biz.node.service.resource.ResourceServerDnsService;
+import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.utils.collection.CollectionUtils;
@@ -54,37 +55,38 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ResourceServerServiceImpl implements ResourceServerService {
 
+
     private final ResourceServerMapper resourceServerMapper;
     private final ResourceServerCapacityMapper resourceServerCapacityMapper;
     private final ResourceServerRuntimeMapper resourceServerRuntimeMapper;
-    private final ResourceServerCredentialMapper credentialMapper;
-    private final ResourceServerDnsMapper dnsMapper;
+    private final ResourceServerFrontlineMapper frontlineMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ResourceServerValidator serverValidator;
     private final ResourceServerCredentialService credentialService;
     private final ResourceServerBillingService billingService;
-    private final ResourceServerDnsService dnsService;
+    private final ResourceServerFrontlineService frontlineService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String createServer(ResourceServerCreateReqVO createReqVO) {
         serverValidator.validateNameUnique(null, createReqVO.getName());
 
-        // 1) 写主表 (生成 id + agent_token)
+        // 写主表 (生成 id + agent_token); ipAddress 是 canonical SSH 主机
         ResourceServerDO entity = new ResourceServerDO();
+        entity.setServerType(ResourceServerTypeEnum.FRONTLINE.getState());
         entity.setName(createReqVO.getName());
+        entity.setIpAddress(createReqVO.getIpAddress());
         entity.setRegion(createReqVO.getRegion());
         entity.setTotalIpCount(createReqVO.getTotalIpCount());
         entity.setRemark(createReqVO.getRemark());
-        entity.setLifecycleState(StrUtil.blankToDefault(createReqVO.getLifecycleState(),
-                ResourceServerLifecycleEnum.INSTALLING.name()));
+        entity.setLifecycleState(createReqVO.getLifecycleState());
         entity.setAgentToken(generateAgentToken());
         resourceServerMapper.insert(entity);
 
-        // 2) credential / billing / dns 子表 + capacity / runtime 占位
+        // credential / billing / frontline 子表 + capacity / runtime 占位
         credentialService.create(entity.getId(), createReqVO.getCredential());
         billingService.create(entity.getId(), createReqVO.getBilling());
-        dnsService.create(entity.getId(), createReqVO.getDns());
+        frontlineService.create(entity.getId(), createReqVO.getFrontline());
         initCapacityAndRuntime(entity.getId());
         return entity.getId();
     }
@@ -108,8 +110,8 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         capacity.setRxBytes(0L);
         capacity.setTxBytes(0L);
         capacity.setUsedTrafficBytes(0L);
-        capacity.setQuotaResetPolicy("CALENDAR_MONTH");
-        capacity.setThrottleState("NORMAL");
+        capacity.setQuotaResetPolicy(ResourceServerQuotaResetPolicyEnum.CALENDAR_MONTH.getState());
+        capacity.setThrottleState(ResourceServerThrottleStateEnum.NORMAL.getState());
         capacity.setCreatedAt(now);
         capacity.setUpdatedAt(now);
         resourceServerCapacityMapper.insert(capacity);
@@ -147,21 +149,17 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     }
 
     @Override
+    public ResourceServerDO requireServer(String id) {
+        return serverValidator.validateExists(id);
+    }
+
+    @Override
     public PageResult<ResourceServerDO> getServerPage(ResourceServerPageReqVO pageReqVO) {
-        // host 在 credential 子表; 先查匹配再回主表
-        Set<String> hostMatchIds = null;
-        if (StrUtil.isNotBlank(pageReqVO.getHost())) {
-            hostMatchIds = CollectionUtils.convertSet(
-                    credentialMapper.selectByHostLike(pageReqVO.getHost()),
-                    ResourceServerCredentialDO::getServerId);
-            if (hostMatchIds.isEmpty()) {
-                return PageResult.empty();
-            }
-        }
+        // ip_address 直接落主表; host 关键字 LIKE ip_address, 不再 JOIN credential 子表
         IPage<ResourceServerDO> result = resourceServerMapper.selectPageByQuery(
                 Page.of(pageReqVO.getPageNo(), pageReqVO.getPageSize()),
                 pageReqVO.getName(), pageReqVO.getLifecycleState(), pageReqVO.getRegion(),
-                hostMatchIds);
+                pageReqVO.getHost(), null, ResourceServerTypeEnum.FRONTLINE.getState());
         return PageResult.of(result.getTotal(), result.getRecords());
     }
 
@@ -179,6 +177,15 @@ public class ResourceServerServiceImpl implements ResourceServerService {
                 resourceServerMapper.selectBatchIds(ids),
                 ResourceServerDO::getId,
                 ResourceServerDO::getName);
+    }
+
+    @Override
+    public Map<String, String> getIpAddressMap(Collection<String> ids) {
+        if (CollectionUtils.isAnyEmpty(ids)) return Collections.emptyMap();
+        return CollectionUtils.convertMap(
+                resourceServerMapper.selectBatchIds(ids),
+                ResourceServerDO::getId,
+                ResourceServerDO::getIpAddress);
     }
 
     // 允许的双向流转表; 命名按 from→to, 没列出的组合都拒
@@ -205,10 +212,10 @@ public class ResourceServerServiceImpl implements ResourceServerService {
             throw new BusinessException(ResourceErrorCode.SERVER_LIFECYCLE_INVALID_TRANSITION,
                     srv.getLifecycleState(), newState);
         }
-        // LIVE 前置: dns.domain 必填
+        // LIVE 前置: frontline.domain 必填
         if (ResourceServerLifecycleEnum.LIVE.matches(newState)) {
-            ResourceServerDnsDO dns = dnsMapper.selectById(id);
-            if (dns == null || StrUtil.isBlank(dns.getDomain())) {
+            ResourceServerFrontlineDO frontline = frontlineMapper.selectById(id);
+            if (frontline == null || StrUtil.isBlank(frontline.getDomain())) {
                 throw new BusinessException(ResourceErrorCode.SERVER_LIVE_DOMAIN_REQUIRED);
             }
         }

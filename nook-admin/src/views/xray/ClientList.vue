@@ -201,7 +201,7 @@ function openShare(e: XrayClient) {
 // ===== 点 IP 列跳到 IP 池详情路由页 =====
 function openIpDetail(ipId: string) {
   if (!ipId) return
-  router.push({ name: 'resource-ip-pool-detail', params: { id: ipId } })
+  router.push({ name: 'resource-server-landing-detail', params: { id: ipId } })
 }
 
 // ===== 行操作: 平铺一行小按钮 =====

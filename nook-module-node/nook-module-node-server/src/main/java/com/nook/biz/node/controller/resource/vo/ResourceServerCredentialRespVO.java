@@ -11,7 +11,6 @@ import lombok.Data;
 public class ResourceServerCredentialRespVO {
 
     private String serverId;
-    private String host;
     private Integer sshPort;
     private String sshUser;
 

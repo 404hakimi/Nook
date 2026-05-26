@@ -18,8 +18,7 @@ public class ResourceServerCredentialDO {
     @TableId
     private String serverId;
 
-    private String host;
-
+    /** SSH 端口; 主机 = resource_server.ip_address (canonical) */
     private Integer sshPort;
 
     private String sshUser;

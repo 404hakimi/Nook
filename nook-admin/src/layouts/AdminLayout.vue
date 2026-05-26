@@ -74,7 +74,7 @@ const menuOptions: MenuOption[] = [
   { key: '/business/plans', label: routerLabel('/business/plans', '套餐与 CDK'), icon: icon(Package) },
   // 服务器统一入口 (B 方案): 卡片总览, 点卡片进详情 tab (基本/Xray/Agent/任务); Xray节点 + Agent 不再独立 menu
   { key: '/servers', label: routerLabel('/servers', '服务器'), icon: icon(Server) },
-  { key: '/resource/ip-pool', label: routerLabel('/resource/ip-pool', 'IP 代理池'), icon: icon(Globe2) },
+  { key: '/resource/server-landing', label: routerLabel('/resource/server-landing', '落地机'), icon: icon(Globe2) },
   {
     key: 'operation-group',
     label: '运维管理',

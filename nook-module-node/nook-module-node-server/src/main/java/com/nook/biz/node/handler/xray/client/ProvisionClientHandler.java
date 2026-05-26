@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_PROVISION handler; 入参 JSON 反序列回 ClientProvisionReqVO. 业务执行见 ClientOpExecutor.doProvision.
+ * CLIENT_PROVISION handler; 委托 ClientOpExecutor.doProvision
  *
  * @author nook
  */

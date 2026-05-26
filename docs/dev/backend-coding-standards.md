@@ -31,9 +31,9 @@
 
 ```
 Controller  → 参数校验、调用 Service、调 Convert 组装 VO、返回 Result
-Service     → 业务逻辑、事务、缓存; 校验委托 Validator; 返回 Entity, 不构建 VO
+Service     → 业务逻辑、事务、缓存; 校验委托 Validator; 返回 DO, 不构建 VO
 Validator   → 集中存在性 / 唯一性 / 业务前置校验, 抛 BusinessException; 每个含校验逻辑的 Service 配对一个 XxxValidator
-Convert     → Entity ↔ VO; 接收纯数据 Map / List 拼接, 禁止注入 Service
+Convert     → DO ↔ VO; 接收纯数据 Map / List 拼接, 禁止注入 Service
 Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查询 Wrapper
 ```
 
@@ -67,7 +67,7 @@ Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查
 
 ```java
 // Controller
-List<SomeEntity> list = someService.list();
+List<SomeDO> list = someService.list();
 Set<String> userIds = SomeConvert.INSTANCE.extractMemberIds(list);           // ① Convert 提取 ID
 Map<String, String> userNameMap = memberUserApi.loadUserNameMap(userIds);    // ② Controller 批量查
 return Result.ok(SomeConvert.INSTANCE.convertListWithInfo(list, userNameMap)); // ③ Convert 拼接
@@ -81,9 +81,9 @@ Convert 的 `convertListWithInfo` 只接收纯数据 Map, **禁止**接收 Servi
 
 | 需求 | 写法 |
 |---|---|
-| 提取字段为 Set (去重) | `CollectionUtils.convertSet(list, Entity::getField)` |
-| 提取字段为 List (过滤 null) | `CollectionUtils.convertList(list, Entity::getField)` |
-| 构建 ID → Entity 的 Map | `CollectionUtils.convertMap(list, Entity::getId)` |
+| 提取字段为 Set (去重) | `CollectionUtils.convertSet(list, SomeDO::getField)` |
+| 提取字段为 List (过滤 null) | `CollectionUtils.convertList(list, SomeDO::getField)` |
+| 构建 ID → DO 的 Map | `CollectionUtils.convertMap(list, SomeDO::getId)` |
 | 多集合判空 | `CollectionUtils.isAnyEmpty(c1, c2, ...)` |
 | 集合判空 | `CollUtil.isEmpty(list)` / `CollUtil.isNotEmpty(list)` |
 | 字符串判空 | `StrUtil.isEmpty(s)` / `StrUtil.isNotBlank(s)` |
@@ -102,10 +102,14 @@ Convert 的 `convertListWithInfo` 只接收纯数据 Map, **禁止**接收 Servi
 
 ## 3. 主键与时间字段
 
+### 实体命名: `XxxDO`
+
+DB 实体类**强制**以 `DO` 后缀命名 (Data Object), 放 `com.nook.biz.<module>.dal.dataobject.<feature>` 包下. **禁止** `XxxEntity` / `XxxPO` / 裸 `Xxx` 命名. 基类 `BaseEntity` 是框架名, 不影响子类后缀.
+
 ### 主键: CHAR(32) UUID
 
 ```java
-public class SomeEntity extends BaseEntity {
+public class SomeDO extends BaseEntity {
     // BaseEntity 已经声明: @TableId(value = "id", type = IdType.ASSIGN_UUID) String id;
     // 子类**不要**再声明 id 字段
 }
@@ -128,7 +132,7 @@ updated_at DATETIME NOT NULL COMMENT '更新时间'
 
 ### Wrapper 更新绕过 fill
 
-`Wrappers.lambdaUpdate().set(...).eq(...)` 这种写法**不会**触发 `MetaObjectHandlerImpl` 的 INSERT_UPDATE fill. 在 Mapper 的 default 更新方法里**必须显式** `.set(Entity::getUpdatedAt, LocalDateTime.now())`. 参考 `SystemUserMapper.updateLastLogin`.
+`Wrappers.lambdaUpdate().set(...).eq(...)` 这种写法**不会**触发 `MetaObjectHandlerImpl` 的 INSERT_UPDATE fill. 在 Mapper 的 default 更新方法里**必须显式** `.set(SomeDO::getUpdatedAt, LocalDateTime.now())`. 参考 `SystemUserMapper.updateLastLogin`.
 
 ---
 
@@ -180,43 +184,43 @@ int physicalDeleteByXxx(@Param("xxx") String xxx);
 
 ```java
 @Mapper
-public interface SomeMapper extends BaseMapper<SomeEntity> {
+public interface SomeMapper extends BaseMapper<SomeDO> {
 
     /** 按某字段精确查找; 找不到返回 null. */
-    default SomeEntity selectByField(String field) {
-        return selectOne(Wrappers.<SomeEntity>lambdaQuery()
-                .eq(SomeEntity::getField, field));
+    default SomeDO selectByField(String field) {
+        return selectOne(Wrappers.<SomeDO>lambdaQuery()
+                .eq(SomeDO::getField, field));
     }
 
     /** 某字段是否存在. */
     default boolean existsByField(String field) {
-        return exists(Wrappers.<SomeEntity>lambdaQuery()
-                .eq(SomeEntity::getField, field));
+        return exists(Wrappers.<SomeDO>lambdaQuery()
+                .eq(SomeDO::getField, field));
     }
 
     /** 排除指定 id 的存在性检查 (更新时查重). */
     default boolean existsByFieldExcludingId(String field, String excludeId) {
-        return exists(Wrappers.<SomeEntity>lambdaQuery()
-                .eq(SomeEntity::getField, field)
-                .ne(SomeEntity::getId, excludeId));
+        return exists(Wrappers.<SomeDO>lambdaQuery()
+                .eq(SomeDO::getField, field)
+                .ne(SomeDO::getId, excludeId));
     }
 
     /** 列表分页. */
-    default IPage<SomeEntity> selectPageByQuery(IPage<SomeEntity> page, SomePageReqVO reqVO) {
-        return selectPage(page, Wrappers.<SomeEntity>lambdaQuery()
-                .eq(ObjectUtil.isNotNull(reqVO.getStatus()), SomeEntity::getStatus, reqVO.getStatus())
+    default IPage<SomeDO> selectPageByQuery(IPage<SomeDO> page, SomePageReqVO reqVO) {
+        return selectPage(page, Wrappers.<SomeDO>lambdaQuery()
+                .eq(ObjectUtil.isNotNull(reqVO.getStatus()), SomeDO::getStatus, reqVO.getStatus())
                 .and(StrUtil.isNotBlank(reqVO.getKeyword()), q -> q
-                        .like(SomeEntity::getName, reqVO.getKeyword())
-                        .or().like(SomeEntity::getEmail, reqVO.getKeyword()))
-                .orderByDesc(SomeEntity::getCreatedAt));
+                        .like(SomeDO::getName, reqVO.getKeyword())
+                        .or().like(SomeDO::getEmail, reqVO.getKeyword()))
+                .orderByDesc(SomeDO::getCreatedAt));
     }
 
     /** 部分字段更新; 用 Wrapper 更新时必须显式 set updated_at. */
     default int updateXxx(String id, String newValue) {
-        return update(null, Wrappers.<SomeEntity>lambdaUpdate()
-                .set(SomeEntity::getXxx, newValue)
-                .set(SomeEntity::getUpdatedAt, LocalDateTime.now())
-                .eq(SomeEntity::getId, id));
+        return update(null, Wrappers.<SomeDO>lambdaUpdate()
+                .set(SomeDO::getXxx, newValue)
+                .set(SomeDO::getUpdatedAt, LocalDateTime.now())
+                .eq(SomeDO::getId, id));
     }
 }
 ```
@@ -287,6 +291,31 @@ throw new BusinessException(MemberErrorCode.REGISTER_EMAIL_EXISTS);
 
 ## 7. Controller
 
+### 路径风格 (强制)
+
+**两条铁律**:
+
+1. **禁止** `@PathVariable` 路径参数 (`/{id}`, `/{id}/socks5` 等). 所有 id / serverId 等标识统一走 `@RequestParam` query string.
+2. **所有 endpoint** 必须 `<动词>-<名词>[-<修饰>]` 形式; 禁止纯名词 (`/capacity`) 或纯动词 (`/create`).
+
+| ✅ 推荐 | ❌ 禁止 |
+|---|---|
+| `GET /get-server?id=...` | `GET /get` 或 `GET /{id}` |
+| `PUT /update-capacity?id=...` | `PUT /capacity` 或 `PUT /{id}/capacity` |
+| `POST /create-frontline` | `POST /create` |
+| `DELETE /delete-server?id=...` | `DELETE /delete` |
+| `POST /transition-lifecycle?id=...` | `POST /lifecycle` |
+| `GET /page-landing` | `GET /page` |
+| `GET /list-region` | `GET /list` |
+| `GET /get-summary` | `GET /summary` |
+| `POST /upgrade-agent` | `POST /upgrade` |
+
+理由: 路径自描述, admin REST 与 agent 协议端点都能从 url 直接读出意图; 前端 url 拼接统一; OpenAPI 推断准确.
+
+**例外 (保留惯例)**:
+- 鉴权端点: `/login` `/logout` `/register` `/me` (语义自明, 行业惯例)
+- Agent 协议端点 `/api/agent/*`: `/heartbeat` `/tasks` `/task-result` 等 (agent → backend 的 push 协议, 不是 REST CRUD)
+
 ### 类与方法
 
 ```java
@@ -298,31 +327,31 @@ public class SomeController {
 
     private final SomeService someService;
 
-    @PostMapping("/create")
+    @PostMapping("/create-some")
     public Result<String> create(@RequestBody @Valid SomeCreateReqVO reqVO) {
         return Result.ok(someService.create(reqVO).getId());
     }
 
-    @PutMapping("/{id}")
-    public Result<Void> update(@PathVariable String id, @RequestBody @Valid SomeUpdateReqVO reqVO) {
+    @PutMapping("/update-some")
+    public Result<Void> update(@RequestParam("id") String id, @RequestBody @Valid SomeUpdateReqVO reqVO) {
         someService.update(id, reqVO);
         return Result.ok();
     }
 
-    @GetMapping("/page")
+    @GetMapping("/page-some")
     public Result<PageResult<SomeRespVO>> page(@Valid SomePageReqVO reqVO) {
-        PageResult<SomeEntity> page = someService.page(reqVO);
+        PageResult<SomeDO> page = someService.page(reqVO);
         return Result.ok(PageResult.of(page.getTotal(),
                 SomeConvert.INSTANCE.convertList(page.getList())));
     }
 
-    @GetMapping("/{id}")
-    public Result<SomeRespVO> get(@PathVariable String id) {
+    @GetMapping("/get-some")
+    public Result<SomeRespVO> get(@RequestParam("id") String id) {
         return Result.ok(SomeConvert.INSTANCE.convert(someService.findById(id)));
     }
 
-    @DeleteMapping("/{id}")
-    public Result<Void> delete(@PathVariable String id) {
+    @DeleteMapping("/delete-some")
+    public Result<Void> delete(@RequestParam("id") String id) {
         someService.delete(id, StpSystemUtil.getLoginIdAsString());
         return Result.ok();
     }
@@ -360,19 +389,19 @@ public interface SomeConvert {
 
     SomeConvert INSTANCE = Mappers.getMapper(SomeConvert.class);
 
-    SomeRespVO convert(SomeEntity entity);
+    SomeRespVO convert(SomeDO entity);
 
-    List<SomeRespVO> convertList(List<SomeEntity> list);
+    List<SomeRespVO> convertList(List<SomeDO> list);
 
-    SomeEntity convert(SomeCreateReqVO vo);
+    SomeDO convert(SomeCreateReqVO vo);
 
     /** 提取 memberId 集合, 供 Controller 批量查关联. */
-    default Set<String> extractMemberIds(List<SomeEntity> list) {
-        return CollectionUtils.convertSet(list, SomeEntity::getMemberUserId);
+    default Set<String> extractMemberIds(List<SomeDO> list) {
+        return CollectionUtils.convertSet(list, SomeDO::getMemberUserId);
     }
 
     /** 与会员名拼接. */
-    default List<SomeRespVO> convertListWithMemberName(List<SomeEntity> list, Map<String, String> memberNameMap) {
+    default List<SomeRespVO> convertListWithMemberName(List<SomeDO> list, Map<String, String> memberNameMap) {
         List<SomeRespVO> voList = convertList(list);
         for (SomeRespVO vo : voList) {
             vo.setMemberName(memberNameMap.get(vo.getMemberUserId()));
@@ -437,11 +466,11 @@ public class SomeCreateReqVO {
 
 ```java
 public interface SomeService {
-    SomeEntity create(SomeCreateReqVO reqVO);
+    SomeDO create(SomeCreateReqVO reqVO);
     void update(String id, SomeUpdateReqVO reqVO);
     void delete(String id, String operatorId);
-    SomeEntity findById(String id);
-    PageResult<SomeEntity> page(SomePageReqVO reqVO);
+    SomeDO findById(String id);
+    PageResult<SomeDO> page(SomePageReqVO reqVO);
 }
 
 @Service
@@ -454,10 +483,10 @@ public class SomeServiceImpl implements SomeService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public SomeEntity create(SomeCreateReqVO reqVO) {
+    public SomeDO create(SomeCreateReqVO reqVO) {
         someValidator.validateForCreateOrUpdate(null, reqVO.getName(), reqVO.getEmail());
 
-        SomeEntity entity = BeanUtils.toBean(reqVO, SomeEntity.class);
+        SomeDO entity = BeanUtils.toBean(reqVO, SomeDO.class);
         someMapper.insert(entity);
         return entity;
     }
@@ -508,17 +537,17 @@ public class SomeValidator {
      * @param email 待校验邮箱
      * @return Update 路径返回当前 entity (Create 路径返 null)
      */
-    public SomeEntity validateForCreateOrUpdate(String id, String name, String email) {
-        SomeEntity existing = validateExists(id);
+    public SomeDO validateForCreateOrUpdate(String id, String name, String email) {
+        SomeDO existing = validateExists(id);
         validateNameUnique(id, name);
         validateEmailUnique(id, email);
         return existing;
     }
 
     /** id=null 直接返 null (Create 路径); 找不到抛 NOT_FOUND. */
-    public SomeEntity validateExists(String id) {
+    public SomeDO validateExists(String id) {
         if (id == null) return null;
-        SomeEntity e = someMapper.selectById(id);
+        SomeDO e = someMapper.selectById(id);
         if (ObjectUtil.isNull(e)) throw new BusinessException(SomeErrorCode.NOT_FOUND);
         return e;
     }
@@ -546,9 +575,9 @@ public class SomeServiceImpl implements SomeService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public SomeEntity create(SomeCreateReqVO reqVO) {
+    public SomeDO create(SomeCreateReqVO reqVO) {
         someValidator.validateForCreateOrUpdate(null, reqVO.getName(), reqVO.getEmail());
-        SomeEntity entity = BeanUtils.toBean(reqVO, SomeEntity.class);
+        SomeDO entity = BeanUtils.toBean(reqVO, SomeDO.class);
         someMapper.insert(entity);
         return entity;
     }
@@ -631,7 +660,29 @@ nook-module-<name>/
 
 ## 12. 枚举
 
-代码逻辑用枚举 (Nook 起步不引字典):
+代码逻辑用枚举 (Nook 起步不引字典).
+
+### 强制: 状态 / 类型 / 分类字段必须有枚举类
+
+凡是字段语义是"有限取值集合" (生命周期 / 占用状态 / 角色 / 类型 / 部署模式 / 装机模式 / 限流状态 / 重置策略 / 协议 等), DB 列存 `code`, Java 必须配套一个 Enum 类:
+
+- 位置: `nook-module-<name>-api/.../api/enums/<Domain><Field>Enum.java` (跨模块共享时) 或 `-server/.../api/enums/` (仅内部用); 命名 `XxxEnum`.
+- 严禁 Service / Mapper / Controller 内出现散落的 `"AVAILABLE"` / `"LIVE"` / `1` / `2` 等魔法字面量. 一律走 `Enum.values()` / `Enum.fromState(...)` / `Enum.getState()` / `Enum.matches(state)`.
+- DO 字段保持原始类型 (`Integer code` / `String state`), 不要直接持有 Enum (MyBatis-Plus typeHandler 不引), 但 javadoc 必须 `{@link XxxEnum}` 指向枚举类:
+
+```java
+public class ResourceServerDO extends BaseEntity {
+    /** 装机生命周期 {@link ResourceServerLifecycleEnum} */
+    private String lifecycleState;
+
+    /** agent 角色 {@link AgentRole} */
+    private String serverType;
+}
+```
+
+### 强制: 枚举骨架
+
+整型 code:
 
 ```java
 @Getter
@@ -654,7 +705,54 @@ public enum AccountStatusEnum {
 }
 ```
 
-数据库存 `code` (整型), 实体字段用包装类型 (`Integer`).
+字符串 state (允许小写 / 大写, 跟 DB 约束一致):
+
+```java
+@Getter
+@AllArgsConstructor
+public enum ResourceServerLandingStatusEnum {
+
+    AVAILABLE("AVAILABLE", "可分配"),
+    RESERVED("RESERVED", "预占中"),
+    OCCUPIED("OCCUPIED", "已占用"),
+    COOLING("COOLING", "冷却中"),
+    ;
+
+    public static final String[] ARRAYS = Arrays.stream(values())
+            .map(ResourceServerLandingStatusEnum::getState).toArray(String[]::new);
+
+    private final String state;
+    private final String label;
+
+    public static ResourceServerLandingStatusEnum fromState(String state) {
+        if (state == null) return null;
+        for (ResourceServerLandingStatusEnum e : values()) {
+            if (e.state.equals(state)) return e;
+        }
+        return null;
+    }
+
+    public boolean matches(String state) { return this.state.equals(state); }
+}
+```
+
+数据库存 `code` (整型) 或 `state` (字符串), 实体字段用对应原始类型. 比较一律 `Enum.matches(field)` / `Enum.fromXxx(field)`, **禁止** `"AVAILABLE".equals(do.getStatus())` 这种字面量比较.
+
+### 强制: 不用全限定名
+
+代码内引用类型一律走 `import`, **禁止**写 `java.util.Map<String, com.nook.biz.system.api.iptype.dto.SystemIpTypeRespDTO>` 这种全限定名. 包内冲突时用别名或重命名变量, 不要靠全限定区分.
+
+```java
+// ❌ 错
+public java.util.Map<String, com.nook.biz.node.dal.dataobject.resource.ResourceServerDO> getServerMap() { ... }
+
+// ✅ 对
+import java.util.Map;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+public Map<String, ResourceServerDO> getServerMap() { ... }
+```
+
+枚举值 javadoc 引用也是: `{@link ResourceServerLifecycleEnum}` (不带包名). IDE 解析靠 import.
 
 ---
 
@@ -909,7 +1007,7 @@ for (User u : users) { ... }
 **数据处理**
 - [ ] 主键 `CHAR(32)`, 实体继承 `BaseEntity`, **不重复声明** id / createdAt / updatedAt
 - [ ] 关联数据批量查 `loadXxxMap(ids)`, 不是逐条查
-- [ ] Wrapper 更新必须显式 `.set(Entity::getUpdatedAt, LocalDateTime.now())`
+- [ ] Wrapper 更新必须显式 `.set(SomeDO::getUpdatedAt, LocalDateTime.now())`
 - [ ] 先删后增 + 唯一键场景用 `physicalDelete`, SQL 写 XML 不用 `@Delete` 注解
 
 **注解与校验**

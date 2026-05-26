@@ -2,7 +2,9 @@ package com.nook.biz.node.service.xray.server;
 
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.function.Consumer;
 
@@ -57,4 +59,21 @@ public interface XrayServerManageService {
      * @return 日志内容
      */
     ServiceLogRespVO getXrayLogFile(String serverId, String variant, Integer lines, String keyword);
+
+    /**
+     * 获得 xray 实例详情 (主表 + credential.host enrich)
+     *
+     * @param serverId 服务器编号
+     * @return xray 实例详情 VO
+     */
+    XrayServerRespVO getXrayServerDetail(String serverId);
+
+    /**
+     * 流式装机 / 重装 xray
+     *
+     * @param serverId 服务器编号
+     * @param reqVO    装机入参
+     * @return 流式响应
+     */
+    ResponseBodyEmitter installXrayStream(String serverId, XrayServerInstallReqVO reqVO);
 }

@@ -25,4 +25,7 @@ public class ResourceServerPageReqVO extends PageParam {
 
     /** 区域过滤. */
     private String region;
+
+    /** server_type 过滤 (frontline / landing); null = 不过滤. */
+    private String serverType;
 }

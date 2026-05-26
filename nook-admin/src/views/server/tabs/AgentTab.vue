@@ -1,26 +1,28 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ArrowUp, FileCog, History, Rocket } from 'lucide-vue-next'
-import { NAlert, NButton, NIcon, NTag } from 'naive-ui'
+import { ArrowUp, FileCog, HelpCircle, History, Rocket } from 'lucide-vue-next'
+import { NButton, NDescriptions, NDescriptionsItem, NIcon, NTag, NTooltip } from 'naive-ui'
 import {
   AGENT_ONLINE_LABELS,
   AGENT_ONLINE_TAG_TYPE,
   CONFIG_SYNC_LABELS,
-  CONFIG_SYNC_TAG_TYPE,
-  type AgentListItem
+  CONFIG_SYNC_TAG_TYPE
 } from '@/api/agent/agent'
+import type { ServerFrontlineListItem } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
-import AgentProvisionDialog from '@/views/agent/AgentProvisionDialog.vue'
+import AgentDeployDialog from '@/views/agent/AgentDeployDialog.vue'
+import AgentUpgradeDialog from '@/views/agent/AgentUpgradeDialog.vue'
 import ConfigEditDialog from '@/views/agent/ConfigEditDialog.vue'
 import AgentTaskHistoryDialog from '@/views/agent/AgentTaskHistoryDialog.vue'
 
 const props = defineProps<{
   serverId: string
-  agentInfo: AgentListItem | null
+  agentInfo: ServerFrontlineListItem | null
 }>()
 const emit = defineEmits<{ refresh: [] }>()
 
-const provisionOpen = ref(false)
+const deployOpen = ref(false)
+const upgradeOpen = ref(false)
 const configOpen = ref(false)
 const historyOpen = ref(false)
 
@@ -30,8 +32,28 @@ const role = computed<'frontline' | 'landing'>(() => {
   return 'frontline'
 })
 
-function onDispatched() {
-  // 部署/升级派出去后, 延 3s 刷一次给 backend 写 + agent 心跳一个余量
+const provisioned = computed(() => !!props.agentInfo?.agentVersion)
+
+const healthLabel = computed(() => {
+  if (!provisioned.value) return { text: '未装', type: 'default' as const }
+  const a = props.agentInfo!
+  if (a.onlineState === 'OFFLINE') return { text: '离线', type: 'error' as const }
+  if (a.tempUnhealthy === 1) return { text: '心跳不稳定', type: 'warning' as const }
+  if (a.onlineState === 'ONLINE') return { text: '正常', type: 'success' as const }
+  return { text: AGENT_ONLINE_LABELS[a.onlineState] || '?', type: 'default' as const }
+})
+
+const hostLabel = computed(() => {
+  const a = props.agentInfo
+  if (!a) return ''
+  return a.name + (a.agentVersion ? ` (${a.agentVersion})` : '')
+})
+
+function onDeployed() {
+  // 部署成功后延 3s 刷, 给 backend 写 + agent 心跳一个余量
+  setTimeout(() => emit('refresh'), 3000)
+}
+function onUpgraded() {
   setTimeout(() => emit('refresh'), 3000)
 }
 function onConfigSaved() {
@@ -41,35 +63,38 @@ function onConfigSaved() {
 
 <template>
   <div class="space-y-3">
-    <NAlert v-if="!agentInfo?.agentVersion" type="warning" :show-icon="false" size="small">
-      该 server 尚未装 agent — 点"部署 / 升级"开装机流.
-    </NAlert>
-
-    <!-- 当前 agent 状态摘要 -->
-    <div v-if="agentInfo" class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-      <div class="info-row"><span class="k">agentVersion</span><code class="v">{{ agentInfo.agentVersion || '未装' }}</code></div>
-      <div class="info-row"><span class="k">在线状态</span>
-        <NTag size="tiny" :type="AGENT_ONLINE_TAG_TYPE[agentInfo.onlineState] || 'default'">
-          {{ AGENT_ONLINE_LABELS[agentInfo.onlineState] }}
-        </NTag>
-        <span v-if="agentInfo.elapsedSec != null" class="text-zinc-400 font-mono">{{ agentInfo.elapsedSec }}s</span>
-      </div>
-      <div class="info-row"><span class="k">上次心跳</span><span class="v">{{ formatDateTime(agentInfo.lastHeartbeatAt) || '—' }}</span></div>
-      <div class="info-row"><span class="k">tempUnhealthy</span><span class="v">{{ agentInfo.tempUnhealthy === 1 ? '是' : '否' }}</span></div>
-      <div class="info-row"><span class="k">配置同步</span>
-        <NTag size="tiny" :type="CONFIG_SYNC_TAG_TYPE[agentInfo.configSyncState || 'NEVER_CONFIGURED'] || 'default'">
-          {{ CONFIG_SYNC_LABELS[agentInfo.configSyncState || 'NEVER_CONFIGURED'] }}
-        </NTag>
-      </div>
-    </div>
-
-    <!-- 操作按钮 -->
-    <div class="flex gap-2 pt-2 border-t border-zinc-200">
-      <NButton size="small" type="primary" @click="provisionOpen = true">
+    <!-- ===== 操作栏: 部署 / 升级 拆两个独立按钮 ===== -->
+    <div class="tab-actions">
+      <NButton
+        v-if="!provisioned"
+        size="small"
+        type="primary"
+        @click="deployOpen = true"
+      >
         <template #icon><NIcon><Rocket /></NIcon></template>
-        部署 / 升级
+        部署 agent
       </NButton>
-      <NButton size="small" type="info" @click="configOpen = true" :disabled="!agentInfo">
+      <NButton
+        v-if="provisioned"
+        size="small"
+        type="success"
+        :disabled="!agentInfo || agentInfo.onlineState === 'OFFLINE' || agentInfo.onlineState === 'NEVER'"
+        @click="upgradeOpen = true"
+      >
+        <template #icon><NIcon><ArrowUp /></NIcon></template>
+        升级 agent
+      </NButton>
+      <NButton
+        v-if="provisioned"
+        size="small"
+        quaternary
+        @click="deployOpen = true"
+        title="重新跑 SSH 装机流 (覆盖 binary + config + systemd unit)"
+      >
+        <template #icon><NIcon><Rocket /></NIcon></template>
+        重装 agent
+      </NButton>
+      <NButton size="small" type="info" :disabled="!provisioned" @click="configOpen = true">
         <template #icon><NIcon><FileCog /></NIcon></template>
         改 agent 配置
       </NButton>
@@ -77,39 +102,116 @@ function onConfigSaved() {
         <template #icon><NIcon><History /></NIcon></template>
         任务历史
       </NButton>
-      <div class="flex-1"></div>
-      <NButton
-        size="small"
-        type="success"
-        :disabled="!agentInfo || agentInfo.onlineState === 'OFFLINE' || agentInfo.onlineState === 'NEVER'"
-        @click="provisionOpen = true"
-      >
-        <template #icon><NIcon><ArrowUp /></NIcon></template>
-        一键升级 binary
-      </NButton>
     </div>
 
-    <AgentProvisionDialog
-      v-model="provisionOpen"
-      :initial-server-id="serverId"
-      :initial-role="role"
-      @dispatched="onDispatched"
+    <!-- ===== 未装: empty-hint ===== -->
+    <div v-if="!provisioned" class="empty-hint">
+      <NIcon :size="18"><Rocket /></NIcon>
+      <div>
+        <div class="font-semibold">该 server 尚未装 agent</div>
+        <div class="text-xs text-zinc-500 mt-1">点 "部署 agent" 开装机流</div>
+      </div>
+    </div>
+
+    <!-- ===== 已装: NDescriptions 摘要 ===== -->
+    <NDescriptions
+      v-else
+      bordered size="small" label-placement="left" :column="2"
+      label-style="width: 7rem; white-space: nowrap"
+    >
+      <NDescriptionsItem label="agent 版本">
+        <code class="kbd">{{ agentInfo!.agentVersion || '未装' }}</code>
+      </NDescriptionsItem>
+      <NDescriptionsItem label="在线状态">
+        <NTag size="tiny" :type="AGENT_ONLINE_TAG_TYPE[agentInfo!.onlineState] || 'default'">
+          {{ AGENT_ONLINE_LABELS[agentInfo!.onlineState] }}
+        </NTag>
+        <span v-if="agentInfo!.elapsedSec != null" class="text-zinc-400 font-mono ml-2">{{ agentInfo!.elapsedSec }}s</span>
+      </NDescriptionsItem>
+      <NDescriptionsItem label="上次心跳">
+        <code class="kbd">{{ formatDateTime(agentInfo!.lastHeartbeatAt) || '—' }}</code>
+      </NDescriptionsItem>
+      <NDescriptionsItem>
+        <template #label>
+          <span>健康状态</span>
+          <NTooltip trigger="hover">
+            <template #trigger>
+              <NIcon class="hint-icon"><HelpCircle :size="12" /></NIcon>
+            </template>
+            "心跳不稳定" = 连续 3-5min 没收到心跳, 暂停分配新订阅; 继续无心跳 5min+ 触发掉线.
+          </NTooltip>
+        </template>
+        <NTag size="tiny" :type="healthLabel.type">{{ healthLabel.text }}</NTag>
+      </NDescriptionsItem>
+      <NDescriptionsItem label="配置同步" :span="2">
+        <NTag size="tiny" :type="CONFIG_SYNC_TAG_TYPE[agentInfo!.configSyncState || 'NEVER_CONFIGURED'] || 'default'">
+          {{ CONFIG_SYNC_LABELS[agentInfo!.configSyncState || 'NEVER_CONFIGURED'] }}
+        </NTag>
+      </NDescriptionsItem>
+    </NDescriptions>
+
+    <!-- ===== Dialogs ===== -->
+    <AgentDeployDialog
+      v-model="deployOpen"
+      :source-id="serverId"
+      :role="role"
+      :host-label="hostLabel"
+      @deployed="onDeployed"
+    />
+    <AgentUpgradeDialog
+      v-model="upgradeOpen"
+      :server-id="serverId"
+      :host-label="hostLabel"
+      :agent-info="agentInfo"
+      @upgraded="onUpgraded"
     />
     <ConfigEditDialog
       v-model="configOpen"
       :server-id="serverId"
-      :server-name="agentInfo?.serverName"
+      :server-name="agentInfo?.name"
       :role="role"
       @saved="onConfigSaved"
     />
     <AgentTaskHistoryDialog
       v-model="historyOpen"
       :server-id="serverId"
-      :server-name="agentInfo?.serverName"
+      :server-name="agentInfo?.name"
     />
   </div>
 </template>
 
 <style scoped>
-/* info-row / k / v 走 main.scss 全局 tokens */
+.tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px dashed var(--n-divider-color, #efeff5);
+  flex-wrap: wrap;
+}
+.empty-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  background: var(--n-action-color, #fafafa);
+  border: 1px dashed var(--n-border-color, #efeff5);
+  border-radius: 6px;
+  color: var(--n-text-color-2, #555);
+}
+.kbd {
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  color: var(--n-text-color-1, #222);
+  padding: 1px 6px;
+  background: var(--n-action-color, #f5f5f5);
+  border-radius: 3px;
+}
+.hint-icon {
+  margin-left: 4px;
+  vertical-align: middle;
+  color: #a1a1aa;
+  cursor: help;
+}
 </style>

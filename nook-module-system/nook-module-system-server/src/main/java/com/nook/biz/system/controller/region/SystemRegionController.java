@@ -31,7 +31,7 @@ public class SystemRegionController {
      *
      * @return 已启用区域列表
      */
-    @GetMapping("/enabled")
+    @GetMapping("/list-enabled-region")
     public Result<List<SystemRegionRespVO>> listEnabled() {
         List<SystemRegionDO> list = systemRegionService.listEnabled();
         return Result.ok(CollectionUtils.convertList(list, e -> BeanUtils.toBean(e, SystemRegionRespVO.class)));
@@ -44,7 +44,7 @@ public class SystemRegionController {
      * @param enabled 启用状态
      * @return 区域列表
      */
-    @GetMapping("/list")
+    @GetMapping("/list-region")
     public Result<List<SystemRegionRespVO>> list(@RequestParam(required = false) String keyword,
                                                   @RequestParam(required = false) Integer enabled) {
         List<SystemRegionDO> list = systemRegionService.list(keyword, enabled);

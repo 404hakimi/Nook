@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_ALL_SYNC handler (同步全部客户端); 业务执行见 ClientOpExecutor.doReplayServer.
+ * CLIENT_ALL_SYNC handler; 委托 ClientOpExecutor.doReplayServer
  *
  * @author nook
  */

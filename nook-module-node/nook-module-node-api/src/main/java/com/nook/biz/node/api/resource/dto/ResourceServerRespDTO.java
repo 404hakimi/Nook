@@ -14,10 +14,16 @@ public class ResourceServerRespDTO {
 
     private String name;
 
+    /** agent 角色: frontline=线路机 / landing=落地机. */
+    private String serverType;
+
+    /** 出网真实 IP; landing 必填, frontline 选填 (出口 IP). */
+    private String ipAddress;
+
     /** Server lifecycle 状态 (INSTALLING / READY / LIVE / RETIRED). */
     private String lifecycleState;
 
-    /** 区域码 (FK → resource_region.code). */
+    /** 区域码 (FK → system_region.code). */
     private String region;
 
     private Integer totalIpCount;

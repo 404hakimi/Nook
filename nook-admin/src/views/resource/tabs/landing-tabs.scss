@@ -1,0 +1,184 @@
+/**
+ * 落地机详情 tab 共用样式. 各 Landing*Tab.vue 通过 `<style src="./landing-tabs.scss" />` 引用.
+ *
+ * 父组件 ServerLandingDetail.vue 也引用 (作用于 detail-wrap / header-card 等头部样式).
+ */
+.detail-wrap { max-width: 1280px; margin: 0 auto; }
+.header-card {
+  background: linear-gradient(to right, rgba(99, 102, 241, 0.03), rgba(127, 127, 127, 0));
+}
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.header-flag { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1)); }
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--n-text-color-2, #555);
+  margin-bottom: 8px;
+}
+/* section header: title + hint + (右靠) edit button */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.section-header .section-title { margin-bottom: 0; }
+.section-header .section-hint {
+  font-size: 11px;
+  color: var(--n-text-color-3, #999);
+}
+.section-header .section-action {
+  margin-left: auto;
+}
+
+/* ===== info-row / k / v 走 main.scss 全局 tokens; 本地补 grid ===== */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 24px;
+}
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 0;
+  border-bottom: 1px dashed transparent;
+}
+.info-row--full { grid-column: 1 / -1; }
+.info-row .k {
+  flex-shrink: 0;
+  width: 100px;
+  color: var(--n-text-color-3, #999);
+  font-size: 12px;
+}
+.info-row .v {
+  color: var(--n-text-color-1, #222);
+  word-break: break-all;
+  min-width: 0;
+}
+.info-row code.v { font-family: monospace; font-size: 12px; }
+
+/* ===== SOCKS5 服务 tab: 分段 NDescriptions + 复制按钮 ===== */
+.socks5-section + .socks5-section { margin-top: 12px; }
+.cred-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cred-row .kbd {
+  flex: 1;
+  min-width: 0;
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  color: var(--n-text-color-1, #222);
+  padding: 1px 6px;
+  background: var(--n-action-color, #f5f5f5);
+  border-radius: 3px;
+  word-break: break-all;
+}
+.status-pre {
+  margin: 0;
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+  background: var(--n-action-color, #fafafa);
+  padding: 6px 8px;
+  border-radius: 4px;
+  overflow: auto;
+  white-space: pre;
+  max-height: 180px;
+}
+.hint {
+  font-size: 12px;
+  color: var(--n-text-color-3, #999);
+  padding: 8px 0;
+}
+.hint.text-error { color: var(--n-error-color, #d03050); }
+
+/* ===== Tab 内部 actions ===== */
+.tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px dashed var(--n-divider-color, #efeff5);
+  flex-wrap: wrap;
+}
+
+/* ===== 部署进度时间线 ===== */
+.deploy-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.deploy-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--n-border-color, #efeff5);
+  border-radius: 6px;
+  background: #fafafa;
+  font-size: 13px;
+  color: var(--n-text-color-2, #555);
+}
+.deploy-step__dot {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--n-text-color-3, #d9d9d9);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.deploy-step--done {
+  background: rgba(24, 160, 88, 0.04);
+  border-color: rgba(24, 160, 88, 0.3);
+  color: var(--n-text-color-1, #222);
+}
+.deploy-step--done .deploy-step__dot { background: var(--n-success-color, #18a058); }
+
+/* ===== 端口卡片 ===== */
+.port-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--n-border-color, #efeff5);
+  border-radius: 6px;
+  background: var(--n-card-color, #fff);
+}
+.port-card--open, .port-card--listening { border-color: rgba(24, 160, 88, 0.3); }
+.port-card--closed, .port-card--down { border-color: rgba(208, 48, 80, 0.3); }
+
+/* ===== 空态 ===== */
+.empty-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border: 1px dashed var(--n-border-color, #efeff5);
+  border-radius: 6px;
+  color: var(--n-text-color-2, #666);
+  background: var(--n-action-color, #fafafa);
+}
+
+.text-error { color: var(--n-error-color, #d03050); }
+.text-warning { color: var(--n-warning-color, #f0a020); }
+
+@media (max-width: 720px) {
+  .info-grid { grid-template-columns: 1fr; }
+  .deploy-steps { grid-template-columns: repeat(2, 1fr); }
+}

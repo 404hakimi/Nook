@@ -23,5 +23,5 @@ export interface XrayConfig {
 
 /** 按 serverId 取 inbound 共享配置 (server detail tab 用); 未装时返 null */
 export function getXrayConfig(serverId: string) {
-  return request.get<unknown, XrayConfig | null>('/admin/xray/config/get', { params: { serverId } })
+  return request.get<unknown, XrayConfig | null>('/admin/xray/config/get-xray-config', { params: { serverId } })
 }

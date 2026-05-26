@@ -21,7 +21,7 @@ import {
   type SyncStatus,
   type XrayClient
 } from '@/api/xray/client'
-import { IP_POOL_STATUS_LABELS, pageIpPool, type ResourceIpPool } from '@/api/resource/ip-pool'
+import { SERVER_LANDING_STATUS_LABELS, pageServerLanding, type ServerLanding } from '@/api/resource/server-landing'
 import type { XrayServer } from '@/api/xray/xray-server'
 import type { XrayConfig } from '@/api/xray/xray-config'
 
@@ -41,8 +41,8 @@ const loading = ref(false)
 const replayLoading = ref(false)
 const syncStatus = ref<SyncStatus | null>(null)
 const clients = ref<XrayClient[]>([])
-/** ipId → 完整 IP 池行 (含 status / region / socks5 凭据), 详情面板里 enrich 落地 IP 节点用 */
-const ipPoolByIpId = ref<Record<string, ResourceIpPool>>({})
+/** ipId → 完整落地机行 (含 status / region / socks5 凭据), 详情面板里 enrich 落地 IP 节点用 */
+const landingByIpId = ref<Record<string, ServerLanding>>({})
 
 const graphContainer = ref<HTMLDivElement | null>(null)
 let graph: Graph | null = null
@@ -103,7 +103,7 @@ watch(
       syncStatus.value = null
       clients.value = []
       columns.value = []
-      ipPoolByIpId.value = {}
+      landingByIpId.value = {}
       closeSelection()
     }
   }
@@ -119,12 +119,12 @@ async function runRefresh() {
     ])
     syncStatus.value = status
     clients.value = clientPage.records
-    // 拉本轮涉及到的 IP 池行 (OCCUPIED) 给详情面板 enrich 用; 失败留空差异主流程不受影响
+    // 拉本轮涉及到的落地机行 (OCCUPIED) 给详情面板 enrich 用; 失败留空差异主流程不受影响
     try {
-      const ipPage = await pageIpPool({ pageNo: 1, pageSize: 500, status: 'OCCUPIED' })
-      ipPoolByIpId.value = Object.fromEntries(ipPage.records.map((r) => [r.id, r]))
+      const landingPage = await pageServerLanding({ pageNo: 1, pageSize: 500, status: 'OCCUPIED' })
+      landingByIpId.value = Object.fromEntries(landingPage.records.map((r) => [r.id, r]))
     } catch {
-      ipPoolByIpId.value = {}
+      landingByIpId.value = {}
     }
     buildColumns()
     await nextTick()
@@ -575,7 +575,7 @@ function buildGraphNodeView(): PanelView {
   const ruleTag = m.clientId ? `rule_${m.clientId}` : ''
   const outTag = m.clientId ? `out_${m.clientId}` : ''
   const dbClient = m.clientId ? clients.value.find((c) => c.id === m.clientId) : null
-  const ipPool = m.ipId ? ipPoolByIpId.value[m.ipId] : null
+  const landing = m.ipId ? landingByIpId.value[m.ipId] : null
 
   // 服务端 section: 该节点远端实际状态
   const remoteByCol: Record<number, DetailRow[]> = {
@@ -592,15 +592,15 @@ function buildGraphNodeView(): PanelView {
     2: [
       { label: '完整 tag', value: m.remoteTag ?? outTag, mono: true, active: true },
       { label: '协议', value: 'socks5 client' },
-      { label: 'server addr', value: ipPool?.ipAddress ?? m.ipAddress ?? '—', mono: true },
-      { label: 'server port', value: ipPool?.socks5Port != null ? String(ipPool.socks5Port) : '—', mono: true },
-      { label: 'auth user', value: ipPool?.socks5Username ?? '—', mono: true }
+      { label: 'server addr', value: landing?.ipAddress ?? m.ipAddress ?? '—', mono: true },
+      { label: 'server port', value: landing?.socks5Port != null ? String(landing.socks5Port) : '—', mono: true },
+      { label: 'auth user', value: landing?.socks5Username ?? '—', mono: true }
     ],
     3: [
-      { label: 'IP 地址', value: ipPool?.ipAddress ?? m.ipAddress ?? '—', mono: true, active: true },
-      { label: 'SOCKS5 端口', value: ipPool?.socks5Port != null ? String(ipPool.socks5Port) : '—', mono: true },
-      { label: 'region', value: ipPool?.region ?? '—' },
-      { label: '最近健康检测', value: ipPool?.lastHealthAt ?? '—' }
+      { label: 'IP 地址', value: landing?.ipAddress ?? m.ipAddress ?? '—', mono: true, active: true },
+      { label: 'SOCKS5 端口', value: landing?.socks5Port != null ? String(landing.socks5Port) : '—', mono: true },
+      { label: 'region', value: landing?.region ?? '—' },
+      { label: '最近心跳', value: landing?.lastHeartbeatAt ?? '—' }
     ]
   }
 
@@ -609,21 +609,21 @@ function buildGraphNodeView(): PanelView {
     { label: 'memberUserId', value: dbClient?.memberUserId ?? '—', mono: true },
     { label: 'clientEmail', value: dbClient?.clientEmail ?? m.email ?? '—', mono: true },
     { label: 'ipId', value: m.ipId ?? '—', mono: true },
-    { label: 'ipAddress', value: ipPool?.ipAddress ?? m.ipAddress ?? '—', mono: true },
+    { label: 'ipAddress', value: landing?.ipAddress ?? m.ipAddress ?? '—', mono: true },
     { label: '客户端状态', value: clientStatusLabel(dbClient?.status), copyable: false },
     { label: '最近同步', value: dbClient?.lastSyncedAt ?? '—' },
     { label: '创建时间', value: dbClient?.createdAt ?? '—' }
   ]
 
-  // 落地 IP 列额外显示一段独立的 "落地 IP (DB)" section, 把 IP 池行字段全摊开
-  const ipPoolRows: DetailRow[] | null = (m.colIdx === 3 && ipPool) ? [
-    { label: 'IP 状态', value: ipPool.status != null ? IP_POOL_STATUS_LABELS[ipPool.status] ?? String(ipPool.status) : '—', copyable: false },
-    { label: 'region', value: ipPool.region ?? '—' },
-    { label: 'ipType', value: ipPool.ipTypeId ?? '—', mono: true },
-    { label: '占用会员', value: ipPool.occupiedByMemberId ?? '—', mono: true },
-    { label: '占用时间', value: ipPool.occupiedAt ?? '—' },
-    { label: 'SOCKS5 端口', value: ipPool.socks5Port != null ? String(ipPool.socks5Port) : '—', mono: true },
-    { label: 'SOCKS5 用户', value: ipPool.socks5Username ?? '—', mono: true }
+  // 落地 IP 列额外显示一段独立的 "落地机 (DB)" section, 把落地机行字段全摊开
+  const landingRows: DetailRow[] | null = (m.colIdx === 3 && landing) ? [
+    { label: '占用状态', value: landing.status != null ? SERVER_LANDING_STATUS_LABELS[landing.status] ?? String(landing.status) : '—', copyable: false },
+    { label: 'region', value: landing.region ?? '—' },
+    { label: 'ipType', value: landing.ipTypeId ?? '—', mono: true },
+    { label: '占用会员', value: landing.occupiedByMemberId ?? '—', mono: true },
+    { label: '占用时间', value: landing.occupiedAt ?? '—' },
+    { label: 'SOCKS5 端口', value: landing.socks5Port != null ? String(landing.socks5Port) : '—', mono: true },
+    { label: 'SOCKS5 用户', value: landing.socks5Username ?? '—', mono: true }
   ] : null
 
   const chainRows: DetailRow[] = [
@@ -639,9 +639,9 @@ function buildGraphNodeView(): PanelView {
     { heading: '服务端 (xray 远端实际)', accent: 'blue', rows: remoteByCol[m.colIdx] ?? [] },
     { heading: '存储 (DB xray_client)', accent: 'green', rows: dbRows }
   ]
-  // 落地 IP 节点额外补 "IP 池详情" section (resource_ip_pool 行)
-  if (ipPoolRows) {
-    sections.push({ heading: '落地 IP 池 (DB resource_ip_pool)', accent: 'green', rows: ipPoolRows })
+  // 落地 IP 节点额外补 "落地机详情" section (resource_server 行)
+  if (landingRows) {
+    sections.push({ heading: '落地机 (DB resource_server)', accent: 'green', rows: landingRows })
   }
   sections.push({ heading: '该客户全链路', accent: 'amber', rows: chainRows, highlightActive: true })
 

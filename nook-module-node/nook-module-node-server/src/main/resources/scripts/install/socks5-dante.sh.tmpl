@@ -228,6 +228,20 @@ EOF
       || echo "  ⚠ logrotate 配置有问题, 可手动 logrotate -f /etc/logrotate.d/dante 排查"
 fi
 
+# ===== systemd-journald 容量上限 (50M ring buffer): 防业务 service 启停日志撑爆磁盘 =====
+mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/nook-cap.conf <<'EOF'
+[Journal]
+SystemMaxUse=50M
+SystemKeepFree=200M
+SystemMaxFileSize=10M
+EOF
+if systemctl restart systemd-journald 2>/dev/null; then
+    echo "  ✔ journald cap 已生效 (50M ring buffer)"
+else
+    echo "  ⚠ journald restart 失败, 配置已写盘, 下次重启生效"
+fi
+
 echo ""
 echo -e "${GREEN}━━━━━━━━ 落地节点安装完成 (dante-server) ━━━━━━━━${NC}"
 echo "  SOCKS5 地址:  $PUB:$SOCKS_PORT"

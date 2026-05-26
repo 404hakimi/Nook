@@ -40,12 +40,20 @@ public interface ResourceServerService {
     void deleteServer(String id);
 
     /**
-     * 获得服务器
+     * 获得服务器 (不存在返 null)
      *
      * @param id 服务器编号
      * @return 服务器
      */
     ResourceServerDO getServer(String id);
+
+    /**
+     * 获得服务器 (不存在抛 SERVER_NOT_FOUND)
+     *
+     * @param id 服务器编号
+     * @return 服务器
+     */
+    ResourceServerDO requireServer(String id);
 
     /**
      * 获得服务器分页
@@ -70,6 +78,15 @@ public interface ResourceServerService {
      * @return 服务器编号 → 服务器名称
      */
     Map<String, String> getServerNameMap(Collection<String> ids);
+
+    /**
+     * 批量获得服务器 IP / 域名 (替代老 credentialService.getHostMap;
+     * host 已经搬到 server.ip_address)
+     *
+     * @param ids 服务器编号集合
+     * @return 服务器编号 → ip_address
+     */
+    Map<String, String> getIpAddressMap(Collection<String> ids);
 
     /**
      * 切换服务器 lifecycle 状态

@@ -48,7 +48,7 @@ const routes: RouteRecordRaw[] = [
         path: 'servers/:id',
         name: 'server-detail',
         component: () => import('@/views/server/ServerDetail.vue'),
-        meta: { title: '服务器详情' }
+        meta: { title: '服务器详情', serverType: 'frontline' }
       },
       // 老路由保留 redirect, 避免外部书签 / 历史链接 404
       { path: 'resource/servers', redirect: '/servers' },
@@ -56,16 +56,17 @@ const routes: RouteRecordRaw[] = [
       { path: 'xray/nodes', redirect: '/servers' },
 
       {
-        path: 'resource/ip-pool',
-        name: 'resource-ip-pool',
-        component: () => import('@/views/resource/IpPoolList.vue'),
-        meta: { title: 'IP代理池' }
+        path: 'resource/server-landing',
+        name: 'resource-server-landing',
+        component: () => import('@/views/resource/ServerLandingList.vue'),
+        meta: { title: '落地机' }
       },
       {
-        path: 'resource/ip-pool/:id',
-        name: 'resource-ip-pool-detail',
-        component: () => import('@/views/resource/IpPoolDetail.vue'),
-        meta: { title: 'IP 详情' }
+        // 落地机详情走统一 ServerDetail.vue, 通过 meta.serverType 分发
+        path: 'resource/server-landing/:id',
+        name: 'resource-server-landing-detail',
+        component: () => import('@/views/server/ServerDetail.vue'),
+        meta: { title: '落地机详情', serverType: 'landing' }
       },
       {
         path: 'xray/clients',

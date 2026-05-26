@@ -35,16 +35,40 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .eq(ResourceServerDO::getAgentToken, agentToken));
     }
 
+    /** 是否已存在指定 ipAddress (Create 唯一校验). */
+    default boolean existsByIpAddress(String ipAddress) {
+        return exists(Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(ResourceServerDO::getIpAddress, ipAddress));
+    }
+
+    /** 排除指定 id 后是否还有同 ipAddress (Update 唯一校验). */
+    default boolean existsByIpAddressExcludingId(String ipAddress, String excludeId) {
+        return exists(Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(ResourceServerDO::getIpAddress, ipAddress)
+                .ne(ResourceServerDO::getId, excludeId));
+    }
+
+    /** 按 server_type 拉全表 (summary 统计用; 小规模 OK). */
+    default java.util.List<ResourceServerDO> selectByServerType(String serverType) {
+        return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(ResourceServerDO::getServerType, serverType));
+    }
+
     /**
-     * 列表分页. host 过滤需由调用方先查 credential 子表得到 idIn 再传入 (null=不约束).
+     * 列表分页. ipAddress 直接 LIKE 主表; idIn (来自子表预过滤如 landing.status) 可选作 id 集合过滤;
+     * serverType (frontline / landing) 可选.
      */
     default IPage<ResourceServerDO> selectPageByQuery(IPage<ResourceServerDO> page, String name,
                                                       String lifecycleState, String region,
-                                                      Collection<String> idIn) {
+                                                      String ipAddress,
+                                                      Collection<String> idIn,
+                                                      String serverType) {
         return selectPage(page, Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(StrUtil.isNotBlank(serverType), ResourceServerDO::getServerType, serverType)
                 .eq(StrUtil.isNotBlank(lifecycleState), ResourceServerDO::getLifecycleState, lifecycleState)
                 .eq(StrUtil.isNotBlank(region), ResourceServerDO::getRegion, region)
                 .like(StrUtil.isNotBlank(name), ResourceServerDO::getName, name)
+                .like(StrUtil.isNotBlank(ipAddress), ResourceServerDO::getIpAddress, ipAddress)
                 .in(idIn != null, ResourceServerDO::getId, idIn)
                 .orderByDesc(ResourceServerDO::getCreatedAt));
     }

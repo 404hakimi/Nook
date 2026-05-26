@@ -4,7 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nook.biz.agent.api.enums.AgentHostType;
+import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.api.enums.AgentTaskStatus;
 import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
@@ -76,7 +76,9 @@ public class AgentReportServiceImpl implements AgentReportService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<AgentTaskRespVO> pullPendingTasks(String serverId, int limit) {
-        List<AgentTaskDO> pending = agentTaskMapper.selectPending(AgentHostType.SERVER.code(), serverId, limit);
+        // 当前 agent push 鉴权走 resource_server (frontline); landing agent 鉴权对接后这里改成
+        // 从 AuthenticatedAgent 上下文拿 agent_type. 现阶段 frontline 写死.
+        List<AgentTaskDO> pending = agentTaskMapper.selectPending(AgentRole.FRONTLINE.getCode(), serverId, limit);
         if (CollUtil.isEmpty(pending)) {
             return List.of();
         }

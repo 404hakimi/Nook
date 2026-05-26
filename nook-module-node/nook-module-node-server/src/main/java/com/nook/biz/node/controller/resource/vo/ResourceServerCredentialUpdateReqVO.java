@@ -7,6 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+// 注: host 已搬到 resource_server.ip_address (canonical), 不在凭据里
+
 /**
  * 管理后台 - 服务器 SSH 凭据 Update Request VO (Create 流程嵌套在 ResourceServerCreateReqVO.credential 内复用)
  *
@@ -14,10 +16,6 @@ import lombok.Data;
  */
 @Data
 public class ResourceServerCredentialUpdateReqVO {
-
-    @NotBlank(message = "host 不能为空")
-    @Size(max = 128, message = "host 长度不能超过 128")
-    private String host;
 
     @NotNull(message = "SSH 端口不能为空")
     @Min(value = 1, message = "SSH 端口范围 1-65535")

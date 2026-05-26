@@ -3,12 +3,13 @@ package com.nook.biz.node.dal.dataobject.resource;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
+import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * 服务器资源 DO (核心字段; SSH 凭据 / 账面 / DNS 拆到 1:1 子表).
+ * 服务器资源 DO
  *
  * @author nook
  */
@@ -17,14 +18,20 @@ import lombok.EqualsAndHashCode;
 @TableName("resource_server")
 public class ResourceServerDO extends BaseEntity {
 
+    /** agent 角色 {@link ResourceServerTypeEnum} */
+    private String serverType;
+
     private String name;
 
-    /** 装机生命周期; 取值见 {@link ResourceServerLifecycleEnum}. */
+    /** 出网真实 IP; landing 必填, frontline 选填 (出口 IP). */
+    private String ipAddress;
+
+    /** 装机生命周期 {@link ResourceServerLifecycleEnum} */
     private String lifecycleState;
 
     private Integer totalIpCount;
 
-    /** 区域码; FK → resource_region.code. */
+    /** 区域码; FK → system_region.code. */
     private String region;
 
     private String remark;

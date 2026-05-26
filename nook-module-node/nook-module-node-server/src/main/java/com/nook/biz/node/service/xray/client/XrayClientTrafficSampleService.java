@@ -2,6 +2,8 @@ package com.nook.biz.node.service.xray.client;
 
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 
+import java.util.Map;
+
 /**
  * Xray 客户端流量采样 Service 接口
  *
@@ -32,7 +34,7 @@ public interface XrayClientTrafficSampleService {
      * @param stats    email → 当前累计
      * @return 采样统计
      */
-    SampleStat applyAgentStats(String serverId, java.util.Map<String, AgentStatSnapshot> stats);
+    SampleStat applyAgentStats(String serverId, Map<String, AgentStatSnapshot> stats);
 
     /** agent 上报的单条客户端计数器快照 */
     record AgentStatSnapshot(long upBytes, long downBytes) {}

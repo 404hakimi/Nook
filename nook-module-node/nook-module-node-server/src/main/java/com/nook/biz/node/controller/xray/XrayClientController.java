@@ -3,20 +3,14 @@ package com.nook.biz.node.controller.xray;
 import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientTrafficRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayClientTrafficRespVO;
 import com.nook.biz.node.convert.xray.XrayClientConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
-import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.service.resource.ResourceIpPoolService;
-import com.nook.biz.node.service.resource.ResourceServerCredentialService;
-import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.client.XrayClientService;
 import com.nook.biz.node.service.xray.client.XrayClientTrafficService;
-import com.nook.biz.node.service.xray.config.XrayConfigService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
@@ -33,7 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -49,26 +42,21 @@ public class XrayClientController {
 
     private final XrayClientService xrayClientService;
     private final XrayClientTrafficService xrayClientTrafficService;
-    private final ResourceIpPoolService resourceIpPoolService;
-    private final ResourceServerService resourceServerService;
-    private final ResourceServerCredentialService credentialService;
-    private final XrayConfigService xrayConfigService;
 
     /**
      * 获得 xray 客户端分页
      *
      * @param pageReqVO 分页条件
-     * @return 客户端分页 (含 ipAddress / serverName / inbound 字段)
+     * @return 客户端分页
      */
-    @GetMapping("/page")
+    @GetMapping("/page-xray-client")
     public Result<PageResult<XrayClientRespVO>> getXrayClientPage(@ModelAttribute XrayClientPageReqVO pageReqVO) {
         PageResult<XrayClientDO> pageResult = xrayClientService.getXrayClientPage(pageReqVO);
-        Set<String> serverIds = XrayClientConvert.collectServerIds(pageResult.getRecords());
-        Map<String, String> ipMap = loadIpAddressMap(XrayClientConvert.collectIpIds(pageResult.getRecords()));
-        Map<String, ResourceServerDO> serverMap = loadServerMap(serverIds);
-        Map<String, String> hostMap = loadHostMap(serverIds);
-        Map<String, XrayConfigDO> configMap = loadConfigMap(serverIds);
-        return Result.ok(XrayClientConvert.INSTANCE.convertPage(pageResult, ipMap, serverMap, hostMap, configMap));
+        XrayClientService.EnrichBundle bundle = xrayClientService.loadEnrichBundle(
+                XrayClientConvert.collectServerIds(pageResult.getRecords()),
+                XrayClientConvert.collectIpIds(pageResult.getRecords()));
+        return Result.ok(XrayClientConvert.INSTANCE.convertPage(pageResult,
+                bundle.ipMap(), bundle.serverMap(), bundle.hostMap(), bundle.configMap()));
     }
 
     /**
@@ -77,58 +65,54 @@ public class XrayClientController {
      * @param id 客户端编号
      * @return 客户端详情
      */
-    @GetMapping("/get")
+    @GetMapping("/get-xray-client")
     public Result<XrayClientRespVO> getXrayClient(@RequestParam("id") String id) {
-        XrayClientDO entity = xrayClientService.getXrayClient(id);
-        return Result.ok(convertOne(entity));
+        return Result.ok(convertOne(xrayClientService.getXrayClient(id)));
     }
 
     /**
-     * 开通 xray 客户端 (provision)
+     * 开通 xray 客户端
      *
      * @param createReqVO 开通入参
      * @return 客户端详情
      */
-    @PostMapping("/create")
+    @PostMapping("/create-xray-client")
     public Result<XrayClientRespVO> createXrayClient(@Valid @RequestBody XrayClientProvisionReqVO createReqVO) {
-        XrayClientDO client = xrayClientService.provisionXrayClient(createReqVO);
-        return Result.ok(convertOne(client));
+        return Result.ok(convertOne(xrayClientService.provisionXrayClient(createReqVO)));
     }
 
     /**
-     * 吊销 xray 客户端 (远端 inbound + DB 双删)
+     * 吊销 xray 客户端
      *
      * @param id 客户端编号
      * @return 是否成功
      */
-    @DeleteMapping("/delete")
+    @DeleteMapping("/delete-xray-client")
     public Result<Boolean> deleteXrayClient(@RequestParam("id") String id) {
         xrayClientService.revokeXrayClient(id);
         return Result.ok(true);
     }
 
     /**
-     * 轮换客户端 UUID / 密钥 (老凭据立即失效)
+     * 轮换客户端 UUID / 密钥
      *
      * @param id 客户端编号
-     * @return 客户端详情 (新 UUID)
+     * @return 客户端详情
      */
-    @PostMapping("/rotate")
+    @PostMapping("/rotate-xray-client")
     public Result<XrayClientRespVO> rotateXrayClient(@RequestParam("id") String id) {
-        XrayClientDO entity = xrayClientService.rotateXrayClient(id);
-        return Result.ok(convertOne(entity));
+        return Result.ok(convertOne(xrayClientService.rotateXrayClient(id)));
     }
 
     /**
-     * 获得客户端实时流量 (上 / 下 / 已用 / 配额 / 用量百分比)
+     * 获得客户端实时流量
      *
      * @param id 客户端编号
      * @return 流量信息
      */
-    @GetMapping("/traffic")
+    @GetMapping("/get-xray-client-traffic")
     public Result<XrayClientTrafficRespVO> getXrayClientTraffic(@RequestParam("id") String id) {
-        XrayClientTrafficRespVO traffic = xrayClientTrafficService.getXrayClientTraffic(id);
-        return Result.ok(traffic);
+        return Result.ok(xrayClientTrafficService.getXrayClientTraffic(id));
     }
 
     /**
@@ -137,87 +121,64 @@ public class XrayClientController {
      * @param id 客户端编号
      * @return 是否成功
      */
-    @PostMapping("/reset-traffic")
+    @PostMapping("/reset-xray-client-traffic")
     public Result<Boolean> resetXrayClientTraffic(@RequestParam("id") String id) {
         xrayClientTrafficService.resetXrayClientTraffic(id);
         return Result.ok(true);
     }
 
     /**
-     * 拉协议级凭据明文 (UUID / password); 列表 / 详情下发的 clientUuid 是 mask 形式
+     * 拉协议级凭据明文
      *
      * @param id 客户端编号
      * @return 协议级凭据
      */
-    @GetMapping("/credential")
+    @GetMapping("/get-xray-client-credential")
     public Result<XrayClientCredentialRespVO> getXrayClientCredential(@RequestParam("id") String id) {
-        XrayClientCredentialRespVO credential = xrayClientService.getXrayClientCredential(id);
-        return Result.ok(credential);
+        return Result.ok(xrayClientService.getXrayClientCredential(id));
     }
 
     /**
-     * 获得 server 下客户端同步态 (DB ↔ 远端 inbound 差异统计)
+     * 获得 server 下客户端同步态
      *
      * @param serverId 服务器编号
      * @return 同步态报告
      */
-    @GetMapping("/sync-status")
+    @GetMapping("/get-sync-status")
     public Result<XrayClientSyncStatusRespVO> getSyncStatus(@RequestParam("serverId") String serverId) {
-        XrayClientSyncStatusRespVO status = xrayClientService.getSyncStatus(serverId);
-        return Result.ok(status);
+        return Result.ok(xrayClientService.getSyncStatus(serverId));
     }
 
     /**
-     * 单客户端补推 (DB → 远端 inbound 重放)
+     * 单客户端补推
      *
      * @param id 客户端编号
      * @return 是否成功
      */
-    @PostMapping("/sync")
+    @PostMapping("/sync-xray-client")
     public Result<Boolean> syncXrayClient(@RequestParam("id") String id) {
         xrayClientService.syncXrayClient(id);
         return Result.ok(true);
     }
 
     /**
-     * server 全量重放 (DB 全量客户端 → 远端 inbound; 返回成功 / 失败计数)
+     * server 全量重放
      *
      * @param serverId 服务器编号
      * @return 重放报告
      */
-    @PostMapping("/replay-server")
+    @PostMapping("/replay-xray-server")
     public Result<XrayClientReplayReportRespVO> replayServer(@RequestParam("serverId") String serverId) {
-        XrayClientReplayReportRespVO report = xrayClientService.replayServer(serverId);
-        return Result.ok(report);
+        return Result.ok(xrayClientService.replayServer(serverId));
     }
 
-    /** 单条 detail / create / rotate 共用的 enrich 路径; ipAddress / server / xray_config 三套 map 一次性预拉. */
+    /** 单条 detail / create / rotate 共用 enrich 路径. */
     private XrayClientRespVO convertOne(XrayClientDO entity) {
         List<XrayClientDO> single = Collections.singletonList(entity);
         Set<String> serverIds = XrayClientConvert.collectServerIds(single);
-        Map<String, String> ipMap = loadIpAddressMap(XrayClientConvert.collectIpIds(single));
-        Map<String, ResourceServerDO> serverMap = loadServerMap(serverIds);
-        Map<String, String> hostMap = loadHostMap(serverIds);
-        Map<String, XrayConfigDO> configMap = loadConfigMap(serverIds);
-        return XrayClientConvert.INSTANCE.convert(entity, ipMap, serverMap, hostMap, configMap);
-    }
-
-    private Map<String, String> loadHostMap(Set<String> serverIds) {
-        return credentialService.getHostMap(serverIds);
-    }
-
-    private Map<String, String> loadIpAddressMap(Set<String> ipIds) {
-        if (ipIds.isEmpty()) return Collections.emptyMap();
-        return resourceIpPoolService.getIpAddressMap(ipIds);
-    }
-
-    private Map<String, ResourceServerDO> loadServerMap(Set<String> serverIds) {
-        if (serverIds.isEmpty()) return Collections.emptyMap();
-        return resourceServerService.getServerMap(serverIds);
-    }
-
-    private Map<String, XrayConfigDO> loadConfigMap(Set<String> serverIds) {
-        if (serverIds.isEmpty()) return Collections.emptyMap();
-        return xrayConfigService.listByServerIds(serverIds);
+        Set<String> ipIds = XrayClientConvert.collectIpIds(single);
+        XrayClientService.EnrichBundle bundle = xrayClientService.loadEnrichBundle(serverIds, ipIds);
+        return XrayClientConvert.INSTANCE.convert(entity,
+                bundle.ipMap(), bundle.serverMap(), bundle.hostMap(), bundle.configMap());
     }
 }

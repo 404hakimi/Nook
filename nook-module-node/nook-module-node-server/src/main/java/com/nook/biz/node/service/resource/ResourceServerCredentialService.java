@@ -3,9 +3,6 @@ package com.nook.biz.node.service.resource;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialUpdateReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 
-import java.util.Collection;
-import java.util.Map;
-
 /**
  * 服务器 SSH 凭据 Service 接口
  *
@@ -28,14 +25,6 @@ public interface ResourceServerCredentialService {
      * @return SSH 凭据
      */
     ResourceServerCredentialDO requireByServerId(String serverId);
-
-    /**
-     * 批量获得 host
-     *
-     * @param serverIds 服务器编号集合
-     * @return 服务器编号 → host
-     */
-    Map<String, String> getHostMap(Collection<String> serverIds);
 
     /**
      * 创建 SSH 凭据

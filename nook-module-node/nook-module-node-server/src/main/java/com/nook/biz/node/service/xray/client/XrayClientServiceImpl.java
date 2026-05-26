@@ -12,12 +12,14 @@ import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayRoutingCli;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
+import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.config.XrayConfigService;
 import com.nook.biz.node.service.xray.server.XrayServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
@@ -40,6 +42,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +66,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     private final XrayConfigService xrayConfigService;
     private final XrayServerValidator xrayServerValidator;
     private final ResourceServerValidator serverValidator;
+    private final ResourceServerService resourceServerService;
     private final ResourceServerCredentialService credentialService;
     private final XrayClientValidator clientValidator;
     private final OpConfigResolver opConfigResolver;
@@ -134,8 +138,7 @@ public class XrayClientServiceImpl implements XrayClientService {
         if (StrUtil.isNotBlank(cfg.getDomain())) {
             vo.setServerHost(cfg.getDomain());
         } else {
-            serverValidator.validateExists(e.getServerId());
-            vo.setServerHost(credentialService.requireByServerId(e.getServerId()).getHost());
+            vo.setServerHost(serverValidator.validateExists(e.getServerId()).getIpAddress());
         }
         vo.setListenPort(cfg.getSharedInboundPort());
         vo.setTransport(cfg.getTransport());
@@ -290,8 +293,8 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     @Override
     public Map<String, String> getEmailMap(Collection<String> clientIds) {
-        if (com.nook.common.utils.collection.CollectionUtils.isAnyEmpty(clientIds)) return Collections.emptyMap();
-        return com.nook.common.utils.collection.CollectionUtils.convertMap(
+        if (CollectionUtils.isAnyEmpty(clientIds)) return Collections.emptyMap();
+        return CollectionUtils.convertMap(
                 xrayClientMapper.selectBatchIds(clientIds),
                 XrayClientDO::getId,
                 c -> c.getClientEmail() != null ? c.getClientEmail() : c.getId());
@@ -302,5 +305,30 @@ public class XrayClientServiceImpl implements XrayClientService {
         if (CollectionUtils.isAnyEmpty(clientIds)) return Collections.emptyMap();
         return CollectionUtils.convertMap(
                 xrayClientMapper.selectBatchIds(clientIds), XrayClientDO::getId);
+    }
+
+    @Override
+    public EnrichBundle loadEnrichBundle(Set<String> serverIds, Set<String> ipIds) {
+        Map<String, ResourceServerDO> serverMap =
+                CollectionUtils.isAnyEmpty(serverIds)
+                        ? Collections.emptyMap() : resourceServerService.getServerMap(serverIds);
+        Map<String, String> hostMap = CollectionUtils.isAnyEmpty(serverIds)
+                ? Collections.emptyMap() : resourceServerService.getIpAddressMap(serverIds);
+        Map<String, XrayConfigDO> configMap =
+                CollectionUtils.isAnyEmpty(serverIds)
+                        ? Collections.emptyMap() : xrayConfigService.listByServerIds(serverIds);
+
+        Map<String, String> ipMap;
+        if (CollectionUtils.isAnyEmpty(ipIds)) {
+            ipMap = Collections.emptyMap();
+        } else {
+            Map<String, ResourceServerDO> landingSrvMap =
+                    resourceServerService.getServerMap(ipIds);
+            ipMap = new HashMap<>(landingSrvMap.size());
+            landingSrvMap.forEach((k, v) -> {
+                if (v.getIpAddress() != null) ipMap.put(k, v.getIpAddress());
+            });
+        }
+        return new EnrichBundle(ipMap, serverMap, hostMap, configMap);
     }
 }

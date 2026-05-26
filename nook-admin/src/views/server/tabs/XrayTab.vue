@@ -1,17 +1,23 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { Activity, Calendar, FileText, FolderOpen, Info, Lock, Network, RotateCcw, ServerCog } from 'lucide-vue-next'
+import { Activity, Calendar, FileText, FolderOpen, Info, Lock, Network, Rocket, RotateCcw, ServerCog } from 'lucide-vue-next'
 import { NAlert, NButton, NCard, NDescriptions, NDescriptionsItem, NIcon, NSpin, NTag, useDialog, useMessage } from 'naive-ui'
 import { getXrayServer, type XrayServer } from '@/api/xray/xray-server'
 import { getXrayConfig, type XrayConfig } from '@/api/xray/xray-config'
 import { xrayRestart } from '@/api/xray/server'
+import type { ServerFrontlineListItem } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import XrayServerInstallInfoDialog from '@/views/xray/XrayServerInstallInfoDialog.vue'
 import XrayServerStatusDialog from '@/views/xray/XrayServerStatusDialog.vue'
 import XrayConfigDiffDialog from '@/views/xray/XrayConfigDiffDialog.vue'
 import XrayServerLogDialog from '@/views/xray/XrayServerLogDialog.vue'
+import ServerInstallDialog from '@/views/resource/ServerInstallDialog.vue'
 
-const props = defineProps<{ serverId: string }>()
+const props = defineProps<{
+  serverId: string
+  /** 父组件已拿到的 server 运行时聚合 (id/name 给 install dialog 用). */
+  agentInfo: ServerFrontlineListItem | null
+}>()
 
 const message = useMessage()
 const dialog = useDialog()
@@ -24,7 +30,8 @@ async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    // 并发拉两表; xray_server 不存在 → 整个 tab 进 "未装" 分支; xray_config 缺失独立兜 null
+    // 并发拉 xray_server + xray_config; xray_server 不存在 → 进 "未装" 分支; xray_config 缺失独立兜 null.
+    // resource_server (id/name) 给装机 dialog 用, 不再独立拉, 走父组件 agentInfo prop.
     const [srv, cfg] = await Promise.all([
       getXrayServer(props.serverId).catch(() => null),
       getXrayConfig(props.serverId).catch(() => null)
@@ -44,6 +51,12 @@ const installInfoOpen = ref(false)
 const statusOpen = ref(false)
 const diffOpen = ref(false)
 const logOpen = ref(false)
+const installOpen = ref(false)
+
+function onInstalled() {
+  message.success('xray 装机成功')
+  load()
+}
 
 function onRestart() {
   if (!server.value) return
@@ -63,10 +76,16 @@ function onRestart() {
 
 <template>
   <NSpin :show="loading">
-    <div v-if="!server && !loading">
+    <div v-if="!server && !loading" class="space-y-3">
       <NAlert type="warning" :show-icon="false" size="small">
-        该 server 未装 xray. 装机入口待接入到本 tab.
+        该 server 未装 xray. 点 "装 xray" SSH 一键部署 (含 binary 下载 + systemd unit + 证书申请).
       </NAlert>
+      <div>
+        <NButton type="primary" size="small" :disabled="!agentInfo" @click="installOpen = true">
+          <template #icon><NIcon><Rocket /></NIcon></template>
+          装 xray
+        </NButton>
+      </div>
     </div>
 
     <div v-else-if="server" class="space-y-3">
@@ -204,6 +223,12 @@ function onRestart() {
       <XrayConfigDiffDialog v-model="diffOpen" :server="server" />
       <XrayServerLogDialog v-model="logOpen" :server="server" />
     </div>
+
+    <ServerInstallDialog
+      v-model="installOpen"
+      :server="agentInfo"
+      @installed="onInstalled"
+    />
   </NSpin>
 </template>
 

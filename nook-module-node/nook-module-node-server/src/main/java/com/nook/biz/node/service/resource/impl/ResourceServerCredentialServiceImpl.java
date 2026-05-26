@@ -7,7 +7,6 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerCredentialMapper;
 import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.validator.ResourceServerCredentialValidator;
-import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -15,9 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
 
 /**
  * 服务器 SSH 凭据 Service 实现类
@@ -43,18 +39,8 @@ public class ResourceServerCredentialServiceImpl implements ResourceServerCreden
     }
 
     @Override
-    public Map<String, String> getHostMap(Collection<String> serverIds) {
-        if (CollectionUtils.isAnyEmpty(serverIds)) return Collections.emptyMap();
-        return CollectionUtils.convertMap(
-                credentialMapper.selectBatchIds(serverIds),
-                ResourceServerCredentialDO::getServerId,
-                ResourceServerCredentialDO::getHost);
-    }
-
-    @Override
     @Transactional(rollbackFor = Exception.class)
     public void create(String serverId, ResourceServerCredentialUpdateReqVO reqVO) {
-        credentialValidator.validateHostUnique(null, reqVO.getHost());
         ResourceServerCredentialDO entity = BeanUtils.toBean(reqVO, ResourceServerCredentialDO.class);
         entity.setServerId(serverId);
         LocalDateTime now = LocalDateTime.now();

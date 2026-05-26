@@ -62,17 +62,17 @@ export interface XrayLog {
 
 /** 探活: SSH 跑 'true' 验证可达性; 失败已包成 success=false 不抛错. */
 export function testServerConnectivity(serverId: string) {
-  return request.post<unknown, ConnectivityTestResult>('/admin/resource/server/connectivity-test', null, { params: { id: serverId } })
+  return request.post<unknown, ConnectivityTestResult>('/admin/resource/server/test-connectivity', null, { params: { id: serverId } })
 }
 
 /** 拉服务器系统基本信息 (hostname / 内存 / 磁盘 / 时区 等). */
 export function getServerSystemInfo(serverId: string) {
-  return request.get<unknown, ServerSystemInfo>('/admin/resource/server/system-info', { params: { id: serverId } })
+  return request.get<unknown, ServerSystemInfo>('/admin/resource/server/get-system-info', { params: { id: serverId } })
 }
 
 /** 拉 UFW 防火墙状态 (ufw status verbose 原文); 未装 ufw 时回提示文案. */
 export function getServerUfwStatus(serverId: string) {
-  return request.get<unknown, string>('/admin/resource/server/ufw-status', { params: { id: serverId } })
+  return request.get<unknown, string>('/admin/resource/server/get-ufw-status', { params: { id: serverId } })
 }
 
 /**
@@ -85,7 +85,7 @@ export function getServiceLog(
   unit: string,
   opts?: { lines?: number; level?: XrayLogLevel; keyword?: string }
 ) {
-  return request.get<unknown, XrayLog>('/admin/resource/server/service-log', {
+  return request.get<unknown, XrayLog>('/admin/resource/server/get-service-log', {
     params: {
       id: serverId,
       unit,
@@ -115,7 +115,7 @@ export function getXrayLogFile(
   serverId: string,
   opts?: { variant?: XrayLogFileVariant; lines?: number; keyword?: string }
 ) {
-  return request.get<unknown, XrayLog>('/admin/xray/server/log-file', {
+  return request.get<unknown, XrayLog>('/admin/xray/server/get-xray-log-file', {
     params: {
       id: serverId,
       variant: opts?.variant,
@@ -129,17 +129,17 @@ export function getXrayLogFile(
 
 /** 拉 Xray 服务运行状态 (active / version / 启动时间 / 监听端口 / 开机自启). */
 export function getXrayServiceStatus(serverId: string) {
-  return request.get<unknown, XrayServiceStatus>('/admin/xray/server/status', { params: { id: serverId } })
+  return request.get<unknown, XrayServiceStatus>('/admin/xray/server/get-xray-status', { params: { id: serverId } })
 }
 
 /** 重启 Xray 服务; 客户连接会断 1-2 秒. */
 export function xrayRestart(serverId: string) {
-  return request.post<unknown, string>('/admin/xray/server/restart', null, { params: { id: serverId } })
+  return request.post<unknown, string>('/admin/xray/server/restart-xray', null, { params: { id: serverId } })
 }
 
 /** 开/关 Xray 开机自启 (systemctl enable/disable); 末尾返回 is-enabled 结果给前端确认. */
 export function xrayAutostart(serverId: string, enabled: boolean) {
-  return request.post<unknown, string>('/admin/xray/server/autostart', null, { params: { id: serverId, enabled } })
+  return request.post<unknown, string>('/admin/xray/server/set-xray-autostart', null, { params: { id: serverId, enabled } })
 }
 
 /**
@@ -166,6 +166,8 @@ export interface LineServerInstallDTO {
   xrayApiPort: number
   /** xray 日志目录; 前端默认 <installDir>/logs. */
   logDir: string
+  /** systemd unit 文件绝对路径; 前端默认 /etc/systemd/system/xray.service. 改路径要保留同名 (basename = xray) 因为脚本里 systemctl 服务名硬编码 xray. */
+  xraySystemdUnitPath: string
   /** Xray 日志级别: debug / info / warning / error / none. */
   logLevel: 'debug' | 'info' | 'warning' | 'error' | 'none'
   /** systemd Restart= 策略: always / on-failure / no. */
@@ -264,7 +266,7 @@ export function xrayInstallStream(
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  return streamPost(`/api/admin/xray/server/install?id=${encodeURIComponent(serverId)}`, dto, onChunk, signal)
+  return streamPost(`/api/admin/xray/server/install-xray?id=${encodeURIComponent(serverId)}`, dto, onChunk, signal)
 }
 
 // ===== 后端 ResourceServerOpsController @ /admin/resource/server =====

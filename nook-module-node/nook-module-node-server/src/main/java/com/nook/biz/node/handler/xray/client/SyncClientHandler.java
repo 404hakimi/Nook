@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_SYNC handler; 进度由 executor 内部 OpProgressSink 细分发, 这里只起一个开始点.
+ * CLIENT_SYNC handler; 委托 ClientOpExecutor.doSyncOne
  *
  * @author nook
  */

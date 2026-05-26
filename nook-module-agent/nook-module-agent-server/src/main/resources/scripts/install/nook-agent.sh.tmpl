@@ -27,7 +27,12 @@ echo "=== 3. 建标准目录 ==="
 mkdir -p $NOOK_HOME
 
 echo "=== 4. 从 backend 拉 ${ROLE} binary ==="
-curl -fSL -H "X-Agent-Token: $AGENT_TOKEN" \
+# --connect-timeout 30: 建链阶段 30s, 海外节点跨境 TCP+TLS 留余量
+# --max-time 600:      整段传输 10min 上限, binary 5-15MB 走 natapp 隧道最差 ~3-5min, 留足
+# 不 --retry: 走重装即可, 避免 binary 半装失败时 retry 又把脏文件覆盖一次
+curl -fSL \
+    --connect-timeout 30 --max-time 600 \
+    -H "X-Agent-Token: $AGENT_TOKEN" \
     "$BACKEND_URL/admin/agent-dist/bin?role=$ROLE" \
     -o $BIN_PATH.new
 chmod +x $BIN_PATH.new

@@ -1,8 +1,9 @@
 package com.nook.biz.agent.service;
 
-import com.nook.biz.agent.api.enums.AgentHostType;
+import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.controller.vo.AgentInstallMetaRespVO;
 import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.function.Consumer;
 
@@ -14,21 +15,29 @@ import java.util.function.Consumer;
 public interface AgentInstallScriptService {
 
     /**
-     * SSH 自动装机 (流式); hostId 按 reqVO.hostType 分别去 resource_server / resource_ip_pool 查.
+     * SSH 自动装机
      *
-     * @param hostId   server id (frontline) 或 ip_pool id (landing)
+     * @param sourceId 装机源 (resource_server.id)
      * @param reqVO    装机参数
      * @param lineSink 日志回调
      */
-    void installStreaming(String hostId, AgentInstallReqVO reqVO, Consumer<String> lineSink);
+    void installStreaming(String sourceId, AgentInstallReqVO reqVO, Consumer<String> lineSink);
 
     /**
-     * 获得装机元信息 (前端 prefill 用); hostType 决定 hostId 走哪个表.
+     * 获得装机元信息
      *
-     * @param role     角色 (frontline / landing)
-     * @param hostType SERVER (frontline) / IP_POOL (landing); 可空, role=frontline 默认 SERVER
-     * @param hostId   server id 或 ip_pool id; 可空 (用户还没选)
+     * @param role     角色
+     * @param sourceId 装机源 (可空)
      * @return 装机元信息
      */
-    AgentInstallMetaRespVO getInstallMeta(String role, AgentHostType hostType, String hostId);
+    AgentInstallMetaRespVO getInstallMeta(AgentRole role, String sourceId);
+
+    /**
+     * 流式 SSH 自动装机 (Controller 单调一行)
+     *
+     * @param sourceId 装机源 (resource_server.id)
+     * @param reqVO    装机参数
+     * @return 流式响应
+     */
+    ResponseBodyEmitter installStream(String sourceId, AgentInstallReqVO reqVO);
 }

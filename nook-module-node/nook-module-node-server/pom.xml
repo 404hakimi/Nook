@@ -40,7 +40,7 @@
             <artifactId>nook-spring-boot-starter-ssh</artifactId>
         </dependency>
 
-        <!-- 跨业务模块: op_log 服务 + 通过 system-api 拿 admin realName/username -->
+        <!-- 跨业务模块: op_log 服务 + system-api 拿 admin realName/username + agent-api 拿 config sync state -->
         <dependency>
             <groupId>com.nook</groupId>
             <artifactId>nook-module-operation-api</artifactId>
@@ -48,6 +48,10 @@
         <dependency>
             <groupId>com.nook</groupId>
             <artifactId>nook-module-system-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-module-agent-api</artifactId>
         </dependency>
 
         <dependency>

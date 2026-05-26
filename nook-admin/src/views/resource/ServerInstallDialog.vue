@@ -17,11 +17,14 @@ import {
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { xrayInstallStream, type LineServerInstallDTO } from '@/api/xray/server'
-import { pageServers, type ResourceServer } from '@/api/resource/server'
+import { pageServers } from '@/api/resource/server'
+
+/** ServerInstallDialog 仅需 server.id + server.name; 实际可接受任何含 id/name 的形态 (ResourceServer / ServerFrontlineListItem). */
+interface ServerTarget { id: string; name: string }
 
 interface Props {
   modelValue: boolean
-  server?: ResourceServer | null
+  server?: ServerTarget | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -40,10 +43,10 @@ let abortCtrl: AbortController | null = null
 
 // server 没传时弹框内自带选择器 (Xray 节点页顶部"部署/重装"入口走这条路径);
 // server 传了直接锁定 (服务器列表行操作进来走这条路径, 当前已搬走)
-const pickedServer = ref<ResourceServer | null>(null)
-const serverOptions = ref<{ label: string; value: string; raw: ResourceServer }[]>([])
+const pickedServer = ref<ServerTarget | null>(null)
+const serverOptions = ref<{ label: string; value: string; raw: ServerTarget }[]>([])
 const serversLoading = ref(false)
-const effectiveServer = computed<ResourceServer | null>(
+const effectiveServer = computed<ServerTarget | null>(
   () => props.server ?? pickedServer.value
 )
 
@@ -97,12 +100,26 @@ const RESTART_POLICY_OPTIONS = [
 ]
 
 const DEFAULT_INSTALL_DIR = '/home/xray'
+/** systemd unit 文件路径默认值; 服务名 (basename = xray) 跟脚本 systemctl 命令绑死, 改路径要保留同 basename. */
+const DEFAULT_SYSTEMD_UNIT_PATH = '/etc/systemd/system/xray.service'
+
+/** Xray API loopback 端口随机区间; ≥20000 避开 well-known + 8080/8443 等常见占用. */
+const XRAY_API_PORT_MIN = 20000
+const XRAY_API_PORT_MAX = 65535
 
 /** 随机生成 16 字符 ws path (16^16 取一段); 减少同节点 path 撞车 / 被识别概率 */
 function randomWsPath(): string {
   const buf = new Uint8Array(8)
   crypto.getRandomValues(buf)
   return '/' + Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** 随机 xray API 端口 (20000-65535); 仅 127.0.0.1 监听, 给 xray api adi/rmi 调用用. */
+function randomXrayApiPort(): number {
+  const range = XRAY_API_PORT_MAX - XRAY_API_PORT_MIN + 1
+  const buf = new Uint32Array(1)
+  crypto.getRandomValues(buf)
+  return XRAY_API_PORT_MIN + (buf[0] % range)
 }
 
 const form = reactive<LineServerInstallDTO>({
@@ -112,8 +129,9 @@ const form = reactive<LineServerInstallDTO>({
   xrayConfigPath: '',
   xrayShareDir: '',
   clientMaxCount: 50,
-  xrayApiPort: 8080,
+  xrayApiPort: randomXrayApiPort(),
   logDir: '',
+  xraySystemdUnitPath: DEFAULT_SYSTEMD_UNIT_PATH,
   logLevel: 'warning',
   restartPolicy: 'on-failure',
   enableOnBoot: true,
@@ -127,6 +145,7 @@ const form = reactive<LineServerInstallDTO>({
   listenIp: '0.0.0.0',
   sharedInboundPort: 443,
   wsPath: randomWsPath(),
+  // 域名 + TLS 是当前唯一支持模式; 后端 useTls 字段恒为 true, UI 不再暴露开关
   useTls: true,
   domain: '',
   cfApiToken: '',
@@ -140,11 +159,18 @@ const form = reactive<LineServerInstallDTO>({
  */
 const derivedPaths = computed(() => {
   const d = (form.installDir || DEFAULT_INSTALL_DIR).replace(/\/+$/, '')
+  // 路径布局 (扁平化, 都在 installDir 根下; 后端 50-xray.sh.tmpl 全部走 dto 透传):
+  //   ${d}/bin/xray            二进制包
+  //   ${d}/bin/                geo 数据 (geoip.dat / geosite.dat) 跟 binary 同目录
+  //   ${d}/config.json         xray 主配置
+  //   ${d}/access.log          xray log.access (logDir=${d})
+  //   ${d}/error.log           xray log.error
+  //   ${d}/tls/                cert + key
   return {
     xrayBinaryPath: `${d}/bin/xray`,
-    xrayConfigPath: `${d}/etc/xray/config.json`,
-    xrayShareDir: `${d}/share/xray`,
-    logDir: `${d}/logs`,
+    xrayConfigPath: `${d}/config.json`,
+    xrayShareDir: `${d}/bin`,
+    logDir: d,
     tlsCertPath: `${d}/tls/cert.pem`,
     tlsKeyPath: `${d}/tls/key.pem`
   }
@@ -159,7 +185,7 @@ const installPaths = computed(() => {
     { label: 'config', path: form.xrayConfigPath?.trim() || d.xrayConfigPath },
     { label: 'share', path: (form.xrayShareDir?.trim() || d.xrayShareDir) + '  (geo 数据)' },
     { label: 'log', path: `${log}/{access,error}.log` },
-    { label: 'systemd', path: '/etc/systemd/system/xray.service  (固定)' }
+    { label: 'systemd', path: form.xraySystemdUnitPath?.trim() || DEFAULT_SYSTEMD_UNIT_PATH }
   ]
 })
 
@@ -186,7 +212,9 @@ function validate() {
   if (!form.installDir.trim() || !form.installDir.startsWith('/')) {
     errors.installDir = '必须以 / 开头的绝对路径'
   }
-  if (form.xrayApiPort < 1 || form.xrayApiPort > 65535) errors.xrayApiPort = '端口范围 1-65535'
+  if (form.xrayApiPort < XRAY_API_PORT_MIN || form.xrayApiPort > XRAY_API_PORT_MAX) {
+    errors.xrayApiPort = `端口范围 ${XRAY_API_PORT_MIN}-${XRAY_API_PORT_MAX}`
+  }
   if (form.clientMaxCount < 1 || form.clientMaxCount > 200) errors.clientMaxCount = '客户数上限 1-200'
   // logDir 留空 OK (后端派生); 给了就必须绝对路径
   if (form.logDir.trim() && !form.logDir.startsWith('/')) {
@@ -198,16 +226,14 @@ function validate() {
   if (!form.wsPath || !form.wsPath.startsWith('/') || !/^\/[A-Za-z0-9_\-/]{0,127}$/.test(form.wsPath)) {
     errors.wsPath = '必须 / 开头, 仅字母数字_-/'
   }
-  // useTls=true 才校验 domain / cfApiToken; useTls=false 这两字段被后端忽略
-  if (form.useTls) {
-    if (!form.domain?.trim()) {
-      errors.domain = '走域名 + TLS 必须填 domain'
-    } else if (!/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(form.domain.trim())) {
-      errors.domain = '域名格式非法'
-    }
-    if (!form.cfApiToken?.trim()) {
-      errors.cfApiToken = '走域名 + TLS 必须给 CF API Token (首次/续签用; 远端 cert 仍有效时脚本会自动跳过 acme)'
-    }
+  // 走域名 + TLS 是当前唯一支持模式, domain / cfApiToken 必填
+  if (!form.domain?.trim()) {
+    errors.domain = '必填 (CDN CNAME 指向; 部署后申请 LE 证书走 CF DNS-01)'
+  } else if (!/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(form.domain.trim())) {
+    errors.domain = '域名格式非法'
+  }
+  if (!form.cfApiToken?.trim()) {
+    errors.cfApiToken = '必填 (acme.sh DNS-01 签发证书用; 远端 cert 仍有效时脚本会自动跳过 acme)'
   }
   return Object.keys(errors).length === 0
 }
@@ -241,6 +267,7 @@ async function onSubmit() {
       clientMaxCount: form.clientMaxCount,
       xrayApiPort: form.xrayApiPort,
       logDir: form.logDir.trim() || d.logDir,
+      xraySystemdUnitPath: form.xraySystemdUnitPath?.trim() || DEFAULT_SYSTEMD_UNIT_PATH,
       logLevel: form.logLevel,
       restartPolicy: form.restartPolicy,
       enableOnBoot: form.enableOnBoot,
@@ -253,12 +280,12 @@ async function onSubmit() {
       listenIp: form.listenIp,
       sharedInboundPort: form.sharedInboundPort,
       wsPath: form.wsPath.trim(),
-      useTls: form.useTls,
-      // useTls=false 时 domain / cfApiToken 后端忽略, 仍按表单原样传; tls 路径走 useTls 分支决定送默认还是空
-      domain: form.domain?.trim() || undefined,
-      cfApiToken: form.cfApiToken?.trim() || undefined,
-      tlsCertPath: form.useTls ? (form.tlsCertPath?.trim() || d.tlsCertPath) : '',
-      tlsKeyPath: form.useTls ? (form.tlsKeyPath?.trim() || d.tlsKeyPath) : ''
+      // 当前只支持 useTls=true + domain + CF Token; 三者已在 validate 强制必填
+      useTls: true,
+      domain: form.domain.trim(),
+      cfApiToken: form.cfApiToken.trim(),
+      tlsCertPath: form.tlsCertPath?.trim() || d.tlsCertPath,
+      tlsKeyPath: form.tlsKeyPath?.trim() || d.tlsKeyPath
     }
     await xrayInstallStream(target.id, dto, appendOutput, abortCtrl.signal)
     message.success('部署完成')
@@ -382,12 +409,22 @@ function close() {
         >
           <template #label>
             <span>Xray API 端口</span>
-            <span class="text-xs text-zinc-400 ml-2">仅 127.0.0.1; xray api adi/rmi 用</span>
+            <span class="text-xs text-zinc-400 ml-2">仅 127.0.0.1; xray api adi/rmi 用; 进 dialog 自动随机 {{ XRAY_API_PORT_MIN }}-{{ XRAY_API_PORT_MAX }}</span>
+            <NButton
+              text
+              size="tiny"
+              class="ml-2"
+              :disabled="installing"
+              @click="form.xrayApiPort = randomXrayApiPort()"
+            >
+              <template #icon><NIcon><Shuffle /></NIcon></template>
+              重新随机
+            </NButton>
           </template>
           <NInputNumber
             v-model:value="form.xrayApiPort"
-            :min="1"
-            :max="65535"
+            :min="XRAY_API_PORT_MIN"
+            :max="XRAY_API_PORT_MAX"
             :disabled="installing"
             class="w-full"
           />
@@ -502,16 +539,14 @@ function close() {
         </NFormItem>
       </div>
 
-      <!-- ===== 走域名 + TLS (生产路径) ===== -->
+      <!-- ===== 域名 + TLS (当前唯一支持模式) ===== -->
       <div class="text-sm font-semibold mt-4 mb-2 flex items-center gap-3">
-        <NCheckbox v-model:checked="form.useTls" :disabled="installing">
-          走域名 + TLS (推荐生产)
-        </NCheckbox>
+        <span>域名 + TLS</span>
         <span class="text-xs text-zinc-400 font-normal">
-          关闭 = 客户端走 IP:port 直连, xray inbound 退化纯 ws, 不签证书 / 不动 CF
+          走 CDN CNAME, acme.sh DNS-01 申请 LE 证书; 不再支持 IP:port 直连模式
         </span>
       </div>
-      <div v-if="form.useTls" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         <NFormItem
           required
           :validation-status="errors.domain ? 'error' : undefined"

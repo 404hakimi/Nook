@@ -1,6 +1,6 @@
 package com.nook.biz.agent.service.impl;
 
-import com.nook.biz.agent.api.enums.AgentHostType;
+import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.api.enums.AgentTaskStatus;
 import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentTaskMapper;
@@ -22,16 +22,16 @@ public class AgentTaskDispatchServiceImpl implements AgentTaskDispatchService {
     private final AgentTaskMapper agentTaskMapper;
 
     @Override
-    public String dispatch(AgentHostType hostType, String hostId, String taskType, String payloadJson) {
+    public String dispatch(AgentRole agentType, String sourceId, String taskType, String payloadJson) {
         AgentTaskDO task = new AgentTaskDO();
-        task.setHostType(hostType.code());
-        task.setHostId(hostId);
+        task.setAgentType(agentType.getCode());
+        task.setSourceId(sourceId);
         task.setTaskType(taskType);
         task.setTaskPayload(payloadJson == null ? "{}" : payloadJson);
         task.setStatus(AgentTaskStatus.PENDING.name());
         task.setRetryCount(0);
         agentTaskMapper.insert(task);
-        log.info("[dispatch] host={}:{} type={} taskId={}", hostType, hostId, taskType, task.getId());
+        log.info("[dispatch] agent={}:{} type={} taskId={}", agentType.getCode(), sourceId, taskType, task.getId());
         return task.getId();
     }
 }

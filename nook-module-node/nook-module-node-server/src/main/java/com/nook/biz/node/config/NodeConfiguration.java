@@ -10,8 +10,6 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @EnableConfigurationProperties({
-        Socks5Properties.class,
-        ResourceIpPoolProperties.class,
         ServerOpsProperties.class,
 })
 public class NodeConfiguration {

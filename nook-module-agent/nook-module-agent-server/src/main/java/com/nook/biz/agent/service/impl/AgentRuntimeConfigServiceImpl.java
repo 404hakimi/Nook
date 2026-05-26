@@ -2,7 +2,7 @@ package com.nook.biz.agent.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nook.biz.agent.api.enums.AgentHostType;
+import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.dal.dataobject.AgentRuntimeConfigDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentRuntimeConfigMapper;
@@ -44,7 +44,7 @@ public class AgentRuntimeConfigServiceImpl implements AgentRuntimeConfigService 
     }
 
     @Override
-    public String save(String serverId, String yaml, String operatorId) {
+    public String save(String serverId, AgentRole agentType, String yaml, String operatorId) {
         resourceServerApi.validateExists(serverId);
         agentRuntimeConfigValidator.validateYaml(yaml);
         AgentRuntimeConfigDO existing = agentRuntimeConfigMapper.selectById(serverId);
@@ -52,6 +52,7 @@ public class AgentRuntimeConfigServiceImpl implements AgentRuntimeConfigService 
         if (existing == null) {
             AgentRuntimeConfigDO row = new AgentRuntimeConfigDO();
             row.setServerId(serverId);
+            row.setAgentType(agentType.getCode());
             row.setConfigYaml(yaml);
             row.setUpdatedAt(now);
             row.setUpdatedBy(operatorId);
@@ -66,10 +67,41 @@ public class AgentRuntimeConfigServiceImpl implements AgentRuntimeConfigService 
         } catch (JsonProcessingException e) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "task payload 序列化失败");
         }
-        String taskId = agentTaskDispatchService.dispatch(AgentHostType.SERVER, serverId, AgentTaskType.CONFIG_RELOAD.getCode(), payload);
-        log.info("[save] serverId={} taskId={} bytes={} operator={}",
-                serverId, taskId, yaml.length(), operatorId);
+        String taskId = agentTaskDispatchService.dispatch(agentType, serverId, AgentTaskType.CONFIG_RELOAD.getCode(), payload);
+        log.info("[save] serverId={} agent={} taskId={} bytes={} operator={}",
+                serverId, agentType.getCode(), taskId, yaml.length(), operatorId);
         return taskId;
+    }
+
+    /**
+     * 装机时: 先入库再 SSH 落地. 把渲染好的 yaml 标 SYNCED 落库, 不派 task (SSH 装机本身已经把 yaml 写到远端 file).
+     *
+     * <p>设计意图: DB 是单一权威态. SSH 失败时 DB 已有数据, admin 可以重新 trigger SSH 重做装机, 不会丢配置.
+     * applied_md5 = md5(yaml), applied_at = now, syncState 直接 SYNCED.
+     */
+    @Override
+    public void recordAsSynced(String serverId, AgentRole agentType, String yaml, String operatorId) {
+        agentRuntimeConfigValidator.validateYaml(yaml);
+        LocalDateTime now = LocalDateTime.now();
+        String yamlMd5 = md5(yaml);
+        AgentRuntimeConfigDO existing = agentRuntimeConfigMapper.selectById(serverId);
+        if (existing == null) {
+            AgentRuntimeConfigDO row = new AgentRuntimeConfigDO();
+            row.setServerId(serverId);
+            row.setAgentType(agentType.getCode());
+            row.setConfigYaml(yaml);
+            row.setUpdatedAt(now);
+            row.setUpdatedBy(operatorId);
+            row.setAppliedAt(now);
+            row.setAppliedYamlMd5(yamlMd5);
+            agentRuntimeConfigMapper.insert(row);
+        } else {
+            // 重装场景: 覆盖现有 yaml 并把 applied_md5 同步刷新 (SYNCED), 不留 PENDING 漂移
+            agentRuntimeConfigMapper.updateConfigYaml(serverId, yaml, now, operatorId);
+            agentRuntimeConfigMapper.updateApplied(serverId, now, yamlMd5);
+        }
+        log.info("[recordAsSynced] serverId={} agent={} bytes={} operator={}",
+                serverId, agentType.getCode(), yaml.length(), operatorId);
     }
 
     @Override

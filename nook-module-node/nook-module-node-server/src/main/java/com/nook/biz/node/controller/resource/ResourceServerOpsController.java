@@ -1,15 +1,18 @@
 package com.nook.biz.node.controller.resource;
 
-import com.nook.framework.web.WebStreamingProperties;
+import com.nook.biz.node.controller.resource.vo.ConnectivityTestRespVO;
 import com.nook.biz.node.controller.resource.vo.EnableSwapReqVO;
-import com.nook.biz.node.service.resource.ResourceServerCredentialService;
+import com.nook.biz.node.controller.resource.vo.ServerSystemInfoRespVO;
+import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.controller.resource.vo.SystemdStatusRespVO;
+import com.nook.biz.node.convert.server.ServerInspectorConvert;
 import com.nook.biz.node.service.resource.ResourceServerOpsService;
-import com.nook.biz.node.validator.ResourceServerValidator;
-import com.nook.framework.web.StreamingEndpointSupport;
+import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,10 +20,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
-import java.time.Duration;
+import java.util.List;
 
 /**
- * 管理后台 - 服务器通用运维 Controller (swap / bbr 等独立触发, 跟 xray install 解耦)
+ * 管理后台 - 服务器运维 Controller
  *
  * @author nook
  */
@@ -30,14 +33,10 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class ResourceServerOpsController {
 
-    private final ResourceServerOpsService resourceServerOpsService;
-    private final StreamingEndpointSupport streamingSupport;
-    private final ResourceServerValidator serverValidator;
-    private final ResourceServerCredentialService credentialService;
-    private final WebStreamingProperties webStreamingProperties;
+    private final ResourceServerOpsService opsService;
 
     /**
-     * 启用 swap 分区 (流式) ; 跟 xray install 同 emitter 模式
+     * 启用 swap 分区 (流式)
      *
      * @param id    server 编号
      * @param reqVO swap 入参
@@ -46,8 +45,7 @@ public class ResourceServerOpsController {
     @PostMapping(value = "/enable-swap", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter enableSwap(@RequestParam("id") String id,
                                           @Valid @RequestBody EnableSwapReqVO reqVO) {
-        return streamingSupport.stream("ops-swap:" + id, emitterTimeout(id),
-                lineSink -> resourceServerOpsService.enableSwap(id, reqVO, lineSink));
+        return opsService.enableSwapStream(id, reqVO);
     }
 
     /**
@@ -58,13 +56,83 @@ public class ResourceServerOpsController {
      */
     @PostMapping(value = "/enable-bbr", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter enableBbr(@RequestParam("id") String id) {
-        return streamingSupport.stream("ops-bbr:" + id, emitterTimeout(id),
-                lineSink -> resourceServerOpsService.enableBbr(id, lineSink));
+        return opsService.enableBbrStream(id);
     }
 
-    private Duration emitterTimeout(String id) {
-        serverValidator.validateExists(id);
-        int installTimeout = credentialService.requireByServerId(id).getInstallTimeoutSeconds();
-        return Duration.ofSeconds(installTimeout).plus(webStreamingProperties.getEmitterBuffer());
+    /**
+     * 探活服务器
+     *
+     * @param id server 编号
+     * @return 探活结果
+     */
+    @PostMapping("/test-connectivity")
+    public Result<ConnectivityTestRespVO> testConnectivity(@RequestParam("id") String id) {
+        return Result.ok(ServerInspectorConvert.INSTANCE.convert(opsService.testConnectivity(id)));
+    }
+
+    /**
+     * 获得操作系统级基本信息
+     *
+     * @param id server 编号
+     * @return 系统信息
+     */
+    @GetMapping("/get-system-info")
+    public Result<ServerSystemInfoRespVO> getSystemInfo(@RequestParam("id") String id) {
+        return Result.ok(ServerInspectorConvert.INSTANCE.convert(opsService.getSystemInfo(id)));
+    }
+
+    /**
+     * 获得 UFW 防火墙状态
+     *
+     * @param id server 编号
+     * @return ufw status 文本
+     */
+    @GetMapping("/get-ufw-status")
+    public Result<String> getUfwStatus(@RequestParam("id") String id) {
+        return Result.ok(opsService.getUfwStatus(id));
+    }
+
+    /**
+     * 获得 systemd unit 通用状态
+     *
+     * @param id   server 编号
+     * @param unit systemd unit 名
+     * @return systemd 状态
+     */
+    @GetMapping("/get-systemd-status")
+    public Result<SystemdStatusRespVO> getSystemdStatus(@RequestParam("id") String id,
+                                                        @RequestParam("unit") String unit) {
+        return Result.ok(ServerInspectorConvert.INSTANCE.convert(opsService.getSystemdStatus(id, unit)));
+    }
+
+    /**
+     * 获得 systemd unit journalctl 日志
+     *
+     * @param id      server 编号
+     * @param unit    systemd unit 名
+     * @param lines   行数
+     * @param level   级别过滤
+     * @param keyword 关键词过滤
+     * @return 日志
+     */
+    @GetMapping("/get-service-log")
+    public Result<ServiceLogRespVO> getServiceLog(@RequestParam("id") String id,
+                                                  @RequestParam("unit") String unit,
+                                                  @RequestParam(value = "lines", required = false) Integer lines,
+                                                  @RequestParam(value = "level", required = false) String level,
+                                                  @RequestParam(value = "keyword", required = false) String keyword) {
+        return Result.ok(ServerInspectorConvert.INSTANCE.convert(
+                opsService.getServiceLog(id, unit, lines, level, keyword)));
+    }
+
+    /**
+     * 列出远端网卡 (排除 lo)
+     *
+     * @param id server 编号
+     * @return 网卡名列表
+     */
+    @GetMapping("/list-network-interface")
+    public Result<List<String>> listNetworkInterfaces(@RequestParam("id") String id) {
+        return Result.ok(opsService.listNetworkInterfaces(id));
     }
 }

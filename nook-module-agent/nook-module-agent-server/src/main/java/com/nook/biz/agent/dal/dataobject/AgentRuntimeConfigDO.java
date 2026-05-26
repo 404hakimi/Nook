@@ -19,6 +19,9 @@ public class AgentRuntimeConfigDO {
     @TableId
     private String serverId;
 
+    /** agent 角色; 跟装机时分配的角色一致; 取值见 {@link com.nook.biz.agent.api.enums.AgentRole}. */
+    private String agentType;
+
     /** 完整 yaml 内容; agent 直接 mv 到 /etc/nook-agent/config.yml. */
     private String configYaml;
 

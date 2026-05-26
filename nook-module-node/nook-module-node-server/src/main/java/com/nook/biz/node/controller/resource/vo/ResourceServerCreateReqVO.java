@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 管理后台 - 服务器创建 Request VO (核心 + 嵌套 credential/billing/dns)
+ * 管理后台 - 服务器创建 Request VO
  *
  * @author nook
  */
@@ -19,6 +19,11 @@ public class ResourceServerCreateReqVO {
     @NotBlank(message = "服务器别名不能为空")
     @Size(max = 64, message = "name 长度不能超过 64")
     private String name;
+
+    /** 出网真实 IP / 域名 (= SSH 连接目标; canonical) */
+    @NotBlank(message = "IP 地址不能为空")
+    @Size(max = 128, message = "IP 地址长度不能超过 128")
+    private String ipAddress;
 
     @NotBlank(message = "区域不能为空")
     @Size(max = 32, message = "区域码长度不能超过 32")
@@ -31,7 +36,7 @@ public class ResourceServerCreateReqVO {
     @Size(max = 512)
     private String remark;
 
-    /** 装机时一般传 INSTALLING; lifecycle 流转走专门接口. */
+    @NotBlank(message = "lifecycleState 不能为空")
     @Pattern(regexp = "INSTALLING|READY|LIVE|RETIRED", message = "lifecycleState 须为 INSTALLING/READY/LIVE/RETIRED")
     private String lifecycleState;
 
@@ -44,7 +49,7 @@ public class ResourceServerCreateReqVO {
     @Valid
     private ResourceServerBillingUpdateReqVO billing;
 
-    /** DNS 绑定 (可空, LIVE 前置才必填 domain). */
+    /** 线路机扩展 (可空; LIVE 前置才必填 domain). */
     @Valid
-    private ResourceServerDnsUpdateReqVO dns;
+    private ResourceServerFrontlineUpdateReqVO frontline;
 }

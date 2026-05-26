@@ -44,7 +44,7 @@ public class OpLogController {
      * @param pageReqVO 分页条件
      * @return 操作日志分页 (含 server / 操作人 友好名; target 暂存原 id, 后续走 OpLogTargetNameResolver SPI)
      */
-    @GetMapping("/page")
+    @GetMapping("/page-op-log")
     public Result<PageResult<OpLogRespVO>> getOpLogPage(@ModelAttribute OpLogPageReqVO pageReqVO) {
         PageResult<OpLogDO> pageResult = opLogService.page(pageReqVO.getPageNo(), pageReqVO.getPageSize(),
                 pageReqVO.getStatus(), pageReqVO.getServerId(), pageReqVO.getOpType());
@@ -65,7 +65,7 @@ public class OpLogController {
      * @param id 操作日志编号
      * @return 操作日志详情
      */
-    @GetMapping("/get")
+    @GetMapping("/get-op-log")
     public Result<OpLogRespVO> getOpLog(@RequestParam("id") String id) {
         OpLogDO entity = opLogService.findById(id);
         List<OpLogDO> single = Collections.singletonList(entity);
@@ -81,7 +81,7 @@ public class OpLogController {
      * @param id 操作日志编号
      * @return 是否取消成功
      */
-    @PostMapping("/cancel")
+    @PostMapping("/cancel-op-log")
     public Result<Boolean> cancelOpLog(@RequestParam("id") String id) {
         boolean cancelled = opLogService.cancelQueued(id);
         return Result.ok(cancelled);

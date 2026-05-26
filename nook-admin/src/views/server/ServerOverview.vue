@@ -31,30 +31,31 @@ import {
   AGENT_ONLINE_LABELS,
   AGENT_ONLINE_TAG_TYPE,
   CONFIG_SYNC_LABELS,
-  CONFIG_SYNC_TAG_TYPE,
-  pageAgents,
-  type AgentListItem,
-  type AgentPageQuery
+  CONFIG_SYNC_TAG_TYPE
 } from '@/api/agent/agent'
-import { SERVER_LIFECYCLE_LABELS, SERVER_LIFECYCLE_TAG_TYPE } from '@/api/resource/server'
-import { listEnabledRegions, type ResourceRegion } from '@/api/resource/region'
+import {
+  pageServers,
+  SERVER_LIFECYCLE_LABELS,
+  SERVER_LIFECYCLE_TAG_TYPE,
+  type ServerFrontlineListItem,
+  type ResourceServerQuery
+} from '@/api/resource/server'
+import type { SystemRegion } from '@/api/system/region'
+import { useRegionStore } from '@/stores/region'
+import { storeToRefs } from 'pinia'
 import ServerCreateDialog from './dialogs/ServerCreateDialog.vue'
 import RegionFlag from '@/components/RegionFlag.vue'
 import { h } from 'vue'
 
 const router = useRouter()
 
-const list = ref<AgentListItem[]>([])
+const list = ref<ServerFrontlineListItem[]>([])
 const total = ref(0)
 const loading = ref(false)
 
 // ===== 区域字典 (启动拉一次; 卡片标题 + 下拉 + 详情头部都映射用) =====
-const regions = ref<ResourceRegion[]>([])
-const regionMap = computed<Record<string, ResourceRegion>>(() => {
-  const m: Record<string, ResourceRegion> = {}
-  for (const r of regions.value) m[r.code] = r
-  return m
-})
+const regionStore = useRegionStore()
+const { list: regions, map: regionMap } = storeToRefs(regionStore)
 
 // 区域下拉: 用 render label 渲染 RegionFlag (countryCode → SVG 国旗) + displayName
 const regionOptions = computed(() => {
@@ -92,7 +93,7 @@ const pageSize = ref(9)
 async function load() {
   loading.value = true
   try {
-    const params: AgentPageQuery = {
+    const params: ResourceServerQuery = {
       pageNo: pageNo.value,
       pageSize: pageSize.value
     }
@@ -100,7 +101,7 @@ async function load() {
     if (form.value.host.trim()) params.host = form.value.host.trim()
     if (form.value.region) params.region = form.value.region
     if (form.value.lifecycleState) params.lifecycleState = form.value.lifecycleState
-    const res = await pageAgents(params)
+    const res = await pageServers(params)
     list.value = res.records || []
     total.value = res.total || 0
   } catch { /* */ } finally {
@@ -184,15 +185,15 @@ function onCreated(serverId: string) {
 
 // ===== 流量进度 (bytes long, JS Number 2^53 内精确) =====
 const GB = 1024 * 1024 * 1024
-function trafficUsedGB(s: AgentListItem): number {
+function trafficUsedGB(s: ServerFrontlineListItem): number {
   if (s.usedTrafficBytes == null) return 0
   return Number((s.usedTrafficBytes / GB).toFixed(1))
 }
-function trafficPercent(s: AgentListItem): number {
+function trafficPercent(s: ServerFrontlineListItem): number {
   if (!s.monthlyTrafficGb) return 0
   return Math.min(100, Math.round((trafficUsedGB(s) / s.monthlyTrafficGb) * 100))
 }
-function trafficStatus(s: AgentListItem): 'default' | 'success' | 'warning' | 'error' {
+function trafficStatus(s: ServerFrontlineListItem): 'default' | 'success' | 'warning' | 'error' {
   if (!s.monthlyTrafficGb) return 'default'
   const p = trafficPercent(s)
   if (p >= 90) return 'error'
@@ -230,8 +231,11 @@ function parseAgentVersion(v?: string): { role: string; ver: string } | null {
 }
 
 onMounted(async () => {
-  try { regions.value = await listEnabledRegions() } catch { /* */ }
-  await load()
+  // 区域字典 + server 分页独立, 并行拉 (字典走 store 全局去重)
+  await Promise.all([
+    regionStore.ensureLoaded(),
+    load()
+  ])
 })
 </script>
 
@@ -361,9 +365,9 @@ onMounted(async () => {
       <div v-else class="server-grid">
         <div
           v-for="s in filtered"
-          :key="s.serverId"
+          :key="s.id"
           class="server-card"
-          @click="openDetail(s.serverId)"
+          @click="openDetail(s.id)"
         >
           <div class="card-stripe" :style="`background:${ONLINE_COLOR[s.onlineState] || '#9ca3af'}`"></div>
 
@@ -371,7 +375,7 @@ onMounted(async () => {
             <!-- header: flag + 名称 + lifecycle tag -->
             <div class="flex items-start gap-2 mb-2">
               <div class="flex-1 min-w-0">
-                <div class="card-title truncate" :title="s.serverName">
+                <div class="card-title truncate" :title="s.name">
                   <RegionFlag
                     v-if="s.region && regionMap[s.region]"
                     :code="regionMap[s.region].countryCode"
@@ -381,7 +385,7 @@ onMounted(async () => {
                     :title="regionMap[s.region].displayName"
                   />
                   <NIcon v-else class="title-icon"><ServerCog :size="14" /></NIcon>
-                  {{ s.serverName }}
+                  {{ s.name }}
                 </div>
                 <div class="card-subtitle truncate">
                   <NIcon class="text-zinc-400"><Globe :size="11" /></NIcon>

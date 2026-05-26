@@ -142,7 +142,7 @@ function openTraffic(c: XrayClient) {
 
 function openIpDetail(ipId: string) {
   if (!ipId) return
-  router.push({ name: 'resource-ip-pool-detail', params: { id: ipId } })
+  router.push({ name: 'resource-server-landing-detail', params: { id: ipId } })
 }
 
 const columns = computed<DataTableColumns<XrayClient>>(() => [

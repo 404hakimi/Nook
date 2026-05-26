@@ -17,11 +17,13 @@ import {
 import { pageServers, type ResourceServer } from '@/api/resource/server'
 import { pageClients, provisionClient, type XrayClientProvisionDTO } from '@/api/xray/client'
 import {
-  IP_POOL_STATUS_LABELS,
-  pageIpPool,
-  type ResourceIpPool
-} from '@/api/resource/ip-pool'
-import { IP_TYPE_CODE_LABELS, listIpTypes, type ResourceIpType } from '@/api/resource/ip-type'
+  SERVER_LANDING_STATUS_LABELS,
+  pageServerLanding,
+  type ServerLanding
+} from '@/api/resource/server-landing'
+import { IP_TYPE_CODE_LABELS } from '@/api/system/ip-type'
+import { useIpTypeStore } from '@/stores/ipType'
+import { storeToRefs } from 'pinia'
 
 interface Props {
   modelValue: boolean
@@ -39,9 +41,10 @@ const errors = reactive<Record<string, string>>({})
 const servers = ref<ResourceServer[]>([])
 const loadingServers = ref(false)
 
-const ipPool = ref<ResourceIpPool[]>([])
-const ipTypes = ref<ResourceIpType[]>([])
-const loadingIpPool = ref(false)
+const landings = ref<ServerLanding[]>([])
+const ipTypeStore = useIpTypeStore()
+const { list: ipTypes } = storeToRefs(ipTypeStore)
+const loadingLandings = ref(false)
 
 /** memberUserId 唯一性预校验状态; 'idle' 表示未校验, 'ok' 通过, 'dup' 已重复, 'checking' 正在请求. */
 const memberCheck = ref<'idle' | 'checking' | 'ok' | 'dup'>('idle')
@@ -63,12 +66,12 @@ const serverOptions = computed(() =>
   }))
 )
 
-/** 仅展示 status=1(可分配) 的 IP, 避免误把已占用的 IP 二次派发. */
-const ipPoolOptions = computed(() =>
-  ipPool.value.map((ip) => {
+/** 仅展示 status=AVAILABLE 的落地机, 避免误把已占用的二次派发. */
+const landingOptions = computed(() =>
+  landings.value.map((ip) => {
     const t = ipTypes.value.find((x) => x.id === ip.ipTypeId)
     const typeLabel = t ? IP_TYPE_CODE_LABELS[t.code] ?? t.code : ip.ipTypeId
-    const statusLabel = IP_POOL_STATUS_LABELS[ip.status] ?? ip.status
+    const statusLabel = SERVER_LANDING_STATUS_LABELS[ip.status] ?? ip.status
     return {
       label: `${ip.ipAddress} · ${ip.region} · ${typeLabel} · ${statusLabel}`,
       value: ip.id
@@ -90,29 +93,20 @@ watch(
       expiryEpochMillis: undefined,
       limitIp: undefined
     })
-    await Promise.all([loadServers(), loadIpPool(), loadIpTypesOnce()])
+    await Promise.all([loadServers(), loadLandings(), ipTypeStore.ensureLoaded()])
   }
 )
 
-async function loadIpPool() {
-  loadingIpPool.value = true
+async function loadLandings() {
+  loadingLandings.value = true
   try {
-    // 仅拉 AVAILABLE 的 IP, 防止误派已占用的; 取 200 条够下拉用
-    const res = await pageIpPool({ pageNo: 1, pageSize: 200, status: 'AVAILABLE' })
-    ipPool.value = res.records
+    // 仅拉 AVAILABLE 的落地机, 防止误派已占用的; 取 200 条够下拉用
+    const res = await pageServerLanding({ pageNo: 1, pageSize: 200, status: 'AVAILABLE' })
+    landings.value = res.records
   } catch {
     /* */
   } finally {
-    loadingIpPool.value = false
-  }
-}
-
-async function loadIpTypesOnce() {
-  if (ipTypes.value.length) return
-  try {
-    ipTypes.value = await listIpTypes()
-  } catch {
-    /* */
+    loadingLandings.value = false
   }
 }
 
@@ -282,17 +276,17 @@ function close() {
             :feedback="errors.ipId"
           >
             <template #label>
-              <span>IP</span>
-              <span v-if="loadingIpPool" class="text-xs text-zinc-400 ml-2">
+              <span>落地机</span>
+              <span v-if="loadingLandings" class="text-xs text-zinc-400 ml-2">
                 <NSpin :size="12" /> 加载中
               </span>
               <span v-else class="text-xs text-zinc-400 ml-2">仅显示可分配</span>
             </template>
             <NSelect
               v-model:value="form.ipId"
-              :options="ipPoolOptions"
+              :options="landingOptions"
               :status="errors.ipId ? 'error' : undefined"
-              placeholder="选 IP"
+              placeholder="选落地机"
             />
           </NFormItem>
         </div>

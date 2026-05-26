@@ -1,10 +1,8 @@
 package com.nook.biz.agent.validator;
 
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.agent.api.enums.AgentHostType;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
-import com.nook.biz.node.api.resource.dto.ResourceIpPoolRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
@@ -19,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class AgentInstallValidator {
 
     /**
-     * 校验 role
+     * 校验 role 值合法 (frontline / landing).
      *
      * @param role 角色 code
      */
@@ -30,26 +28,23 @@ public class AgentInstallValidator {
     }
 
     /**
-     * 校验 role + hostType 组合; frontline ↔ SERVER, landing ↔ IP_POOL.
+     * server_type 必须等于 role; 防 admin 把 landing server 当 frontline 装.
      *
-     * @param role     角色 code
-     * @param hostType 主机表
+     * @param srv  resource_server 行
+     * @param role 装机角色
      */
-    public void validateRoleHostMatch(String role, AgentHostType hostType) {
-        if (AgentRole.FRONTLINE.getCode().equals(role) && hostType != AgentHostType.SERVER) {
+    public void validateServerType(ResourceServerRespDTO srv, AgentRole role) {
+        if (StrUtil.isBlank(srv.getServerType()) || !srv.getServerType().equalsIgnoreCase(role.getCode())) {
             throw new BusinessException(CommonErrorCode.PARAM_INVALID,
-                    "frontline 装机 hostType 必须是 SERVER");
-        }
-        if (AgentRole.LANDING.getCode().equals(role) && hostType != AgentHostType.IP_POOL) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID,
-                    "landing 装机 hostType 必须是 IP_POOL");
+                    "server " + srv.getName() + " server_type=" + srv.getServerType()
+                            + " 与装机 role=" + role.getCode() + " 不一致");
         }
     }
 
     /**
      * Frontline 前置: agent_token 必存在 + xrayBin/xrayApiPort 必填.
      *
-     * @param srv   resource_server 行 (已校验存在)
+     * @param srv   resource_server 行
      * @param reqVO 装机表单
      */
     public void validateFrontlinePrerequisite(ResourceServerRespDTO srv, AgentInstallReqVO reqVO) {
@@ -66,12 +61,12 @@ public class AgentInstallValidator {
     /**
      * Landing 前置: agent_token 必存在; xray 字段忽略.
      *
-     * @param ip resource_ip_pool 行 (已校验存在)
+     * @param srv resource_server 行 (server_type=landing)
      */
-    public void validateLandingPrerequisite(ResourceIpPoolRespDTO ip) {
-        if (StrUtil.isBlank(ip.getAgentToken())) {
+    public void validateLandingPrerequisite(ResourceServerRespDTO srv) {
+        if (StrUtil.isBlank(srv.getAgentToken())) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
-                    "ip_pool " + ip.getIpAddress() + " 缺 agent_token; 用 UPDATE resource_ip_pool SET agent_token=... 补一个");
+                    "landing " + srv.getName() + " 缺 agent_token; 用 UPDATE resource_server SET agent_token=... 补一个");
         }
     }
 }

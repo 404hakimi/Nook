@@ -51,7 +51,7 @@ public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSamp
     }
 
     @Override
-    public SampleStat applyAgentStats(String serverId, java.util.Map<String, AgentStatSnapshot> stats) {
+    public SampleStat applyAgentStats(String serverId, Map<String, AgentStatSnapshot> stats) {
         if (StrUtil.isBlank(serverId) || stats == null || stats.isEmpty()) return SampleStat.EMPTY;
 
         Map<String, String> emailToClientId = CollectionUtils.convertMap(
@@ -64,7 +64,7 @@ public class XrayClientTrafficSampleServiceImpl implements XrayClientTrafficSamp
         LocalDateTime now = LocalDateTime.now();
         List<TrafficCounterRow> rows = new ArrayList<>(stats.size());
         int skipped = 0;
-        for (java.util.Map.Entry<String, AgentStatSnapshot> e : stats.entrySet()) {
+        for (Map.Entry<String, AgentStatSnapshot> e : stats.entrySet()) {
             String clientId = emailToClientId.get(e.getKey());
             if (clientId == null) {
                 log.debug("[agent-traffic] 服务器={} 孤儿邮箱={}", serverId, e.getKey());

@@ -63,6 +63,12 @@ public class XrayServerInstallReqVO {
     @Size(max = 255)
     private String logDir;
 
+    /** systemd unit 文件绝对路径; 前端默认 /etc/systemd/system/xray.service. 当前脚本里 systemctl 服务名硬编码 xray, 改路径需对应保留同 basename. */
+    @NotBlank(message = "xraySystemdUnitPath 必填")
+    @Pattern(regexp = "^/.+\\.service$", message = "xraySystemdUnitPath 必须是绝对路径且以 .service 结尾")
+    @Size(max = 255)
+    private String xraySystemdUnitPath;
+
     /** Xray 日志级别 (config.log.loglevel); debug/info/warning/error/none. */
     @NotBlank(message = "logLevel 必填")
     @Pattern(regexp = "^(debug|info|warning|error|none)$",

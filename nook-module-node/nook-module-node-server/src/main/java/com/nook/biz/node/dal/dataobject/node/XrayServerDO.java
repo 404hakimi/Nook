@@ -47,6 +47,9 @@ public class XrayServerDO implements Serializable {
     /** Xray 日志目录. */
     private String xrayLogDir;
 
+    /** systemd unit 文件绝对路径; 装机时前端定义, 后端透传到 50-xray.sh.tmpl 写文件 + 入库. */
+    private String xraySystemdUnitPath;
+
     /** 最近一次部署完成时间; 重装时也会覆写, 不是单纯的"首次"语义. */
     private LocalDateTime installedAt;
 

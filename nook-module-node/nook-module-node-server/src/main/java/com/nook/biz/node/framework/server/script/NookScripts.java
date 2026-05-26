@@ -43,6 +43,8 @@ public class NookScripts {
             "scripts/modules/45-acme-tls.sh.tmpl", "acme.sh + Cloudflare DNS 申请 TLS");
     public static final ScriptModule MODULE_LOGROTATE = m("module-logrotate",
             "scripts/modules/47-logrotate.sh.tmpl", "logrotate 配置");
+    public static final ScriptModule MODULE_JOURNALD_CAP = m("module-journald-cap",
+            "scripts/modules/48-journald-cap.sh.tmpl", "systemd-journald 容量上限");
     public static final ScriptModule MODULE_XRAY = m("module-xray",
             "scripts/modules/50-xray.sh.tmpl", "xray 主体安装");
     public static final ScriptModule MODULE_FINALIZE = m("module-finalize",
@@ -60,7 +62,8 @@ public class NookScripts {
     private static final List<ScriptModule> ALL = List.of(
             SOCKS5_INSTALL,
             MODULE_PREPARE_ENV, MODULE_TIMEZONE, MODULE_SWAP, MODULE_BBR,
-            MODULE_UFW, MODULE_ACME_TLS, MODULE_LOGROTATE, MODULE_XRAY, MODULE_FINALIZE);
+            MODULE_UFW, MODULE_ACME_TLS, MODULE_LOGROTATE, MODULE_JOURNALD_CAP,
+            MODULE_XRAY, MODULE_FINALIZE);
 
     private final ScriptCatalog scriptCatalog;
 

@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * CLIENT_RESET_TRAFFIC handler; 业务执行见 ClientOpExecutor.doResetTraffic.
+ * CLIENT_RESET_TRAFFIC handler; 委托 ClientOpExecutor.doResetTraffic
  *
  * @author nook
  */

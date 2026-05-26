@@ -1,11 +1,15 @@
 package com.nook.biz.node.controller.resource.vo;
 
+import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
  * 管理后台 - 服务器容量阈值 Update Request VO
+ *
+ * <p>仅允许 admin 改 4 个业务阈值; rxBytes/txBytes/usedTrafficBytes/throttleState 由 agent / 状态机维护.
  *
  * @author nook
  */
@@ -26,4 +30,8 @@ public class ResourceServerCapacityUpdateReqVO {
     @Min(value = 0)
     @Max(value = 100000)
     private Integer clientMaxCount;
+
+    /** 周期重置策略 {@link ResourceServerQuotaResetPolicyEnum}; 后续做"重置流量"业务时按该策略派计算. */
+    @Size(max = 32)
+    private String quotaResetPolicy;
 }

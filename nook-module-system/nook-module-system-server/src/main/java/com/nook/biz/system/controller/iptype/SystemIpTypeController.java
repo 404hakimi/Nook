@@ -31,7 +31,7 @@ public class SystemIpTypeController {
      *
      * @return IP 类型列表
      */
-    @GetMapping("/list")
+    @GetMapping("/list-ip-type")
     public Result<List<SystemIpTypeRespVO>> getIpTypeList() {
         List<SystemIpTypeDO> list = systemIpTypeService.getIpTypeList();
         return Result.ok(BeanUtils.toBean(list, SystemIpTypeRespVO.class));

@@ -12,11 +12,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -33,35 +33,35 @@ public class AdminMemberController {
     private final AdminMemberService adminMemberService;
 
     /** 会员列表分页. */
-    @GetMapping("/page")
+    @GetMapping("/page-user")
     public Result<PageResult<AdminMemberRespVO>> page(@Valid AdminMemberPageReqVO reqVO) {
         return Result.ok(MemberUserConvert.INSTANCE.convertAdminPage(adminMemberService.page(reqVO)));
     }
 
     /** 会员详情. */
-    @GetMapping("/{id}")
-    public Result<AdminMemberRespVO> detail(@PathVariable String id) {
+    @GetMapping("/get-user")
+    public Result<AdminMemberRespVO> detail(@RequestParam("id") String id) {
         MemberUser member = adminMemberService.findById(id);
         return Result.ok(MemberUserConvert.INSTANCE.convertAdmin(member));
     }
 
     /** 禁用会员; 同时踢出已有会话. */
-    @PostMapping("/{id}/disable")
-    public Result<Void> disable(@PathVariable String id) {
+    @PostMapping("/disable-user")
+    public Result<Void> disable(@RequestParam("id") String id) {
         adminMemberService.disable(id);
         return Result.ok();
     }
 
     /** 启用会员. */
-    @PostMapping("/{id}/enable")
-    public Result<Void> enable(@PathVariable String id) {
+    @PostMapping("/enable-user")
+    public Result<Void> enable(@RequestParam("id") String id) {
         adminMemberService.enable(id);
         return Result.ok();
     }
 
     /** 修改备注. */
-    @PutMapping("/{id}/remark")
-    public Result<Void> updateRemark(@PathVariable String id,
+    @PutMapping("/update-remark")
+    public Result<Void> updateRemark(@RequestParam("id") String id,
                                      @RequestBody @Valid AdminMemberUpdateRemarkReqVO reqVO) {
         adminMemberService.updateRemark(id, reqVO.getRemark());
         return Result.ok();

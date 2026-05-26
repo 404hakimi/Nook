@@ -2,7 +2,7 @@ import request from '@/api/request'
 import { useUserStore } from '@/stores/user'
 
 /**
- * 服务器实体 - 核心字段 (SSH 凭据 / 账面 / DNS 拆到 1:1 子表, 见 ServerCredential / ServerBilling / ServerDns).
+ * 服务器实体 - 核心字段; SSH 凭据 / 账面 / 线路机扩展 拆到 1:1 子表 (get-server / detail 返回)
  */
 export interface ResourceServer {
   id: string
@@ -21,10 +21,47 @@ export interface ResourceServer {
   updatedAt?: string
 }
 
-/** SSH 凭据 (1:1, /admin/resource/server/{id}/credential). */
+/** Agent 在线状态. */
+export type AgentOnlineState = 'ONLINE' | 'WARN' | 'TEMP_UNHEALTHY' | 'OFFLINE' | 'NEVER'
+
+/** Agent 配置同步状态. */
+export type ConfigSyncState = 'NEVER_CONFIGURED' | 'SYNCED' | 'PENDING'
+
+/**
+ * 线路机列表项 (page-frontline 返回): 主表 + agent 运行时聚合.
+ *
+ * <p>详情接口 get-server 仅返回 ResourceServer 核心字段; 此 VO 多了 4 子表 + agent_runtime_config 拼装.
+ */
+export interface ServerFrontlineListItem {
+  id: string
+  name: string
+  /** SSH 主机 (= server.ip_address; canonical). */
+  host?: string
+  region?: string
+  /** INSTALLING / READY / LIVE / RETIRED. */
+  lifecycleState: string
+
+  agentVersion?: string
+  /** xray 安装版本; null = 未装 xray. */
+  xrayVersion?: string
+  lastHeartbeatAt?: string
+  tempUnhealthy?: number
+  elapsedSec?: number
+  onlineState: AgentOnlineState
+  configSyncState?: ConfigSyncState
+
+  /** 月度流量配额 GB; 0/null = 不限. */
+  monthlyTrafficGb?: number
+  rxBytes?: number
+  txBytes?: number
+  usedTrafficBytes?: number
+  /** NORMAL / THROTTLED. */
+  throttleState?: string
+}
+
+/** SSH 凭据 (1:1, /admin/resource/server/credential?id=...). host = server.ip_address (canonical). */
 export interface ServerCredential {
   serverId?: string
-  host: string
   sshPort: number
   sshUser?: string
   sshPassword?: string
@@ -34,7 +71,7 @@ export interface ServerCredential {
   installTimeoutSeconds?: number
 }
 
-/** 账面 (1:1, /admin/resource/server/{id}/billing); 仅财务字段, 业务带宽 / 流量阈值在 capacity. */
+/** 账面 (1:1, /admin/resource/server/billing?id=...); 仅财务字段, 业务带宽 / 流量阈值在 capacity. */
 export interface ServerBilling {
   serverId?: string
   idcProvider?: string
@@ -43,24 +80,26 @@ export interface ServerBilling {
   expiresAt?: string
 }
 
-/** DNS 绑定 (1:1, /admin/resource/server/{id}/dns). */
-export interface ServerDns {
+/** 线路机扩展 (1:1, /admin/resource/server-frontline/frontline?id=...). */
+export interface ServerFrontline {
   serverId?: string
   domain?: string
   cfZoneId?: string
   cfRecordId?: string
 }
 
-/** 创建参数 (top-level core + 嵌套 credential 必填, billing/dns 可空). */
+/** 创建参数 (top-level core + 嵌套 credential 必填, billing/frontline 可空). */
 export interface ResourceServerCreateDTO {
   name: string
+  /** 出网真实 IP / 域名 (= SSH 连接目标; canonical). */
+  ipAddress: string
   region: string
   totalIpCount?: number
   remark?: string
   lifecycleState?: string
   credential: ServerCredential
   billing?: ServerBilling
-  dns?: ServerDns
+  frontline?: ServerFrontline
 }
 
 /** 核心字段更新 (lifecycle 走 /lifecycle 接口). */
@@ -110,7 +149,18 @@ export const SERVER_LIFECYCLE_OPTIONS = [
 ]
 
 export function pageServers(params: ResourceServerQuery) {
-  return request.get<unknown, PageResult<ResourceServer>>('/admin/resource/server/page', { params })
+  return request.get<unknown, PageResult<ServerFrontlineListItem>>('/admin/resource/server-frontline/page-frontline', { params })
+}
+
+/** 拉全部线路机 (单页 100; 个位数集群够用). 跨页 / 大规模请用 pageServers. */
+export async function listAllFrontlineServers(): Promise<ServerFrontlineListItem[]> {
+  const res = await pageServers({ pageNo: 1, pageSize: 100 })
+  return res.records || []
+}
+
+/** 单条线路机详情 (含 agent 运行时聚合; detail 页 header 用). */
+export function getServerFrontlineDetail(id: string) {
+  return request.get<unknown, ServerFrontlineListItem>('/admin/resource/server-frontline/get-frontline-detail', { params: { id } })
 }
 
 /** Server NIC 流量配额 + 已用 + 业务带宽阈值 (监控面板用); 未上报过 NIC 时返 null. */
@@ -129,29 +179,44 @@ export interface ServerCapacity {
   throttleState?: string
 }
 
-/** 业务阈值编辑入参 (PUT /admin/resource/server/{id}/capacity). */
+/** 业务阈值编辑入参 (PUT /admin/resource/server/capacity?id=...). */
 export interface ServerCapacityUpdateDTO {
   monthlyTrafficGb?: number
   bandwidthLimitMbps?: number
   clientMaxCount?: number
+  /** 周期重置策略: CALENDAR_MONTH / BILLING_CYCLE / FIXED; 后期"重置流量"业务按该策略派计算. */
+  quotaResetPolicy?: string
+}
+
+/** 周期重置策略选项 (跟 landing 一致, 共享语义). */
+export const SERVER_QUOTA_RESET_POLICY_OPTIONS = [
+  { label: '每月 1 号重置 (CALENDAR_MONTH, 默认)', value: 'CALENDAR_MONTH' },
+  { label: '按账单日重置 (BILLING_CYCLE)', value: 'BILLING_CYCLE' },
+  { label: '永不重置 (FIXED)', value: 'FIXED' }
+] as const
+
+/** 限流状态 → 中文标签 (read-only, 由 throttle 状态机维护). */
+export const SERVER_THROTTLE_STATE_LABELS: Record<string, string> = {
+  NORMAL: '正常',
+  THROTTLED: '已触发限流'
 }
 
 export function getServerCapacity(id: string) {
-  return request.get<unknown, ServerCapacity | null>('/admin/resource/server/capacity', { params: { id } })
+  return request.get<unknown, ServerCapacity | null>('/admin/resource/server/get-capacity', { params: { id } })
 }
 
 /** 更新业务阈值 (月流量配额 + 限定带宽); agent tc / throttle 状态机用. */
 export function updateServerCapacity(id: string, dto: ServerCapacityUpdateDTO) {
-  return request.put<unknown, boolean>(`/admin/resource/server/${id}/capacity`, dto)
+  return request.put<unknown, boolean>('/admin/resource/server/update-capacity', dto, { params: { id } })
 }
 
 /** SSH 列出远端网卡 (排除 lo); 失败返空 list, 前端 fallback 到 "auto". */
 export function listNetworkInterfaces(id: string) {
-  return request.get<unknown, string[]>('/admin/resource/server/network-interfaces', { params: { id } })
+  return request.get<unknown, string[]>('/admin/resource/server/list-network-interface', { params: { id } })
 }
 
-/** Agent 装机 host 表; frontline → SERVER, landing → IP_POOL. */
-export type AgentHostType = 'SERVER' | 'IP_POOL'
+/** Agent 角色 (跟后端 AgentRole enum 一致); 同时也是 agent_type / agent_task.agent_type 落库值. */
+export type AgentType = 'frontline' | 'landing'
 
 /** Agent 装机 meta: backend 已知数据, 前端 prefill 表单用; 用户可改. */
 export interface AgentInstallMeta {
@@ -167,76 +232,74 @@ export interface AgentInstallMeta {
 }
 
 export function getAgentInstallMeta(
-  role: 'frontline' | 'landing',
-  hostType: AgentHostType,
-  hostId?: string | null
+  role: AgentType,
+  sourceId?: string | null
 ) {
   return request.get<unknown, AgentInstallMeta>(
-    '/admin/agent/install-meta',
-    { params: { role, hostType, hostId: hostId || undefined } }
+    '/admin/agent/get-install-meta',
+    { params: { role, sourceId: sourceId || undefined } }
   )
 }
 
 export function getServerDetail(id: string) {
-  return request.get<unknown, ResourceServer>('/admin/resource/server/get', { params: { id } })
+  return request.get<unknown, ResourceServer>('/admin/resource/server/get-server', { params: { id } })
 }
 
 /** 取 SSH 凭据 (编辑 dialog prefill; 密码字段空着, 改密码才填). */
 export function getServerCredential(id: string) {
-  return request.get<unknown, ServerCredential | null>(`/admin/resource/server/${id}/credential`)
+  return request.get<unknown, ServerCredential | null>('/admin/resource/server/get-credential', { params: { id } })
 }
 
 /** 取账面. */
 export function getServerBilling(id: string) {
-  return request.get<unknown, ServerBilling | null>(`/admin/resource/server/${id}/billing`)
+  return request.get<unknown, ServerBilling | null>('/admin/resource/server/get-billing', { params: { id } })
 }
 
-/** 取 DNS 绑定. */
-export function getServerDns(id: string) {
-  return request.get<unknown, ServerDns | null>(`/admin/resource/server/${id}/dns`)
+/** 取线路机扩展. */
+export function getServerFrontline(id: string) {
+  return request.get<unknown, ServerFrontline | null>('/admin/resource/server-frontline/get-frontline', { params: { id } })
 }
 
 export function createServer(dto: ResourceServerCreateDTO) {
-  return request.post<unknown, ResourceServer>('/admin/resource/server/create', dto)
+  return request.post<unknown, ResourceServer>('/admin/resource/server-frontline/create-frontline', dto)
 }
 
-/** 更新核心 (name/region/totalIp/remark; lifecycle 走 /lifecycle). */
+/** 更新核心 (name/region/totalIp/remark; lifecycle 走 /transition-lifecycle). */
 export function updateServerCore(id: string, dto: ResourceServerCoreUpdateDTO) {
-  return request.put<unknown, boolean>(`/admin/resource/server/${id}/core`, dto)
+  return request.put<unknown, boolean>('/admin/resource/server/update-core', dto, { params: { id } })
 }
 
 /** 更新 SSH 凭据 (LIVE 后 host/port 硬锁; 密码空保留原值). */
 export function updateServerCredential(id: string, dto: ServerCredential) {
-  return request.put<unknown, boolean>(`/admin/resource/server/${id}/credential`, dto)
+  return request.put<unknown, boolean>('/admin/resource/server/update-credential', dto, { params: { id } })
 }
 
 /** 更新账面. */
 export function updateServerBilling(id: string, dto: ServerBilling) {
-  return request.put<unknown, boolean>(`/admin/resource/server/${id}/billing`, dto)
+  return request.put<unknown, boolean>('/admin/resource/server/update-billing', dto, { params: { id } })
 }
 
-/** 更新 DNS 绑定. */
-export function updateServerDns(id: string, dto: ServerDns) {
-  return request.put<unknown, boolean>(`/admin/resource/server/${id}/dns`, dto)
+/** 更新线路机扩展. */
+export function updateServerFrontline(id: string, dto: ServerFrontline) {
+  return request.put<unknown, boolean>('/admin/resource/server-frontline/update-frontline', dto, { params: { id } })
 }
 
 export function deleteServer(id: string) {
-  return request.delete<unknown, void>('/admin/resource/server/delete', { params: { id } })
+  return request.delete<unknown, void>('/admin/resource/server/delete-server', { params: { id } })
 }
 
 /** 切换 lifecycle_state; admin 上线 / 退役流转用. */
 export function transitionServerLifecycle(id: string, state: string) {
   return request.post<unknown, boolean>(
-    '/admin/resource/server/lifecycle',
+    '/admin/resource/server/transition-lifecycle',
     null,
     { params: { id, state } }
   )
 }
 
 export interface AgentInstallDTO {
-  role: 'frontline' | 'landing'
-  /** SERVER (frontline) / IP_POOL (landing); 后端按此分叉去 resource_server 或 resource_ip_pool 查. */
-  hostType: AgentHostType
+  /** agent 角色; frontline → resource_server, landing → resource_server (server_type=landing) + resource_server_landing. */
+  role: AgentType
   backendTimeoutSeconds: number
   heartbeatIntervalSeconds: number
   nicIntervalSeconds: number
@@ -260,13 +323,13 @@ export interface AgentInstallDTO {
  * SSH 自动装 nook-agent (流式日志); 复用 resource_server 已存 SSH 凭据.
  */
 export function agentInstallStream(
-  id: string,
+  sourceId: string,
   dto: AgentInstallDTO,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
   const userStore = useUserStore()
-  const url = `/api/admin/agent/install?id=${encodeURIComponent(id)}`
+  const url = `/api/admin/agent/install-agent?sourceId=${encodeURIComponent(sourceId)}`
   return fetch(url, {
     method: 'POST',
     headers: {

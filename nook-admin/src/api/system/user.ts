@@ -52,23 +52,23 @@ export const ROLE_LABELS: Record<string, string> = {
 }
 
 export function pageSystemUsers(params: SystemUserQuery) {
-  return request.get<unknown, PageResult<SystemUser>>('/admin/system/user/page', { params })
+  return request.get<unknown, PageResult<SystemUser>>('/admin/system/user/page-user', { params })
 }
 
 export function getSystemUserDetail(id: string) {
-  return request.get<unknown, SystemUser>('/admin/system/user/get', { params: { id } })
+  return request.get<unknown, SystemUser>('/admin/system/user/get-user', { params: { id } })
 }
 
 export function createSystemUser(dto: SystemUserSaveDTO) {
-  return request.post<unknown, SystemUser>('/admin/system/user/create', dto)
+  return request.post<unknown, SystemUser>('/admin/system/user/create-user', dto)
 }
 
 export function updateSystemUser(id: string, dto: SystemUserSaveDTO) {
-  return request.put<unknown, SystemUser>('/admin/system/user/update', dto, { params: { id } })
+  return request.put<unknown, SystemUser>('/admin/system/user/update-user', dto, { params: { id } })
 }
 
 export function deleteSystemUser(id: string) {
-  return request.delete<unknown, void>('/admin/system/user/delete', { params: { id } })
+  return request.delete<unknown, void>('/admin/system/user/delete-user', { params: { id } })
 }
 
 export function resetSystemUserPassword(id: string, newPassword: string) {
