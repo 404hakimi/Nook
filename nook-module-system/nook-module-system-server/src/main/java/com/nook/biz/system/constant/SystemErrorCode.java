@@ -23,6 +23,8 @@ public enum SystemErrorCode implements ErrorCode {
     CANNOT_DELETE_SELF(2007, "不能删除当前登录账号"),
     CANNOT_DISABLE_SELF(2008, "不能禁用当前登录账号"),
     INVALID_ROLE(2009, "无效的角色: %s"),
+
+    IP_TYPE_NOT_FOUND(2101, "IP 类型 %s 不存在"),
     ;
 
     private final int code;
