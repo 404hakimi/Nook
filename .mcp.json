@@ -23,6 +23,14 @@
         "--permission-mode", "full"
       ]
     },
+    "chrome-devtools": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ]
+    },
     "intellij-idea": {
       "type": "stdio",
       "command": "D:\\IntelliJ IDEA\\jbr\\bin\\java",
