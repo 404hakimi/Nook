@@ -44,7 +44,7 @@ const form = reactive({
   monthlyTrafficGb: null as number | null,
   bandwidthLimitMbps: null as number | null,
   clientMaxCount: null as number | null,
-  quotaResetPolicy: 'CALENDAR_MONTH'
+  quotaResetPolicy: 'FIXED'
 })
 
 // 远端 agent 上报的累计字段 + 状态机字段 (只读, 后期业务流转写)
@@ -59,7 +59,7 @@ function fill(c: ServerCapacity | null) {
   form.monthlyTrafficGb = c?.monthlyTrafficGb ?? null
   form.bandwidthLimitMbps = c?.bandwidthLimitMbps ?? null
   form.clientMaxCount = c?.clientMaxCount ?? null
-  form.quotaResetPolicy = c?.quotaResetPolicy ?? 'CALENDAR_MONTH'
+  form.quotaResetPolicy = c?.quotaResetPolicy ?? 'FIXED'
   runtime.usedTrafficBytes = c?.usedTrafficBytes ?? 0
   runtime.rxBytes = c?.rxBytes ?? 0
   runtime.txBytes = c?.txBytes ?? 0

@@ -21,16 +21,18 @@ import {
 } from 'naive-ui'
 import {
   getServerCredential,
-  type ServerCredential,
-  type ServerFrontlineListItem
+  testServerConnectivity,
+  type ConnectivityTestResult,
+  type ServerCredential
 } from '@/api/resource/server'
-import { testServerConnectivity, type ConnectivityTestResult } from '@/api/xray/server'
 import ServerCredentialEditDialog from '@/views/server/dialogs/ServerCredentialEditDialog.vue'
 
 const props = defineProps<{
   serverId: string
-  /** 父组件已拿到的 server 运行时聚合 (含 lifecycleState); credential 编辑 dialog 需要 lifecycle 决定 host/port 是否锁定. */
-  agentInfo: ServerFrontlineListItem | null
+  /** SSH 主机 = server.ip_address (canonical, 跨 frontline / landing 共用). */
+  host?: string
+  /** 用于判 LIVE 后 sshPort 锁定. */
+  lifecycleState?: string
 }>()
 
 const message = useMessage()
@@ -120,8 +122,8 @@ function afterEdit() { load() }
         <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 6rem">
           <NDescriptionsItem label="Host">
             <div class="cred-row">
-              <code class="kbd">{{ agentInfo?.host }}</code>
-              <NButton text size="tiny" @click="copyText(agentInfo?.host, 'Host')" title="复制">
+              <code class="kbd">{{ host }}</code>
+              <NButton text size="tiny" @click="copyText(host, 'Host')" title="复制">
                 <template #icon><NIcon><Copy :size="12" /></NIcon></template>
               </NButton>
             </div>
@@ -157,7 +159,7 @@ function afterEdit() { load() }
             </div>
           </NDescriptionsItem>
           <NDescriptionsItem label="SSH 命令">
-            <code class="kbd full-cmd">ssh {{ credential.sshUser || 'root' }}@{{ agentInfo?.host }}{{ (credential.sshPort && credential.sshPort !== 22) ? ` -p ${credential.sshPort}` : '' }}</code>
+            <code class="kbd full-cmd">ssh {{ credential.sshUser || 'root' }}@{{ host }}{{ (credential.sshPort && credential.sshPort !== 22) ? ` -p ${credential.sshPort}` : '' }}</code>
           </NDescriptionsItem>
         </NDescriptions>
       </NCard>
@@ -192,7 +194,7 @@ function afterEdit() { load() }
     <ServerCredentialEditDialog
       v-model="editOpen"
       :server-id="serverId"
-      :lifecycle-state="agentInfo?.lifecycleState"
+      :lifecycle-state="lifecycleState"
       @saved="afterEdit"
     />
   </NSpin>

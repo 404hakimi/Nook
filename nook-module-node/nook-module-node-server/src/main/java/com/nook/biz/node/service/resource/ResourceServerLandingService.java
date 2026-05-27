@@ -3,13 +3,10 @@ package com.nook.biz.node.service.resource;
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCoreUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCreateReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCredentialUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5UpdateReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
@@ -26,12 +23,12 @@ import java.util.Map;
 public interface ResourceServerLandingService {
 
     /**
-     * 创建落地节点
+     * 初始化 landing 子表 + dante install 默认值; 由统一创建 server 流程调用
      *
-     * @param reqVO 创建入参
-     * @return 落地节点编号
+     * @param serverId 落地节点编号
+     * @param ipTypeId IP 类型 FK
      */
-    String create(ServerLandingCreateReqVO reqVO);
+    void initSubtables(String serverId, String ipTypeId);
 
     /**
      * 删除落地节点
@@ -55,14 +52,6 @@ public interface ResourceServerLandingService {
      * @param reqVO dante 配置入参
      */
     void updateSocks5(String id, ServerLandingSocks5UpdateReqVO reqVO);
-
-    /**
-     * 更新 SSH 凭据 (子表不存在则 insert; sshPassword 留空 = 保留原值)
-     *
-     * @param id    落地节点编号
-     * @param reqVO SSH 凭据入参
-     */
-    void updateCredential(String id, ServerLandingCredentialUpdateReqVO reqVO);
 
     /**
      * 更新账面 (子表不存在则 insert)
@@ -95,14 +84,6 @@ public interface ResourceServerLandingService {
      * @return 落地节点子表
      */
     ResourceServerLandingDO getLanding(String id);
-
-    /**
-     * 获得 SSH 凭据子表
-     *
-     * @param id 落地节点编号
-     * @return SSH 凭据
-     */
-    ResourceServerCredentialDO getCredential(String id);
 
     /**
      * 获得账面子表
@@ -144,14 +125,6 @@ public interface ResourceServerLandingService {
     Map<String, Long> getSummary();
 
     /**
-     * 切换 lifecycle
-     *
-     * @param id    落地节点编号
-     * @param state 目标 lifecycle
-     */
-    void transitionLifecycle(String id, String state);
-
-    /**
      * 占用落地节点
      *
      * @param serverId     落地节点编号
@@ -183,10 +156,9 @@ public interface ResourceServerLandingService {
      */
     SubtablesBundle batchLoadSubtables(Collection<String> serverIds);
 
-    /** 5 张子表批量返回包. */
+    /** 4 张子表批量返回包 (SSH 凭据走公共 /admin/resource/server/get-credential, 不在此包). */
     record SubtablesBundle(
             Map<String, ResourceServerLandingDO> landings,
-            Map<String, ResourceServerCredentialDO> credentials,
             Map<String, ResourceServerBillingDO> billings,
             Map<String, ResourceServerCapacityDO> capacities,
             Map<String, ResourceServerRuntimeDO> runtimes) { }

@@ -31,9 +31,11 @@ import {
   AGENT_ONLINE_TAG_TYPE
 } from '@/api/agent/agent'
 import {
-  getServerFrontlineDetail,
+  getServerCredential,
+  getServerDetailWithRuntime,
   SERVER_LIFECYCLE_LABELS,
   SERVER_LIFECYCLE_TAG_TYPE,
+  type ServerCredential,
   type ServerFrontlineListItem
 } from '@/api/resource/server'
 import {
@@ -65,9 +67,7 @@ import AgentTab from './tabs/AgentTab.vue'
 // Landing tabs (server_type=landing 用)
 import LandingMonitoringTab from '@/views/resource/tabs/LandingMonitoringTab.vue'
 import LandingInfoTab from '@/views/resource/tabs/LandingInfoTab.vue'
-import LandingSshTab from '@/views/resource/tabs/LandingSshTab.vue'
 import LandingSocks5Tab from '@/views/resource/tabs/LandingSocks5Tab.vue'
-import LandingAgentTab from '@/views/resource/tabs/LandingAgentTab.vue'
 import { relativeTime } from '@/views/resource/tabs/landingHelpers'
 
 // Landing sub-dialogs (landing 详情独有)
@@ -75,11 +75,9 @@ import ServerLandingDeployDialog from '@/views/resource/ServerLandingDeployDialo
 import ServerLandingTestDialog from '@/views/resource/ServerLandingTestDialog.vue'
 import ServerLandingLogDialog from '@/views/resource/ServerLandingLogDialog.vue'
 import ServerLandingCoreEditDialog from '@/views/resource/dialogs/ServerLandingCoreEditDialog.vue'
-import ServerLandingCredentialEditDialog from '@/views/resource/dialogs/ServerLandingCredentialEditDialog.vue'
 import ServerLandingBillingEditDialog from '@/views/resource/dialogs/ServerLandingBillingEditDialog.vue'
 import ServerLandingCapacityEditDialog from '@/views/resource/dialogs/ServerLandingCapacityEditDialog.vue'
 import ServerLandingSocks5EditDialog from '@/views/resource/dialogs/ServerLandingSocks5EditDialog.vue'
-import AgentDeployDialog from '@/views/agent/AgentDeployDialog.vue'
 
 /**
  * 服务器详情 — 统一详情页 (frontline + landing 共用).
@@ -89,7 +87,7 @@ import AgentDeployDialog from '@/views/agent/AgentDeployDialog.vue'
  * - frontline 独有: Xray + Xray 客户端
  * - landing 独有: SOCKS5 服务
  *
- * 数据加载分支: frontline 走 getServerFrontlineDetail; landing 走 getServerLandingDetail + Install.
+ * 数据加载: 共用 getServerDetailWithRuntime 拿 runtime; landing 额外走 getServerLandingDetail + Install.
  * Landing sub-dialogs (core/credential/billing/capacity/socks5/deploy/test/log/agent) 由父组件挂载.
  */
 const route = useRoute()
@@ -124,6 +122,7 @@ const frontlineInfo = ref<ServerFrontlineListItem | null>(null)
 // ===== Landing 数据 =====
 const landingInfo = ref<ServerLanding | null>(null)
 const installInfo = ref<ServerLandingInstall | null>(null)
+const landingCredential = ref<ServerCredential | null>(null)
 const error = ref<string>('')
 const loading = ref(false)
 
@@ -142,11 +141,9 @@ const deployOpen = ref(false)
 const testOpen = ref(false)
 const logOpen = ref(false)
 const coreEditOpen = ref(false)
-const credEditOpen = ref(false)
 const billingEditOpen = ref(false)
 const capacityEditOpen = ref(false)
 const socks5EditOpen = ref(false)
-const provisionOpen = ref(false)
 
 // ===== computed =====
 
@@ -174,22 +171,17 @@ function statusTagType(status?: string) {
 const canTest = computed(() =>
   !!landingInfo.value?.ipAddress && !!landingInfo.value?.socks5Port
   && !!landingInfo.value?.socks5Username && !!landingInfo.value?.socks5Password)
-const canManage = computed(() => landingInfo.value?.provisionMode === 1 && !!landingInfo.value?.sshPassword)
+// SSH 凭据走独立 credential 子表 (ServerLandingRespVO 不再带 sshPassword)
+const canManage = computed(() =>
+  landingInfo.value?.provisionMode === 1 && !!landingCredential.value?.sshPassword)
 const isSelfDeploy = computed(() => landingInfo.value?.provisionMode === 1)
 const isLive = computed(() => landingInfo.value?.lifecycleState === 'LIVE')
 const isInstalling = computed(() =>
   landingInfo.value?.lifecycleState === 'INSTALLING' || landingInfo.value?.lifecycleState === 'READY')
-const sshComplete = computed(() =>
-  !!landingInfo.value?.ipAddress && !!landingInfo.value?.sshUser && !!landingInfo.value?.sshPassword)
-const socks5Installed = computed(() =>
-  !!landingInfo.value?.installedAt && landingInfo.value?.lifecycleState === 'LIVE')
-
 const isAgentOnline = computed(() => {
   if (!landingInfo.value?.lastHeartbeatAt) return false
   return Date.now() - new Date(landingInfo.value.lastHeartbeatAt).getTime() < 5 * 60 * 1000
 })
-
-const agentProvisioned = computed(() => !!landingInfo.value?.lastHeartbeatAt)
 
 const agentHealthLabel = computed<{ text: string; type: 'success' | 'error' | 'default' }>(() => {
   if (!landingInfo.value?.lastHeartbeatAt) return { text: '未上线', type: 'default' }
@@ -204,7 +196,7 @@ async function loadServer() {
   error.value = ''
   if (isFrontline.value) {
     try {
-      frontlineInfo.value = await getServerFrontlineDetail(serverId.value)
+      frontlineInfo.value = await getServerDetailWithRuntime(serverId.value)
     } catch (e) {
       error.value = (e as Error).message || '加载失败'
     } finally {
@@ -212,18 +204,24 @@ async function loadServer() {
     }
     return
   }
-  // landing
+  // landing: 主表 + landing 子表 + install + runtime 聚合 (供 Agent tab 复用 frontline AgentTab) + credential (供 canManage 判断)
   landingInfo.value = null
   installInfo.value = null
+  frontlineInfo.value = null
+  landingCredential.value = null
   statusData.value = null
   statusError.value = ''
   try {
-    const [d, inst] = await Promise.all([
+    const [d, inst, runtime, cred] = await Promise.all([
       getServerLandingDetail(serverId.value),
-      getServerLandingInstall(serverId.value).catch(() => null)
+      getServerLandingInstall(serverId.value).catch(() => null),
+      getServerDetailWithRuntime(serverId.value).catch(() => null),
+      getServerCredential(serverId.value).catch(() => null)
     ])
     landingInfo.value = d
     installInfo.value = inst
+    frontlineInfo.value = runtime
+    landingCredential.value = cred
   } catch (e) {
     error.value = (e as Error).message || '加载失败'
   } finally {
@@ -450,7 +448,7 @@ const landingHeartbeatDotColor = computed(() => {
               <span>SSH 凭据</span>
             </NSpace>
           </template>
-          <SshTab :server-id="serverId" :agent-info="frontlineInfo" />
+          <SshTab :server-id="serverId" :host="frontlineInfo?.host" :lifecycle-state="frontlineInfo?.lifecycleState" />
         </NTabPane>
 
         <NTabPane name="xray">
@@ -480,7 +478,7 @@ const landingHeartbeatDotColor = computed(() => {
               <span>Agent</span>
             </NSpace>
           </template>
-          <AgentTab :server-id="serverId" :agent-info="frontlineInfo" @refresh="loadServer" />
+          <AgentTab :server-id="serverId" :role="isLanding ? 'landing' : 'frontline'" :agent-info="frontlineInfo" @refresh="loadServer" />
         </NTabPane>
       </NTabs>
     </NCard>
@@ -499,8 +497,6 @@ const landingHeartbeatDotColor = computed(() => {
             :detail="landingInfo"
             :can-manage="canManage"
             :is-agent-online="isAgentOnline"
-            :ssh-complete="sshComplete"
-            :socks5-installed="socks5Installed"
             :status-data="statusData"
             :status-loading="statusLoading"
             :status-error="statusError"
@@ -520,6 +516,7 @@ const landingHeartbeatDotColor = computed(() => {
             @edit-core="coreEditOpen = true"
             @edit-capacity="capacityEditOpen = true"
             @edit-billing="billingEditOpen = true"
+            @refresh="loadServer"
           />
         </NTabPane>
 
@@ -530,14 +527,10 @@ const landingHeartbeatDotColor = computed(() => {
               <span>SSH 凭据</span>
             </NSpace>
           </template>
-          <LandingSshTab
-            :detail="landingInfo"
-            :can-manage="canManage"
-            :status-data="statusData"
-            :status-loading="statusLoading"
-            :status-error="statusError"
-            @edit-credential="credEditOpen = true"
-            @load-status="loadStatus"
+          <SshTab
+            :server-id="serverId"
+            :host="landingInfo?.ipAddress"
+            :lifecycle-state="landingInfo?.lifecycleState"
           />
         </NTabPane>
 
@@ -574,13 +567,7 @@ const landingHeartbeatDotColor = computed(() => {
               <span>Agent</span>
             </NSpace>
           </template>
-          <LandingAgentTab
-            :detail="landingInfo"
-            :is-self-deploy="isSelfDeploy"
-            :agent-provisioned="agentProvisioned"
-            :agent-health-label="agentHealthLabel"
-            @open-provision="provisionOpen = true"
-          />
+          <AgentTab :server-id="serverId" :role="isLanding ? 'landing' : 'frontline'" :agent-info="frontlineInfo" @refresh="loadServer" />
         </NTabPane>
       </NTabs>
     </NCard>
@@ -591,22 +578,9 @@ const landingHeartbeatDotColor = computed(() => {
       <ServerLandingTestDialog v-model="testOpen" :ip="landingInfo" />
       <ServerLandingLogDialog v-model="logOpen" :ip="landingInfo" />
       <ServerLandingCoreEditDialog v-if="landingInfo" v-model="coreEditOpen" :server-landing="landingInfo" @saved="onSubDialogSaved" />
-      <ServerLandingCredentialEditDialog
-        v-if="landingInfo"
-        v-model="credEditOpen"
-        :server-id="landingInfo.id"
-        @saved="onSubDialogSaved"
-      />
       <ServerLandingBillingEditDialog v-if="landingInfo" v-model="billingEditOpen" :server-id="landingInfo.id" @saved="onSubDialogSaved" />
       <ServerLandingCapacityEditDialog v-if="landingInfo" v-model="capacityEditOpen" :server-id="landingInfo.id" @saved="onSubDialogSaved" />
       <ServerLandingSocks5EditDialog v-if="landingInfo" v-model="socks5EditOpen" :server-id="landingInfo.id" @saved="onSubDialogSaved" />
-      <AgentDeployDialog
-        v-model="provisionOpen"
-        :source-id="serverId"
-        role="landing"
-        :host-label="landingInfo?.ipAddress"
-        @deployed="onSubDialogSaved"
-      />
     </template>
   </div>
 </template>

@@ -2,8 +2,11 @@ package com.nook.biz.node.validator;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
+import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
+import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
+import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -20,10 +23,10 @@ public class ResourceServerValidator {
     private final ResourceServerMapper resourceServerMapper;
 
     /**
-     * 校验服务器存在; 不存在抛 SERVER_NOT_FOUND.
+     * 校验服务器存在
      *
      * @param id resource_server.id
-     * @return ResourceServerDO
+     * @return 服务器主表
      */
     public ResourceServerDO validateExists(String id) {
         ResourceServerDO e = resourceServerMapper.selectById(id);
@@ -34,7 +37,7 @@ public class ResourceServerValidator {
     }
 
     /**
-     * 校验别名全局唯一.
+     * 校验别名全局唯一
      *
      * @param id   当前行 id (Update 传, Create 传 null 表示不排除自身)
      * @param name 别名
@@ -45,6 +48,28 @@ public class ResourceServerValidator {
                 : resourceServerMapper.existsByNameExcludingId(name, id);
         if (dup) {
             throw new BusinessException(ResourceErrorCode.SERVER_NAME_DUPLICATE, name);
+        }
+    }
+
+    /**
+     * 校验 serverType 取值在枚举范围内
+     *
+     * @param serverType frontline / landing
+     */
+    public void validateServerType(String serverType) {
+        if (ResourceServerTypeEnum.fromState(serverType) == null) {
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "未知 serverType: " + serverType);
+        }
+    }
+
+    /**
+     * 校验 lifecycleState 取值在枚举范围内
+     *
+     * @param state INSTALLING / READY / LIVE / RETIRED
+     */
+    public void validateLifecycleState(String state) {
+        if (ResourceServerLifecycleEnum.fromState(state) == null) {
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "未知 lifecycleState: " + state);
         }
     }
 }

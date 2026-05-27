@@ -2,13 +2,11 @@ package com.nook.biz.node.convert.resource;
 
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityRespVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCredentialRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingInstallRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5RespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
@@ -39,44 +37,30 @@ public interface ResourceServerLandingConvert {
     /** landing 子表 → 装机事实 VO */
     ServerLandingInstallRespVO toInstallRespVO(ResourceServerLandingDO landing);
 
-    /** credential 子表 → SSH 凭据 VO; host = ipAddress (canonical), 不在凭据 VO 里. */
-    default ServerLandingCredentialRespVO toCredentialRespVO(ResourceServerCredentialDO cred) {
-        if (cred == null) return null;
-        ServerLandingCredentialRespVO vo = new ServerLandingCredentialRespVO();
-        vo.setServerId(cred.getServerId());
-        vo.setSshPort(cred.getSshPort());
-        vo.setSshUser(cred.getSshUser());
-        vo.setSshPassword(cred.getSshPassword());
-        return vo;
-    }
-
     /** billing 子表 → 账面 VO */
     ServerLandingBillingRespVO toBillingRespVO(ResourceServerBillingDO bill);
 
     /** capacity 子表 → 容量监控 VO */
     ServerLandingCapacityRespVO toCapacityRespVO(ResourceServerCapacityDO cap);
 
-    /** 详情聚合: 主表 + 5 子表 → RespVO */
+    /** 详情聚合: 主表 + 4 子表 → RespVO (SSH 凭据走公共 /get-credential, 不在此 VO) */
     default ServerLandingRespVO convertWithSubtables(ResourceServerDO main,
                                                     ResourceServerLandingDO landing,
-                                                    ResourceServerCredentialDO cred,
                                                     ResourceServerBillingDO bill,
                                                     ResourceServerCapacityDO cap,
                                                     ResourceServerRuntimeDO runtime) {
         ServerLandingRespVO vo = convert(main);
         enrichLanding(vo, landing);
-        enrichCredential(vo, cred);
         enrichBilling(vo, bill);
         enrichCapacity(vo, cap);
         enrichRuntime(vo, runtime);
         return vo;
     }
 
-    /** 列表聚合: 主表分页 + 5 子表 Map → 分页 RespVO */
+    /** 列表聚合: 主表分页 + 4 子表 Map → 分页 RespVO */
     default PageResult<ServerLandingRespVO> convertPageWithSubtables(
             PageResult<ResourceServerDO> page,
             Map<String, ResourceServerLandingDO> landingMap,
-            Map<String, ResourceServerCredentialDO> credMap,
             Map<String, ResourceServerBillingDO> billMap,
             Map<String, ResourceServerCapacityDO> capMap,
             Map<String, ResourceServerRuntimeDO> runtimeMap) {
@@ -85,7 +69,6 @@ public interface ResourceServerLandingConvert {
         for (ResourceServerDO srv : records) {
             ServerLandingRespVO vo = convert(srv);
             enrichLanding(vo, landingMap == null ? null : landingMap.get(srv.getId()));
-            enrichCredential(vo, credMap == null ? null : credMap.get(srv.getId()));
             enrichBilling(vo, billMap == null ? null : billMap.get(srv.getId()));
             enrichCapacity(vo, capMap == null ? null : capMap.get(srv.getId()));
             enrichRuntime(vo, runtimeMap == null ? null : runtimeMap.get(srv.getId()));
@@ -113,13 +96,6 @@ public interface ResourceServerLandingConvert {
         vo.setFirewallEnabled(landing.getFirewallEnabled());
         vo.setInstallDir(landing.getInstallDir());
         vo.setInstalledAt(landing.getInstalledAt());
-    }
-
-    static void enrichCredential(ServerLandingRespVO vo, ResourceServerCredentialDO cred) {
-        if (vo == null || cred == null) return;
-        vo.setSshPort(cred.getSshPort());
-        vo.setSshUser(cred.getSshUser());
-        vo.setSshPassword(cred.getSshPassword());
     }
 
     static void enrichBilling(ServerLandingRespVO vo, ResourceServerBillingDO bill) {

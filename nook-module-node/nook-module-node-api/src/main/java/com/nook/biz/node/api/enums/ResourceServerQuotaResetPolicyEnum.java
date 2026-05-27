@@ -12,7 +12,6 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum ResourceServerQuotaResetPolicyEnum {
 
-    CALENDAR_MONTH("CALENDAR_MONTH", "每月 1 号重置"),
     BILLING_CYCLE("BILLING_CYCLE", "按账单日重置"),
     FIXED("FIXED", "永不重置"),
     ;

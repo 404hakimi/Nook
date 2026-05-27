@@ -16,7 +16,7 @@ import {
   upgradeAgent
 } from '@/api/agent/agent'
 import {
-  getServerFrontlineDetail,
+  getServerDetailWithRuntime,
   type ServerFrontlineListItem
 } from '@/api/resource/server'
 
@@ -101,7 +101,7 @@ function startPolling() {
   pollTimer = setInterval(async () => {
     elapsed.value += POLL_INTERVAL_MS / 1000
     try {
-      const a = await getServerFrontlineDetail(props.serverId).catch(() => null)
+      const a = await getServerDetailWithRuntime(props.serverId).catch(() => null)
       if (a && a.agentVersion && a.agentVersion !== oldVersion.value && a.onlineState === 'ONLINE') {
         newVersion.value = a.agentVersion
         status.value = 'COMPLETED'

@@ -10,6 +10,8 @@ import { useUserStore } from '@/stores/user'
  */
 export interface ServerLanding {
   id: string
+  /** 服务器别名 (resource_server.name; landing 创建时由用户填). */
+  name: string
   /** 区域码 (FK → resource_region.code). */
   region: string
   ipTypeId: string
@@ -80,14 +82,6 @@ export interface ServerLandingCoreUpdateDTO {
   remark?: string
 }
 
-/** SSH 凭据 (provision_mode=1 用; sshPassword 留空 = 保留原值). host = ipAddress (canonical). */
-export interface ServerLandingCredential {
-  serverId?: string
-  sshPort?: number
-  sshUser?: string
-  sshPassword?: string
-}
-
 /** 账面 (纯财务记录; 实际带宽/流量配额在 ServerLandingCapacity). */
 export interface ServerLandingBilling {
   serverId?: string
@@ -103,7 +97,7 @@ export interface ServerLandingSocks5 {
   socks5Username?: string
   socks5Password?: string
   logLevel?: string
-  logPath: string
+  logPath?: string
   autostartEnabled?: number
   firewallEnabled?: number
   installDir?: string
@@ -149,7 +143,7 @@ export interface ServerLandingCapacity {
   usedTrafficBytes?: number
   rxBytes?: number
   txBytes?: number
-  /** CALENDAR_MONTH / BILLING_CYCLE / FIXED. */
+  /** BILLING_CYCLE / FIXED. */
   quotaResetPolicy?: string
   /** NORMAL / THROTTLED. */
   throttleState?: string
@@ -165,60 +159,6 @@ export interface ServerLandingQuery {
   status?: string
   region?: string
   ipTypeId?: string
-}
-
-export interface ServerLandingSaveDTO {
-  region?: string
-  ipTypeId?: string
-  lifecycleState?: string
-  ipAddress?: string
-  socks5Port?: number
-  socks5Username?: string
-  socks5Password?: string
-  /** 部署模式: 1=SELF_DEPLOY 自部署, 2=EXTERNAL 第三方; 后端 @NotNull, create/update 都必填. */
-  provisionMode?: number
-  /** dante 日志 (空格分隔关键字); 留空走默认 'connect disconnect error'. */
-  logLevel?: string
-  /** dante logoutput 路径; 留空走默认 /var/log/sockd.log. */
-  logPath?: string
-  /** systemd 开机自启 (1/0); 留空默认 1. */
-  autostartEnabled?: number
-  /** 部署时是否配 UFW (1/0); 留空默认 1. */
-  firewallEnabled?: number
-  /** 装机时是否启用 logrotate (1/0); 默认 1. */
-  logRotateEnabled?: number
-  /** SOCKS5 安装目录; 默认 /home/socks5. */
-  installDir?: string
-  /** sockd.conf 绝对路径; 装机产物. */
-  confPath?: string
-  /** PAM 配置文件路径. */
-  pamFile?: string
-  /** htpasswd 密码文件路径. */
-  pwdFile?: string
-  /** systemd unit 名; 固定 'danted'. */
-  systemdUnit?: string
-  // SSH 主机 = ipAddress (canonical); 不再单独维护 sshHost
-  /** SSH 端口 (默认 22). */
-  sshPort?: number
-  /** SSH 用户. */
-  sshUser?: string
-  /** SSH 密码; Update 留空 = 保留原值. */
-  sshPassword?: string
-  /** SSH 握手超时 (秒); 留空走 SshSessions 默认值. */
-  sshTimeoutSeconds?: number
-  /** SSH 单条命令超时 (秒); 留空走默认值. */
-  sshOpTimeoutSeconds?: number
-  /** SCP 上传超时 (秒); 留空走默认值. */
-  sshUploadTimeoutSeconds?: number
-  /** 装机整体超时 (秒); 留空走默认值. */
-  installTimeoutSeconds?: number
-  /** 月度成本 USD. */
-  costMonthlyUsd?: number
-  /** 账单日 1-28. */
-  billingCycleDay?: number
-  /** IP 到期日 YYYY-MM-DD. */
-  expiresAt?: string
-  remark?: string
 }
 
 /** 部署模式枚举值 → 中文标签. */
@@ -241,9 +181,6 @@ export const DANTE_LOG_LEVEL_OPTIONS = [
   { label: '警告', value: 'connect disconnect error' },
   { label: '详细', value: 'connect disconnect error iooperation tcpinfo' }
 ] as const
-
-/** 新建落地机 / 部署 SOCKS5 时的默认级别 ("警告"). */
-export const DANTE_LOG_LEVEL_DEFAULT = 'connect disconnect error'
 
 export interface PageResult<T> {
   total: number
@@ -314,38 +251,17 @@ export function getServerLandingDetail(id: string) {
   return request.get<unknown, ServerLanding>('/admin/resource/server-landing/get-landing', { params: { id } })
 }
 
-export function createServerLanding(dto: ServerLandingSaveDTO) {
-  return request.post<unknown, ServerLanding>('/admin/resource/server-landing/create-landing', dto)
-}
-
 export function deleteServerLanding(id: string) {
   return request.delete<unknown, void>('/admin/resource/server-landing/delete-landing', { params: { id } })
 }
 
-/** 切换 lifecycle_state; admin 上线 / 退役流转用. */
-export function transitionServerLandingLifecycle(id: string, state: string) {
-  return request.post<unknown, boolean>(
-    '/admin/resource/server-landing/transition-lifecycle',
-    null,
-    { params: { id, state } }
-  )
-}
+// lifecycle 切换走 server.ts 的公共 transitionServerLifecycle (POST /admin/resource/server/transition-lifecycle)
 
 // ===== 子表分段编辑 (拆 4 个 dialog 各自调) =====
 
 /** 更新核心字段 (region/ipTypeId/ipAddress/provisionMode/remark; lifecycle 走 /transition-lifecycle). */
 export function updateServerLandingCore(id: string, dto: ServerLandingCoreUpdateDTO) {
   return request.put<unknown, boolean>('/admin/resource/server-landing/update-core', dto, { params: { id } })
-}
-
-/** 取 SSH 凭据 (编辑 dialog prefill; 密码字段空着, 改密码才填). */
-export function getServerLandingCredential(id: string) {
-  return request.get<unknown, ServerLandingCredential | null>('/admin/resource/server-landing/get-credential', { params: { id } })
-}
-
-/** 更新 SSH 凭据 (sshPassword 留空 = 保留原值). */
-export function updateServerLandingCredential(id: string, dto: ServerLandingCredential) {
-  return request.put<unknown, boolean>('/admin/resource/server-landing/update-credential', dto, { params: { id } })
 }
 
 /** 取账面. */
@@ -385,9 +301,8 @@ export function updateServerLandingCapacity(id: string, dto: ServerLandingCapaci
 
 /** 周期重置策略选项. */
 export const QUOTA_RESET_POLICY_OPTIONS = [
-  { label: '每月 1 号重置', value: 'CALENDAR_MONTH' },
   { label: '按账单日重置', value: 'BILLING_CYCLE' },
-  { label: '永不重置', value: 'FIXED' }
+  { label: '永不重置 (默认)', value: 'FIXED' }
 ] as const
 
 export const THROTTLE_STATE_LABELS: Record<string, string> = {
@@ -529,7 +444,42 @@ export function testServerLandingSocks5(id: string, params: Socks5TestParams) {
   return request.post<unknown, Socks5TestResult>('/admin/resource/server-landing/test-socks5-dial', params, { params: { id } })
 }
 
-// ===== SOCKS5 装机 (针对已落库的落地机条目; 配置先落库, 装机走 SSH 跑脚本 + lifecycle 切 LIVE) =====
+// ===== SOCKS5 装机 (装机入参由前端 prefill 默认值, 用户可改; 后端写回 landing DO 再跑脚本) =====
+
+/** 装机入参 (跟后端 ServerLandingDeployReqVO 字段对齐). */
+export interface ServerLandingDeployDTO {
+  /** SOCKS5 监听端口 (首次装机前端随机, 重装时置灰) */
+  socks5Port: number
+  socks5Username: string
+  socks5Password: string
+  logLevel: string
+  logPath: string
+  installDir: string
+  confPath: string
+  pamFile: string
+  pwdFile: string
+  systemdUnit: string
+  /** 1=enable 0=disable */
+  autostartEnabled: number
+  /** 1=配 UFW 0=跳过 */
+  firewallEnabled: number
+  /** 1=配 logrotate 0=跳过 */
+  logRotateEnabled: number
+}
+
+/** 装机非凭据部分的默认值 (SOCKS5 port/user/password 由前端随机生成, 不在此). */
+export const LANDING_DEPLOY_DEFAULTS = Object.freeze({
+  logLevel: 'connect disconnect error',
+  logPath: '/home/socks5/logs/sockd.log',
+  installDir: '/home/socks5',
+  confPath: '/home/socks5/etc/danted.conf',
+  pamFile: '/etc/pam.d/sockd',
+  pwdFile: '/home/socks5/etc/sockd.passwd',
+  systemdUnit: 'danted',
+  autostartEnabled: 1,
+  firewallEnabled: 1,
+  logRotateEnabled: 1
+})
 
 /**
  * 流式装机 SOCKS5 — 针对已存在的落地机条目 (lifecycle=INSTALLING/READY) 跑装机脚本.
@@ -538,6 +488,7 @@ export function testServerLandingSocks5(id: string, params: Socks5TestParams) {
  */
 export async function installServerLandingSocks5Stream(
   serverId: string,
+  dto: ServerLandingDeployDTO,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
@@ -545,8 +496,10 @@ export async function installServerLandingSocks5Stream(
   const res = await fetch(`/api/admin/resource/server-landing/install-socks5?id=${encodeURIComponent(serverId)}`, {
     method: 'POST',
     headers: {
-      Authorization: userStore.token
+      Authorization: userStore.token,
+      'Content-Type': 'application/json'
     },
+    body: JSON.stringify(dto),
     signal
   })
   if (res.status === 401) {

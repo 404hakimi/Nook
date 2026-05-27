@@ -4,17 +4,23 @@ import com.nook.biz.node.controller.resource.vo.ResourceServerBillingRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerBillingUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityUpdateReqVO;
+import com.nook.biz.agent.api.AgentRuntimeConfigApi;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCoreUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerRespVO;
+import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.convert.resource.ResourceServerBillingConvert;
 import com.nook.biz.node.convert.resource.ResourceServerCapacityConvert;
 import com.nook.biz.node.convert.resource.ResourceServerConvert;
 import com.nook.biz.node.convert.resource.ResourceServerCredentialConvert;
+import com.nook.biz.node.convert.resource.ResourceServerFrontlineConvert;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
 import com.nook.biz.node.service.resource.ResourceServerCapacityService;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
+import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
@@ -28,6 +34,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 管理后台 - 服务器公共 Controller
@@ -44,6 +54,21 @@ public class ResourceServerController {
     private final ResourceServerCredentialService credentialService;
     private final ResourceServerBillingService billingService;
     private final ResourceServerCapacityService capacityService;
+    private final ResourceServerFrontlineService frontlineService;
+    private final AgentRuntimeConfigApi agentRuntimeConfigApi;
+
+    /**
+     * 创建服务器 (frontline / landing 共用; 按 serverType 分发)
+     *
+     * @param reqVO 创建入参
+     * @return 服务器主表
+     */
+    @PostMapping("/create-server")
+    public Result<ResourceServerRespVO> createServer(@Valid @RequestBody ResourceServerCreateReqVO reqVO) {
+        String id = resourceServerService.createServer(reqVO);
+        ResourceServerDO server = resourceServerService.requireServer(id);
+        return Result.ok(ResourceServerConvert.INSTANCE.convert(server));
+    }
 
     /**
      * 获得 server 核心字段
@@ -54,6 +79,27 @@ public class ResourceServerController {
     @GetMapping("/get-server")
     public Result<ResourceServerRespVO> getServer(@RequestParam("id") String id) {
         return Result.ok(ResourceServerConvert.INSTANCE.convert(resourceServerService.requireServer(id)));
+    }
+
+    /**
+     * 获得 server 详情 + agent 运行时聚合 (frontline / landing 共用; 详情页 header + Agent tab 用)
+     *
+     * @param id server 编号
+     * @return 主表 + credential / runtime / capacity / xray + configSyncState 拼装结果
+     */
+    @GetMapping("/get-detail-with-runtime")
+    public Result<ServerFrontlineListItemRespVO> getDetailWithRuntime(@RequestParam("id") String id) {
+        ResourceServerDO server = resourceServerService.requireServer(id);
+        ResourceServerFrontlineService.RuntimeBundle bundle = frontlineService.loadRuntimeBundleSingle(id);
+        Map<String, String> cfgSyncMap = agentRuntimeConfigApi.getSyncStateMap(Set.of(id));
+        return Result.ok(ResourceServerFrontlineConvert.INSTANCE.convertSingleWithRuntime(
+                server,
+                bundle.credentialMap().get(id),
+                bundle.runtimeMap().get(id),
+                bundle.capacityMap().get(id),
+                bundle.xrayMap().get(id),
+                cfgSyncMap.get(id),
+                LocalDateTime.now()));
     }
 
     /**

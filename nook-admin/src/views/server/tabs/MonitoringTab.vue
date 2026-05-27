@@ -99,14 +99,12 @@ const trafficStatus = computed<'default' | 'success' | 'warning' | 'error'>(() =
 })
 const throttled = computed(() => capacity.value?.throttleState === 'THROTTLED')
 
-// ===== 标签化映射 (避免 NORMAL / CALENDAR_MONTH 这种 raw value 暴露给运营) =====
+// ===== 标签化映射 (避免 NORMAL / FIXED 这种 raw value 暴露给运营) =====
 const RESET_POLICY_LABELS: Record<string, string> = {
-  CALENDAR_MONTH: '自然月 (每月 1 号)',
   BILLING_CYCLE: '按账单日',
   FIXED: '永不重置'
 }
 const RESET_POLICY_TYPE: Record<string, 'info' | 'success' | 'default'> = {
-  CALENDAR_MONTH: 'info',
   BILLING_CYCLE: 'success',
   FIXED: 'default'
 }

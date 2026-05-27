@@ -5,9 +5,7 @@ import com.nook.biz.node.controller.resource.vo.ServerLandingBillingUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCoreUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCreateReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCredentialRespVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCredentialUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.ServerLandingDeployReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingInstallRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingRespVO;
@@ -70,7 +68,7 @@ public class ResourceServerLandingController {
         Set<String> ids = CollectionUtils.convertSet(page.getRecords(), ResourceServerDO::getId);
         ResourceServerLandingService.SubtablesBundle bundle = landingService.batchLoadSubtables(ids);
         return Result.ok(ResourceServerLandingConvert.INSTANCE.convertPageWithSubtables(
-                page, bundle.landings(), bundle.credentials(), bundle.billings(),
+                page, bundle.landings(), bundle.billings(),
                 bundle.capacities(), bundle.runtimes()));
     }
 
@@ -103,19 +101,12 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-landing")
     public Result<ServerLandingRespVO> getDetail(@RequestParam("id") String id) {
-        return Result.ok(loadDetail(id));
-    }
-
-    /**
-     * 创建落地节点
-     *
-     * @param reqVO 创建入参
-     * @return 落地节点详情
-     */
-    @PostMapping("/create-landing")
-    public Result<ServerLandingRespVO> create(@Valid @RequestBody ServerLandingCreateReqVO reqVO) {
-        String id = landingService.create(reqVO);
-        return Result.ok(loadDetail(id));
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.convertWithSubtables(
+                landingService.getServer(id),
+                landingService.getLanding(id),
+                landingService.getBilling(id),
+                landingService.getCapacity(id),
+                landingService.getRuntime(id)));
     }
 
     /**
@@ -127,20 +118,6 @@ public class ResourceServerLandingController {
     @DeleteMapping("/delete-landing")
     public Result<Boolean> delete(@RequestParam("id") String id) {
         landingService.delete(id);
-        return Result.ok(true);
-    }
-
-    /**
-     * 切换 lifecycle
-     *
-     * @param id    落地节点编号
-     * @param state 目标 lifecycle
-     * @return 是否成功
-     */
-    @PostMapping("/transition-lifecycle")
-    public Result<Boolean> lifecycle(@RequestParam("id") String id,
-                                     @RequestParam("state") String state) {
-        landingService.transitionLifecycle(id, state);
         return Result.ok(true);
     }
 
@@ -192,31 +169,6 @@ public class ResourceServerLandingController {
     @GetMapping("/get-install")
     public Result<ServerLandingInstallRespVO> getInstall(@RequestParam("id") String id) {
         return Result.ok(ResourceServerLandingConvert.INSTANCE.toInstallRespVO(landingService.getLanding(id)));
-    }
-
-    /**
-     * 获得 SSH 凭据
-     *
-     * @param id 落地节点编号
-     * @return SSH 凭据 (子表不存在返回 null)
-     */
-    @GetMapping("/get-credential")
-    public Result<ServerLandingCredentialRespVO> getCredential(@RequestParam("id") String id) {
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.toCredentialRespVO(landingService.getCredential(id)));
-    }
-
-    /**
-     * 更新 SSH 凭据 (sshPassword 留空 = 保留原值)
-     *
-     * @param id    落地节点编号
-     * @param reqVO SSH 凭据入参
-     * @return 是否成功
-     */
-    @PutMapping("/update-credential")
-    public Result<Boolean> updateCredential(@RequestParam("id") String id,
-                                            @Valid @RequestBody ServerLandingCredentialUpdateReqVO reqVO) {
-        landingService.updateCredential(id, reqVO);
-        return Result.ok(true);
     }
 
     /**
@@ -353,22 +305,14 @@ public class ResourceServerLandingController {
     /**
      * 流式装机 SOCKS5
      *
-     * @param id 落地节点编号
+     * @param id    落地节点编号
+     * @param reqVO 装机配置 (install 路径 + 开关; 前端 prefill 默认值, 用户可改)
      * @return 流式响应
      */
     @PostMapping(value = "/install-socks5", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
-    public ResponseBodyEmitter installSocks5(@RequestParam("id") String id) {
-        return socksOpsService.installSocks5Stream(id);
+    public ResponseBodyEmitter installSocks5(@RequestParam("id") String id,
+                                             @Valid @RequestBody ServerLandingDeployReqVO reqVO) {
+        return socksOpsService.installSocks5Stream(id, reqVO);
     }
 
-    /** 单 server 详情: 主 + 5 子表组装 */
-    private ServerLandingRespVO loadDetail(String id) {
-        return ResourceServerLandingConvert.INSTANCE.convertWithSubtables(
-                landingService.getServer(id),
-                landingService.getLanding(id),
-                landingService.getCredential(id),
-                landingService.getBilling(id),
-                landingService.getCapacity(id),
-                landingService.getRuntime(id));
-    }
 }

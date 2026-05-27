@@ -5,13 +5,17 @@ import {
   NButton,
   NForm,
   NFormItem,
+  NIcon,
   NInput,
+  NInputGroup,
   NInputNumber,
   NModal,
   NSpace,
   NSpin,
+  NTooltip,
   useMessage
 } from 'naive-ui'
+import { Dices } from 'lucide-vue-next'
 import {
   getServerLandingSocks5,
   updateServerLandingSocks5,
@@ -21,10 +25,7 @@ import {
 /**
  * 编辑 SOCKS5 凭据 — 仅端口 + 用户 + 密码 3 项 (dante 运行期可热改, 客户端拨号用).
  *
- * 故意不编辑这些 (走"重装"流程, 而非这里):
- *   - 安装目录 / 日志路径 / sockd.conf 路径 等装机一次性路径
- *   - systemd 自启 / UFW 防火墙 (装机时的系统级开关, 改完不重装就漂移)
- *   - 日志级别 (dante log 关键字组合, admin 日常不动)
+ * 端口 / 用户名 / 密码 三处提供"随机"按钮 (crypto.getRandomValues 本地生成).
  */
 const props = defineProps<{
   modelValue: boolean
@@ -64,6 +65,31 @@ watch(() => [props.modelValue, props.serverId], async ([open]) => {
   }
 }, { immediate: true })
 
+function randomPort(): number {
+  return Math.floor(Math.random() * (60000 - 20000 + 1)) + 20000
+}
+function randomAlnum(len: number, mixedCase: boolean): string {
+  const lower = 'abcdefghijklmnopqrstuvwxyz'
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const digit = '0123456789'
+  const charset = (mixedCase ? lower + upper : lower) + digit
+  const buf = new Uint32Array(len)
+  crypto.getRandomValues(buf)
+  let out = ''
+  for (let i = 0; i < len; i++) out += charset[buf[i] % charset.length]
+  return out
+}
+function randomUsername(): string {
+  const lower = 'abcdefghijklmnopqrstuvwxyz'
+  const buf = new Uint8Array(1)
+  crypto.getRandomValues(buf)
+  return lower[buf[0] % lower.length] + randomAlnum(7, false)
+}
+
+function onRandomPort() { form.socks5Port = randomPort() }
+function onRandomUsername() { form.socks5Username = randomUsername() }
+function onRandomPassword() { form.socks5Password = randomAlnum(16, true) }
+
 function validate(): boolean {
   Object.keys(errors).forEach((k) => delete errors[k])
   if (!form.socks5Port || form.socks5Port < 1 || form.socks5Port > 65535) {
@@ -79,8 +105,6 @@ async function onSubmit() {
   if (!validate()) return
   submitting.value = true
   try {
-    // 仅传 3 个 socks5 字段; 后端 MyBatis-Plus update-strategy=NOT_NULL 会忽略未填字段,
-    // 不影响 logLevel / logPath / autostartEnabled / firewallEnabled / installDir 原值
     await updateServerLandingSocks5(props.serverId, {
       socks5Port: form.socks5Port,
       socks5Username: form.socks5Username?.trim() || undefined,
@@ -115,10 +139,30 @@ async function onSubmit() {
           :feedback="errors.socks5Port"
           :validation-status="errors.socks5Port ? 'error' : undefined"
         >
-          <NInputNumber v-model:value="form.socks5Port" :min="1" :max="65535" class="w-full" />
+          <NInputGroup>
+            <NInputNumber v-model:value="form.socks5Port" :min="1" :max="65535" class="flex-1" />
+            <NTooltip>
+              <template #trigger>
+                <NButton @click="onRandomPort" :title="'随机 20000-60000'">
+                  <NIcon><Dices /></NIcon>
+                </NButton>
+              </template>
+              随机生成 (20000-60000)
+            </NTooltip>
+          </NInputGroup>
         </NFormItem>
         <NFormItem label="SOCKS5 用户">
-          <NInput v-model:value="form.socks5Username" />
+          <NInputGroup>
+            <NInput v-model:value="form.socks5Username" />
+            <NTooltip>
+              <template #trigger>
+                <NButton @click="onRandomUsername">
+                  <NIcon><Dices /></NIcon>
+                </NButton>
+              </template>
+              随机生成 (8 字符 a-z0-9)
+            </NTooltip>
+          </NInputGroup>
         </NFormItem>
         <NFormItem
           label="SOCKS5 密码"
@@ -126,10 +170,20 @@ async function onSubmit() {
           :feedback="errors.socks5Password"
           :validation-status="errors.socks5Password ? 'error' : undefined"
         >
-          <NInput
-            v-model:value="form.socks5Password"
-            :input-props="{ style: 'font-family: monospace', autocomplete: 'off' }"
-          />
+          <NInputGroup>
+            <NInput
+              v-model:value="form.socks5Password"
+              :input-props="{ style: 'font-family: monospace', autocomplete: 'off' }"
+            />
+            <NTooltip>
+              <template #trigger>
+                <NButton @click="onRandomPassword">
+                  <NIcon><Dices /></NIcon>
+                </NButton>
+              </template>
+              随机生成 (16 字符 大小写+数字)
+            </NTooltip>
+          </NInputGroup>
         </NFormItem>
       </NForm>
     </NSpin>

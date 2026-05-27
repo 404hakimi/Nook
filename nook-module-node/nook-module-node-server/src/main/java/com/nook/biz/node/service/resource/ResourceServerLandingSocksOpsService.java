@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.resource;
 
+import com.nook.biz.node.controller.resource.vo.ServerLandingDeployReqVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.resource.vo.Socks5StatusRespVO;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
@@ -16,9 +17,10 @@ public interface ResourceServerLandingSocksOpsService {
      * 流式装机 SOCKS5
      *
      * @param serverId 落地节点编号
+     * @param reqVO    装机配置 (install 路径 + 开关)
      * @return 流式响应
      */
-    ResponseBodyEmitter installSocks5Stream(String serverId);
+    ResponseBodyEmitter installSocks5Stream(String serverId, ServerLandingDeployReqVO reqVO);
 
     /**
      * 拨号测试 SOCKS5

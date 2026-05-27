@@ -3,6 +3,7 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nook.biz.agent.api.AgentTokenApi;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
@@ -23,11 +24,12 @@ import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
+import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.resource.ResourceServerService;
+import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
-import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
@@ -36,14 +38,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HexFormat;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * 资源服务器 Service 实现类
@@ -62,44 +61,48 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     private final ResourceServerFrontlineMapper frontlineMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ResourceServerValidator serverValidator;
+    private final ResourceServerLandingValidator landingValidator;
     private final ResourceServerCredentialService credentialService;
     private final ResourceServerBillingService billingService;
     private final ResourceServerFrontlineService frontlineService;
+    private final ResourceServerLandingService landingService;
+    private final AgentTokenApi agentTokenApi;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String createServer(ResourceServerCreateReqVO createReqVO) {
+        serverValidator.validateServerType(createReqVO.getServerType());
+        serverValidator.validateLifecycleState(createReqVO.getLifecycleState());
         serverValidator.validateNameUnique(null, createReqVO.getName());
 
-        // 写主表 (生成 id + agent_token); ipAddress 是 canonical SSH 主机
+        boolean isLanding = ResourceServerTypeEnum.LANDING.matches(createReqVO.getServerType());
+        if (isLanding) {
+            landingValidator.validateForCreate(createReqVO.getIpTypeId(), createReqVO.getIpAddress());
+        }
+
+        // 主表 (id + agentToken; ipAddress 是 canonical SSH 主机)
         ResourceServerDO entity = new ResourceServerDO();
-        entity.setServerType(ResourceServerTypeEnum.FRONTLINE.getState());
+        entity.setServerType(createReqVO.getServerType());
         entity.setName(createReqVO.getName());
         entity.setIpAddress(createReqVO.getIpAddress());
         entity.setRegion(createReqVO.getRegion());
-        entity.setTotalIpCount(createReqVO.getTotalIpCount());
         entity.setRemark(createReqVO.getRemark());
         entity.setLifecycleState(createReqVO.getLifecycleState());
-        entity.setAgentToken(generateAgentToken());
+        entity.setAgentToken(agentTokenApi.generateToken());
         resourceServerMapper.insert(entity);
 
-        // credential / billing / frontline 子表 + capacity / runtime 占位
+        // 共用子表
         credentialService.create(entity.getId(), createReqVO.getCredential());
-        billingService.create(entity.getId(), createReqVO.getBilling());
-        frontlineService.create(entity.getId(), createReqVO.getFrontline());
         initCapacityAndRuntime(entity.getId());
-        return entity.getId();
-    }
 
-    /** SHA256(UUID + UUID) → 64 char hex; 跟 DB CHAR(64) 长度对齐. */
-    private static String generateAgentToken() {
-        String raw = UUID.randomUUID() + UUID.randomUUID().toString();
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(md.digest(raw.getBytes()));
-        } catch (Exception e) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "SHA-256 不可用: " + e.getMessage());
+        // 类型分支子表
+        if (isLanding) {
+            landingService.initSubtables(entity.getId(), createReqVO.getIpTypeId());
+        } else {
+            billingService.create(entity.getId(), null);
+            frontlineService.create(entity.getId(), null);
         }
+        return entity.getId();
     }
 
     private void initCapacityAndRuntime(String serverId) {
@@ -110,7 +113,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         capacity.setRxBytes(0L);
         capacity.setTxBytes(0L);
         capacity.setUsedTrafficBytes(0L);
-        capacity.setQuotaResetPolicy(ResourceServerQuotaResetPolicyEnum.CALENDAR_MONTH.getState());
+        capacity.setQuotaResetPolicy(ResourceServerQuotaResetPolicyEnum.FIXED.getState());
         capacity.setThrottleState(ResourceServerThrottleStateEnum.NORMAL.getState());
         capacity.setCreatedAt(now);
         capacity.setUpdatedAt(now);

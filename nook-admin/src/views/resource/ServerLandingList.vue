@@ -39,11 +39,11 @@ import {
   deleteServerLanding,
   getServerLandingSummary,
   pageServerLanding,
-  transitionServerLandingLifecycle,
   type ServerLanding,
   type ServerLandingQuery,
   type ServerLandingSummary
 } from '@/api/resource/server-landing'
+import { transitionServerLifecycle } from '@/api/resource/server'
 import type { SystemRegion } from '@/api/system/region'
 import { IP_TYPE_CODE_LABELS, type SystemIpType } from '@/api/system/ip-type'
 import { useRegionStore } from '@/stores/region'
@@ -189,7 +189,7 @@ async function onSuspend(ip: ServerLanding) {
   })
   if (!ok) return
   try {
-    await transitionServerLandingLifecycle(ip.id, 'RETIRED')
+    await transitionServerLifecycle(ip.id, 'RETIRED')
     message.success('已停用')
     onSaved()
     void refreshDetail()
@@ -206,7 +206,7 @@ async function onActivate(ip: ServerLanding) {
   })
   if (!ok) return
   try {
-    await transitionServerLandingLifecycle(ip.id, 'LIVE')
+    await transitionServerLifecycle(ip.id, 'LIVE')
     message.success('已启用')
     onSaved()
     void refreshDetail()
@@ -251,11 +251,6 @@ function openCreate() { createOpen.value = true }
 function onCreatedAfterChoice(ipId: string) {
   void ipId
   onSaved()
-}
-
-function onInstallNow(ipId: string) {
-  deployIpId.value = ipId
-  deployOpen.value = true
 }
 
 function openDeploy(ip: ServerLanding) {
@@ -559,7 +554,6 @@ onMounted(async () => {
       v-model="createOpen"
       server-type="landing"
       @created="onCreatedAfterChoice"
-      @install-now="onInstallNow"
     />
 
     <ServerLandingDeployDialog v-model="deployOpen" :server-id="deployIpId" @installed="onDeployInstalled" />

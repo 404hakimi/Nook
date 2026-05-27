@@ -79,10 +79,7 @@ public class ServerLandingRespVO {
 
     private String remark;
 
-    // ===== SSH 凭据 (credential 子表; host 走 ipAddress, 不再有 sshHost) =====
-    private Integer sshPort;
-    private String sshUser;
-    private String sshPassword;
+    // SSH 凭据从 /admin/resource/server/get-credential 单独获取, 不在此 VO
 
     // ===== 账面 (billing 子表) =====
     private BigDecimal costMonthlyUsd;

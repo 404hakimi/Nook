@@ -14,27 +14,17 @@ import {
   useMessage
 } from 'naive-ui'
 import { ChevronDown, ChevronRight, Rocket } from 'lucide-vue-next'
-import { useConfirm } from '@/composables/useConfirm'
 import { createServer, type ResourceServerCreateDTO } from '@/api/resource/server'
-import {
-  DANTE_LOG_LEVEL_DEFAULT,
-  createServerLanding,
-  type ServerLandingSaveDTO
-} from '@/api/resource/server-landing'
 import { useRegionStore } from '@/stores/region'
 import { useIpTypeStore } from '@/stores/ipType'
 import { storeToRefs } from 'pinia'
 import RegionFlag from '@/components/RegionFlag.vue'
 
 /**
- * 服务器创建 dialog — frontline / landing 共用一套表单 + 逻辑, 按 serverType 分发.
+ * 服务器创建 dialog — frontline / landing 共用一套表单, 后端按 serverType 分发.
  *
- * <p>共用字段: 区域 + SSH 凭据 (host/port/user/password) + 备注.
- * <p>frontline 独有: 别名 (name) + 高级超时配置.
- * <p>landing 独有: IP 类型 (ipTypeId) + IP 地址 (ipAddress) + SOCKS5/dante 默认值落库.
- *
- * <p>都走"配置 → 落库 (lifecycle=INSTALLING)"模式; 装机走详情页 → 各自的"装机"入口.
- * landing 创建成功后弹"立即装机 / 稍后"二选一 (frontline 不需要, 装 xray 是后续独立操作).
+ * 只收核心字段 + SSH 凭据; SOCKS5 / dante install 等部署细节落到详情页 SOCKS5 tab 编辑.
+ * frontline 独有: 别名 (name); landing 独有: IP 类型 (ipTypeId).
  */
 const props = defineProps<{
   modelValue: boolean
@@ -43,20 +33,16 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   'update:modelValue': [v: boolean]
-  /** 创建成功; 父组件可刷新列表 */
+  /** 创建成功; 父组件可刷新列表 / 跳详情 */
   created: [serverId: string]
-  /** landing 创建后用户选"立即装机"; 父组件打开 ServerLandingDeployDialog */
-  'install-now': [serverId: string]
 }>()
 
 const message = useMessage()
-const { confirm } = useConfirm()
 const submitting = ref(false)
 const errors = reactive<Record<string, string>>({})
 
 const isLanding = computed(() => props.serverType === 'landing')
 
-// ===== 区域 / IP 类型 字典 走 store =====
 const regionStore = useRegionStore()
 const ipTypeStore = useIpTypeStore()
 const { list: regions } = storeToRefs(regionStore)
@@ -89,15 +75,11 @@ const SSH_DEFAULTS = {
 }
 
 const form = reactive({
-  // frontline-only
   name: '',
-  // landing-only
   ipTypeId: '',
-  // shared: ipAddress = SSH 主机 (canonical, Option 2)
   ipAddress: '',
   region: '',
   remark: '',
-  // SSH credential (扁平, submit 时按 serverType 分别构造 nested / flat); host = ipAddress
   sshPort: SSH_DEFAULTS.sshPort,
   sshUser: SSH_DEFAULTS.sshUser,
   sshPassword: '',
@@ -126,11 +108,9 @@ watch(() => props.modelValue, async (open) => {
     installTimeoutSeconds: SSH_DEFAULTS.installTimeoutSeconds
   })
   advancedOpen.value = false
-  // 字典走 store 全局去重 (region 两边都用; ipType 仅 landing 用)
   const tasks: Promise<unknown>[] = [regionStore.ensureLoaded()]
   if (isLanding.value) tasks.push(ipTypeStore.ensureLoaded())
   await Promise.all(tasks)
-  // landing 默认选第一个 IP 类型
   if (isLanding.value && !form.ipTypeId && ipTypes.value[0]) {
     form.ipTypeId = ipTypes.value[0].id
   }
@@ -138,12 +118,8 @@ watch(() => props.modelValue, async (open) => {
 
 function validate(): boolean {
   Object.keys(errors).forEach((k) => delete errors[k])
-  if (isLanding.value) {
-    if (!form.ipTypeId) errors.ipTypeId = '请选 IP 类型'
-  } else {
-    if (!form.name.trim()) errors.name = '请输入别名'
-  }
-  // ipAddress 两边都必填 (= SSH 主机)
+  if (!form.name.trim()) errors.name = '请输入别名'
+  if (isLanding.value && !form.ipTypeId) errors.ipTypeId = '请选 IP 类型'
   if (!form.ipAddress.trim()) errors.ipAddress = '请填 IP 地址'
   if (!form.region) errors.region = '请选择区域'
   if (form.sshPort == null || form.sshPort < 1 || form.sshPort > 65535) errors.sshPort = '端口 1-65535'
@@ -152,95 +128,34 @@ function validate(): boolean {
   return Object.keys(errors).length === 0
 }
 
-// ===== landing 装机随机默认值 (用户装机前可去详情页调整) =====
-function randomSocksPort(): number {
-  return Math.floor(Math.random() * (60000 - 20000 + 1)) + 20000
-}
-function randomAlnum(len: number, mixedCase: boolean): string {
-  const lower = 'abcdefghijklmnopqrstuvwxyz'
-  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  const digit = '0123456789'
-  const charset = (mixedCase ? lower + upper : lower) + digit
-  const buf = new Uint32Array(len)
-  crypto.getRandomValues(buf)
-  let out = ''
-  for (let i = 0; i < len; i++) out += charset[buf[i] % charset.length]
-  return out
-}
-function randomSocksUser(): string {
-  const lower = 'abcdefghijklmnopqrstuvwxyz'
-  const buf = new Uint8Array(1)
-  crypto.getRandomValues(buf)
-  return lower[buf[0] % lower.length] + randomAlnum(7, false)
-}
-const LANDING_INSTALL_DIR = '/home/socks5'
-
 async function onSubmit() {
   if (!validate()) return
   submitting.value = true
   try {
-    if (isLanding.value) {
-      const dto: ServerLandingSaveDTO = {
-        region: form.region,
-        ipTypeId: form.ipTypeId,
-        ipAddress: form.ipAddress.trim(),
-        lifecycleState: 'INSTALLING',
-        provisionMode: 1, // SELF_DEPLOY
-        remark: form.remark.trim() || undefined,
+    const dto: ResourceServerCreateDTO = {
+      serverType: isLanding.value ? 'landing' : 'frontline',
+      name: form.name.trim(),
+      ipTypeId: isLanding.value ? form.ipTypeId : undefined,
+      ipAddress: form.ipAddress.trim(),
+      region: form.region,
+      remark: form.remark.trim() || undefined,
+      lifecycleState: 'INSTALLING',
+      credential: {
         sshPort: form.sshPort,
         sshUser: form.sshUser.trim(),
-        sshPassword: form.sshPassword,
+        sshPassword: form.sshPassword.trim(),
         sshTimeoutSeconds: form.sshTimeoutSeconds,
         sshOpTimeoutSeconds: form.sshOpTimeoutSeconds,
         sshUploadTimeoutSeconds: form.sshUploadTimeoutSeconds,
-        installTimeoutSeconds: form.installTimeoutSeconds,
-        // SOCKS5 默认值
-        socks5Port: randomSocksPort(),
-        socks5Username: randomSocksUser(),
-        socks5Password: randomAlnum(16, true),
-        // dante / install 默认值
-        logLevel: DANTE_LOG_LEVEL_DEFAULT,
-        logPath: `${LANDING_INSTALL_DIR}/logs/sockd.log`,
-        autostartEnabled: 1,
-        firewallEnabled: 1,
-        logRotateEnabled: 1,
-        installDir: LANDING_INSTALL_DIR,
-        confPath: `${LANDING_INSTALL_DIR}/etc/danted.conf`,
-        pamFile: '/etc/pam.d/sockd',
-        pwdFile: `${LANDING_INSTALL_DIR}/etc/sockd.passwd`,
-        systemdUnit: 'danted'
+        installTimeoutSeconds: form.installTimeoutSeconds
       }
-      const created = await createServerLanding(dto)
-      emit('created', created.id)
-      const ok = await confirm({
-        title: '落地机已落库, 现在装机?',
-        message: `落地机 ${form.ipAddress} 已创建. 装机会 SSH 到 ${form.ipAddress} 跑 dante install + 自动切 LIVE. SOCKS5 端口/账号已用随机默认值, 装机前可去详情页 "SOCKS5 服务" tab 调整.`,
-        type: 'info',
-        confirmText: '立即装机',
-        cancelText: '稍后再装'
-      })
-      if (ok) emit('install-now', created.id)
-    } else {
-      const dto: ResourceServerCreateDTO = {
-        name: form.name.trim(),
-        ipAddress: form.ipAddress.trim(),
-        region: form.region,
-        remark: form.remark.trim() || undefined,
-        lifecycleState: 'INSTALLING',
-        credential: {
-          sshPort: form.sshPort,
-          sshUser: form.sshUser.trim(),
-          sshPassword: form.sshPassword.trim(),
-          sshTimeoutSeconds: form.sshTimeoutSeconds,
-          sshOpTimeoutSeconds: form.sshOpTimeoutSeconds,
-          sshUploadTimeoutSeconds: form.sshUploadTimeoutSeconds,
-          installTimeoutSeconds: form.installTimeoutSeconds
-        }
-      }
-      const created = await createServer(dto)
-      message.success(`已创建 (id: ${created.id.slice(0, 8)}...) — 进详情页继续装 Agent / Xray`)
-      emit('created', created.id)
     }
+    const created = await createServer(dto)
+    const tip = isLanding.value
+      ? `落地机已落库 — 进详情页 "SOCKS5 服务" tab 配端口/账号后装机`
+      : `已创建 (id: ${created.id.slice(0, 8)}...) — 进详情页继续装 Agent / Xray`
+    message.success(tip)
+    emit('created', created.id)
     emit('update:modelValue', false)
   } catch { /* request 拦截器已 toast */ } finally {
     submitting.value = false
@@ -271,18 +186,15 @@ const dialogTitle = computed(() => isLanding.value ? '新建落地机' : '新建
     <NForm :model="form" label-placement="top" size="small">
       <div class="section-title">基础信息</div>
 
-      <!-- frontline: 别名 -->
       <NFormItem
-        v-if="!isLanding"
         label="别名"
         required
         :feedback="errors.name"
         :validation-status="errors.name ? 'error' : undefined"
       >
-        <NInput v-model:value="form.name" placeholder="fra-test-001" />
+        <NInput v-model:value="form.name" :placeholder="isLanding ? 'jp-tyo-socks5-01' : 'fra-test-001'" />
       </NFormItem>
 
-      <!-- landing 独有: IP 类型 -->
       <NFormItem
         v-if="isLanding"
         label="IP 类型"
@@ -293,7 +205,6 @@ const dialogTitle = computed(() => isLanding.value ? '新建落地机' : '新建
         <NSelect v-model:value="form.ipTypeId" :options="ipTypeOptions" placeholder="选 IP 类型" />
       </NFormItem>
 
-      <!-- IP 地址 = SSH 主机 (canonical, 两边都用) -->
       <div class="grid grid-cols-3 gap-3">
         <NFormItem
           label="IP 地址 / SSH 主机"
@@ -355,7 +266,6 @@ const dialogTitle = computed(() => isLanding.value ? '新建落地机' : '新建
         </NFormItem>
       </div>
 
-      <!-- SSH 参数 (frontline + landing 共用) -->
       <div class="advanced-toggle" @click="advancedOpen = !advancedOpen">
         <NIcon :size="14"><ChevronDown v-if="advancedOpen" /><ChevronRight v-else /></NIcon>
         <span>高级 (超时配置)</span>
@@ -379,16 +289,14 @@ const dialogTitle = computed(() => isLanding.value ? '新建落地机' : '新建
       </NCollapseTransition>
 
       <div v-if="isLanding" class="text-xs text-zinc-500 mt-3">
-        💡 SOCKS5 端口 / 账号密码 / dante 配置 在装机时使用默认值; 装机前可去详情页 "SOCKS5 服务" tab 调整.
+        💡 SOCKS5 端口 / 账号密码 / dante 配置 落库使用默认值; 进详情页 "SOCKS5 服务" tab 调整 + 装机.
       </div>
     </NForm>
 
     <template #footer>
       <NSpace justify="end">
         <NButton size="small" :disabled="submitting" @click="emit('update:modelValue', false)">取消</NButton>
-        <NButton type="primary" size="small" :loading="submitting" @click="onSubmit">
-          {{ isLanding ? '保存配置' : '创建' }}
-        </NButton>
+        <NButton type="primary" size="small" :loading="submitting" @click="onSubmit">创建</NButton>
       </NSpace>
     </template>
   </NModal>

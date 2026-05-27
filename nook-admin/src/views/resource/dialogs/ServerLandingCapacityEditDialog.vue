@@ -34,9 +34,8 @@ const emit = defineEmits<{
 }>()
 
 const QUOTA_RESET_OPTIONS = [
-  { label: 'CALENDAR_MONTH (每月 1 号重置, 默认)', value: 'CALENDAR_MONTH' },
   { label: 'BILLING_CYCLE (按账单日重置)', value: 'BILLING_CYCLE' },
-  { label: 'FIXED (永不重置)', value: 'FIXED' }
+  { label: 'FIXED (永不重置, 默认)', value: 'FIXED' }
 ]
 
 const message = useMessage()
@@ -47,7 +46,7 @@ const errors = reactive<Record<string, string>>({})
 const form = reactive({
   bandwidthLimitMbps: 0,
   monthlyTrafficGb: null as number | null,
-  quotaResetPolicy: 'CALENDAR_MONTH'
+  quotaResetPolicy: 'FIXED'
 })
 // 远端 agent 上报的累计字段 (只读)
 const runtime = reactive({
@@ -60,7 +59,7 @@ const runtime = reactive({
 function fill(c: ServerLandingCapacity | null) {
   form.bandwidthLimitMbps = c?.bandwidthLimitMbps ?? 0
   form.monthlyTrafficGb = c?.monthlyTrafficGb ?? null
-  form.quotaResetPolicy = c?.quotaResetPolicy ?? 'CALENDAR_MONTH'
+  form.quotaResetPolicy = c?.quotaResetPolicy ?? 'FIXED'
   runtime.usedTrafficBytes = c?.usedTrafficBytes ?? 0
   runtime.rxBytes = c?.rxBytes ?? 0
   runtime.txBytes = c?.txBytes ?? 0

@@ -17,6 +17,8 @@ import AgentTaskHistoryDialog from '@/views/agent/AgentTaskHistoryDialog.vue'
 
 const props = defineProps<{
   serverId: string
+  /** 必填 — 不依赖 agentInfo 推断 (未装机时 agentVersion 是空, 推断不出来) */
+  role: 'frontline' | 'landing'
   agentInfo: ServerFrontlineListItem | null
 }>()
 const emit = defineEmits<{ refresh: [] }>()
@@ -25,12 +27,6 @@ const deployOpen = ref(false)
 const upgradeOpen = ref(false)
 const configOpen = ref(false)
 const historyOpen = ref(false)
-
-const role = computed<'frontline' | 'landing'>(() => {
-  const v = props.agentInfo?.agentVersion
-  if (v && v.startsWith('landing-')) return 'landing'
-  return 'frontline'
-})
 
 const provisioned = computed(() => !!props.agentInfo?.agentVersion)
 

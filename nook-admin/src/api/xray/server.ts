@@ -1,13 +1,6 @@
 import request from '@/api/request'
 import { useUserStore } from '@/stores/user'
 
-/** 探活结果 (后端 ConnectivityTestRespVO). */
-export interface ConnectivityTestResult {
-  success: boolean
-  elapsedMs: number
-  error?: string
-}
-
 /** 操作系统级别基本信息 (后端 ServerSystemInfoRespVO); 不依赖 Xray 是否在跑. */
 export interface ServerSystemInfo {
   hostname?: string
@@ -59,11 +52,6 @@ export interface XrayLog {
 }
 
 // ===== 后端 ResourceServerInfoController @ /admin/resource/server (通用, 不绑 xray) =====
-
-/** 探活: SSH 跑 'true' 验证可达性; 失败已包成 success=false 不抛错. */
-export function testServerConnectivity(serverId: string) {
-  return request.post<unknown, ConnectivityTestResult>('/admin/resource/server/test-connectivity', null, { params: { id: serverId } })
-}
 
 /** 拉服务器系统基本信息 (hostname / 内存 / 磁盘 / 时区 等). */
 export function getServerSystemInfo(serverId: string) {

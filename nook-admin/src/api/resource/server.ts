@@ -88,18 +88,20 @@ export interface ServerFrontline {
   cfRecordId?: string
 }
 
-/** 创建参数 (top-level core + 嵌套 credential 必填, billing/frontline 可空). */
+/** 创建参数 (frontline / landing 共用; 按 serverType 分发). */
 export interface ResourceServerCreateDTO {
-  name: string
+  /** frontline / landing; 决定主表 server_type 与是否走 landing 子表初始化. */
+  serverType: 'frontline' | 'landing'
+  /** frontline 必填 + 唯一; landing 可空 (后端用 'landing-{ipAddress}' 兜底). */
+  name?: string
   /** 出网真实 IP / 域名 (= SSH 连接目标; canonical). */
   ipAddress: string
   region: string
-  totalIpCount?: number
+  /** landing 必填; frontline 不传. */
+  ipTypeId?: string
   remark?: string
   lifecycleState?: string
   credential: ServerCredential
-  billing?: ServerBilling
-  frontline?: ServerFrontline
 }
 
 /** 核心字段更新 (lifecycle 走 /lifecycle 接口). */
@@ -158,9 +160,9 @@ export async function listAllFrontlineServers(): Promise<ServerFrontlineListItem
   return res.records || []
 }
 
-/** 单条线路机详情 (含 agent 运行时聚合; detail 页 header 用). */
-export function getServerFrontlineDetail(id: string) {
-  return request.get<unknown, ServerFrontlineListItem>('/admin/resource/server-frontline/get-frontline-detail', { params: { id } })
+/** 单条 server 详情 + agent 运行时聚合 (frontline / landing 共用; detail 页 header + Agent tab 用). */
+export function getServerDetailWithRuntime(id: string) {
+  return request.get<unknown, ServerFrontlineListItem>('/admin/resource/server/get-detail-with-runtime', { params: { id } })
 }
 
 /** Server NIC 流量配额 + 已用 + 业务带宽阈值 (监控面板用); 未上报过 NIC 时返 null. */
@@ -184,15 +186,14 @@ export interface ServerCapacityUpdateDTO {
   monthlyTrafficGb?: number
   bandwidthLimitMbps?: number
   clientMaxCount?: number
-  /** 周期重置策略: CALENDAR_MONTH / BILLING_CYCLE / FIXED; 后期"重置流量"业务按该策略派计算. */
+  /** 周期重置策略: BILLING_CYCLE / FIXED; 后期"重置流量"业务按该策略派计算. */
   quotaResetPolicy?: string
 }
 
-/** 周期重置策略选项 (跟 landing 一致, 共享语义). */
+/** 周期重置策略选项. */
 export const SERVER_QUOTA_RESET_POLICY_OPTIONS = [
-  { label: '每月 1 号重置 (CALENDAR_MONTH, 默认)', value: 'CALENDAR_MONTH' },
   { label: '按账单日重置 (BILLING_CYCLE)', value: 'BILLING_CYCLE' },
-  { label: '永不重置 (FIXED)', value: 'FIXED' }
+  { label: '永不重置 (FIXED, 默认)', value: 'FIXED' }
 ] as const
 
 /** 限流状态 → 中文标签 (read-only, 由 throttle 状态机维护). */
@@ -213,6 +214,18 @@ export function updateServerCapacity(id: string, dto: ServerCapacityUpdateDTO) {
 /** SSH 列出远端网卡 (排除 lo); 失败返空 list, 前端 fallback 到 "auto". */
 export function listNetworkInterfaces(id: string) {
   return request.get<unknown, string[]>('/admin/resource/server/list-network-interface', { params: { id } })
+}
+
+/** 探活结果 (后端 ConnectivityTestRespVO). */
+export interface ConnectivityTestResult {
+  success: boolean
+  elapsedMs: number
+  error?: string
+}
+
+/** 探活: SSH 跑 'true' 验证可达性; 失败已包成 success=false 不抛错. */
+export function testServerConnectivity(serverId: string) {
+  return request.post<unknown, ConnectivityTestResult>('/admin/resource/server/test-connectivity', null, { params: { id: serverId } })
 }
 
 /** Agent 角色 (跟后端 AgentRole enum 一致); 同时也是 agent_type / agent_task.agent_type 落库值. */
@@ -261,7 +274,7 @@ export function getServerFrontline(id: string) {
 }
 
 export function createServer(dto: ResourceServerCreateDTO) {
-  return request.post<unknown, ResourceServer>('/admin/resource/server-frontline/create-frontline', dto)
+  return request.post<unknown, ResourceServer>('/admin/resource/server/create-server', dto)
 }
 
 /** 更新核心 (name/region/totalIp/remark; lifecycle 走 /transition-lifecycle). */

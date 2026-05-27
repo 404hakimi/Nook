@@ -3,7 +3,10 @@ package com.nook.biz.node.validator;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
+import com.nook.common.web.error.CommonErrorCode;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
@@ -67,6 +70,45 @@ public class ResourceServerLandingValidator {
                 : resourceServerMapper.existsByIpAddressExcludingId(ipAddress, id);
         if (dup) {
             throw new BusinessException(ResourceErrorCode.LANDING_IP_DUPLICATE, ipAddress);
+        }
+    }
+
+    /**
+     * landing 创建聚合校验: ipTypeId 非空 + 存在; ipAddress 全局唯一
+     *
+     * @param ipTypeId  IP 类型 FK
+     * @param ipAddress 出网 IP
+     */
+    public void validateForCreate(String ipTypeId, String ipAddress) {
+        if (StrUtil.isBlank(ipTypeId)) {
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "landing 必须提供 ipTypeId");
+        }
+        validateIpTypeExists(ipTypeId);
+        validateIpAddressUnique(null, ipAddress);
+    }
+
+    /**
+     * 校验 SSH 凭据齐 (用于装机 / SSH 运维前置)
+     *
+     * @param server server 主表 DO
+     * @param cred   credential 子表 DO (可空)
+     */
+    public void validateSshCredentialReady(ResourceServerDO server, ResourceServerCredentialDO cred) {
+        if (cred == null || StrUtil.isBlank(server.getIpAddress()) || StrUtil.isBlank(cred.getSshPassword())) {
+            throw new BusinessException(ResourceErrorCode.LANDING_SSH_CRED_MISSING, server.getIpAddress());
+        }
+    }
+
+    /**
+     * 校验 SOCKS5 凭据齐 (用于装机前置: 端口 + 用户 + 密码 必须都已配置)
+     *
+     * @param landing landing 子表 DO
+     */
+    public void validateSocks5ConfigReady(ResourceServerLandingDO landing) {
+        if (landing.getSocks5Port() == null
+                || StrUtil.isBlank(landing.getSocks5Username())
+                || StrUtil.isBlank(landing.getSocks5Password())) {
+            throw new BusinessException(ResourceErrorCode.LANDING_SOCKS5_INCOMPLETE, landing.getServerId());
         }
     }
 
