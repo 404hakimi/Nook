@@ -12,6 +12,7 @@ import (
 	"nook-agent/internal/client"
 	"nook-agent/internal/config"
 	internalExec "nook-agent/internal/executor"
+	"nook-agent/internal/reconcile"
 	"nook-agent/internal/xray"
 )
 
@@ -38,7 +39,17 @@ func registerFrontline(disp *internalExec.Dispatcher, cfg *config.Config, cli *c
 	internalExec.NewXrayExecutor(bin, apiPort).Register(disp)
 	xrayCli := xray.New(bin, apiPort)
 	statsRep := xray.NewStatsReporter(cli, xrayCli, statsInterval)
+
+	// reconcile 周期: yaml 未配则回退 stats_interval (都 ~5min)
+	reconcileInterval := cfg.XrayReconcileInterval()
+	if reconcileInterval <= 0 {
+		reconcileInterval = statsInterval
+	}
+	rec := reconcile.New(cli, xrayCli, reconcileInterval)
+	log.Printf("[frontline] reconcile 周期=%v", reconcileInterval)
+
 	return []agentcore.Goroutine{
 		func(ctx context.Context) { statsRep.Run(ctx) },
+		func(ctx context.Context) { rec.Run(ctx) },
 	}
 }

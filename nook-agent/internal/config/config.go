@@ -49,6 +49,8 @@ type XrayConfig struct {
 	Bin                  string `yaml:"bin"`
 	APIPort              int    `yaml:"api_port"`
 	StatsIntervalSeconds int    `yaml:"stats_interval_seconds"`
+	// reconcile 轮询周期 (秒); 0/缺省时 frontline 回退到 stats_interval.
+	ReconcileIntervalSeconds int `yaml:"reconcile_interval_seconds"`
 }
 
 // Load 读 config.yml + 强校验; 字段缺一报错, 不补默认.
@@ -107,4 +109,7 @@ func (c *Config) HTTPTimeout() time.Duration {
 }
 func (c *Config) XrayStatsInterval() time.Duration {
 	return time.Duration(c.Xray.StatsIntervalSeconds) * time.Second
+}
+func (c *Config) XrayReconcileInterval() time.Duration {
+	return time.Duration(c.Xray.ReconcileIntervalSeconds) * time.Second
 }

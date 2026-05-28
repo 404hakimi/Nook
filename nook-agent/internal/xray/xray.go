@@ -78,6 +78,118 @@ func (c *Client) RemoveOutbound(ctx context.Context, outboundTag string) error {
 	return nil
 }
 
+// AddRules: xray api adrules --append < routing JSON. routingJSON = {"routing":{"rules":[...]}}.
+func (c *Client) AddRules(ctx context.Context, routingJSON string) error {
+	args := append(c.baseArgs("adrules"), "--append")
+	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
+	cmd.Stdin = strings.NewReader(routingJSON)
+	out, err := runCapture(cmd)
+	if err != nil {
+		return fmt.Errorf("xray api adrules 失败: %w (stdout=%s)", err, out)
+	}
+	return nil
+}
+
+// RemoveRule: xray api rmrules <ruleTag>. rule 不存在视为幂等通过.
+func (c *Client) RemoveRule(ctx context.Context, ruleTag string) error {
+	args := append(c.baseArgs("rmrules"), ruleTag)
+	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
+	out, err := runCapture(cmd)
+	if err != nil {
+		low := strings.ToLower(out)
+		if strings.Contains(low, "not found") || strings.Contains(low, "no such") {
+			return nil
+		}
+		return fmt.Errorf("xray api rmrules 失败: %w (stdout=%s)", err, out)
+	}
+	return nil
+}
+
+// ListUsers: xray api inbounduser -tag=<inboundTag> → 该 inbound 现有 user email 集合 (reconcile 对账).
+func (c *Client) ListUsers(ctx context.Context, inboundTag string) ([]string, error) {
+	args := append(c.baseArgs("inbounduser"), "-tag="+inboundTag)
+	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
+	out, err := runCapture(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("xray api inbounduser 失败: %w (stdout=%s)", err, out)
+	}
+	trimmed := strings.TrimSpace(out)
+	if trimmed == "" {
+		return nil, nil
+	}
+	var resp struct {
+		Users []struct {
+			Email string `json:"email"`
+		} `json:"users"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &resp); err != nil {
+		return nil, fmt.Errorf("解析 inbounduser 输出: %w (out=%s)", err, trimmed)
+	}
+	emails := make([]string, 0, len(resp.Users))
+	for _, u := range resp.Users {
+		if u.Email != "" {
+			emails = append(emails, u.Email)
+		}
+	}
+	return emails, nil
+}
+
+// ListOutboundTags: xray api lso → 所有 outbound tag (含静态; reconcile 按 out_ 前缀过滤业务出站).
+func (c *Client) ListOutboundTags(ctx context.Context) ([]string, error) {
+	cmd := exec.CommandContext(ctx, c.xrayBin, c.baseArgs("lso")...)
+	out, err := runCapture(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("xray api lso 失败: %w (stdout=%s)", err, out)
+	}
+	trimmed := strings.TrimSpace(out)
+	if trimmed == "" {
+		return nil, nil
+	}
+	var resp struct {
+		Outbounds []struct {
+			Tag string `json:"tag"`
+		} `json:"outbounds"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &resp); err != nil {
+		return nil, fmt.Errorf("解析 lso 输出: %w (out=%s)", err, trimmed)
+	}
+	tags := make([]string, 0, len(resp.Outbounds))
+	for _, o := range resp.Outbounds {
+		if o.Tag != "" {
+			tags = append(tags, o.Tag)
+		}
+	}
+	return tags, nil
+}
+
+// ListRuleTags: xray api lsrules → 所有 routing rule 的 ruleTag (无 ruleTag 的内置 api 规则自然跳过).
+func (c *Client) ListRuleTags(ctx context.Context) ([]string, error) {
+	cmd := exec.CommandContext(ctx, c.xrayBin, c.baseArgs("lsrules")...)
+	out, err := runCapture(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("xray api lsrules 失败: %w (stdout=%s)", err, out)
+	}
+	trimmed := strings.TrimSpace(out)
+	if trimmed == "" {
+		return nil, nil
+	}
+	var resp struct {
+		Rules []struct {
+			RuleTag string `json:"ruleTag"`
+		} `json:"rules"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &resp); err != nil {
+		return nil, fmt.Errorf("解析 lsrules 输出: %w (out=%s)", err, trimmed)
+	}
+	tags := make([]string, 0, len(resp.Rules))
+	for _, r := range resp.Rules {
+		if r.RuleTag != "" {
+			tags = append(tags, r.RuleTag)
+		}
+	}
+	return tags, nil
+}
+
 // UserStat 是 statsquery 单 user 双向流量快照.
 type UserStat struct {
 	Email    string `json:"email"`
