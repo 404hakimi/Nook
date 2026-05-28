@@ -7,6 +7,8 @@ import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
 import com.nook.biz.agent.controller.vo.AgentXrayTrafficReqVO;
 import com.nook.biz.agent.framework.auth.AuthenticatedAgent;
 import com.nook.biz.agent.service.AgentReportService;
+import com.nook.biz.node.api.xray.XrayClientReconcileApi;
+import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +36,7 @@ import java.util.List;
 public class AgentController {
 
     private final AgentReportService agentReportService;
+    private final XrayClientReconcileApi xrayClientReconcileApi;
 
     /**
      * 心跳上报 (每 1min).
@@ -104,5 +107,17 @@ public class AgentController {
                                        @RequestBody @Valid AgentXrayTrafficReqVO reqVO) {
         agentReportService.receiveXrayTraffic(serverId, reqVO);
         return Result.ok(true);
+    }
+
+    /**
+     * Agent reconcile 拉本机应存在的全部 xray 客户端期望态 (每 5min + 下单立即推).
+     * agent 跟本地实际 diff → adu/rmu/ado/rmo/adrules 收敛。
+     *
+     * @param serverId 已认证 server id
+     * @return 期望态列表 (含预拼 adu/ado/adrules JSON)
+     */
+    @GetMapping("/reconcile/desired")
+    public Result<List<XrayReconcileClientDTO>> reconcileDesired(@AuthenticatedAgent String serverId) {
+        return Result.ok(xrayClientReconcileApi.getDesiredClients(serverId));
     }
 }

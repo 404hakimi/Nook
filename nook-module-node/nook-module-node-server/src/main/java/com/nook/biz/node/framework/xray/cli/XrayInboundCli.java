@@ -287,7 +287,7 @@ public class XrayInboundCli {
      *
      * <p>字段名 {@code clients} 是 vmess/vless/trojan inbound 在 xray.json 里的标准 user 列表字段, 不能用 {@code users}.
      */
-    private String buildUserOnlyInboundJson(String tag, InboundUserSpec user) {
+    public String buildUserOnlyInboundJson(String tag, InboundUserSpec user) {
         InboundProtocolMapping protocol = InboundProtocolMapping.of(user.getProtocol());
         JSONObject userJson = protocol.buildClientJson(user);
 

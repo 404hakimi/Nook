@@ -36,6 +36,15 @@ public class XrayClientDO extends BaseEntity {
     /** 人类可读标识; 推荐格式 member_{memberId}_{ipId}, server 内全局唯一 */
     private String clientEmail;
 
+    /** 流量上限字节; 0/null=不限 (写 xray client totalBytes; reconcile 期望态用). */
+    private Long totalBytes;
+
+    /** 到期时间戳 ms; 0/null=永久. */
+    private Long expiryEpochMillis;
+
+    /** 同时连接 IP 数; 0/null=不限. */
+    private Integer limitIp;
+
     /** 客户端状态 {@link XrayClientStatusEnum} */
     private Integer status;
 

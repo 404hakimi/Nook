@@ -156,7 +156,7 @@ public class XrayOutboundCli {
      * @param password socks5 鉴权密码 (可空 = 无鉴权)
      * @return 含顶层 "outbounds" 数组的完整 JSON 字符串
      */
-    private String buildSocksOutboundJson(String tag, String host, int port,
+    public String buildSocksOutboundJson(String tag, String host, int port,
                                           String username, String password) {
         // v25.10.15 起 outbound 强制 "1 endpoint + 至多 1 user", 旧的 servers[]/users[] 数组写法被禁,
         // 新版要求扁平: settings 直接平铺 address / port / user / pass.

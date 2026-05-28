@@ -115,7 +115,7 @@ public class XrayRoutingCli {
     }
 
     /** 渲染 adrules 入参 JSON: {"routing": {"rules": [{ruleTag, user, outboundTag}]}}. */
-    private String buildAddRuleJson(String ruleTag, List<String> userEmails, String outboundTag) {
+    public String buildAddRuleJson(String ruleTag, List<String> userEmails, String outboundTag) {
         JSONArray users = new JSONArray();
         users.addAll(userEmails);
 

@@ -147,6 +147,9 @@ public class ClientOpExecutor {
                 .memberUserId(reqVO.getMemberUserId())
                 .clientUuid(clientUuid)
                 .clientEmail(clientEmail)
+                .totalBytes(reqVO.getTotalBytes() == null ? 0L : reqVO.getTotalBytes())
+                .expiryEpochMillis(reqVO.getExpiryEpochMillis() == null ? 0L : reqVO.getExpiryEpochMillis())
+                .limitIp(reqVO.getLimitIp() == null ? 0 : reqVO.getLimitIp())
                 .status(1)
                 .build();
         try {
