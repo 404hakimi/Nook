@@ -180,6 +180,61 @@ agent 每 N 秒:
 
 > 代价认知: **最终一致** (分钟级收敛), 下单走立即推即时。换来强一致 DB + 自愈 + 无孤儿, 运营压力大降。
 
+### 4.6 实施计划 (基于实测代码, 已定 2B = agent 侧 reconcile)
+
+> **实测的现状真相 (重要)**: xray client 开通**当前是后端 SSH** —— `ClientOpExecutor.doProvision` 走 `SshSessions.acquire(serverId)` + `inboundCli.addUser / routingCli.addRule / outboundCli.addSocksOutbound` 同步下发 (op 框架内)。Go agent 有 `xray_provision_user` 等 task handler, 但 client 开通的**活路径是后端 SSH**, 不是 agent task。2B = 把 apply 从"后端 SSH"搬进"agent 本地 xray"。
+
+**每个 client = 3 个 xray 实体** (tag 稳定, 可幂等):
+| 实体 | 加 | 删 | 列(对账) | tag |
+|---|---|---|---|---|
+| inbound user | `adu` (JSON `{inbounds:[{tag:SHARED,listen:0.0.0.0,port:1,protocol,settings:{clients:[client]}}]}`) | `rmu -tag=SHARED <email>` | `inbounduser -tag=SHARED`→emails | 共享 inbound, 按 email 区分 |
+| socks outbound | `ado` (JSON `{outbounds:[{tag,protocol:socks,settings:{address,port,user,pass}}]}`) | `rmo <tag>` | `lso`→tag/kind | `out_<clientId>` |
+| routing rule | `adrules --append` (JSON `{routing:{rules:[{ruleTag,user:[email],outboundTag}]}}`) | `rmrules <ruleTag>` | `lsrules`→ruleTag | `rule_<clientId>` |
+
+**契约设计决策: desired-state 直接下发后端拼好的 JSON blob**, agent 只按 tag/email diff + 把 blob 喂给 `xray api`, 不在 Go 侧重复协议拼装逻辑。
+
+**`XrayReconcileClientDTO`** (每个应存在的 client):
+```
+clientEmail / inboundTag(=shared) / outboundTag(out_<id>) / ruleTag(rule_<id>)
+aduJson      // {inbounds:[...]}  喂 `xray api adu`
+adoJson      // {outbounds:[...]} 喂 `xray api ado`
+adrulesJson  // {routing:{rules:[...]}} 喂 `xray api adrules --append`
+```
+
+**后端端点** (复用 agent 鉴权 `@AuthenticatedAgent String serverId`, 即 X-Agent-Token→serverId):
+```
+GET /api/agent/reconcile/desired  →  List<XrayReconcileClientDTO>
+  = 该 server 上 status=RUNNING 的 xray_client, 每条 join 落地机 socks 凭据 + xray_config 协议, 拼 3 段 JSON
+```
+
+**Agent reconcile loop** (Go, 每 5min + 下单立即推):
+```
+desired = GET /api/agent/reconcile/desired
+actualUsers   = inbounduser -tag=SHARED        (需新增 Go 方法)
+actualOutbds  = lso (socks 类)                  (需新增 Go 方法)
+actualRules   = lsrules .ruleTag                (需新增 Go 方法)
+for d in desired: 缺则 adu(d.aduJson) / ado(d.adoJson) / adrules(d.adrulesJson)
+extra (actual 有 desired 无): rmu(email) / rmo(tag) / rmrules(ruleTag)
+```
+> Go agent 现有 `xray.go`: 有 adu/rmu/ado/rmo/statsquery, **缺 inbounduser/lso/lsrules 三个列方法** —— 这是 2B 主要 Go 增量 (后端 `XrayInboundCli/XrayOutboundCli/XrayRoutingCli` 的 list 实现可直接照搬命令)。
+
+**文件级计划**:
+| # | 文件 | 改动 |
+|---|---|---|
+| P2.1 | node-api `XrayClientReconcileApi` + `XrayReconcileClientDTO` | 新增契约 |
+| P2.1 | node-server `XrayClientReconcileApiImpl` | query xray_client(server,RUNNING) + 落地机 socks + 协议 → 拼 3 段 JSON (复用 `InboundProtocolMapping.buildClientJson` + fastjson2 包壳) |
+| P2.1 | agent-server `AgentController` | 加 `GET /reconcile/desired` → 调 node-api |
+| P2.2 | `nook-agent/internal/xray/xray.go` | 加 `ListUsers/ListOutbounds/ListRules` |
+| P2.2 | `nook-agent/internal/reconcile/` (新) | reconcile loop + diff + apply |
+| P2.2 | `nook-agent/internal/agentcore/run.go` | 注册 reconcile 周期任务 |
+| P2.3 | `ClientOpExecutor.doProvision/doRevoke` | 去 SSH 三段, 只写 DB (insert/update xray_client + occupy/release landing); 远端交 reconcile |
+| P2.3 | 下单后给 agent "立即 reconcile" 轻推 (一个 PENDING task 或 flag) |
+
+> ⚠️ **P2.1 前置 (实测发现)**: `xray_client` 当前**不存** `total_bytes` / `expiry_epoch_millis` / `limit_ip` —— 这些只在开通时临时传给 xray, 没落库。reconcile 要"DB=期望态", agent 拉 desired 必须能拼出完整 inbound user (含配额/到期), 所以这三个值必须进 DB。两个方案:
+> - **(推荐) 给 `xray_client` 加 3 列** `total_bytes` / `expiry_epoch_millis` / `limit_ip`, 开通(现在改 DB-only)时写入 → reconcile 端点纯 node 域自给自足, xray_client 即期望态。
+> - 或 desired-state 由 trade 驱动 (sub→plan 取 traffic_gb→totalBytes、expires_at→expiry), trade 调 node 拼 JSON —— 跨域更绕。
+> 先做加列方案。这也顺带让 totalBytes/expiry 在 DB 可查 (现在只在远端 xray)。
+
 ---
 
 ## 5. 业务流程 (后端只写 DB, agent 收敛)
