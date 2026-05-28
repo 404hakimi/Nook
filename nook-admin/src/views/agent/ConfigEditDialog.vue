@@ -71,6 +71,8 @@ xray:
   api_port: 10085
   # 客户流量 stats 上报间隔 (秒)
   stats_interval_seconds: 300
+  # reconcile (对账) 周期 (秒); 拉后端期望态跟本地 xray 比对, 缺补多删自愈; 默认 5min
+  reconcile_interval_seconds: 300
 `
 
 // === Landing 专属 (跑 socks5; 当前空壳, socks5 接管待后续 sprint) ===

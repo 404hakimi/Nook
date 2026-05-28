@@ -42,6 +42,8 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
 
     /** xray stats 上报间隔; agent-side 轮询率, 装机时统一值, 后续 ConfigEditDialog 可改. */
     private static final int XRAY_STATS_INTERVAL_SECONDS = 300;
+    /** reconcile (对账) 间隔默认值; admin 未填时用. */
+    private static final int DEFAULT_RECONCILE_INTERVAL_SECONDS = 300;
 
     private final ResourceServerApi resourceServerApi;
     private final ResourceServerCredentialApi resourceServerCredentialApi;
@@ -165,10 +167,13 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         sb.append("poller:\n");
         sb.append("  interval_seconds: ").append(r.getPollerIntervalSeconds()).append("\n\n");
         if (AgentRole.FRONTLINE.getCode().equals(r.getRole())) {
+            int reconcileInterval = r.getReconcileIntervalSeconds() == null
+                    ? DEFAULT_RECONCILE_INTERVAL_SECONDS : r.getReconcileIntervalSeconds();
             sb.append("xray:\n");
             sb.append("  bin: ").append(r.getXrayBin()).append("\n");
             sb.append("  api_port: ").append(r.getXrayApiPort()).append("\n");
-            sb.append("  stats_interval_seconds: ").append(XRAY_STATS_INTERVAL_SECONDS).append("\n\n");
+            sb.append("  stats_interval_seconds: ").append(XRAY_STATS_INTERVAL_SECONDS).append("\n");
+            sb.append("  reconcile_interval_seconds: ").append(reconcileInterval).append("\n\n");
         }
         sb.append("runtime:\n");
         sb.append("  bin_path: ").append(r.getBinPath()).append("\n");

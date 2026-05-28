@@ -41,6 +41,10 @@ public class AgentInstallReqVO {
     @NotNull @Min(5) @Max(600)
     private Integer pollerIntervalSeconds;
 
+    /** Frontline reconcile (对账) 间隔 (秒); 缺省 300. landing 忽略. */
+    @Min(30) @Max(3600)
+    private Integer reconcileIntervalSeconds;
+
     // ==================== 路径 + URL (前端默认 + 可改; backend 不兜底) ====================
 
     /** 装机根目录 (e.g., /home/nook-agent). */
