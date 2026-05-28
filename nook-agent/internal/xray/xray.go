@@ -30,7 +30,8 @@ func (c *Client) baseArgs(sub string) []string {
 // AddUser: xray api adu < inbound JSON.
 // inboundTag + user spec (uuid, email, level) 由 caller 拼好 inbound JSON 后传入.
 func (c *Client) AddUser(ctx context.Context, inboundJSON string) error {
-	args := c.baseArgs("adu")
+	// adu 无 stdin 自动 fallback (跟 ado/adrules 不同), 必须显式传 stdin: 否则静默 "Added 0 user(s)".
+	args := append(c.baseArgs("adu"), "stdin:")
 	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
 	cmd.Stdin = strings.NewReader(inboundJSON)
 	out, err := runCapture(cmd)
@@ -57,7 +58,7 @@ func (c *Client) RemoveUser(ctx context.Context, inboundTag, email string) error
 
 // AddOutbound: xray api ado < outbound JSON.
 func (c *Client) AddOutbound(ctx context.Context, outboundJSON string) error {
-	args := c.baseArgs("ado")
+	args := append(c.baseArgs("ado"), "stdin:")
 	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
 	cmd.Stdin = strings.NewReader(outboundJSON)
 	_, err := runCapture(cmd)
@@ -80,7 +81,7 @@ func (c *Client) RemoveOutbound(ctx context.Context, outboundTag string) error {
 
 // AddRules: xray api adrules --append < routing JSON. routingJSON = {"routing":{"rules":[...]}}.
 func (c *Client) AddRules(ctx context.Context, routingJSON string) error {
-	args := append(c.baseArgs("adrules"), "--append")
+	args := append(c.baseArgs("adrules"), "--append", "stdin:")
 	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
 	cmd.Stdin = strings.NewReader(routingJSON)
 	out, err := runCapture(cmd)

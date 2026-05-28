@@ -4,6 +4,11 @@ server:
     encoding:
       charset: UTF-8
       force: true
+  # 响应 gzip (agent binary 6.9MB → ~2.8MB; 慢隧道/跨境下载用; curl --compressed 自动解压)
+  compression:
+    enabled: true
+    mime-types: application/octet-stream,application/json,text/plain
+    min-response-size: 2048
 
 spring:
   profiles:
