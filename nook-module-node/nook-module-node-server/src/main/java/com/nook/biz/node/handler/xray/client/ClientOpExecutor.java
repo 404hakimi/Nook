@@ -116,30 +116,15 @@ public class ClientOpExecutor {
                     reqVO.getIpId(), "落地节点的 SOCKS5 凭据未配置");
         }
 
-        sink.report("生成客户端凭据", 45);
-        String clientId = UUID.randomUUID().toString().replace("-", "");
-        XrayConfigDO cfg = dep.config();
-        if (cfg == null) {
+        // 校验服务器已装 xray (config 存在), 才允许下单; 远端三段由 agent reconcile 下发
+        if (dep.config() == null) {
             throw new BusinessException(XrayErrorCode.SERVER_STATE_NOT_FOUND, reqVO.getServerId());
         }
-        int listenPort = cfg.getSharedInboundPort();
-        String inboundTag = SHARED_INBOUND_TAG;
-        String outboundTag = outboundTagOf(clientId);
-        String ruleTag = ruleTagOf(clientId);
+
+        sink.report("生成客户端 + 入库", 85);
+        String clientId = UUID.randomUUID().toString().replace("-", "");
         String clientUuid = UUID.randomUUID().toString();
         String clientEmail = "member_" + reqVO.getMemberUserId() + "_" + reqVO.getIpId();
-
-        InboundUserSpec userSpec = InboundUserSpec.builder()
-                .email(clientEmail)
-                .uuid(clientUuid)
-                .protocol(cfg.getProtocol())
-                .flow("")
-                .totalBytes(reqVO.getTotalBytes() == null ? 0L : reqVO.getTotalBytes())
-                .expiryEpochMillis(reqVO.getExpiryEpochMillis() == null ? 0L : reqVO.getExpiryEpochMillis())
-                .limitIp(reqVO.getLimitIp() == null ? 0 : reqVO.getLimitIp())
-                .build();
-
-        sink.report("保存客户端", 55);
         XrayClientDO entity = XrayClientDO.builder()
                 .id(clientId)
                 .serverId(reqVO.getServerId())
@@ -158,52 +143,10 @@ public class ClientOpExecutor {
             throw new BusinessException(XrayErrorCode.CLIENT_IP_ALREADY_USED, reqVO.getIpId());
         }
 
-        int apiPort = dep.server().getXrayApiPort();
-        String xrayBin = dep.server().getXrayBinaryPath();
-        sink.report("连接服务器", 65);
-        SshSession session = SshSessions.acquire(reqVO.getServerId(), SshSessionScope.SHARED);
-        try {
-            statsCli.readUserTraffic(session, xrayBin, apiPort, clientEmail, true);
-        } catch (Exception ignore) { }
-
-        // 远端写非事务, 用旗标记录已成功的步骤, 出错时按相反顺序手动撤销
-        boolean userAdded = false;
-        boolean ruleAdded = false;
-        boolean socksAdded = false;
-        try {
-            sink.report("注册客户到 Xray", 72);
-            inboundCli.addUser(session, xrayBin, apiPort, inboundTag, userSpec);
-            userAdded = true;
-
-            sink.report("下发路由规则", 80);
-            routingCli.addRule(session, xrayBin, apiPort, ruleTag,
-                    Collections.singletonList(clientEmail), outboundTag);
-            ruleAdded = true;
-
-            sink.report("下发落地出口", 90);
-            outboundCli.addSocksOutbound(session, xrayBin, apiPort, outboundTag,
-                    landingSrv.getIpAddress(), landingSocks.getSocks5Port(),
-                    landingSocks.getSocks5Username(), landingSocks.getSocks5Password());
-            socksAdded = true;
-        } catch (RuntimeException e) {
-            log.error("[provision] CLI 失败 server={} client={} email={} stage=[user={} rule={} socks={}]",
-                    reqVO.getServerId(), clientId, clientEmail, userAdded, ruleAdded, socksAdded, e);
-            if (socksAdded) {
-                try { outboundCli.removeOutbound(session, xrayBin, apiPort, outboundTag); }
-                catch (Exception ignore) { }
-            }
-            if (ruleAdded) {
-                try { routingCli.removeRule(session, xrayBin, apiPort, ruleTag); }
-                catch (Exception ignore) { }
-            }
-            if (userAdded) {
-                try { inboundCli.removeUser(session, xrayBin, apiPort, inboundTag, clientEmail); }
-                catch (Exception ignore) { }
-            }
-            throw e;
-        }
-        log.info("[provision] OK server={} client={} port={} email={} ip={}",
-                reqVO.getServerId(), clientId, listenPort, clientEmail, landingSrv.getIpAddress());
+        // 远端不在此同步下发: agent reconcile 拉 DB 期望态后本地 adu/ado/adrules 收敛
+        sink.report("已入库, 远端由 agent reconcile 下发", 100);
+        log.info("[provision] DB-only OK server={} client={} email={} ip={}; 远端交 reconcile",
+                reqVO.getServerId(), clientId, clientEmail, landingSrv.getIpAddress());
         return entity;
     }
 
@@ -216,15 +159,11 @@ public class ClientOpExecutor {
     void doRevoke(String inboundEntityId, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
 
-        sink.report("加载客户端", 20);
+        sink.report("加载客户端", 30);
         XrayClientDO e = clientValidator.validateExists(inboundEntityId);
-        String outboundTag = outboundTagOf(e.getId());
-        String ruleTag = ruleTagOf(e.getId());
-        XrayServerDO server = xrayServerValidator.validateExists(e.getServerId());
-        int apiPort = server.getXrayApiPort();
-        String xrayBin = server.getXrayBinaryPath();
 
-        sink.report("清理本地数据", 50);
+        // 只写 DB: 删 client + 流量 + 释放落地机; 远端 user/rule/outbound 由 agent reconcile 清掉
+        sink.report("清理 DB + 释放落地机", 80);
         transactionTemplate.executeWithoutResult(txStatus -> {
             xrayClientMapper.deleteById(e.getId());
             xrayClientTrafficMapper.deleteByClientId(e.getId());
@@ -236,45 +175,9 @@ public class ClientOpExecutor {
             }
         });
 
-        // SSH 副作用不可回滚, 故放事务外; 失败留孤儿不抛错, 由对账兜底
-        sink.report("连接服务器", 70);
-        try {
-            SshSession session = SshSessions.acquire(e.getServerId(), SshSessionScope.SHARED);
-            sink.report("清理服务器配置", 85);
-            cleanupRemoteAfterRevoke(session, xrayBin, apiPort, SHARED_INBOUND_TAG,
-                    e.getClientEmail(), ruleTag, outboundTag, e.getServerId());
-        } catch (Exception ex) {
-            log.warn("[revoke] DB 已提交, 但 SSH 清理失败 server={} 远端可能留孤儿 user/rule/outbound: {}",
-                    e.getServerId(), ex.getMessage());
-        }
-
-        log.info("[revoke] OK server={} client={} email={}",
+        sink.report("已删, 远端由 agent reconcile 清理", 100);
+        log.info("[revoke] DB-only OK server={} client={} email={}; 远端交 reconcile",
                 e.getServerId(), e.getId(), e.getClientEmail());
-    }
-
-    /** 远端清理 user / rule / outbound; 单步失败仅 warn, 由对账兜底. */
-    private void cleanupRemoteAfterRevoke(SshSession session, String xrayBin, int apiPort,
-                                          String inboundTag, String email,
-                                          String ruleTag, String outboundTag, String serverId) {
-        try {
-            inboundCli.removeUser(session, xrayBin, apiPort, inboundTag, email);
-        } catch (BusinessException be) {
-            if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) throw be;
-            log.warn("[revoke] user 已不存在 server={} email={}", serverId, email);
-        }
-
-        try {
-            routingCli.removeRule(session, xrayBin, apiPort, ruleTag);
-        } catch (RuntimeException re) {
-            log.warn("[revoke] routing rule 删除失败 server={} ruleTag={}: {}",
-                    serverId, ruleTag, re.getMessage());
-        }
-
-        try {
-            outboundCli.removeOutbound(session, xrayBin, apiPort, outboundTag);
-        } catch (BusinessException be) {
-            if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) throw be;
-        }
     }
 
     /**
