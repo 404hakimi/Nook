@@ -233,11 +233,16 @@ const heartbeatColor = computed(() => {
           </div>
         </template>
 
-        <NAlert v-if="!hostLoaded && !hostLoading" type="info" :show-icon="false" size="small">
-          点上方 "加载" 拉远端 SSH 主机 + UFW 信息 (避免进监控面板就强拉, 单次约 1-3s).
-        </NAlert>
+        <div v-if="!hostLoaded && !hostLoading" class="placeholder-block">
+          <NIcon :size="32"><Server /></NIcon>
+          <span class="placeholder-text">点上方"加载"拉远端主机 / UFW 信息</span>
+        </div>
+        <div v-else-if="hostLoading && !hostInfo" class="placeholder-block">
+          <NSpin :size="20" />
+          <span class="placeholder-text">加载中…</span>
+        </div>
 
-        <NSpin v-else :show="hostLoading && !hostInfo">
+        <template v-else>
           <NDescriptions
             v-if="hostInfo"
             bordered
@@ -287,7 +292,7 @@ const heartbeatColor = computed(() => {
             </div>
             <pre class="ufw-pre">{{ ufwStatus || '(未获取到)' }}</pre>
           </div>
-        </NSpin>
+        </template>
       </NCard>
 
       <!-- ============ 流量详情 ============ -->
@@ -484,6 +489,23 @@ html[data-theme='dark'] .metric-sub { color: #a1a1aa; }
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* 主机/UFW 段未加载时的占位 (留出最低高度避免页面跳, 灰色图标 + 短提示) */
+.placeholder-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 80px;
+  color: #a1a1aa;
+  font-size: 13px;
+  background: rgba(127, 127, 127, 0.03);
+  border: 1px dashed rgba(127, 127, 127, 0.15);
+  border-radius: 4px;
+}
+.placeholder-text {
+  color: #71717a;
 }
 
 .chart-placeholder {

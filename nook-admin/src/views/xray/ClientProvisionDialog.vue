@@ -6,7 +6,6 @@ import {
   NForm,
   NFormItem,
   NIcon,
-  NInput,
   NInputNumber,
   NModal,
   NSelect,
@@ -21,12 +20,15 @@ import {
   pageServerLanding,
   type ServerLanding
 } from '@/api/resource/server-landing'
+import { pageMemberAccounts, type MemberAccount } from '@/api/member/user'
 import { IP_TYPE_CODE_LABELS } from '@/api/system/ip-type'
 import { useIpTypeStore } from '@/stores/ipType'
 import { storeToRefs } from 'pinia'
 
 interface Props {
   modelValue: boolean
+  /** 上层 (server 详情页内) 锁死的 serverId; 传了就不再显示服务器下拉, 也不拉 pageServers. */
+  serverId?: string
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -45,6 +47,16 @@ const landings = ref<ServerLanding[]>([])
 const ipTypeStore = useIpTypeStore()
 const { list: ipTypes } = storeToRefs(ipTypeStore)
 const loadingLandings = ref(false)
+
+// 会员下拉: 远程分页 + 邮箱模糊搜索 + 滚动到底加载下一页
+const MEMBER_PAGE_SIZE = 10
+const members = ref<MemberAccount[]>([])
+const loadingMembers = ref(false)
+const memberKeyword = ref('')
+const memberPageNo = ref(1)
+const memberTotal = ref(0)
+/** 防抖句柄, 输入快速变化时只发最后一次. */
+let memberSearchTimer: number | null = null
 
 /** memberUserId 唯一性预校验状态; 'idle' 表示未校验, 'ok' 通过, 'dup' 已重复, 'checking' 正在请求. */
 const memberCheck = ref<'idle' | 'checking' | 'ok' | 'dup'>('idle')
@@ -79,6 +91,14 @@ const landingOptions = computed(() =>
   })
 )
 
+/** 启用状态会员下拉; 禁用账户不参与分配. */
+const memberOptions = computed(() =>
+  members.value.map((m) => ({
+    label: m.email,
+    value: m.id
+  }))
+)
+
 watch(
   () => props.modelValue,
   async (open) => {
@@ -86,22 +106,76 @@ watch(
     Object.keys(errors).forEach((k) => delete errors[k])
     memberCheck.value = 'idle'
     Object.assign(form, {
-      serverId: '',
+      serverId: props.serverId ?? '',
       ipId: '',
       memberUserId: '',
       totalBytes: undefined,
       expiryEpochMillis: undefined,
       limitIp: undefined
     })
-    await Promise.all([loadServers(), loadLandings(), ipTypeStore.ensureLoaded()])
+    // 会员: 重置搜索 + 拉首页
+    memberKeyword.value = ''
+    memberPageNo.value = 1
+    members.value = []
+    memberTotal.value = 0
+    // 在 server 详情页打开时 serverId 已固定, 不再拉 server 列表
+    const tasks: Promise<unknown>[] = [loadLandings(), loadMembers(true), ipTypeStore.ensureLoaded()]
+    if (!props.serverId) tasks.push(loadServers())
+    await Promise.all(tasks)
   }
 )
+
+/**
+ * 远程分页加载会员.
+ * @param reset true = 替换列表 (重新搜索 / 初次打开); false = 追加到尾部 (滚动加载下一页)
+ */
+async function loadMembers(reset: boolean) {
+  if (loadingMembers.value) return
+  loadingMembers.value = true
+  try {
+    const res = await pageMemberAccounts({
+      pageNo: memberPageNo.value,
+      pageSize: MEMBER_PAGE_SIZE,
+      status: 1,
+      keyword: memberKeyword.value.trim() || undefined
+    })
+    members.value = reset ? res.records : [...members.value, ...res.records]
+    memberTotal.value = res.total
+  } catch {
+    /* */
+  } finally {
+    loadingMembers.value = false
+  }
+}
+
+/** 用户在下拉里输入邮箱关键字; 300ms debounce, 重置到 page1. */
+function onMemberSearch(value: string) {
+  memberKeyword.value = value
+  if (memberSearchTimer != null) {
+    window.clearTimeout(memberSearchTimer)
+  }
+  memberSearchTimer = window.setTimeout(() => {
+    memberPageNo.value = 1
+    void loadMembers(true)
+  }, 300)
+}
+
+/** 下拉列表滚动到底部时拉下一页 (未到 total 才拉). */
+function onMemberScroll(e: Event) {
+  if (loadingMembers.value) return
+  if (members.value.length >= memberTotal.value) return
+  const el = e.target as HTMLElement
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 20) {
+    memberPageNo.value += 1
+    void loadMembers(false)
+  }
+}
 
 async function loadLandings() {
   loadingLandings.value = true
   try {
-    // 仅拉 AVAILABLE 的落地机, 防止误派已占用的; 取 200 条够下拉用
-    const res = await pageServerLanding({ pageNo: 1, pageSize: 200, status: 'AVAILABLE' })
+    // 仅拉 AVAILABLE 的落地机, 防止误派已占用的; 后端单页上限 100
+    const res = await pageServerLanding({ pageNo: 1, pageSize: 100, status: 'AVAILABLE' })
     landings.value = res.records
   } catch {
     /* */
@@ -113,8 +187,8 @@ async function loadLandings() {
 async function loadServers() {
   loadingServers.value = true
   try {
-    // 拉前 200 条够选了; 正式环境服务器数量有限
-    const res = await pageServers({ pageNo: 1, pageSize: 200 })
+    // 拉前 100 条够选; Nook 个位数集群规模
+    const res = await pageServers({ pageNo: 1, pageSize: 100 })
     servers.value = res.records
   } catch {
     /* */
@@ -131,7 +205,7 @@ async function loadServers() {
  * - 注意 pageClients 默认过滤软删, 已 revoke 的旧客户端不会被算进重复.
  */
 async function checkMemberUnique(): Promise<boolean> {
-  const id = form.memberUserId.trim()
+  const id = form.memberUserId
   if (!id) {
     memberCheck.value = 'idle'
     return false
@@ -154,16 +228,19 @@ async function checkMemberUnique(): Promise<boolean> {
   }
 }
 
-function onMemberInput() {
-  // 输入过程中清状态, 避免拿旧结论卡用户
+/** 切换会员后清旧的校验状态, 并对新选项即时跑唯一性检查. */
+function onMemberChange() {
   if (memberCheck.value === 'dup') delete errors.memberUserId
   memberCheck.value = 'idle'
+  if (form.memberUserId) {
+    void checkMemberUnique()
+  }
 }
 
 function validate(): boolean {
   Object.keys(errors).forEach((k) => delete errors[k])
   if (!form.serverId) errors.serverId = '请选服务器'
-  if (!form.memberUserId.trim()) errors.memberUserId = '请输入会员 ID'
+  if (!form.memberUserId) errors.memberUserId = '请选会员'
   if (!form.ipId.trim()) errors.ipId = '请选 IP'
   return Object.keys(errors).length === 0
 }
@@ -178,7 +255,7 @@ async function onSubmit() {
     const dto: XrayClientProvisionDTO = {
       serverId: form.serverId,
       ipId: form.ipId.trim(),
-      memberUserId: form.memberUserId.trim(),
+      memberUserId: form.memberUserId,
       totalBytes: form.totalBytes,
       expiryEpochMillis: form.expiryEpochMillis,
       limitIp: form.limitIp
@@ -217,7 +294,8 @@ function close() {
       size="small"
     >
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-        <div class="sm:col-span-2">
+        <!-- 服务器字段: 从全局 ClientList 入口才显示; 从某台 server 详情页入口已锁定不再选 -->
+        <div v-if="!serverId" class="sm:col-span-2">
           <NFormItem
             required
             :validation-status="errors.serverId ? 'error' : undefined"
@@ -245,8 +323,11 @@ function close() {
             :feedback="errors.memberUserId"
           >
             <template #label>
-              <span>会员 ID</span>
-              <span v-if="memberCheck === 'checking'" class="text-xs text-zinc-400 ml-2">
+              <span>会员</span>
+              <span v-if="loadingMembers" class="text-xs text-zinc-400 ml-2">
+                <NSpin :size="12" /> 加载中
+              </span>
+              <span v-else-if="memberCheck === 'checking'" class="text-xs text-zinc-400 ml-2">
                 <NSpin :size="12" /> 校验唯一性
               </span>
               <span
@@ -257,14 +338,22 @@ function close() {
                 <NIcon :size="12"><CheckCircle2 /></NIcon>
                 可用
               </span>
+              <span v-else class="text-xs text-zinc-400 ml-2">
+                已加载 {{ members.length }} / 共 {{ memberTotal }} (仅启用)
+              </span>
             </template>
-            <NInput
+            <NSelect
               v-model:value="form.memberUserId"
-              placeholder="member_user.id (一名会员仅能持有一个客户端)"
+              :options="memberOptions"
               :status="errors.memberUserId ? 'error' : undefined"
-              :input-props="{ style: 'font-family: monospace' }"
-              @input="onMemberInput"
-              @blur="checkMemberUnique"
+              :loading="loadingMembers"
+              filterable
+              remote
+              clear-filter-after-select
+              placeholder="按邮箱搜索 (滚动加载更多; 一名会员仅能持有一个客户端)"
+              @search="onMemberSearch"
+              @scroll="onMemberScroll"
+              @update:value="onMemberChange"
             />
           </NFormItem>
         </div>

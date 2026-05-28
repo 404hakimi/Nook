@@ -1,6 +1,5 @@
 package com.nook.biz.agent.controller.admin;
 
-import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskPageReqVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskRespVO;
 import com.nook.biz.agent.convert.AgentTaskConvert;
@@ -29,17 +28,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminAgentController {
 
     private final AdminAgentService adminAgentService;
-
-    /**
-     * Agent 详情 (单 server).
-     *
-     * @param serverId server 主键
-     * @return 含 capacity / agentToken 末 8 位 / consecutive_miss 等
-     */
-    @GetMapping("/get-agent")
-    public Result<AdminAgentDetailRespVO> detail(@RequestParam("serverId") String serverId) {
-        return Result.ok(adminAgentService.detail(serverId));
-    }
 
     /**
      * 派 agent_upgrade task; agent 端拉 backend 当前部署的 binary (nook-agent-*-linux-amd64).

@@ -350,7 +350,7 @@ function close() {
             </NFormItem>
           </div>
 
-          <!-- dante 配置: 安装目录 / 日志路径 / 日志级别 三列均分 -->
+          <!-- dante 配置: 安装目录 / 日志路径 / 日志记录范围 三列均分 -->
           <div class="section-title mt-3">dante 配置</div>
           <div class="grid grid-cols-3 gap-3">
             <NFormItem label="安装目录" required>
@@ -359,7 +359,7 @@ function close() {
             <NFormItem label="日志路径" required>
               <NInput v-model:value="form.logPath" :input-props="{ style: 'font-family: monospace' }" />
             </NFormItem>
-            <NFormItem label="dante 日志级别" required>
+            <NFormItem label="日志记录范围" required>
               <NSelect v-model:value="form.logLevel" :options="DANTE_LOG_LEVEL_OPTIONS as any" />
             </NFormItem>
           </div>

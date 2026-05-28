@@ -277,7 +277,7 @@ onMounted(loadList)
       size="small"
     />
 
-    <ClientProvisionDialog v-model="provisionOpen" @saved="loadList" />
+    <ClientProvisionDialog v-model="provisionOpen" :server-id="serverId" @saved="loadList" />
     <ClientShareDialog v-model="shareOpen" :client="shareTarget" />
     <ClientTrafficDialog v-model="trafficOpen" :inbound="trafficTarget" />
   </div>

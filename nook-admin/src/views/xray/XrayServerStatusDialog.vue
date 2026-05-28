@@ -14,11 +14,14 @@ import {
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
 import {
-  getXrayServiceStatus,
+  getServerSystemdStatus,
   xrayAutostart,
-  type XrayServiceStatus
+  type SystemdStatus
 } from '@/api/xray/server'
 import type { XrayServer } from '@/api/xray/xray-server'
+
+/** Xray 走公共 systemd 接口的固定 unit 名. */
+const XRAY_UNIT = 'xray'
 
 interface Props {
   modelValue: boolean
@@ -34,7 +37,7 @@ const { confirm } = useConfirm()
 
 const statusLoading = ref(false)
 const autostartLoading = ref(false)
-const serviceStatus = ref<XrayServiceStatus | null>(null)
+const serviceStatus = ref<SystemdStatus | null>(null)
 
 watch(
   () => [props.modelValue, props.server?.serverId],
@@ -50,7 +53,7 @@ async function runStatus() {
   if (!props.server || statusLoading.value) return
   statusLoading.value = true
   try {
-    serviceStatus.value = await getXrayServiceStatus(props.server.serverId)
+    serviceStatus.value = await getServerSystemdStatus(props.server.serverId, XRAY_UNIT)
   } catch (e) {
     serviceStatus.value = null
     message.error('拉 Xray 服务状态失败: ' + ((e as Error).message ?? ''))
@@ -187,17 +190,11 @@ function autostartRailStyle({ checked }: { checked: boolean }) {
           </div>
           <div>
             <div class="text-xs text-zinc-500">Xray 版本</div>
-            <div class="font-mono text-xs">{{ serviceStatus.version || '-' }}</div>
+            <div class="font-mono text-xs">{{ server?.xrayVersion || '-' }}</div>
           </div>
           <div class="sm:col-span-2">
             <div class="text-xs text-zinc-500">启动时间</div>
             <div class="text-xs">{{ serviceStatus.uptimeFrom || '-' }}</div>
-          </div>
-          <div class="sm:col-span-2">
-            <div class="text-xs text-zinc-500">监听端口</div>
-            <pre class="font-mono text-xs whitespace-pre-wrap break-all m-0">{{
-              serviceStatus.listening || '(未捕获)'
-            }}</pre>
           </div>
         </div>
         <div v-else class="text-xs text-zinc-400 py-2">(未获取到)</div>

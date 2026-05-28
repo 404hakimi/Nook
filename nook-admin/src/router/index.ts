@@ -32,6 +32,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '会员账户' }
       },
       {
+        path: 'trade/plans',
+        name: 'trade-plans',
+        component: () => import('@/views/trade/PlanList.vue'),
+        meta: { title: '套餐管理' }
+      },
+      {
+        path: 'trade/subscriptions',
+        name: 'trade-subscriptions',
+        component: () => import('@/views/trade/SubscriptionList.vue'),
+        meta: { title: '订阅管理' }
+      },
+      {
         path: 'member/logs',
         name: 'member-logs',
         component: () => import('@/views/member/OperationLog.vue'),

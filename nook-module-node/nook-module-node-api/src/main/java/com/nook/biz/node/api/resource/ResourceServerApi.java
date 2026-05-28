@@ -53,4 +53,12 @@ public interface ResourceServerApi {
      * @return 服务器编号 → 服务器名称
      */
     Map<String, String> getServerNameMap(Collection<String> serverIds);
+
+    /**
+     * 批量查 server 概要 (含 serverType / lifecycleState / ipAddress; trade 绑定校验 + enrich 用)
+     *
+     * @param serverIds 服务器编号集合
+     * @return server 视图列表 (不存在的 id 跳过)
+     */
+    List<ResourceServerRespDTO> listByServerIds(Collection<String> serverIds);
 }

@@ -1,6 +1,5 @@
 package com.nook.biz.agent.service;
 
-import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskPageReqVO;
 import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.common.web.response.PageResult;
@@ -11,14 +10,6 @@ import com.nook.common.web.response.PageResult;
  * @author nook
  */
 public interface AdminAgentService {
-
-    /**
-     * 获得 Agent 详情
-     *
-     * @param serverId server 编号
-     * @return Agent 详情
-     */
-    AdminAgentDetailRespVO detail(String serverId);
 
     /**
      * 派发升级任务

@@ -44,11 +44,13 @@ import {
   SERVER_LANDING_STATUS_LABELS,
   getServerLandingDetail,
   getServerLandingInstall,
-  getSocks5Status,
   type ServerLanding,
-  type ServerLandingInstall,
-  type Socks5ServiceStatus
+  type ServerLandingInstall
 } from '@/api/resource/server-landing'
+import { getServerSystemdStatus, type SystemdStatus } from '@/api/xray/server'
+
+/** dante 的固定 systemd unit 名; 公共 /get-systemd-status 接口靠 unit 参数区分. */
+const DANTE_UNIT = 'danted'
 import { IP_TYPE_CODE_LABELS } from '@/api/system/ip-type'
 import { useRegionStore } from '@/stores/region'
 import { useIpTypeStore } from '@/stores/ipType'
@@ -133,7 +135,7 @@ const { list: ipTypes } = storeToRefs(ipTypeStore)
 
 // ===== Landing SOCKS5 status (跨 3 个 landing tab 共用) =====
 const statusLoading = ref(false)
-const statusData = ref<Socks5ServiceStatus | null>(null)
+const statusData = ref<SystemdStatus | null>(null)
 const statusError = ref<string>('')
 
 // ===== Landing sub-dialog mount state =====
@@ -237,7 +239,7 @@ async function loadStatus() {
   statusLoading.value = true
   statusError.value = ''
   try {
-    statusData.value = await getSocks5Status(serverId.value)
+    statusData.value = await getServerSystemdStatus(serverId.value, DANTE_UNIT)
   } catch (e) {
     statusError.value = (e as Error).message || '拉取状态失败'
   } finally {
@@ -374,10 +376,7 @@ const landingHeartbeatDotColor = computed(() => {
                   :title="regionInfo.displayName"
                   class="header-flag"
                 />
-                <span class="text-xl font-semibold font-mono">{{ landingInfo.ipAddress }}</span>
-                <NButton quaternary size="tiny" circle @click="copyToClipboard(landingInfo.ipAddress, 'IP 地址')">
-                  <template #icon><NIcon><Copy /></NIcon></template>
-                </NButton>
+                <span class="text-xl font-semibold">{{ landingInfo.name || landingInfo.ipAddress }}</span>
                 <NTag size="small" :type="SERVER_LANDING_LIFECYCLE_TAG_TYPE[landingInfo.lifecycleState] || 'default'">
                   {{ SERVER_LANDING_LIFECYCLE_LABELS[landingInfo.lifecycleState] || landingInfo.lifecycleState }}
                 </NTag>
@@ -391,9 +390,19 @@ const landingHeartbeatDotColor = computed(() => {
                   {{ regionInfo.displayName }}
                 </NTag>
               </div>
-              <div class="mt-1 text-xs text-zinc-500 font-mono">
-                id: {{ landingInfo.id }} · {{ ipTypeName(landingInfo.ipTypeId) }}
-                <span v-if="landingInfo.remark"> · 备注: {{ landingInfo.remark }}</span>
+              <div class="mt-1 text-xs text-zinc-500 font-mono flex items-center gap-1 flex-wrap">
+                <span>id: {{ landingInfo.id }}</span>
+                <span>·</span>
+                <span>IP: {{ landingInfo.ipAddress }}</span>
+                <NButton quaternary size="tiny" circle @click="copyToClipboard(landingInfo.ipAddress, 'IP 地址')">
+                  <template #icon><NIcon><Copy /></NIcon></template>
+                </NButton>
+                <span>·</span>
+                <span>IP 类型: {{ ipTypeName(landingInfo.ipTypeId) }}</span>
+                <template v-if="landingInfo.remark">
+                  <span>·</span>
+                  <span>备注: {{ landingInfo.remark }}</span>
+                </template>
               </div>
             </div>
             <div class="text-right text-xs">
@@ -498,9 +507,6 @@ const landingHeartbeatDotColor = computed(() => {
             :can-manage="canManage"
             :is-agent-online="isAgentOnline"
             :status-data="statusData"
-            :status-loading="statusLoading"
-            :status-error="statusError"
-            @load-status="loadStatus"
           />
         </NTabPane>
 

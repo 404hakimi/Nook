@@ -71,7 +71,15 @@ const menuOptions: MenuOption[] = [
       { key: '/member/logs', label: routerLabel('/member/logs', '操作日志'), icon: icon(ScrollText) }
     ]
   },
-  { key: '/business/plans', label: routerLabel('/business/plans', '套餐与 CDK'), icon: icon(Package) },
+  {
+    key: 'trade-group',
+    label: '交易管理',
+    icon: icon(Package),
+    children: [
+      { key: '/trade/plans', label: routerLabel('/trade/plans', '套餐'), icon: icon(Package) },
+      { key: '/trade/subscriptions', label: routerLabel('/trade/subscriptions', '订阅'), icon: icon(ScrollText) }
+    ]
+  },
   // 服务器统一入口 (B 方案): 卡片总览, 点卡片进详情 tab (基本/Xray/Agent/任务); Xray节点 + Agent 不再独立 menu
   { key: '/servers', label: routerLabel('/servers', '服务器'), icon: icon(Server) },
   { key: '/resource/server-landing', label: routerLabel('/resource/server-landing', '落地机'), icon: icon(Globe2) },

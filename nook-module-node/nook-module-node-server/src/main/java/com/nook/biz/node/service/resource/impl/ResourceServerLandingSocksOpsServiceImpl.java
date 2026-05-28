@@ -4,7 +4,6 @@ import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.controller.resource.vo.ServerLandingDeployReqVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
-import com.nook.biz.node.controller.resource.vo.Socks5StatusRespVO;
 import com.nook.biz.node.convert.resource.LandingSocksOpsConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
@@ -14,7 +13,6 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
-import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
@@ -97,21 +95,6 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
                 server.getIpAddress(), landing.getSocks5Port(),
                 landing.getSocks5Username(), landing.getSocks5Password(),
                 echoUrl, connectTimeoutMs, readTimeoutMs);
-    }
-
-    @Override
-    public Socks5StatusRespVO getStatus(String serverId) {
-        ResourceServerDO server = serverValidator.validateExists(serverId);
-        ResourceServerLandingDO landing = landingValidator.validateExists(serverId);
-        SessionCredential cred = buildOpsSshCred(server);
-        return SshSessions.runAdHoc(cred, session -> {
-            SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, DANTE_UNIT);
-            String version = readDanteVersion(session);
-            String listening = readDanteListening(session, landing.getSocks5Port());
-            String ufw = serverProbe.readUfwStatus(session);
-            HostInfoSnapshot host = serverProbe.readHostInfo(session);
-            return LandingSocksOpsConvert.INSTANCE.toSocks5StatusRespVO(sysd, version, listening, ufw, host);
-        });
     }
 
     @Override
@@ -297,14 +280,6 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
     private String readDanteVersion(SshSession session) {
         String out = session.ssh().exec(
                 "dpkg-query -W -f='${Version}' dante-server 2>/dev/null || true").getStdout();
-        return out == null ? "" : out.trim();
-    }
-
-    /** ss -ltn 过滤 socks5 端口监听行. */
-    private String readDanteListening(SshSession session, Integer socksPort) {
-        if (socksPort == null) return "";
-        String cmd = "ss -ltn 2>/dev/null | awk 'NR==1 || $4 ~ /:" + socksPort + "$/' || true";
-        String out = session.ssh().exec(cmd).getStdout();
         return out == null ? "" : out.trim();
     }
 

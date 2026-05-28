@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -56,5 +57,13 @@ public class ResourceServerApiImpl implements ResourceServerApi {
     @Override
     public Map<String, String> getServerNameMap(Collection<String> serverIds) {
         return resourceServerService.getServerNameMap(serverIds);
+    }
+
+    @Override
+    public List<ResourceServerRespDTO> listByServerIds(Collection<String> serverIds) {
+        if (serverIds == null || serverIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return BeanUtils.toBean(resourceServerMapper.selectBatchIds(serverIds), ResourceServerRespDTO.class);
     }
 }

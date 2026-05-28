@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import {
   Activity,
-  AlertCircle,
   Gauge,
   LineChart,
   RefreshCcw,
@@ -25,30 +24,39 @@ import {
 import {
   getServerLandingCapacity,
   type ServerLanding,
-  type ServerLandingCapacity,
-  type Socks5ServiceStatus
+  type ServerLandingCapacity
 } from '@/api/resource/server-landing'
+import {
+  getServerSystemInfo,
+  getServerUfwStatus,
+  type ServerSystemInfo,
+  type SystemdStatus
+} from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
 
 /**
  * 落地机详情 — 监控面板 tab. 结构对齐线路机 MonitoringTab.
  *
- * <p>3 metric 卡片 (本月流量 / Agent 心跳 / SOCKS5 监听) + 部署进度 + 主机 UFW + 流量详情 + 历史趋势.
- * statusData 由父组件统一拉取 (跟 SOCKS5 tab 共用), 这里 fetch capacity 即可.
+ * <p>3 metric 卡片 (本月流量 / Agent 心跳 / SOCKS5 监听) + 主机 UFW + 流量详情 + 历史趋势.
+ * <p>statusData (SOCKS5 服务状态) 由父组件下发, 仅用于 SOCKS5 监听 metric.
+ * <p>主机 / UFW 走通用 /admin/resource/server/get-system-info + /get-ufw-status, 跟线路机一致.
  */
 const props = defineProps<{
   detail: ServerLanding
   canManage: boolean
   isAgentOnline: boolean
-  statusData: Socks5ServiceStatus | null
-  statusLoading: boolean
-  statusError: string
+  statusData: SystemdStatus | null
 }>()
-const emit = defineEmits<{ 'load-status': [] }>()
 
 const message = useMessage()
 const capacity = ref<ServerLandingCapacity | null>(null)
 const loading = ref(false)
+
+// 主机 / UFW: 实时 SSH 探测, 懒加载
+const hostInfo = ref<ServerSystemInfo | null>(null)
+const ufwStatus = ref<string>('')
+const hostLoading = ref(false)
+const hostLoaded = ref(false)
 
 async function loadCapacity() {
   if (!props.detail?.id) return
@@ -59,6 +67,24 @@ async function loadCapacity() {
     message.error('拉容量失败: ' + ((e as Error).message ?? ''))
   } finally {
     loading.value = false
+  }
+}
+
+async function loadHostStatus() {
+  if (!props.detail?.id) return
+  hostLoading.value = true
+  try {
+    const [h, u] = await Promise.all([
+      getServerSystemInfo(props.detail.id),
+      getServerUfwStatus(props.detail.id)
+    ])
+    hostInfo.value = h
+    ufwStatus.value = u
+    hostLoaded.value = true
+  } catch (e) {
+    message.error('拉主机状态失败: ' + ((e as Error).message ?? ''))
+  } finally {
+    hostLoading.value = false
   }
 }
 
@@ -108,18 +134,14 @@ const heartbeatColor = computed(() => {
 })
 
 // ===== SOCKS5 端口监听 =====
+// 公共 systemd 接口只回 active 状态; dante 启动时端口绑不上就会进 failed, active=active 即可视为监听正常
 const socks5Listening = computed<'unknown' | 'listening' | 'down'>(() => {
   if (!props.statusData) return 'unknown'
-  if (props.statusData.active !== 'active') return 'down'
-  if (props.statusData.listening && props.detail?.socks5Port
-      && props.statusData.listening.includes(`:${props.detail.socks5Port}`)) {
-    return 'listening'
-  }
-  return 'down'
+  return props.statusData.active === 'active' ? 'listening' : 'down'
 })
 const socks5StateLabel = computed(() => {
-  if (socks5Listening.value === 'listening') return { text: '监听中', type: 'success' as const }
-  if (socks5Listening.value === 'down') return { text: '未监听', type: 'error' as const }
+  if (socks5Listening.value === 'listening') return { text: '运行中', type: 'success' as const }
+  if (socks5Listening.value === 'down') return { text: '未运行', type: 'error' as const }
   return { text: '未探测', type: 'default' as const }
 })
 </script>
@@ -214,7 +236,7 @@ const socks5StateLabel = computed(() => {
         </NCard>
       </div>
 
-      <!-- ============ 主机 + UFW (实时 SSH, 走父组件 statusData) ============ -->
+      <!-- ============ 主机 + UFW (自 fetch, 跟线路机一致) ============ -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
           <div class="section-header">
@@ -222,33 +244,25 @@ const socks5StateLabel = computed(() => {
             <span>主机 / UFW 实时</span>
             <NTag size="tiny" type="default" class="ml-1">SSH</NTag>
             <span class="flex-1"></span>
-            <NButton
-              size="tiny"
-              type="primary"
-              :loading="statusLoading"
-              :disabled="!canManage"
-              @click="emit('load-status')"
-            >
+            <NButton size="tiny" type="primary" :loading="hostLoading" @click="loadHostStatus">
               <template #icon><NIcon><RefreshCcw :size="12" /></NIcon></template>
-              {{ statusData ? '刷新' : '加载' }}
+              {{ hostLoaded ? '刷新' : '加载' }}
             </NButton>
           </div>
         </template>
 
-        <NAlert v-if="!canManage" type="warning" :show-icon="false" size="small">
-          <span class="flex items-center gap-1">
-            <NIcon><AlertCircle :size="14" /></NIcon>
-            需要 SSH 凭据齐才能探测; 去 SSH 凭据 tab 补全
-          </span>
-        </NAlert>
-        <NAlert v-else-if="!statusData && !statusLoading && !statusError" type="info" :show-icon="false" size="small">
-          点上方 "加载" 拉远端 SSH 主机 + UFW 信息 (避免进监控面板就强拉, 单次约 1-3s).
-        </NAlert>
-        <NAlert v-else-if="statusError" type="error" :show-icon="false" size="small">{{ statusError }}</NAlert>
+        <div v-if="!hostLoaded && !hostLoading" class="placeholder-block">
+          <NIcon :size="32"><ServerIcon /></NIcon>
+          <span class="placeholder-text">点上方"加载"拉远端主机 / UFW 信息</span>
+        </div>
+        <div v-else-if="hostLoading && !hostInfo" class="placeholder-block">
+          <NSpin :size="20" />
+          <span class="placeholder-text">加载中…</span>
+        </div>
 
-        <NSpin v-else :show="statusLoading && !statusData">
+        <template v-else>
           <NDescriptions
-            v-if="statusData?.hostInfo"
+            v-if="hostInfo"
             bordered
             size="small"
             label-placement="left"
@@ -257,46 +271,46 @@ const socks5StateLabel = computed(() => {
             class="mb-3"
           >
             <NDescriptionsItem label="主机名">
-              <code v-if="statusData.hostInfo.hostname" class="kbd">{{ statusData.hostInfo.hostname }}</code>
+              <code v-if="hostInfo.hostname" class="kbd">{{ hostInfo.hostname }}</code>
               <span v-else class="muted">—</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="时区">
-              <code v-if="statusData.hostInfo.timezone" class="kbd">{{ statusData.hostInfo.timezone }}</code>
+              <code v-if="hostInfo.timezone" class="kbd">{{ hostInfo.timezone }}</code>
               <span v-else class="muted">—</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="系统">
-              <span v-if="statusData.hostInfo.osRelease">{{ statusData.hostInfo.osRelease }}</span>
+              <span v-if="hostInfo.osRelease">{{ hostInfo.osRelease }}</span>
               <span v-else class="muted">—</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="内核">
-              <code v-if="statusData.hostInfo.kernel" class="kbd">{{ statusData.hostInfo.kernel }}</code>
+              <code v-if="hostInfo.kernel" class="kbd">{{ hostInfo.kernel }}</code>
               <span v-else class="muted">—</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="运行时间">
-              <span v-if="statusData.hostInfo.systemUptime">{{ statusData.hostInfo.systemUptime }}</span>
+              <span v-if="hostInfo.systemUptime">{{ hostInfo.systemUptime }}</span>
               <span v-else class="muted">—</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="负载 (1/5/15m)">
-              <code v-if="statusData.hostInfo.loadAvg" class="kbd">{{ statusData.hostInfo.loadAvg }}</code>
+              <code v-if="hostInfo.loadAvg" class="kbd">{{ hostInfo.loadAvg }}</code>
               <span v-else class="muted">—</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="内存">
-              <code v-if="statusData.hostInfo.memory" class="kbd">{{ statusData.hostInfo.memory }}</code>
+              <code v-if="hostInfo.memory" class="kbd">{{ hostInfo.memory }}</code>
               <span v-else class="muted">—</span>
             </NDescriptionsItem>
             <NDescriptionsItem label="磁盘 (/)">
-              <code v-if="statusData.hostInfo.disk" class="kbd">{{ statusData.hostInfo.disk }}</code>
+              <code v-if="hostInfo.disk" class="kbd">{{ hostInfo.disk }}</code>
               <span v-else class="muted">—</span>
             </NDescriptionsItem>
           </NDescriptions>
 
-          <div v-if="statusData?.ufwStatus" class="ufw-block">
+          <div v-if="hostLoaded" class="ufw-block">
             <div class="text-xs text-zinc-500 mb-1 flex items-center gap-1">
               <NIcon><ShieldCheck :size="12" /></NIcon> UFW 防火墙
             </div>
-            <pre class="ufw-pre">{{ statusData.ufwStatus }}</pre>
+            <pre class="ufw-pre">{{ ufwStatus || '(未获取到)' }}</pre>
           </div>
-        </NSpin>
+        </template>
       </NCard>
 
       <!-- ============ 流量详情 ============ -->
@@ -481,6 +495,28 @@ html[data-theme='dark'] .metric-sub { color: #a1a1aa; }
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* 主机/UFW 段未加载时占位 (留高度防页面跳, 图标 + 短提示) */
+.placeholder-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 80px;
+  color: #a1a1aa;
+  font-size: 13px;
+  background: rgba(127, 127, 127, 0.03);
+  border: 1px dashed rgba(127, 127, 127, 0.15);
+  border-radius: 4px;
+}
+.placeholder-block--warn {
+  background: rgba(245, 158, 11, 0.05);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #b45309;
+}
+.placeholder-text {
+  color: inherit;
 }
 
 .chart-placeholder {

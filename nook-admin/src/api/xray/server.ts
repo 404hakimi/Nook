@@ -13,15 +13,17 @@ export interface ServerSystemInfo {
   timezone?: string
 }
 
-/** Xray systemd 服务运行状态 (后端 XrayServerStatusRespVO); 不含日志. */
-export interface XrayServiceStatus {
-  /** systemd unit 名, xray-managed 接口固定为 "xray" */
+/**
+ * 任意 systemd unit 的通用运行状态 (后端 SystemdStatusRespVO); 走公共 /admin/resource/server/get-systemd-status?unit=xxx
+ * xray / dante 的 version 各自从 detail (DO) 拿, 不再放这里.
+ */
+export interface SystemdStatus {
+  /** systemd unit 名, 跟传入 unit 一致 */
   unit?: string
+  /** active / inactive / failed / unknown */
   active?: string
-  version?: string
+  /** ActiveEnterTimestamp 重格式化后的字符串 */
   uptimeFrom?: string
-  /** 监听端口列表 (ss -ltn 抓取相关行); 多行字符串, 前端按 \n 拆分展示 */
-  listening?: string
   /** systemctl is-enabled 输出: enabled / disabled / static / masked / ... */
   enabled?: string
 }
@@ -61,6 +63,13 @@ export function getServerSystemInfo(serverId: string) {
 /** 拉 UFW 防火墙状态 (ufw status verbose 原文); 未装 ufw 时回提示文案. */
 export function getServerUfwStatus(serverId: string) {
   return request.get<unknown, string>('/admin/resource/server/get-ufw-status', { params: { id: serverId } })
+}
+
+/** 拉任意 systemd unit 的运行状态 (xray / danted 等通用). */
+export function getServerSystemdStatus(serverId: string, unit: string) {
+  return request.get<unknown, SystemdStatus>('/admin/resource/server/get-systemd-status', {
+    params: { id: serverId, unit }
+  })
 }
 
 /**
@@ -114,11 +123,6 @@ export function getXrayLogFile(
 }
 
 // ===== 后端 XrayServerManageController @ /admin/xray/server =====
-
-/** 拉 Xray 服务运行状态 (active / version / 启动时间 / 监听端口 / 开机自启). */
-export function getXrayServiceStatus(serverId: string) {
-  return request.get<unknown, XrayServiceStatus>('/admin/xray/server/get-xray-status', { params: { id: serverId } })
-}
 
 /** 重启 Xray 服务; 客户连接会断 1-2 秒. */
 export function xrayRestart(serverId: string) {

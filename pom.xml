@@ -25,6 +25,7 @@
         <module>nook-module-operation</module>
         <module>nook-module-node</module>
         <module>nook-module-agent</module>
+        <module>nook-module-trade</module>
         <module>nook-server</module>
     </modules>
 
@@ -149,6 +150,16 @@
             <dependency>
                 <groupId>com.nook</groupId>
                 <artifactId>nook-module-agent-server</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nook</groupId>
+                <artifactId>nook-module-trade-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nook</groupId>
+                <artifactId>nook-module-trade-server</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

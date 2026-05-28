@@ -35,6 +35,10 @@
             <groupId>com.nook</groupId>
             <artifactId>nook-module-agent-server</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-module-trade-server</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

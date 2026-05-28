@@ -3,7 +3,6 @@ package com.nook.biz.node.controller.xray;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 import com.nook.biz.node.service.xray.server.XrayServerManageService;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
@@ -40,17 +39,6 @@ public class XrayServerManageController {
     @GetMapping("/get-xray-server")
     public Result<XrayServerRespVO> getXrayServer(@RequestParam("serverId") String serverId) {
         return Result.ok(xrayServerManageService.getXrayServerDetail(serverId));
-    }
-
-    /**
-     * 获得 xray systemd 服务状态
-     *
-     * @param id 服务器编号
-     * @return xray 服务状态
-     */
-    @GetMapping("/get-xray-status")
-    public Result<XrayServerStatusRespVO> getXrayStatus(@RequestParam("id") String id) {
-        return Result.ok(xrayServerManageService.getXraySystemdStatus(id));
     }
 
     /**

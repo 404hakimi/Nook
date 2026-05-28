@@ -44,8 +44,9 @@ cat > $CONFIG_PATH <<'NOOK_CONFIG_EOF__'
 {{CONFIG_YAML}}
 NOOK_CONFIG_EOF__
 
-echo "=== 6. 写 systemd unit (静默) ==="
+echo "=== 6. 写 systemd unit (stdout/stderr 走 journald) ==="
 # 非 quoted heredoc → $BIN_PATH / $CONFIG_PATH 由 shell 替换
+# stdout/stderr 用 systemd 默认 (= journal); journald 容量在下一步限到 50M, 不需要额外 logrotate
 cat > $SYSTEMD_UNIT_PATH <<EOF
 [Unit]
 Description=Nook Agent
@@ -57,8 +58,6 @@ ExecStart=$BIN_PATH -c $CONFIG_PATH
 Restart=always
 RestartSec=10s
 User=root
-StandardOutput=null
-StandardError=null
 
 [Install]
 WantedBy=multi-user.target

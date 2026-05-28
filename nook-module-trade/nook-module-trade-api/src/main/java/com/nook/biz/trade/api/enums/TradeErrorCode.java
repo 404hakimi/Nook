@@ -1,0 +1,35 @@
+package com.nook.biz.trade.api.enums;
+
+import com.nook.common.web.error.ErrorCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * Trade 模块错误码枚举
+ *
+ * @author nook
+ */
+@Getter
+@RequiredArgsConstructor
+public enum TradeErrorCode implements ErrorCode {
+
+    PLAN_NOT_FOUND(7001, "套餐 %s 不存在"),
+    PLAN_CODE_DUPLICATE(7002, "套餐码 %s 已存在"),
+    PLAN_IMMUTABLE_FIELD(7003, "套餐已上架字段不可改: %s (请建新套餐)"),
+    PLAN_DISABLED(7004, "套餐 %s 已下架, 不可下单"),
+    PLAN_HAS_ACTIVE_SUB(7005, "套餐 %s 仍有活跃订阅, 不可删除"),
+
+    PLAN_RESOURCE_TYPE_MISMATCH(7011, "落地机 IP 类型与套餐不匹配"),
+    PLAN_RESOURCE_NOT_LIVE(7012, "资源 %s 非 LIVE 状态, 不可关联"),
+    PLAN_RESOURCE_DUPLICATE(7013, "资源已关联到该套餐"),
+
+    SKU_OUT_OF_STOCK(7021, "套餐 %s 无可分配落地机 (售罄)"),
+    NO_AVAILABLE_FRONTLINE(7022, "套餐 %s 无可用线路机"),
+
+    SUB_NOT_FOUND(7031, "订阅 %s 不存在"),
+    SUB_NOT_ACTIVE(7032, "订阅 %s 非 ACTIVE 状态"),
+    ;
+
+    private final int code;
+    private final String message;
+}

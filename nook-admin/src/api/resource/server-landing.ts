@@ -168,18 +168,17 @@ export const SERVER_LANDING_PROVISION_MODE_LABELS: Record<number, string> = {
 }
 
 /**
- * dante 日志级别预设 (实际是 dante log 事件关键字组合, 不是 syslog level).
+ * dante 日志记录范围预设 (per-rule `log:` 关键字组合; dante 没有 syslog 风格的 info/warn/error 级别).
  *
- * - 仅错误: 极简, 只记录失败
- * - 警告: 连接事件 + 错误 (默认; 既能审计又不淹没日志)
- * - 详细: 加上 IO 操作 + TCP 信息, 用于排障 / 审计
+ * 日志行开头的 `info` / `error` 标签是 dante 给每个事件类型硬编码的, 用户改不了;
+ * 这里控制的是"记不记某类事件", 不是"用什么严重度记".
  *
- * 6 种关键字含义 (dante 文档): connect / disconnect / data / error / iooperation / tcpinfo.
+ * 6 种事件关键字 (dante 文档): connect / disconnect / data / error / iooperation / tcpinfo.
  */
 export const DANTE_LOG_LEVEL_OPTIONS = [
-  { label: '仅错误', value: 'error' },
-  { label: '警告', value: 'connect disconnect error' },
-  { label: '详细', value: 'connect disconnect error iooperation tcpinfo' }
+  { label: '只记失败', value: 'error' },
+  { label: '标准 (连接 + 失败)', value: 'connect disconnect error' },
+  { label: '全量 (含 IO/TCP)', value: 'connect disconnect error iooperation tcpinfo' }
 ] as const
 
 export interface PageResult<T> {
@@ -311,38 +310,8 @@ export const THROTTLE_STATE_LABELS: Record<string, string> = {
 }
 
 // ===== SOCKS5 落地节点 运维 (走落地机条目存储的 SSH 凭据, 不再问用户) =====
-
-/** SOCKS5 (dante) 服务运行状态; 与 xray Status 同口径. */
-export interface Socks5ServiceStatus {
-  /** systemd unit, 固定 "danted" */
-  unit?: string
-  /** active / inactive / failed / unknown */
-  active?: string
-  /** dpkg-query 拿到的 dante 包版本 */
-  version?: string
-  /** ActiveEnterTimestamp 重格式化后的字符串 */
-  uptimeFrom?: string
-  /** ss -ltn 抓的 socks5 端口监听行 (多行, 前端按 \n 拆分展示) */
-  listening?: string
-  /** is-enabled 输出: enabled / disabled / static / masked */
-  enabled?: string
-  /** ufw status verbose 输出原文 */
-  ufwStatus?: string
-  /** 远端主机基本信息; 详情弹框默认折叠展示 */
-  hostInfo?: HostInfo
-}
-
-/** 远端主机基本信息; 与 xray server.ts 同结构, 复用一份语义 (跟后端 HostInfoRespVO 对齐). */
-export interface HostInfo {
-  hostname?: string
-  kernel?: string
-  osRelease?: string
-  systemUptime?: string
-  loadAvg?: string
-  memory?: string
-  disk?: string
-  timezone?: string
-}
+// dante systemd 状态走公共 getServerSystemdStatus(id, 'danted'); version 从 ServerLandingInstall.danteVersion 拿
+// 主机/UFW 走通用 /admin/resource/server/get-system-info / get-ufw-status
 
 /** SOCKS5 日志级别过滤 (复用 xray 同语义). */
 export type Socks5LogLevel = 'all' | 'warning' | 'err'
@@ -354,11 +323,6 @@ export interface Socks5Log {
   level: Socks5LogLevel
   keyword?: string
   log?: string
-}
-
-/** 拉 SOCKS5 (dante) 服务状态 + version / 监听端口. */
-export function getSocks5Status(id: string) {
-  return request.get<unknown, Socks5ServiceStatus>('/admin/resource/server-landing/get-socks5-status', { params: { id } })
 }
 
 /** 切 SOCKS5 开机自启 (systemctl enable/disable + DB.autostart_enabled 同步). */

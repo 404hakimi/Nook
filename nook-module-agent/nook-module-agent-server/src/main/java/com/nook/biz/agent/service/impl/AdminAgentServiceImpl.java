@@ -5,9 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.api.enums.AgentTaskType;
-import com.nook.biz.agent.controller.admin.vo.AdminAgentDetailRespVO;
 import com.nook.biz.agent.controller.admin.vo.AdminAgentTaskPageReqVO;
-import com.nook.biz.agent.convert.AdminAgentConvert;
 import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentTaskMapper;
 import com.nook.biz.agent.framework.binary.AgentBinaryResolver;
@@ -16,15 +14,12 @@ import com.nook.biz.agent.service.AdminAgentService;
 import com.nook.biz.agent.service.AgentTaskDispatchService;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
-import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
 
 /**
  * Admin Agent 管理 Service 实现类
@@ -41,13 +36,6 @@ public class AdminAgentServiceImpl implements AdminAgentService {
     private final AgentBinaryResolver agentBinaryResolver;
     private final AgentTaskMapper agentTaskMapper;
     private final AgentProperties agentProperties;
-
-    @Override
-    public AdminAgentDetailRespVO detail(String serverId) {
-        ResourceServerRespDTO s = resourceServerApi.validateExists(serverId);
-        ResourceServerRuntimeRespDTO rt = resourceServerRuntimeApi.getByServerId(serverId);
-        return AdminAgentConvert.INSTANCE.toDetail(s, rt, LocalDateTime.now());
-    }
 
     @Override
     public String dispatchUpgrade(String serverId) {

@@ -5,7 +5,6 @@ import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 import com.nook.biz.node.convert.xray.XrayServerConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceServerService;
@@ -16,10 +15,7 @@ import com.nook.biz.node.framework.cloudflare.CloudflareApiClient;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
-import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
-import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
-import com.nook.biz.node.framework.xray.server.snapshot.XrayDaemonExtraSnapshot;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.service.xray.config.XrayConfigService;
 import com.nook.biz.node.service.xray.server.XrayServerService;
@@ -178,24 +174,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                 .operator(StpSystemUtil.getLoginIdOrSystem())
                 .build();
         return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.XRAY_RESTART.name()), String.class);
-    }
-
-    @Override
-    public XrayServerStatusRespVO getXraySystemdStatus(String serverId) {
-        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
-        // ServerProbe 只回通用 systemd 状态; xray 专属 (version + 监听端口) 走 XrayDaemonProbe
-        SystemdStatusSnapshot sysd = serverProbe.readSystemdStatus(session, XrayConstants.SYSTEMD_UNIT);
-        XrayServerDO server = xrayServerValidator.validateExists(serverId);
-        XrayDaemonExtraSnapshot extras = xrayDaemonProbe.readExtras(session, server.getXrayBinaryPath(), server.getXrayApiPort());
-
-        XrayServerStatusRespVO vo = new XrayServerStatusRespVO();
-        vo.setUnit(sysd.getUnit());
-        vo.setActive(sysd.getActive());
-        vo.setUptimeFrom(sysd.getUptimeFrom());
-        vo.setEnabled(sysd.getEnabled());
-        vo.setVersion(extras.getVersion());
-        vo.setListening(extras.getListening());
-        return vo;
     }
 
     @Override

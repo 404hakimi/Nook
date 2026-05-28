@@ -26,9 +26,9 @@ import {
 } from 'naive-ui'
 import type {
   ServerLanding,
-  ServerLandingInstall,
-  Socks5ServiceStatus
+  ServerLandingInstall
 } from '@/api/resource/server-landing'
+import type { SystemdStatus } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
 
 /**
@@ -44,7 +44,7 @@ const props = defineProps<{
   isSelfDeploy: boolean
   isInstalling: boolean
   isLive: boolean
-  statusData: Socks5ServiceStatus | null
+  statusData: SystemdStatus | null
   statusLoading: boolean
   statusError: string
 }>()
@@ -255,14 +255,8 @@ async function copyToClipboard(value: string | undefined, label: string) {
           <NDescriptionsItem label="开机自启">
             <code class="kbd">{{ statusData.enabled || '—' }}</code>
           </NDescriptionsItem>
-          <NDescriptionsItem label="版本">
-            <code class="kbd">{{ statusData.version || '—' }}</code>
-          </NDescriptionsItem>
           <NDescriptionsItem label="进程启动">
             <code class="kbd">{{ statusData.uptimeFrom || '—' }}</code>
-          </NDescriptionsItem>
-          <NDescriptionsItem v-if="statusData.listening" label="监听" :span="2">
-            <pre class="listen-pre">{{ statusData.listening }}</pre>
           </NDescriptionsItem>
         </NDescriptions>
       </NCard>
@@ -297,18 +291,5 @@ async function copyToClipboard(value: string | undefined, label: string) {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-}
-.listen-pre {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 11px;
-  line-height: 1.5;
-  margin: 0;
-  padding: 6px 8px;
-  background: rgba(127, 127, 127, 0.06);
-  border-radius: 4px;
-  max-height: 12rem;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 </style>

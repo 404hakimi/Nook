@@ -3,7 +3,6 @@ package com.nook.biz.node.service.xray.server;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayServerStatusRespVO;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.function.Consumer;
@@ -31,14 +30,6 @@ public interface XrayServerManageService {
      * @return 远端 stdout
      */
     String restart(String serverId);
-
-    /**
-     * 获得 xray systemd 服务状态
-     *
-     * @param serverId 服务器编号
-     * @return xray 服务状态
-     */
-    XrayServerStatusRespVO getXraySystemdStatus(String serverId);
 
     /**
      * 切换 xray 开机自启

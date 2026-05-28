@@ -13,7 +13,6 @@ import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5RespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5UpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSummaryRespVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
-import com.nook.biz.node.controller.resource.vo.Socks5StatusRespVO;
 import com.nook.biz.node.controller.resource.vo.Socks5TestReqVO;
 import com.nook.biz.node.controller.resource.vo.Socks5TestRespVO;
 import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
@@ -219,17 +218,6 @@ public class ResourceServerLandingController {
                                           @Valid @RequestBody ServerLandingCapacityUpdateReqVO reqVO) {
         landingService.updateCapacity(id, reqVO);
         return Result.ok(true);
-    }
-
-    /**
-     * 获得 SOCKS5 服务状态
-     *
-     * @param id 落地节点编号
-     * @return 服务状态
-     */
-    @GetMapping("/get-socks5-status")
-    public Result<Socks5StatusRespVO> getSocks5Status(@RequestParam("id") String id) {
-        return Result.ok(socksOpsService.getStatus(id));
     }
 
     /**

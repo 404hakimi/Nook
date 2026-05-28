@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ArrowUp, FileCog, HelpCircle, History, Rocket } from 'lucide-vue-next'
+import { ArrowUp, FileCog, FileText, HelpCircle, History, Rocket } from 'lucide-vue-next'
 import { NButton, NDescriptions, NDescriptionsItem, NIcon, NTag, NTooltip } from 'naive-ui'
 import {
   AGENT_ONLINE_LABELS,
@@ -11,6 +11,7 @@ import {
 import type { ServerFrontlineListItem } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import AgentDeployDialog from '@/views/agent/AgentDeployDialog.vue'
+import AgentLogDialog from '@/views/agent/AgentLogDialog.vue'
 import AgentUpgradeDialog from '@/views/agent/AgentUpgradeDialog.vue'
 import ConfigEditDialog from '@/views/agent/ConfigEditDialog.vue'
 import AgentTaskHistoryDialog from '@/views/agent/AgentTaskHistoryDialog.vue'
@@ -27,6 +28,7 @@ const deployOpen = ref(false)
 const upgradeOpen = ref(false)
 const configOpen = ref(false)
 const historyOpen = ref(false)
+const logOpen = ref(false)
 
 const provisioned = computed(() => !!props.agentInfo?.agentVersion)
 
@@ -93,6 +95,10 @@ function onConfigSaved() {
       <NButton size="small" type="info" :disabled="!provisioned" @click="configOpen = true">
         <template #icon><NIcon><FileCog /></NIcon></template>
         改 agent 配置
+      </NButton>
+      <NButton size="small" quaternary :disabled="!provisioned" @click="logOpen = true">
+        <template #icon><NIcon><FileText /></NIcon></template>
+        查看日志
       </NButton>
       <NButton size="small" quaternary @click="historyOpen = true">
         <template #icon><NIcon><History /></NIcon></template>
@@ -172,6 +178,11 @@ function onConfigSaved() {
       v-model="historyOpen"
       :server-id="serverId"
       :server-name="agentInfo?.name"
+    />
+    <AgentLogDialog
+      v-model="logOpen"
+      :server-id="serverId"
+      :label="hostLabel"
     />
   </div>
 </template>

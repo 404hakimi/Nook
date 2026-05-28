@@ -2,7 +2,6 @@ package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.controller.resource.vo.ServerLandingDeployReqVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
-import com.nook.biz.node.controller.resource.vo.Socks5StatusRespVO;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
@@ -32,14 +31,6 @@ public interface ResourceServerLandingSocksOpsService {
      * @return 拨号探测结果
      */
     Socks5ProbeSnapshot testSocks5(String serverId, String echoUrl, int connectTimeoutMs, int readTimeoutMs);
-
-    /**
-     * 获得 SOCKS5 服务状态
-     *
-     * @param serverId 落地节点编号
-     * @return 服务状态
-     */
-    Socks5StatusRespVO getStatus(String serverId);
 
     /**
      * 切 SOCKS5 开机自启
