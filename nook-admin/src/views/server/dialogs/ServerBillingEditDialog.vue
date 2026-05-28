@@ -34,7 +34,7 @@ const errors = reactive<Record<string, string>>({})
 
 const form = reactive({
   idcProvider: '',
-  costMonthlyUsd: null as number | null,
+  costMonthly: null as number | null,
   billingCycleDay: null as number | null,
   expiresAtTs: null as number | null
 })
@@ -42,13 +42,13 @@ const form = reactive({
 function fill(b: ServerBilling | null) {
   if (!b) {
     form.idcProvider = ''
-    form.costMonthlyUsd = null
+    form.costMonthly = null
     form.billingCycleDay = null
     form.expiresAtTs = null
     return
   }
   form.idcProvider = b.idcProvider ?? ''
-  form.costMonthlyUsd = b.costMonthlyUsd ?? null
+  form.costMonthly = b.costMonthly ?? null
   form.billingCycleDay = b.billingCycleDay ?? null
   form.expiresAtTs = b.expiresAt ? new Date(b.expiresAt).getTime() : null
 }
@@ -88,7 +88,7 @@ async function onSubmit() {
   try {
     await updateServerBilling(props.serverId, {
       idcProvider: form.idcProvider.trim() || undefined,
-      costMonthlyUsd: form.costMonthlyUsd ?? undefined,
+      costMonthly: form.costMonthly ?? undefined,
       billingCycleDay: form.billingCycleDay ?? undefined,
       expiresAt: tsToDateStr(form.expiresAtTs)
     })
@@ -116,8 +116,8 @@ async function onSubmit() {
           <NInput v-model:value="form.idcProvider" placeholder="如 Vultr / Hetzner / dmit" />
         </NFormItem>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-          <NFormItem label="月度成本 USD">
-            <NInputNumber v-model:value="form.costMonthlyUsd" :min="0" :precision="2" class="w-full" />
+          <NFormItem label="月成本 (¥)">
+            <NInputNumber v-model:value="form.costMonthly" :min="0" :precision="2" class="w-full" />
           </NFormItem>
           <NFormItem label="账单日 (1-28)" :feedback="errors.billingCycleDay" :validation-status="errors.billingCycleDay ? 'error' : undefined">
             <NInputNumber v-model:value="form.billingCycleDay" :min="1" :max="28" class="w-full" />

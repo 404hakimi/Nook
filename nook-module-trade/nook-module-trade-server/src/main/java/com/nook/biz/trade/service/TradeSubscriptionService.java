@@ -20,4 +20,12 @@ public interface TradeSubscriptionService {
 
     /** 退订: 吊销 client + 落地机释放 + 状态 CANCELLED. */
     void cancel(String id);
+
+    /**
+     * 渲染会员聚合订阅内容 (Base64 vmess 列表). token 无效 / 会员禁用返 null (上层 → 404).
+     *
+     * @param subToken member_user.sub_token
+     * @return Base64 编码的订阅正文; token 无效返 null
+     */
+    String renderSubscription(String subToken);
 }

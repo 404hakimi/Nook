@@ -17,8 +17,8 @@ public class ServerLandingBillingRespVO {
     /** 落地节点编号 (== resource_server.id). */
     private String serverId;
 
-    /** 月度成本 USD. */
-    private BigDecimal costMonthlyUsd;
+    /** 月成本 CNY. */
+    private BigDecimal costMonthly;
 
     /** 账单日 1-28. */
     private Integer billingCycleDay;

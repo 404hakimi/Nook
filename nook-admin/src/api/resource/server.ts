@@ -75,7 +75,8 @@ export interface ServerCredential {
 export interface ServerBilling {
   serverId?: string
   idcProvider?: string
-  costMonthlyUsd?: number
+  /** 月成本 CNY. */
+  costMonthly?: number
   billingCycleDay?: number
   expiresAt?: string
 }

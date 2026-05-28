@@ -18,7 +18,6 @@ import { useRegionStore } from '@/stores/region'
 import { useIpTypeStore } from '@/stores/ipType'
 import { deleteTradePlan, pageTradePlan, toggleTradePlanEnabled, type TradePlan } from '@/api/trade/plan'
 import PlanEditDialog from './PlanEditDialog.vue'
-import PlanResourceDialog from './PlanResourceDialog.vue'
 
 const message = useMessage()
 const { confirm } = useConfirm()
@@ -37,8 +36,6 @@ const filterEnabled = ref<number | null>(null)
 
 const editOpen = ref(false)
 const editTarget = ref<TradePlan | null>(null)
-const resourceOpen = ref(false)
-const resourceTarget = ref<TradePlan | null>(null)
 
 const enabledOptions = [
   { label: '全部', value: null },
@@ -82,10 +79,6 @@ function openEdit(p: TradePlan) {
   editTarget.value = p
   editOpen.value = true
 }
-function openResource(p: TradePlan) {
-  resourceTarget.value = p
-  resourceOpen.value = true
-}
 
 async function onToggle(p: TradePlan) {
   const to = p.enabled !== 1
@@ -125,11 +118,11 @@ async function onDelete(p: TradePlan) {
 const columns = computed<DataTableColumns<TradePlan>>(() => [
   { title: '套餐码', key: 'code', width: 180 },
   { title: '名称', key: 'name' },
-  { title: '区域', key: 'regionCode', width: 110, render: (p) => regionMap.value[p.regionCode]?.displayName ?? p.regionCode },
-  { title: 'IP 类型', key: 'ipTypeId', width: 90, render: (p) => (p.ipTypeId ? ipTypeMap.value[p.ipTypeId]?.name ?? '-' : '-') },
+  { title: '区域', key: 'regionCode', width: 110, render: (p) => (p.regionCode ? regionMap.value[p.regionCode]?.displayName ?? p.regionCode : '—') },
+  { title: 'IP 类型', key: 'ipTypeId', width: 90, render: (p) => (p.ipTypeId ? ipTypeMap.value[p.ipTypeId]?.name ?? '-' : '—') },
   { title: '流量', key: 'trafficGb', width: 80, render: (p) => `${p.trafficGb}GB` },
   { title: '周期', key: 'periodDays', width: 70, render: (p) => `${p.periodDays}天` },
-  { title: '价格', key: 'priceCny', width: 90, render: (p) => `¥${p.priceCny}` },
+  { title: '价格', key: 'price', width: 90, render: (p) => `¥${p.price}` },
   {
     title: '容量(剩/总)',
     key: 'capacity',
@@ -147,11 +140,10 @@ const columns = computed<DataTableColumns<TradePlan>>(() => [
   {
     title: '操作',
     key: 'op',
-    width: 220,
+    width: 180,
     render: (p) => h(NSpace, { size: 4 }, {
       default: () => [
         h(NButton, { size: 'tiny', onClick: () => openEdit(p) }, { default: () => '编辑' }),
-        h(NButton, { size: 'tiny', onClick: () => openResource(p) }, { default: () => '资源' }),
         h(NButton, { size: 'tiny', quaternary: true, type: p.enabled === 1 ? 'warning' : 'primary', onClick: () => onToggle(p) },
           { default: () => (p.enabled === 1 ? '下架' : '上架') }),
         h(NButton, { size: 'tiny', quaternary: true, type: 'error', onClick: () => onDelete(p) }, { default: () => '删除' })
@@ -196,6 +188,5 @@ const columns = computed<DataTableColumns<TradePlan>>(() => [
     </NCard>
 
     <PlanEditDialog v-model="editOpen" :plan="editTarget" @saved="load" />
-    <PlanResourceDialog v-model="resourceOpen" :plan="resourceTarget" @changed="load" />
   </div>
 </template>

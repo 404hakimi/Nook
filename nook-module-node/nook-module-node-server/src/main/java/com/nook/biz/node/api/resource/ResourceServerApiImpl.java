@@ -1,5 +1,8 @@
 package com.nook.biz.node.api.resource;
 
+import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.api.resource.dto.ResourceServerPageReqDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
@@ -65,5 +68,17 @@ public class ResourceServerApiImpl implements ResourceServerApi {
             return Collections.emptyList();
         }
         return BeanUtils.toBean(resourceServerMapper.selectBatchIds(serverIds), ResourceServerRespDTO.class);
+    }
+
+    @Override
+    public List<ResourceServerRespDTO> findLiveFrontlinesByRegion(String region) {
+        if (StrUtil.isBlank(region)) {
+            return Collections.emptyList();
+        }
+        return BeanUtils.toBean(resourceServerMapper.selectList(
+                Wrappers.<ResourceServerDO>lambdaQuery()
+                        .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.FRONTLINE.getState())
+                        .eq(ResourceServerDO::getLifecycleState, "LIVE")
+                        .eq(ResourceServerDO::getRegion, region)), ResourceServerRespDTO.class);
     }
 }

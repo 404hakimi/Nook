@@ -5,53 +5,37 @@ export interface TradePlan {
   id: string
   code: string
   name: string
+  /** 产品区域 (匹配落地机/线路机). */
   regionCode: string
-  ipTypeId?: string
+  /** 产品 IP 类型 (匹配落地机). */
+  ipTypeId: string
   /** 月配额 GB. */
   trafficGb: number
-  /** 账面带宽 Mbps (仅展示). */
-  bandwidthMbps?: number
+  /** 带宽 Mbps. */
+  bandwidthMbps: number
   periodDays: number
-  /** 同时连接 IP 数; 0=不限. */
-  limitIp: number
-  priceCny: number
-  costBasisCny?: number
+  price: number
   enabled: number
   remark?: string
   createdAt?: string
-  /** SKU 池容量 (LIVE 落地机数). */
+  /** 匹配落地机容量 (同区域+同类型+规格达标). */
   capacityTotal?: number
   capacityAvailable?: number
   capacityOccupied?: number
 }
 
-/** 套餐 创建/更新 入参; 更新时仅 name/bandwidthMbps/costBasisCny/remark 生效. */
+/** 套餐 创建/更新 入参; 更新时仅 name/remark 生效. */
 export interface TradePlanSaveDTO {
   id?: string
   code: string
   name: string
   regionCode: string
-  ipTypeId?: string
+  ipTypeId: string
   trafficGb: number
-  bandwidthMbps?: number
+  bandwidthMbps: number
   periodDays: number
-  limitIp?: number
-  priceCny: number
-  costBasisCny?: number
+  price: number
   remark?: string
-}
-
-/** 套餐关联资源 (含 enrich). */
-export interface TradePlanResource {
-  id: string
-  resourceType: 'FRONTLINE' | 'LANDING'
-  resourceId: string
-  enabled: number
-  name?: string
-  ipAddress?: string
-  lifecycleState?: string
-  /** 占用状态 (仅 landing). */
-  landingStatus?: string
 }
 
 export interface TradePlanQuery {
@@ -90,16 +74,4 @@ export function toggleTradePlanEnabled(id: string, enabled: boolean) {
 
 export function deleteTradePlan(id: string) {
   return request.delete<unknown, boolean>('/admin/trade/plan/delete-plan', { params: { id } })
-}
-
-export function bindTradePlanResource(planId: string, resourceType: string, resourceId: string) {
-  return request.post<unknown, boolean>('/admin/trade/plan/bind-resource', { planId, resourceType, resourceId })
-}
-
-export function unbindTradePlanResource(id: string) {
-  return request.post<unknown, boolean>('/admin/trade/plan/unbind-resource', null, { params: { id } })
-}
-
-export function listTradePlanResource(planId: string) {
-  return request.get<unknown, TradePlanResource[]>('/admin/trade/plan/list-resource', { params: { planId } })
 }

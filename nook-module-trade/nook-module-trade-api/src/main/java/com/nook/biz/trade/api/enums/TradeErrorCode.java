@@ -19,9 +19,11 @@ public enum TradeErrorCode implements ErrorCode {
     PLAN_DISABLED(7004, "套餐 %s 已下架, 不可下单"),
     PLAN_HAS_ACTIVE_SUB(7005, "套餐 %s 仍有活跃订阅, 不可删除"),
 
-    PLAN_RESOURCE_TYPE_MISMATCH(7011, "落地机 IP 类型与套餐不匹配"),
+    PLAN_RESOURCE_TYPE_MISMATCH(7011, "落地机区域/IP 类型与套餐已绑的不一致 (同一套餐落地机须同区域+同 IP 类型)"),
     PLAN_RESOURCE_NOT_LIVE(7012, "资源 %s 非 LIVE 状态, 不可关联"),
     PLAN_RESOURCE_DUPLICATE(7013, "资源已关联到该套餐"),
+    PLAN_TRAFFIC_EXCEEDS_LANDING(7014, "套餐月流量 %sGB 超过落地机上限 %sGB"),
+    PLAN_BANDWIDTH_EXCEEDS_LANDING(7015, "套餐带宽 %sMbps 超过落地机上限 %sMbps"),
 
     SKU_OUT_OF_STOCK(7021, "套餐 %s 无可分配落地机 (售罄)"),
     NO_AVAILABLE_FRONTLINE(7022, "套餐 %s 无可用线路机"),

@@ -100,7 +100,7 @@ public interface ResourceServerLandingConvert {
 
     static void enrichBilling(ServerLandingRespVO vo, ResourceServerBillingDO bill) {
         if (vo == null || bill == null) return;
-        vo.setCostMonthlyUsd(bill.getCostMonthlyUsd());
+        vo.setCostMonthly(bill.getCostMonthly());
         vo.setBillingCycleDay(bill.getBillingCycleDay());
         vo.setExpiresAt(bill.getExpiresAt());
     }

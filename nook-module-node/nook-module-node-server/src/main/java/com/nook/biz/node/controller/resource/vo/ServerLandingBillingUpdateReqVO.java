@@ -17,9 +17,9 @@ import java.time.LocalDate;
 @Data
 public class ServerLandingBillingUpdateReqVO {
 
-    /** 月度成本 USD. */
+    /** 月成本 CNY. */
     @DecimalMin(value = "0", inclusive = true)
-    private BigDecimal costMonthlyUsd;
+    private BigDecimal costMonthly;
 
     /** 账单日 1-28. */
     @Min(value = 1) @Max(value = 28)

@@ -17,7 +17,8 @@ public class ResourceServerBillingRespVO {
     private String serverId;
     private String idcProvider;
 
-    private BigDecimal costMonthlyUsd;
+    /** 月成本 CNY. */
+    private BigDecimal costMonthly;
     private Integer billingCycleDay;
 
     @JsonFormat(pattern = "yyyy-MM-dd")

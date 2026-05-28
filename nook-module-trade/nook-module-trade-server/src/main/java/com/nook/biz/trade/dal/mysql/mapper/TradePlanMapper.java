@@ -26,6 +26,7 @@ public interface TradePlanMapper extends BaseMapper<TradePlanDO> {
                 .ne(TradePlanDO::getId, excludeId));
     }
 
+    /** 分页 (区域 / IP 类型筛选套餐自身字段). */
     default IPage<TradePlanDO> selectPageByQuery(IPage<TradePlanDO> page, String regionCode,
                                                  String ipTypeId, Integer enabled, String keyword) {
         return selectPage(page, Wrappers.<TradePlanDO>lambdaQuery()

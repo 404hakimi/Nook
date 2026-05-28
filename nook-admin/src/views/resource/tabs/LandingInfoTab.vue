@@ -232,8 +232,8 @@ const trafficUsagePercent = computed(() => {
       </template>
       <NDescriptions bordered size="small" label-placement="left" :column="3" label-style="width: 6rem">
         <NDescriptionsItem label="月成本">
-          <template v-if="detail.costMonthlyUsd != null">
-            <span class="num">${{ detail.costMonthlyUsd }}</span>
+          <template v-if="detail.costMonthly != null">
+            <span class="num">¥{{ detail.costMonthly }}</span>
             <span class="unit">/ 月</span>
           </template>
           <span v-else class="muted">—</span>

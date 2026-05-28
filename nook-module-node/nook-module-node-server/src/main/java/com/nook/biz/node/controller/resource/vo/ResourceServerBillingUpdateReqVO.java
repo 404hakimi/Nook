@@ -19,7 +19,8 @@ public class ResourceServerBillingUpdateReqVO {
     @Size(max = 64)
     private String idcProvider;
 
-    private BigDecimal costMonthlyUsd;
+    /** 月成本 CNY. */
+    private BigDecimal costMonthly;
 
     @Min(value = 1, message = "账单日 1-28")
     @Max(value = 28, message = "账单日 1-28")

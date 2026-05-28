@@ -22,7 +22,7 @@ const submitting = ref(false)
 
 const planOptions = computed(() =>
   plans.value.map((p) => ({
-    label: `${p.name} · 剩${p.capacityAvailable ?? 0}/${p.capacityTotal ?? 0} · ¥${p.priceCny}`,
+    label: `${p.name} · 剩${p.capacityAvailable ?? 0}/${p.capacityTotal ?? 0} · ¥${p.price}`,
     value: p.id
   }))
 )

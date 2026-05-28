@@ -29,8 +29,7 @@ CREATE TABLE trade_plan (
   id               CHAR(32)     PRIMARY KEY,
   code             VARCHAR(64)  UNIQUE NOT NULL              COMMENT 'jp_tyo_residential_100gb_monthly',
   name             VARCHAR(128) NOT NULL,
-  region_code      VARCHAR(32)  NOT NULL                     COMMENT 'FK → system_region.code (展示分类)',
-  ip_type          ENUM('RESIDENTIAL','ISP','DATACENTER') NOT NULL COMMENT '展示分类 (实际过滤走 trade_plan_resource)',
+  -- 区域 / IP 类型不存字段: 由绑定落地机派生 (resource_server.region + resource_server_landing.ip_type_id)
   traffic_gb       INT          NOT NULL                     COMMENT '月配额, 直接写 xray client totalBytes',
   bandwidth_mbps   INT                                       COMMENT '账面带宽 (商品页展示)',
   period_days      INT          NOT NULL DEFAULT 30,
@@ -39,13 +38,15 @@ CREATE TABLE trade_plan (
   enabled          TINYINT      NOT NULL DEFAULT 1,
   created_at       DATETIME     NOT NULL,
   updated_at       DATETIME     NOT NULL,
-  INDEX idx_filter (region_code, ip_type, enabled)
+  INDEX idx_enabled (enabled)
 );
 ```
 
+> 区域 / IP 类型由绑定的落地机派生 (连表展示/筛选), 不在 trade_plan 冗余存储; 同一套餐落地机须同区域+同 IP 类型 (绑定时校验)。
+
 **字段可变性**:
 - 可改: `name` / `bandwidth_mbps` / `cost_basis_cny` / `enabled`
-- **不可改**: `traffic_gb` / `period_days` / `region_code` / `ip_type` / `price_cny` — 改了会让历史订阅引用错位 → 一律建新 SKU + 老的 `enabled=0` 下架。
+- **不可改**: `traffic_gb` / `period_days` / `price_cny` — 改了会让历史订阅引用错位 → 一律建新 SKU + 老的 `enabled=0` 下架。
 
 好处: `trade_subscription` 无需快照字段 (永远 JOIN 实时读); 历史订单流水记于 `trade_order_item.unit_price_cny`。
 

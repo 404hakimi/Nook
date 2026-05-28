@@ -1,0 +1,37 @@
+package com.nook.biz.trade.controller;
+
+import com.nook.biz.trade.service.TradeSubscriptionService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 会员聚合订阅 URL Controller (公开端点, sub_token 鉴权).
+ *
+ * <p>路径 /portal/sub/** 已在 SaTokenConfig 白名单放行; 返回 raw Base64 (不包 Result),
+ * 供 v2rayN / clash 等客户端直接导入。</p>
+ *
+ * @author nook
+ */
+@RestController
+@RequestMapping("/portal/sub")
+@RequiredArgsConstructor
+public class TradeSubUrlController {
+
+    private final TradeSubscriptionService subscriptionService;
+
+    /** 订阅内容: Base64 vmess 列表; token 无效返 404. */
+    @GetMapping(value = "/{token}", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> subscribe(@PathVariable("token") String token) {
+        String content = subscriptionService.renderSubscription(token);
+        if (content == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        return ResponseEntity.ok(content);
+    }
+}

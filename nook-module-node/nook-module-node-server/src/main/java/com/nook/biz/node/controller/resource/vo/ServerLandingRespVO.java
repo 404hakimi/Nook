@@ -82,7 +82,7 @@ public class ServerLandingRespVO {
     // SSH 凭据从 /admin/resource/server/get-credential 单独获取, 不在此 VO
 
     // ===== 账面 (billing 子表) =====
-    private BigDecimal costMonthlyUsd;
+    private BigDecimal costMonthly;
     private Integer billingCycleDay;
 
     @JsonFormat(pattern = "yyyy-MM-dd")

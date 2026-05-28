@@ -52,8 +52,8 @@ export interface ServerLanding {
   sshUser?: string
   /** 明文 SSH 密码; 后台受信网络场景下发. */
   sshPassword?: string
-  /** 月度成本 USD. */
-  costMonthlyUsd?: number
+  /** 月成本 CNY. */
+  costMonthly?: number
   /** 账单日 1-28. */
   billingCycleDay?: number
   /** IP 到期日 YYYY-MM-DD. */
@@ -85,7 +85,8 @@ export interface ServerLandingCoreUpdateDTO {
 /** 账面 (纯财务记录; 实际带宽/流量配额在 ServerLandingCapacity). */
 export interface ServerLandingBilling {
   serverId?: string
-  costMonthlyUsd?: number
+  /** 月成本 CNY. */
+  costMonthly?: number
   billingCycleDay?: number
   expiresAt?: string
 }

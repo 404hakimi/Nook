@@ -1,23 +1,32 @@
 package com.nook.biz.trade.service;
 
 import com.nook.biz.node.api.resource.ResourceServerApi;
+import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
+import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
+import com.nook.biz.node.api.xray.XrayClientNodeApi;
 import com.nook.biz.node.api.xray.XrayClientProvisionApi;
-import com.nook.biz.trade.api.enums.TradePlanResourceTypeEnum;
-import com.nook.biz.trade.dal.dataobject.TradePlanResourceDO;
-import com.nook.biz.trade.dal.mysql.mapper.TradePlanResourceMapper;
+import com.nook.biz.trade.dal.dataobject.TradePlanDO;
+import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
+import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
+import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * 资源分配器: 从套餐 SKU 池选线路机 / 落地机. 只选址, 实际开通复用 node 的 provision.
+ * 资源分配器 (自动匹配, 强制同区域).
+ *
+ * <p>落地机: 同区域 + 同 IP 类型 + 容量达标的 AVAILABLE 取一台 (1:1 独占)。
+ * 线路机: 同区域 LIVE, 带宽准入 (Σ套餐带宽 + 新套餐带宽 ≤ 线路机带宽 × (1-预留率), 不超卖), 选剩余带宽最多。
+ * 只选址, 实际开通复用 node 的 provision。
  *
  * @author nook
  */
@@ -25,54 +34,103 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class TradeAllocator {
 
-    private static final String LIVE = "LIVE";
     private static final String AVAILABLE = "AVAILABLE";
-    private static final String FRONTLINE = TradePlanResourceTypeEnum.FRONTLINE.getType();
-    private static final String LANDING = TradePlanResourceTypeEnum.LANDING.getType();
+    /** 带宽预留率: 不超卖, 线路机留 10% 余量. */
+    private static final double RESERVE_RATIO = 0.10;
 
-    private final TradePlanResourceMapper resourceMapper;
     private final ResourceServerApi serverApi;
     private final ResourceServerLandingApi landingApi;
+    private final ResourceServerCapacityApi capacityApi;
     private final XrayClientProvisionApi provisionApi;
+    private final XrayClientNodeApi clientNodeApi;
+    private final TradeSubscriptionMapper subMapper;
+    private final TradePlanMapper planMapper;
 
-    /** 选 SKU 池里客户数最少的 LIVE 线路机; 无候选返 null. */
-    public String pickFrontline(String planId) {
-        List<String> ids = enabledResourceIds(planId, FRONTLINE);
-        if (ids.isEmpty()) {
+    /**
+     * 选同区域、带宽准入通过、剩余带宽最多的 LIVE 线路机; 无候选返 null.
+     *
+     * @param region            区域码
+     * @param planBandwidthMbps 套餐带宽 (要占用的)
+     */
+    public String pickFrontline(String region, int planBandwidthMbps) {
+        List<ResourceServerRespDTO> frontlines = serverApi.findLiveFrontlinesByRegion(region);
+        if (frontlines.isEmpty()) {
             return null;
         }
-        List<String> liveIds = serverApi.listByServerIds(ids).stream()
-                .filter(s -> LIVE.equals(s.getLifecycleState()))
-                .map(ResourceServerRespDTO::getId)
-                .toList();
-        if (liveIds.isEmpty()) {
-            return null;
+        Set<String> fIds = frontlines.stream()
+                .map(ResourceServerRespDTO::getId).collect(Collectors.toSet());
+        Map<String, ResourceServerCapacityRespDTO> capMap = capacityApi.listByServerIds(fIds);
+        Map<String, Integer> committed = committedBandwidthByFrontline(fIds);
+        Map<String, Integer> clientCounts = provisionApi.countActiveByServerIds(fIds);
+
+        String best = null;
+        int bestHeadroom = Integer.MIN_VALUE;
+        for (ResourceServerRespDTO f : frontlines) {
+            ResourceServerCapacityRespDTO cap = capMap.get(f.getId());
+            Integer bwLimit = cap == null ? null : cap.getBandwidthLimitMbps();
+            // 不超卖语义: 线路机须配带宽上限才能参与准入
+            if (bwLimit == null || bwLimit <= 0) {
+                continue;
+            }
+            // 客户数硬上限 (二级保险; 0=不限)
+            Integer maxClients = cap.getClientMaxCount();
+            if (maxClients != null && maxClients > 0
+                    && clientCounts.getOrDefault(f.getId(), 0) >= maxClients) {
+                continue;
+            }
+            int allowed = (int) Math.floor(bwLimit * (1 - RESERVE_RATIO));
+            int headroom = allowed - committed.getOrDefault(f.getId(), 0) - planBandwidthMbps;
+            if (headroom < 0) {
+                continue;
+            }
+            if (headroom > bestHeadroom) {
+                bestHeadroom = headroom;
+                best = f.getId();
+            }
         }
-        Map<String, Integer> counts = provisionApi.countActiveByServerIds(liveIds);
-        return liveIds.stream()
-                .min(Comparator.comparingInt(id -> counts.getOrDefault(id, 0)))
-                .orElse(null);
+        return best;
     }
 
-    /** 选 SKU 池里 LIVE+AVAILABLE 的落地机 (排除已试过的); 无候选返 null. */
-    public String pickLanding(String planId, Set<String> exclude) {
-        List<String> ids = enabledResourceIds(planId, LANDING).stream()
-                .filter(id -> !exclude.contains(id))
-                .toList();
-        if (ids.isEmpty()) {
-            return null;
-        }
-        return landingApi.listSummaryByServerIds(ids).stream()
-                .filter(s -> LIVE.equals(s.getLifecycleState()) && AVAILABLE.equals(s.getStatus()))
+    /**
+     * 选同区域 + 同 IP 类型 + 规格达标的 AVAILABLE 落地机 (排除已试过的); 无候选返 null.
+     *
+     * @param region   区域码
+     * @param ipTypeId IP 类型
+     * @param minTrafficGb     套餐月流量
+     * @param minBandwidthMbps 套餐带宽
+     * @param exclude  已试过的落地机 id
+     */
+    public String pickLanding(String region, String ipTypeId, int minTrafficGb,
+                              int minBandwidthMbps, Set<String> exclude) {
+        return landingApi.findMatchingForPlan(region, ipTypeId, minTrafficGb, minBandwidthMbps).stream()
+                .filter(l -> AVAILABLE.equals(l.getStatus()) && !exclude.contains(l.getServerId()))
                 .map(LandingSummaryDTO::getServerId)
                 .findFirst()
                 .orElse(null);
     }
 
-    private List<String> enabledResourceIds(String planId, String resourceType) {
-        return resourceMapper.selectByPlan(planId, resourceType).stream()
-                .filter(r -> r.getEnabled() != null && r.getEnabled() == 1)
-                .map(TradePlanResourceDO::getResourceId)
-                .toList();
+    /** 各线路机当前已挂带宽 = Σ(经过它的 ACTIVE 订阅的套餐带宽). */
+    private Map<String, Integer> committedBandwidthByFrontline(Set<String> frontlineIds) {
+        List<TradeSubscriptionDO> active = subMapper.selectAllActive();
+        if (active.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> clientIds = active.stream()
+                .map(TradeSubscriptionDO::getXrayClientId).collect(Collectors.toSet());
+        Map<String, String> clientToServer = clientNodeApi.getServerIdByClientIds(clientIds);
+        Set<String> planIds = active.stream()
+                .map(TradeSubscriptionDO::getPlanId).collect(Collectors.toSet());
+        Map<String, Integer> planBw = planMapper.selectBatchIds(planIds).stream()
+                .collect(Collectors.toMap(TradePlanDO::getId,
+                        p -> p.getBandwidthMbps() == null ? 0 : p.getBandwidthMbps()));
+        Map<String, Integer> committed = new HashMap<>();
+        for (TradeSubscriptionDO s : active) {
+            String fId = clientToServer.get(s.getXrayClientId());
+            if (fId == null || !frontlineIds.contains(fId)) {
+                continue;
+            }
+            committed.merge(fId, planBw.getOrDefault(s.getPlanId(), 0), Integer::sum);
+        }
+        return committed;
     }
 }

@@ -17,14 +17,14 @@ public class TradePlanRespVO {
     private String id;
     private String code;
     private String name;
+    /** 区域码 (从绑定落地机派生; 未绑落地机时 null). */
     private String regionCode;
+    /** IP 类型 (从绑定落地机派生; 未绑落地机时 null). */
     private String ipTypeId;
     private Integer trafficGb;
     private Integer bandwidthMbps;
     private Integer periodDays;
-    private Integer limitIp;
-    private BigDecimal priceCny;
-    private BigDecimal costBasisCny;
+    private BigDecimal price;
     private Integer enabled;
     private String remark;
 

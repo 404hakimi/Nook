@@ -23,26 +23,22 @@ public class TradePlanDO extends BaseEntity {
 
     private String name;
 
-    /** 区域码; FK → system_region.code. */
+    /** 产品区域; 匹配落地机/线路机 (FK → system_region.code). */
     private String regionCode;
 
-    /** FK → system_ip_type.id. */
+    /** 产品 IP 类型; 匹配落地机 (FK → system_ip_type.id). */
     private String ipTypeId;
 
     /** 月配额 GB; 写 xray client totalBytes. */
     private Integer trafficGb;
 
-    /** 账面带宽 Mbps; 仅商品页展示, 不 enforce. */
+    /** 账面带宽 Mbps; 真实生效 (落地机 dante 限速 + 线路机带宽准入). */
     private Integer bandwidthMbps;
 
     private Integer periodDays;
 
-    /** 同时连接 IP 数; 写 xray limitIp; 0=不限. */
-    private Integer limitIp;
-
-    private BigDecimal priceCny;
-
-    private BigDecimal costBasisCny;
+    /** 售价 CNY. */
+    private BigDecimal price;
 
     /** 上下架: 1=上架 0=下架. */
     private Integer enabled;

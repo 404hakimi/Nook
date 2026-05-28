@@ -61,4 +61,12 @@ public interface ResourceServerApi {
      * @return server 视图列表 (不存在的 id 跳过)
      */
     List<ResourceServerRespDTO> listByServerIds(Collection<String> serverIds);
+
+    /**
+     * 查某区域的 LIVE 线路机 (trade allocator 选线路机用).
+     *
+     * @param region 区域码
+     * @return LIVE frontline 列表
+     */
+    List<ResourceServerRespDTO> findLiveFrontlinesByRegion(String region);
 }

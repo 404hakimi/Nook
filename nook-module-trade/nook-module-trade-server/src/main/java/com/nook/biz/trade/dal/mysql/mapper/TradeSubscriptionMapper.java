@@ -26,6 +26,12 @@ public interface TradeSubscriptionMapper extends BaseMapper<TradeSubscriptionDO>
                 .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState()));
     }
 
+    /** 所有 ACTIVE 订阅 (allocator 算线路机已挂带宽用). */
+    default List<TradeSubscriptionDO> selectAllActive() {
+        return selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()
+                .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState()));
+    }
+
     /** ACTIVE 且已过期 (到期 Job 用). */
     default List<TradeSubscriptionDO> selectExpiredCandidates(LocalDateTime now) {
         return selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()

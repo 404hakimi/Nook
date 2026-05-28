@@ -1,8 +1,16 @@
 package com.nook.biz.trade.service.impl;
 
+import cn.hutool.core.codec.Base64;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nook.biz.member.api.MemberUserApi;
+import com.nook.biz.member.api.dto.MemberSubscriberDTO;
+import com.nook.biz.node.api.xray.XrayClientNodeApi;
 import com.nook.biz.node.api.xray.XrayClientProvisionApi;
+import com.nook.biz.node.api.xray.dto.XrayClientNodeDTO;
 import com.nook.biz.node.api.xray.dto.XrayClientProvisionDTO;
 import com.nook.biz.trade.api.enums.TradeErrorCode;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
@@ -25,8 +33,10 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,25 +54,33 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
     private static final long GB = 1024L * 1024 * 1024;
     private static final long DAY_MS = 86_400_000L;
+    private static final int DEFAULT_PORT = 443;
+    private static final DateTimeFormatter EXPIRE_FMT = DateTimeFormatter.ofPattern("MM-dd");
 
     private final TradeSubscriptionMapper subMapper;
     private final TradePlanMapper planMapper;
     private final TradePlanValidator planValidator;
     private final TradeAllocator allocator;
     private final XrayClientProvisionApi provisionApi;
+    private final XrayClientNodeApi clientNodeApi;
+    private final MemberUserApi memberUserApi;
+    private final ObjectMapper objectMapper;
 
     @Override
     public TradeSubscriptionRespVO adminCreate(AdminCreateSubReqVO req) {
         TradePlanDO plan = planValidator.validateEnabled(req.getPlanId());
-        String frontlineId = allocator.pickFrontline(plan.getId());
+        int planBw = plan.getBandwidthMbps() == null ? 0 : plan.getBandwidthMbps();
+        int planTraffic = plan.getTrafficGb() == null ? 0 : plan.getTrafficGb();
+        String frontlineId = allocator.pickFrontline(plan.getRegionCode(), planBw);
         if (frontlineId == null) {
-            throw new BusinessException(TradeErrorCode.NO_AVAILABLE_FRONTLINE, plan.getId());
+            throw new BusinessException(TradeErrorCode.NO_AVAILABLE_FRONTLINE, plan.getRegionCode());
         }
         long now = System.currentTimeMillis();
         long expiry = now + (long) plan.getPeriodDays() * DAY_MS;
         Set<String> tried = new HashSet<>();
         while (true) {
-            String landingId = allocator.pickLanding(plan.getId(), tried);
+            String landingId = allocator.pickLanding(
+                    plan.getRegionCode(), plan.getIpTypeId(), planTraffic, planBw, tried);
             if (landingId == null) {
                 throw new BusinessException(TradeErrorCode.SKU_OUT_OF_STOCK, plan.getId());
             }
@@ -122,6 +140,76 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         log.info("[cancel] sub={} client={} → CANCELLED", id, sub.getXrayClientId());
     }
 
+    @Override
+    public String renderSubscription(String subToken) {
+        MemberSubscriberDTO member = memberUserApi.getActiveBySubToken(subToken);
+        if (member == null) {
+            return null;
+        }
+        List<TradeSubscriptionDO> subs = subMapper.selectActiveByMember(member.getId());
+        if (subs.isEmpty()) {
+            return Base64.encode("");
+        }
+        Map<String, TradeSubscriptionDO> subByClient = subs.stream()
+                .collect(Collectors.toMap(TradeSubscriptionDO::getXrayClientId, s -> s, (a, b) -> a));
+        List<XrayClientNodeDTO> nodes = clientNodeApi.getNodeInfos(subByClient.keySet());
+        if (nodes.isEmpty()) {
+            return Base64.encode("");
+        }
+        Set<String> planIds = subs.stream()
+                .map(TradeSubscriptionDO::getPlanId).collect(Collectors.toSet());
+        Map<String, String> planNameMap = planMapper.selectBatchIds(planIds).stream()
+                .collect(Collectors.toMap(TradePlanDO::getId, TradePlanDO::getName));
+
+        StringBuilder lines = new StringBuilder();
+        for (XrayClientNodeDTO node : nodes) {
+            TradeSubscriptionDO sub = subByClient.get(node.getClientId());
+            if (sub == null) {
+                continue;
+            }
+            lines.append(buildVmessLink(node, sub, planNameMap.get(sub.getPlanId()))).append('\n');
+        }
+        return Base64.encode(lines.toString().trim());
+    }
+
+    /** 拼单个 vmess:// 链接 (host = 线路机固定域名 / 出网 IP). */
+    private String buildVmessLink(XrayClientNodeDTO node, TradeSubscriptionDO sub, String planName) {
+        Map<String, Object> v = new LinkedHashMap<>();
+        v.put("v", "2");
+        v.put("ps", buildRemark(sub, planName));
+        v.put("add", node.getHost());
+        v.put("port", String.valueOf(node.getPort() == null ? DEFAULT_PORT : node.getPort()));
+        v.put("id", node.getClientUuid());
+        v.put("aid", "0");
+        v.put("scy", "auto");
+        v.put("net", StrUtil.blankToDefault(node.getTransport(), "ws"));
+        v.put("type", "none");
+        v.put("host", node.getHost());
+        v.put("path", StrUtil.nullToEmpty(node.getWsPath()));
+        v.put("tls", node.isTls() ? "tls" : "");
+        if (node.isTls()) {
+            v.put("sni", node.getHost());
+        }
+        return "vmess://" + Base64.encode(toJson(v));
+    }
+
+    /** 节点备注: "套餐名 | 到期 MM-dd". */
+    private String buildRemark(TradeSubscriptionDO sub, String planName) {
+        String name = StrUtil.blankToDefault(planName, "节点");
+        if (sub.getExpiresAt() != null) {
+            return name + " | 到期 " + sub.getExpiresAt().format(EXPIRE_FMT);
+        }
+        return name;
+    }
+
+    private String toJson(Map<String, Object> map) {
+        try {
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("vmess JSON 序列化失败", e);
+        }
+    }
+
     private XrayClientProvisionDTO buildProvisionDTO(AdminCreateSubReqVO req, TradePlanDO plan,
                                                      String frontlineId, String landingId, long expiry) {
         XrayClientProvisionDTO dto = new XrayClientProvisionDTO();
@@ -130,7 +218,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         dto.setMemberUserId(req.getMemberUserId());
         dto.setTotalBytes(plan.getTrafficGb() == null ? 0L : (long) plan.getTrafficGb() * GB);
         dto.setExpiryEpochMillis(expiry);
-        dto.setLimitIp(plan.getLimitIp() == null ? 0 : plan.getLimitIp());
+        dto.setLimitIp(0);
         return dto;
     }
 

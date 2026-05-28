@@ -222,8 +222,8 @@ function afterEdit() { load(); emit('refresh') }
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="月成本">
-            <template v-if="billing?.costMonthlyUsd != null">
-              <span class="num">${{ billing.costMonthlyUsd }}</span>
+            <template v-if="billing?.costMonthly != null">
+              <span class="num">¥{{ billing.costMonthly }}</span>
               <span class="unit">/ 月</span>
             </template>
             <span v-else class="muted">—</span>

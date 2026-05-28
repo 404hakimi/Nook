@@ -64,26 +64,26 @@ CREATE TABLE trade_plan (
   id               CHAR(32)     PRIMARY KEY,
   code             VARCHAR(64)  UNIQUE NOT NULL              COMMENT 'jp_tyo_residential_100gb_monthly',
   name             VARCHAR(128) NOT NULL,
-  region_code      VARCHAR(32)  NOT NULL                     COMMENT 'FK → system_region.code (展示分类)',
-  ip_type_id       CHAR(32)                                  COMMENT 'FK → system_ip_type.id (展示分类)',
+  -- 区域 / IP 类型不冗余存储: 由绑定的落地机派生 (resource_server.region + resource_server_landing.ip_type_id)
   traffic_gb       INT          NOT NULL                     COMMENT '月配额, 写 xray client totalBytes',
   bandwidth_mbps   INT                                       COMMENT '账面带宽 (商品页展示, Sprint 1 不 enforce)',
   period_days      INT          NOT NULL DEFAULT 30,
-  limit_ip         INT          NOT NULL DEFAULT 0           COMMENT '同时连接 IP 数, 写 xray limitIp; 0=不限',
-  price_cny        DECIMAL(10,2) NOT NULL,
-  cost_basis_cny   DECIMAL(10,2),
+  price            DECIMAL(10,2) NOT NULL                     COMMENT '售价 CNY',
   enabled          TINYINT      NOT NULL DEFAULT 1,
   remark           VARCHAR(255),
   created_at       DATETIME     NOT NULL,
   updated_at       DATETIME     NOT NULL,
   deleted          TINYINT      NOT NULL DEFAULT 0,
-  INDEX idx_filter (region_code, ip_type_id, enabled)
+  INDEX idx_enabled (enabled)
 );
 ```
 
-**字段可变性** (Validator 强制): 可改 `name` / `bandwidth_mbps` / `cost_basis_cny` / `enabled` / `remark`; **不可改** `traffic_gb` / `period_days` / `region_code` / `ip_type_id` / `price_cny` / `limit_ip` (改了破历史订阅引用 → 建新 SKU + 旧的 enabled=0)。
+**字段可变性** (Validator 强制): 可改 `name` / `bandwidth_mbps` / `enabled` / `remark`; **不可改** `traffic_gb` / `period_days` / `price` (改了破历史订阅引用 → 建新 SKU + 旧的 enabled=0)。
 
-> 无 DB 外键 (项目规范), region/ip_type 引用由 Validator 校验。
+> **区域 / IP 类型不是 trade_plan 字段** — 由绑定落地机派生 (连表 `resource_server.region` + `resource_server_landing.ip_type_id`, 见 `selectCategoryByPlanIds`)。避免两处配置漂移。无 DB 外键 (项目规范)。
+> **`limit_ip` 已移除** — 独享 IP 用户独享出口, 套餐层不再配并发 IP 限制; xray 开通时固定传 0 (不限)。
+> **套餐成本 Sprint 1 不做** — 池模型下单套餐成本是聚合估值, 暂不在套餐层算 (精确成本应落到订阅级, 后续按需做)。`resource_server_billing.cost_monthly` 仍是服务器自身账面 (USD→CNY 去单位, 服务器详情展示)。
+> **价格字段去货币单位后缀** — 金额统一 CNY (`price`), 无汇率概念。
 
 ### 3.2 `trade_plan_resource` — SKU ↔ 资源池
 
@@ -91,7 +91,7 @@ CREATE TABLE trade_plan (
 CREATE TABLE trade_plan_resource (
   id              CHAR(32)     PRIMARY KEY,
   trade_plan_id     CHAR(32)     NOT NULL,
-  resource_type   ENUM('FRONTLINE','LANDING') NOT NULL       COMMENT '门禁(线路机) / 公寓(落地机)',
+  resource_type   ENUM('FRONTLINE','LANDING') NOT NULL       COMMENT '线路机 / 落地机',
   resource_id     CHAR(32)     NOT NULL                      COMMENT 'resource_server.id',
   enabled         TINYINT      NOT NULL DEFAULT 1            COMMENT '临时禁用 (老 sub 保留不接新)',
   created_at      DATETIME     NOT NULL,
@@ -147,14 +147,15 @@ CREATE TABLE trade_subscription (
 | PUT | `/update-sku` | 改可变字段 (Validator 拦不可变字段) |
 | POST | `/toggle-enabled` | 上/下架 |
 | DELETE | `/delete-sku` | 软删 (有活跃 sub 时拒) |
-| POST | `/bind-resource` | 关联 frontline / landing (校验 LIVE; landing 校验 ip_type 匹配) |
+| POST | `/bind-resource` | 关联 frontline / landing (校验 LIVE; landing 校验同质: region+ip_type 与已绑一致) |
 | POST | `/unbind-resource` | 解绑 (enabled=0, 老 sub 不受影响) |
 | GET | `/list-resource` | 列 SKU 已关联资源 + 各自状态 |
 
 ### 4.2 绑定校验 (`PlanSkuResourceValidator`)
 
-- frontline: `resource_server.server_type=frontline` 且 `lifecycle_state=LIVE`
-- landing: `server_type=landing` 且 `lifecycle_state=LIVE`, 且 `ip_type_id` 跟 SKU 的 `ip_type_id` 一致
+- frontline: `resource_server.server_type=frontline` 且 `lifecycle_state=LIVE` (线路机仅做入口中转, 区域不约束)
+- landing: `server_type=landing` 且 `lifecycle_state=LIVE`; **同质池**: 同一套餐已绑落地机的 `region` + `ip_type_id` 必须一致 (首个落地机自由, 后续连表 `selectCategoryByPlanIds` 取已绑分类比对, 不一致拒)
+- **容量上限** (走 `ResourceServerCapacityApi`): 套餐 `traffic_gb` ≤ 落地机 `monthly_traffic_gb`、套餐 `bandwidth_mbps` ≤ 落地机 `bandwidth_limit_mbps` (落地机侧 `0/null=不限` 则跳过)。改套餐带宽时同样校验 ≤ 已绑落地机池最小值。前端编辑弹窗经 `GET /pool-capacity` 拿池上限做输入 `:max` + 提示。
 - 去重: `uk_sku_res` 兜底 + Validator 友好提示
 
 ---
@@ -343,7 +344,7 @@ for each:
 1. ✅ **模块**: 新建 `nook-module-trade` (依赖现有 `node-api`; node **暂不拆**; 需补 `nook-module-node-api` 的 `XrayClientProvisionApi` 契约)
 2. ✅ **续费范围**: Sprint 1 只做 **ACTIVE 期续费** (延长 expires_at + xray adu 重填 totalBytes)
 3. ✅ **14 天 IP 保留**: Sprint 1 **不做** — 到期 Job 直接 revoke client + 落地机 COOLING→AVAILABLE 释放。14 天保留 → Sprint 2
-4. ✅ **limit_ip 默认**: **0 不限** (独享 IP 用户独享出口; 防共享后续按 SKU 配)
+4. ✅ **limit_ip 已移除**: 套餐层不配并发 IP 限制 (独享 IP 用户独享出口); xray 开通固定传 0 不限
 5. ✅ **sub insert 失败补偿**: **靠对账** — admin 看孤儿 client (无对应 sub) 手动处理; 不做自动 revoke
 
 > 全部决策已定, Sprint 1 可进入编码 (按 §9 实施步骤, 从 ① DDL 起)。

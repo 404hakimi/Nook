@@ -22,7 +22,8 @@ public class ResourceServerBillingDO {
 
     private String idcProvider;
 
-    private BigDecimal costMonthlyUsd;
+    /** 月成本 CNY. */
+    private BigDecimal costMonthly;
 
     /** 账单日 1-28. */
     private Integer billingCycleDay;

@@ -12,8 +12,8 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum TradePlanResourceTypeEnum {
 
-    FRONTLINE("FRONTLINE", "门禁 (线路机)"),
-    LANDING("LANDING", "公寓 (落地机)"),
+    FRONTLINE("FRONTLINE", "线路机"),
+    LANDING("LANDING", "落地机"),
     ;
 
     private final String type;
