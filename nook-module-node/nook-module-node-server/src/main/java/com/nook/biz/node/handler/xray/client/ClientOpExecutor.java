@@ -78,7 +78,7 @@ public class ClientOpExecutor {
      * @return 落库后的客户端
      */
     @Transactional(rollbackFor = Exception.class)
-    XrayClientDO doProvision(XrayClientProvisionReqVO reqVO, OpProgressSink progress) {
+    public XrayClientDO doProvision(XrayClientProvisionReqVO reqVO, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         sink.report("校验入参", 15);
         clientValidator.validateForProvision(reqVO);
@@ -140,7 +140,7 @@ public class ClientOpExecutor {
      * @param inboundEntityId xray_client.id
      * @param progress        进度 sink, 允许为 null
      */
-    void doRevoke(String inboundEntityId, OpProgressSink progress) {
+    public void doRevoke(String inboundEntityId, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
 
         sink.report("加载客户端", 30);

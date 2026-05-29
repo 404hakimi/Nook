@@ -2,7 +2,6 @@ package com.nook.biz.node.service.xray.client;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
@@ -11,6 +10,7 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
+import com.nook.biz.node.handler.xray.client.ClientOpExecutor;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.config.XrayConfigService;
 import com.nook.biz.node.validator.ResourceServerValidator;
@@ -49,6 +49,7 @@ public class XrayClientServiceImpl implements XrayClientService {
     private final ResourceServerValidator serverValidator;
     private final ResourceServerService resourceServerService;
     private final XrayClientValidator clientValidator;
+    private final ClientOpExecutor clientOpExecutor;
     private final OpConfigResolver opConfigResolver;
     private final OpOrchestrator opOrchestrator;
 
@@ -66,27 +67,14 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     @Override
     public XrayClientDO provisionXrayClient(XrayClientProvisionReqVO reqVO) {
-        OpEnqueueRequest req = OpEnqueueRequest.builder()
-                .serverId(reqVO.getServerId())
-                .opType(OpType.CLIENT_PROVISION.name())
-                .operator(StpSystemUtil.getLoginIdOrSystem())
-                .paramsJson(JSON.toJSONString(reqVO))
-                .allowDuplicate(true) // 新建资源, 多个并发 provision 应排队 FIFO 跑而非互斥
-                .build();
-        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_PROVISION.name()), XrayClientDO.class);
+        // DB-only 开通, 直接走 executor; 远端由 agent reconcile 收敛, 不再经 op 队列
+        return clientOpExecutor.doProvision(reqVO, null);
     }
 
     @Override
     public void revokeXrayClient(String inboundEntityId) {
-        XrayClientDO e = getXrayClient(inboundEntityId);
-        OpEnqueueRequest req = OpEnqueueRequest.builder()
-                .serverId(e.getServerId())
-                .opType(OpType.CLIENT_REVOKE.name())
-                .targetId(inboundEntityId)
-                .operator(StpSystemUtil.getLoginIdOrSystem())
-                .paramsJson("{\"clientId\":\"" + inboundEntityId + "\"}")
-                .build();
-        opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_REVOKE.name()), Void.class);
+        // DB-only 吊销, 直接走 executor; 远端由 agent reconcile 清理
+        clientOpExecutor.doRevoke(inboundEntityId, null);
     }
 
     @Override
