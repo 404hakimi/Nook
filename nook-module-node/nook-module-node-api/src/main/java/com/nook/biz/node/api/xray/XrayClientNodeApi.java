@@ -29,4 +29,12 @@ public interface XrayClientNodeApi {
      * @return clientId → server_id (缺失/无 server 的跳过)
      */
     Map<String, String> getServerIdByClientIds(Collection<String> clientIds);
+
+    /**
+     * 批量查客户端累计已用流量字节 (上行+下行); trade 生命周期 job 判流量耗尽用.
+     *
+     * @param clientIds xray_client.id 集合
+     * @return clientId → 已用字节 (无流量行的不在 map 里, 视为 0)
+     */
+    Map<String, Long> getUsedBytesByClientIds(Collection<String> clientIds);
 }

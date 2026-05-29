@@ -28,6 +28,14 @@ public interface XrayClientProvisionApi {
     void revoke(String clientId);
 
     /**
+     * 停服客户端 (置 status=STOPPED, 保留 client 记录 + 落地机占用); 流量耗尽暂停用,
+     * 续费/重置后可恢复. 远端 user/rule/outbound 由 reconcile 移除, 落地 tc 自动清零.
+     *
+     * @param clientId xray_client.id
+     */
+    void stop(String clientId);
+
+    /**
      * 批量统计各线路机活跃 (status=RUNNING) 客户数; allocator 选客户数最少线路机用.
      *
      * @param serverIds 线路机 server id 集合

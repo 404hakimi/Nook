@@ -13,6 +13,7 @@ import lombok.Getter;
 public enum TradeSubscriptionStatusEnum {
 
     ACTIVE("ACTIVE", "生效中"),
+    SUSPENDED("SUSPENDED", "已暂停(流量用尽)"),
     EXPIRED("EXPIRED", "已过期"),
     CANCELLED("CANCELLED", "已取消"),
     ;

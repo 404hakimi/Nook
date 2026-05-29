@@ -1,6 +1,7 @@
 package com.nook.biz.node.api.xray;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.nook.biz.node.api.enums.XrayClientStatusEnum;
 import com.nook.biz.node.api.xray.dto.XrayClientProvisionDTO;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
@@ -43,6 +44,13 @@ public class XrayClientProvisionApiImpl implements XrayClientProvisionApi {
     @Override
     public void revoke(String clientId) {
         xrayClientService.revokeXrayClient(clientId);
+    }
+
+    @Override
+    public void stop(String clientId) {
+        // 仅置停, 不删记录 / 不释放落地机; 远端由 reconcile 收敛 (RUNNING 过滤后自然移除)
+        xrayClientMapper.updateStatus(clientId,
+                XrayClientStatusEnum.STOPPED.getCode(), java.time.LocalDateTime.now());
     }
 
     @Override
