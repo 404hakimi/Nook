@@ -2,7 +2,6 @@ package com.nook.biz.node.handler.xray.server;
 
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
-import com.nook.biz.node.service.xray.client.XrayClientTrafficSampleService;
 import com.nook.biz.node.validator.XrayServerValidator;
 import com.nook.biz.operation.api.OpProgressSink;
 import com.nook.framework.ssh.core.SshSession;
