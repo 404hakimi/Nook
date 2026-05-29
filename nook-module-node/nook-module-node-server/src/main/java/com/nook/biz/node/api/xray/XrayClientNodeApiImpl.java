@@ -99,17 +99,4 @@ public class XrayClientNodeApiImpl implements XrayClientNodeApi {
                 .filter(c -> Objects.nonNull(c.getIpId()))
                 .collect(Collectors.toMap(XrayClientDO::getId, XrayClientDO::getIpId, (a, b) -> a));
     }
-
-    @Override
-    public Map<String, Long> getUsedBytesByClientIds(Collection<String> clientIds) {
-        if (clientIds == null || clientIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return trafficMapper.selectByClientIds(clientIds).stream()
-                .collect(Collectors.toMap(
-                        com.nook.biz.node.dal.dataobject.client.XrayClientTrafficDO::getClientId,
-                        t -> (t.getUplinkBytes() == null ? 0L : t.getUplinkBytes())
-                                + (t.getDownlinkBytes() == null ? 0L : t.getDownlinkBytes()),
-                        (a, b) -> a));
-    }
 }
