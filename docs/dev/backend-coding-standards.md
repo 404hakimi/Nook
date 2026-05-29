@@ -2,18 +2,18 @@
 
 > 版本: v1.3 ｜ 日期: 2026-05-29 ｜ 适用: 所有 `nook-module-*` 模块
 
-后端开发的强制约束. 本文为 AI 阅读优化, 规则优先于示例. 参考 datahub `backend-coding-standards.md v1.1`, 结合 Nook 现状裁剪.
+后端开发的强制约束. 本文为 AI 阅读优化, 规则优先于示例.
 
 > 示例代码统一用占位类名 (`SomeDO` / `SomeService` / `SomeEnum` 等), 不绑定具体业务实体, 便于规则沉淀为通用规范.
 
 ---
 
-## 0. Nook 项目骨架要点 (跟 datahub 的差异)
+## 0. Nook 项目骨架要点
 
 | 项 | Nook 现状 | 备注 |
 |---|---|---|
 | 主键 | `CHAR(32)` UUID, `BaseEntity.id` 类型 `String`, `@TableId(type = IdType.ASSIGN_UUID)` | 不用雪花 Long |
-| 时间字段 | `created_at` / `updated_at`, 实体字段 `createdAt` / `updatedAt`, `MetaObjectHandlerImpl` 自动 fill | 跟 datahub `createTime` 不同 |
+| 时间字段 | `created_at` / `updated_at`, 实体字段 `createdAt` / `updatedAt`, `MetaObjectHandlerImpl` 自动 fill | 列名下划线 / 字段名驼峰 |
 | 软删除 | `deleted TINYINT` (0/1), 实体 `@TableLogic Integer deleted` | |
 | Mapper 基类 | MP 原生 `BaseMapper<T>`, 用 `Wrappers.lambdaQuery()` / `lambdaUpdate()` | **没有** `BaseMapperX` / `LambdaQueryWrapperX` |
 | 注入 | `@RequiredArgsConstructor` + `final` 构造注入 | **不用** `@Resource` / `@Autowired` |
@@ -80,6 +80,8 @@ Convert 的 `convertListWithInfo` 只接收纯数据 Map, **禁止**接收 Servi
 ---
 
 ## 2. 集合与判空工具
+
+**判空一律用 Hutool 工具类, 禁止手写 `== null` / `.isEmpty()` 拼接**: 集合 / 字符串 / 对象 / Map / 数组判空走 `CollUtil` / `StrUtil` / `ObjectUtil` / `MapUtil` / `ArrayUtil` (`cn.hutool.core.*`); 字段提取 / Map 构建 / 多集合判空走项目 `CollectionUtils`.
 
 | 需求 | 写法 |
 |---|---|
@@ -259,7 +261,7 @@ public interface SomeMapper extends BaseMapper<SomeDO> {
 
 ## 6. 异常与错误码
 
-### 错误码定义 (跟 datahub 不同, Nook 用 `ErrorCode` 接口)
+### 错误码定义 (Nook 用 `ErrorCode` 接口)
 
 每模块一个 `XxxErrorCode` 类 (枚举或常量类), 实现 `com.nook.common.web.error.ErrorCode` 接口.
 
@@ -532,7 +534,7 @@ public interface SomeOpsConvert {
 | `RespVO` | 标准响应 | 出参 |
 | `SimpleRespVO` | 下拉等精简响应 | 出参 |
 
-> 跟 datahub `SaveReqVO` 合并 Create / Update 的做法不同, Nook 现有代码 (`SystemUserCreateReqVO` / `SystemUserUpdateReqVO`) 分开. 沿用 Nook 现状.
+> Create / Update 用独立 VO, **不**合并成单个 `SaveReqVO`. 沿用 Nook 现状.
 
 **禁止** `DTO` / `Result` / `Form` 等其他后缀.
 
@@ -1111,6 +1113,8 @@ private String randomSubToken() { return RandomUtil.randomString(32); }
 
 ### 字段级 Javadoc
 
+**适用范围 (强制)**: 所有数据载体类的**每个字段都要有注释, 不留裸字段** —— 不只 `DO`, 还包括 `VO` / `DTO` / 基础设施封装的视图载体 (framework 层 `*Snapshot` 等). DO / DTO / Snapshot / Properties 用单行 javadoc; VO 字段用 `@Schema(description=...)` 或 javadoc 表达含义即可 (二选一, 见 §9).
+
 单行, **写字段的业务含义** (不复述字段名), 枚举值写清楚.
 
 - 关联字段只讲它"是什么" (`所属会员` / `所购套餐`), **禁止**写外键指向哪张表哪个列 (`FK → xxx.id`、`xxx_table.col` 这类 DB 接线信息属于 DDL / ER 图, 不进字段注释)
@@ -1196,8 +1200,10 @@ for (User u : users) { ... }
 - [ ] 异步用独立 `XxxAsyncHelper`
 - [ ] 单方法 ≤ 80 行 (不含空行/注释)
 - [ ] 注释只解释"为什么", 无序号前缀, 无废弃代码, **无 bug 调查史 / 全限定名 / 跨模块叙述**
+- [ ] 数据载体类 (`DO`/`VO`/`DTO`/`*Snapshot`) 每个字段都有注释, 不留裸字段
 - [ ] 字段 / `@param` 注释只讲业务含义, **不写外键到哪表哪列** (`FK → xxx.id`); 状态字段用 `{@link XxxEnum}`
 - [ ] `@param` / `@return` 精简 (写内容或类型即可), 不展开成整句描述
+- [ ] 判空用 Hutool (`CollUtil`/`StrUtil`/`ObjectUtil` 等), 不手写 `== null` / `.isEmpty()`
 - [ ] 类级 javadoc 一句话; 核心方法 `@param/@return` 标准格式; 简单方法单行
 
 ---
