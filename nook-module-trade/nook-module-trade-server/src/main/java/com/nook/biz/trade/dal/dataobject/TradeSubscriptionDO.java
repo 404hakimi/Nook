@@ -18,13 +18,13 @@ import java.time.LocalDateTime;
 @TableName("trade_subscription")
 public class TradeSubscriptionDO extends BaseEntity {
 
-    /** 所属会员; FK → member_user.id. */
+    /** 所属会员. */
     private String memberUserId;
 
-    /** 所购套餐; FK → trade_plan.id. */
+    /** 所购套餐. */
     private String planId;
 
-    /** 绑定的 xray 客户端, 1:1; FK → xray_client.id. */
+    /** 绑定的 xray 客户端, 1:1. */
     private String xrayClientId;
 
     /** 生效时间. */

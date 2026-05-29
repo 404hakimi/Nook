@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @TableName("resource_server_runtime")
 public class ResourceServerRuntimeDO {
 
-    /** 服务器 id (主键); FK → resource_server.id. */
+    /** 服务器 id (主键). */
     @TableId
     private String serverId;
 

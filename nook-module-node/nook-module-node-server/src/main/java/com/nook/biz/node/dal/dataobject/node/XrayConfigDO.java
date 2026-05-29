@@ -23,7 +23,7 @@ public class XrayConfigDO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 服务器 id (主键); FK → resource_server.id. */
+    /** 服务器 id (主键). */
     @TableId(value = "server_id", type = IdType.INPUT)
     private String serverId;
 

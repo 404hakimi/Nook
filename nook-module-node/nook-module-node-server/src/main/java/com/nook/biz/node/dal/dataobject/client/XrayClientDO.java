@@ -24,13 +24,13 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class XrayClientDO extends BaseEntity {
 
-    /** 所属线路机 server id; FK → resource_server.id. */
+    /** 所属线路机 server id. */
     private String serverId;
 
-    /** 绑定的落地 IP id; FK → resource_server_landing(落地 IP). */
+    /** 绑定的落地 IP id. */
     private String ipId;
 
-    /** 所属会员; FK → member_user.id. */
+    /** 所属会员. */
     private String memberUserId;
 
     /** 协议级密钥 (vless/vmess UUID, trojan password) */

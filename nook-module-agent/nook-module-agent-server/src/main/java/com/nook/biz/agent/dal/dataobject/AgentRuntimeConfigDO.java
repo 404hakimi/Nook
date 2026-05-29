@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @TableName("agent_runtime_config")
 public class AgentRuntimeConfigDO {
 
-    /** FK → resource_server.id; PK. */
+    /** 服务器 id (主键). */
     @TableId
     private String serverId;
 

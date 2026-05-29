@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @TableName("resource_server_capacity")
 public class ResourceServerCapacityDO {
 
-    /** 服务器 id (主键); FK → resource_server.id. */
+    /** 服务器 id (主键). */
     @TableId
     private String serverId;
 

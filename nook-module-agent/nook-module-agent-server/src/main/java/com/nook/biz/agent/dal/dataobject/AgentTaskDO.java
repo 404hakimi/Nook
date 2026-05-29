@@ -20,7 +20,7 @@ public class AgentTaskDO extends BaseEntity {
     /** agent 角色; 取值见 {@link com.nook.biz.agent.api.enums.AgentRole}; 落库为字符串 frontline / landing. */
     private String agentType;
 
-    /** 装机源 id (FK → resource_server.id). */
+    /** 装机源服务器 id. */
     private String sourceId;
 
     /** 任务类型: xray_provision_user / xray_remove_user / shell_exec 等. */

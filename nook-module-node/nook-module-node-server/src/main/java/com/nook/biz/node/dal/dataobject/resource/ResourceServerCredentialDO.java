@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @TableName("resource_server_credential")
 public class ResourceServerCredentialDO {
 
-    /** 落地/线路机 id (主键); FK → resource_server.id. */
+    /** 落地/线路机 id (主键). */
     @TableId
     private String serverId;
 

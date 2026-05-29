@@ -33,7 +33,7 @@ public class ResourceServerDO extends BaseEntity {
     /** IP 总数. */
     private Integer totalIpCount;
 
-    /** 区域码; FK → system_region.code. */
+    /** 区域码. */
     private String region;
 
     /** 备注. */

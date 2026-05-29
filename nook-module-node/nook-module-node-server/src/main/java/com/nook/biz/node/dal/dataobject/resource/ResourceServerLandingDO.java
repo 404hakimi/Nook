@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @TableName("resource_server_landing")
 public class ResourceServerLandingDO {
 
-    /** 落地机 id (主键); FK → resource_server.id. */
+    /** 落地机 id (主键). */
     @TableId
     private String serverId;
 
@@ -44,7 +44,7 @@ public class ResourceServerLandingDO {
     /** 部署模式 {@link ResourceServerProvisionModeEnum} */
     private Integer provisionMode;
 
-    /** 落地 IP 类型; FK → system_ip_type.id. */
+    /** 落地 IP 类型. */
     private String ipTypeId;
 
     // ===== socks5 运行配置 =====
