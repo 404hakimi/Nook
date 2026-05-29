@@ -39,9 +39,12 @@ public class MemberPlanTrafficDO {
     /** 周期重置时间; null = 窗口为订阅生命周期, 不中途重置 (续费=新订阅=新行). */
     private LocalDateTime cycleResetAt;
 
+    /** 上次采样时间. */
     private LocalDateTime lastSampledAt;
 
+    /** 创建时间. */
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     private LocalDateTime updatedAt;
 }

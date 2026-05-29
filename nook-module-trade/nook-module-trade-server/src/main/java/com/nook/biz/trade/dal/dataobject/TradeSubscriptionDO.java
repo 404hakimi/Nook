@@ -18,16 +18,19 @@ import java.time.LocalDateTime;
 @TableName("trade_subscription")
 public class TradeSubscriptionDO extends BaseEntity {
 
+    /** 所属会员; FK → member_user.id. */
     private String memberUserId;
 
-    /** FK → trade_plan.id. */
+    /** 所购套餐; FK → trade_plan.id. */
     private String planId;
 
-    /** 1:1 → xray_client.id. */
+    /** 绑定的 xray 客户端, 1:1; FK → xray_client.id. */
     private String xrayClientId;
 
+    /** 生效时间. */
     private LocalDateTime startedAt;
 
+    /** 到期时间; 由 startedAt + 套餐 periodDays 推得. */
     private LocalDateTime expiresAt;
 
     /** 订阅状态 {@link TradeSubscriptionStatusEnum} */
