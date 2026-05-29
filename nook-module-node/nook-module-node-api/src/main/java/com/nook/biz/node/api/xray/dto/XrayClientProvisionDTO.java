@@ -17,7 +17,4 @@ public class XrayClientProvisionDTO {
     private String ipId;
 
     private String memberUserId;
-
-    /** 流量上限 (字节); 0 = 不限. */
-    private Long totalBytes;
 }

@@ -27,21 +27,11 @@ public class ServerOpExecutor {
 
     private final XrayDaemonProbe xrayDaemonProbe;
     private final XrayServerValidator xrayServerValidator;
-    /** restart 前置 sample 让流量数据不丢; 失败仅 warn, 不阻塞 restart 主流程. */
-    private final XrayClientTrafficSampleService trafficSampleService;
 
     /** XRAY_RESTART 实际执行体. */
     String doRestart(String serverId, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         XrayServerDO server = xrayServerValidator.validateExists(serverId);
-        // restart 是可控的"清零事件" — systemctl restart 后 xray in-memory counter 全归零;
-        // 先 sample 一次把当前增量入库, 让用户层流量统计跨重启不丢. 失败仅 warn, 不阻塞 restart.
-        sink.report("采样流量入库", 20);
-        try {
-            trafficSampleService.sampleServerTraffic(serverId);
-        } catch (Exception e) {
-            log.warn("[restart] server={} 前置 sample 失败, 仍继续 restart: {}", serverId, e.getMessage());
-        }
         sink.report("连接服务器", 40);
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
         sink.report("重启 Xray 服务", 60);

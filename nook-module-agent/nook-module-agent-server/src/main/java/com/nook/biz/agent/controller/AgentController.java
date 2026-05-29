@@ -4,7 +4,6 @@ import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskResultReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
-import com.nook.biz.agent.controller.vo.AgentXrayTrafficReqVO;
 import com.nook.biz.agent.framework.auth.AuthenticatedAgent;
 import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.node.api.xray.XrayClientReconcileApi;
@@ -94,20 +93,6 @@ public class AgentController {
     public Result<Boolean> taskResult(@AuthenticatedAgent String serverId,
                                       @RequestBody @Valid AgentTaskResultReqVO reqVO) {
         agentReportService.receiveTaskResult(serverId, reqVO);
-        return Result.ok(true);
-    }
-
-    /**
-     * Agent 上报 xray user 累计流量 (每 5min, statsquery).
-     *
-     * @param serverId 已认证 server id
-     * @param reqVO    xray 流量快照 (email → up/down bytes)
-     * @return 固定 true
-     */
-    @PostMapping("/xray-traffic")
-    public Result<Boolean> xrayTraffic(@AuthenticatedAgent String serverId,
-                                       @RequestBody @Valid AgentXrayTrafficReqVO reqVO) {
-        agentReportService.receiveXrayTraffic(serverId, reqVO);
         return Result.ok(true);
     }
 

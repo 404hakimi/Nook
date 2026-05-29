@@ -33,7 +33,6 @@ public class XrayClientProvisionApiImpl implements XrayClientProvisionApi {
         reqVO.setServerId(req.getServerId());
         reqVO.setIpId(req.getIpId());
         reqVO.setMemberUserId(req.getMemberUserId());
-        reqVO.setTotalBytes(req.getTotalBytes());
         XrayClientDO client = xrayClientService.provisionXrayClient(reqVO);
         return client.getId();
     }

@@ -3,11 +3,9 @@ package com.nook.biz.node.controller.xray;
 import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientTrafficRespVO;
 import com.nook.biz.node.convert.xray.XrayClientConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.service.xray.client.XrayClientService;
-import com.nook.biz.node.service.xray.client.XrayClientTrafficService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +33,6 @@ import java.util.Set;
 public class XrayClientController {
 
     private final XrayClientService xrayClientService;
-    private final XrayClientTrafficService xrayClientTrafficService;
 
     /**
      * 获得 xray 客户端分页
@@ -73,29 +70,6 @@ public class XrayClientController {
     @PostMapping("/rotate-xray-client")
     public Result<XrayClientRespVO> rotateXrayClient(@RequestParam("id") String id) {
         return Result.ok(convertOne(xrayClientService.rotateXrayClient(id)));
-    }
-
-    /**
-     * 获得客户端实时流量
-     *
-     * @param id 客户端编号
-     * @return 流量信息
-     */
-    @GetMapping("/get-xray-client-traffic")
-    public Result<XrayClientTrafficRespVO> getXrayClientTraffic(@RequestParam("id") String id) {
-        return Result.ok(xrayClientTrafficService.getXrayClientTraffic(id));
-    }
-
-    /**
-     * 清零客户端累计流量
-     *
-     * @param id 客户端编号
-     * @return 是否成功
-     */
-    @PostMapping("/reset-xray-client-traffic")
-    public Result<Boolean> resetXrayClientTraffic(@RequestParam("id") String id) {
-        xrayClientTrafficService.resetXrayClientTraffic(id);
-        return Result.ok(true);
     }
 
     /**

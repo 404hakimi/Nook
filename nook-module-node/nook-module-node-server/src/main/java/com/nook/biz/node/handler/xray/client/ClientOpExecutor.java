@@ -13,10 +13,8 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
-import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
-import com.nook.biz.node.framework.xray.cli.XrayStatsCli;
 import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.xray.config.XrayConfigService;
@@ -49,9 +47,7 @@ public class ClientOpExecutor {
     private static final String SHARED_INBOUND_TAG = XrayConstants.SHARED_INBOUND_TAG;
 
     private final XrayClientMapper xrayClientMapper;
-    private final XrayClientTrafficMapper xrayClientTrafficMapper;
     private final XrayInboundCli inboundCli;
-    private final XrayStatsCli statsCli;
     private final XrayConfigService xrayConfigService;
     private final ResourceServerCapacityMapper capacityMapper;
     private final ResourceServerLandingService landingService;
@@ -115,7 +111,6 @@ public class ClientOpExecutor {
                 .memberUserId(reqVO.getMemberUserId())
                 .clientUuid(clientUuid)
                 .clientEmail(clientEmail)
-                .totalBytes(reqVO.getTotalBytes() == null ? 0L : reqVO.getTotalBytes())
                 .status(1)
                 .build();
         try {
@@ -147,7 +142,6 @@ public class ClientOpExecutor {
         sink.report("清理 DB + 释放落地机", 80);
         transactionTemplate.executeWithoutResult(txStatus -> {
             xrayClientMapper.deleteById(e.getId());
-            xrayClientTrafficMapper.deleteByClientId(e.getId());
             try {
                 landingService.releaseToCoolingForRevoke(e.getIpId());
             } catch (RuntimeException re) {
@@ -204,28 +198,5 @@ public class ClientOpExecutor {
         return e;
     }
 
-    /** 流量清零; 以远端当前累计作为新基线, 后续采样从此起算 */
-    @Transactional(rollbackFor = Exception.class)
-    void doResetTraffic(String clientId, OpProgressSink progress) {
-        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
-        sink.report("校验客户端", 20);
-        XrayClientDO client = clientValidator.validateExists(clientId);
-        sink.report("加载服务器信息", 40);
-        XrayServerDO server = xrayServerValidator.validateExists(client.getServerId());
-        sink.report("读取服务器流量", 60);
-        SshSession session = SshSessions.acquire(client.getServerId(), SshSessionScope.SHARED);
-        var snap = statsCli.readUserTraffic(session, server.getXrayBinaryPath(), server.getXrayApiPort(),
-                client.getClientEmail(), false);
-        sink.report("保存流量基线", 85);
-        xrayClientTrafficMapper.resetWithBaseline(
-                UUID.randomUUID().toString().replace("-", ""),
-                clientId, client.getServerId(),
-                Math.max(0L, snap.getUpBytes()),
-                Math.max(0L, snap.getDownBytes()),
-                LocalDateTime.now());
-        log.info("[reset-traffic] OK server={} client={} email={} cur=up{}/down{}",
-                client.getServerId(), clientId, client.getClientEmail(),
-                snap.getUpBytes(), snap.getDownBytes());
-    }
 
 }

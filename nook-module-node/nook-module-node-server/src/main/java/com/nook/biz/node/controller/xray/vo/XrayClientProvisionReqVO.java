@@ -27,8 +27,4 @@ public class XrayClientProvisionReqVO {
     @NotBlank(message = "memberUserId 必填")
     @Size(max = 36)
     private String memberUserId;
-
-    /** 流量上限(字节); 0 = 不限. */
-    @Min(value = 0, message = "totalBytes 不能为负")
-    private Long totalBytes;
 }

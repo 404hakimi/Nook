@@ -47,39 +47,6 @@ export interface XrayClientQuery {
 }
 
 /**
- * 实时流量出参 (后端 ClientTrafficRespVO); 字段名以"挂在 inbound 上的 client 实体 id"语义对齐.
- *
- * <p>字节字段双形态: *Bytes (number, 精确数值, 比较/排序) + *BytesText (string, "190.50 KB" 这种人读串, 直接展示).
- * usagePct 在 totalBytes=0 时为 null, 前端按 null 判断"无上限"分支即可, 不需再看 totalBytes 数值.
- */
-export interface XrayClientTraffic {
-  inboundEntityId: string
-  clientEmail: string
-
-  upBytes: number
-  upBytesText: string
-
-  downBytes: number
-  downBytesText: string
-
-  /** 已用 = upBytes + downBytes; 后端预算好, 前端不再加. */
-  usedBytes: number
-  usedBytesText: string
-
-  /** 流量上限(字节); 0=不限. */
-  totalBytes: number
-  /** 流量上限人读字符串; 0 时为 "无限制" 占位串, 与 totalBytes=0 等价. */
-  totalBytesText: string
-
-  /** 用量百分比 (0-100); totalBytes=0 时为 null 表示"无上限不适用". */
-  usagePct: number | null
-
-  /** 到期时间戳(毫秒); 0=永久. */
-  expiryEpochMillis: number
-  enabled: boolean
-}
-
-/**
  * 协议级凭据明文 (UUID / password 等); 仅在分享场景按需拉取, 不在列表 / 详情接口里下发.
  */
 export interface XrayClientCredential {
@@ -120,14 +87,6 @@ export function pageClients(params: XrayClientQuery) {
 
 export function rotateClient(id: string) {
   return request.post<unknown, XrayClient>('/admin/xray/client/rotate-xray-client', null, { params: { id } })
-}
-
-export function getClientTraffic(id: string) {
-  return request.get<unknown, XrayClientTraffic>('/admin/xray/client/get-xray-client-traffic', { params: { id } })
-}
-
-export function resetClientTraffic(id: string) {
-  return request.post<unknown, void>('/admin/xray/client/reset-xray-client-traffic', null, { params: { id } })
 }
 
 /**

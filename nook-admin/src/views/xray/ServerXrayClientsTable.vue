@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Activity, RefreshCcw, RotateCw, Share2, Zap } from 'lucide-vue-next'
+import { RefreshCcw, RotateCw, Share2 } from 'lucide-vue-next'
 import {
   NButton,
   NDataTable,
@@ -14,13 +14,11 @@ import { useConfirm } from '@/composables/useConfirm'
 import {
   CLIENT_STATUS_LABELS,
   pageClients,
-  resetClientTraffic,
   rotateClient,
   type XrayClient
 } from '@/api/xray/client'
 import { formatDateTime } from '@/utils/date'
 import ClientShareDialog from './ClientShareDialog.vue'
-import ClientTrafficDialog from './ClientTrafficDialog.vue'
 
 interface Props {
   serverId: string
@@ -64,7 +62,7 @@ function statusType(s: number): 'success' | 'warning' | 'error' | 'default' {
   return 'default'
 }
 
-// ===== 行操作: 分享 / 流量 / 轮换 / 清流量 =====
+// ===== 行操作: 分享 / 轮换 =====
 async function onRotate(c: XrayClient) {
   if (busy.value[c.id]) return
   const ok = await confirm({
@@ -84,36 +82,11 @@ async function onRotate(c: XrayClient) {
   }
 }
 
-async function onResetTraffic(c: XrayClient) {
-  if (busy.value[c.id]) return
-  const ok = await confirm({
-    title: '清零流量',
-    message: `清零 ${c.clientEmail} 的流量计数?`,
-    type: 'warning',
-    confirmText: '清零'
-  })
-  if (!ok) return
-  busy.value[c.id] = true
-  try {
-    await resetClientTraffic(c.id)
-    message.success('已清零')
-  } catch { /* */ } finally {
-    busy.value[c.id] = false
-  }
-}
-
 const shareOpen = ref(false)
 const shareTarget = ref<XrayClient | null>(null)
 function openShare(c: XrayClient) {
   shareTarget.value = c
   shareOpen.value = true
-}
-
-const trafficOpen = ref(false)
-const trafficTarget = ref<XrayClient | null>(null)
-function openTraffic(c: XrayClient) {
-  trafficTarget.value = c
-  trafficOpen.value = true
 }
 
 function openIpDetail(ipId: string) {
@@ -184,7 +157,7 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
     title: '操作',
     key: 'actions',
     align: 'right',
-    width: 300,
+    width: 200,
     render: (row) => {
       const rowBusy = busy.value[row.id]
       return h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
@@ -194,16 +167,8 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
         }, { icon: () => h(NIcon, null, { default: () => h(Share2) }), default: () => '分享' }),
         h(NButton, {
           size: 'tiny', quaternary: true, disabled: rowBusy,
-          onClick: () => openTraffic(row), title: '查看上下行流量统计'
-        }, { icon: () => h(NIcon, null, { default: () => h(Activity) }), default: () => '流量' }),
-        h(NButton, {
-          size: 'tiny', quaternary: true, disabled: rowBusy,
           onClick: () => onRotate(row), title: '轮换 UUID / 密钥 (老凭据立即失效)'
-        }, { icon: () => h(NIcon, null, { default: () => h(RotateCw) }), default: () => '轮换' }),
-        h(NButton, {
-          size: 'tiny', quaternary: true, disabled: rowBusy,
-          onClick: () => onResetTraffic(row), title: '清零累计流量'
-        }, { icon: () => h(NIcon, null, { default: () => h(Zap) }), default: () => '清流量' })
+        }, { icon: () => h(NIcon, null, { default: () => h(RotateCw) }), default: () => '轮换' })
       ])
     }
   }
@@ -246,6 +211,5 @@ onMounted(loadList)
     />
 
     <ClientShareDialog v-model="shareOpen" :client="shareTarget" />
-    <ClientTrafficDialog v-model="trafficOpen" :inbound="trafficTarget" />
   </div>
 </template>

@@ -34,7 +34,6 @@ public class XrayClientNodeApiImpl implements XrayClientNodeApi {
     private final XrayClientMapper clientMapper;
     private final XrayConfigMapper configMapper;
     private final ResourceServerMapper serverMapper;
-    private final com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper trafficMapper;
 
     @Override
     public List<XrayClientNodeDTO> getNodeInfos(Collection<String> clientIds) {

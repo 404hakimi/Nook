@@ -23,7 +23,4 @@ public class InboundUserSpec {
 
     /** vless flow (xtls-rprx-vision 等); 其它协议留空. */
     private String flow;
-
-    /** 流量上限字节数; 0 表无限制. */
-    private long totalBytes;
 }

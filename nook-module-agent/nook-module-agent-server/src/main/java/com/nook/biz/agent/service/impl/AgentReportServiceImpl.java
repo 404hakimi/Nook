@@ -11,7 +11,6 @@ import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskResultReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
-import com.nook.biz.agent.controller.vo.AgentXrayTrafficReqVO;
 import com.nook.biz.agent.convert.AgentTaskConvert;
 import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentTaskMapper;
@@ -19,9 +18,6 @@ import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.agent.service.AgentRuntimeConfigService;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
-import com.nook.biz.node.api.xray.XrayClientTrafficSampleApi;
-import com.nook.biz.node.api.xray.dto.AgentStatSnapshotDTO;
-import com.nook.biz.node.api.xray.dto.SampleStatDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -49,7 +44,6 @@ public class AgentReportServiceImpl implements AgentReportService {
     private final ResourceServerRuntimeApi resourceServerRuntimeApi;
     private final ResourceServerCapacityApi resourceServerCapacityApi;
     private final AgentTaskMapper agentTaskMapper;
-    private final XrayClientTrafficSampleApi xrayClientTrafficSampleApi;
     private final AgentRuntimeConfigService agentRuntimeConfigService;
 
     @Override
@@ -107,21 +101,6 @@ public class AgentReportServiceImpl implements AgentReportService {
                 }
             }
         }
-    }
-
-    @Override
-    public void receiveXrayTraffic(String serverId, AgentXrayTrafficReqVO req) {
-        if (CollUtil.isEmpty(req.getStats())) {
-            log.debug("[receiveXrayTraffic] serverId={} 空 stats, 跳过", serverId);
-            return;
-        }
-        Map<String, AgentStatSnapshotDTO> snapshot = new HashMap<>(req.getStats().size());
-        for (AgentXrayTrafficReqVO.Row row : req.getStats()) {
-            snapshot.put(row.getEmail(), new AgentStatSnapshotDTO(row.getUpBytes(), row.getDownBytes()));
-        }
-        SampleStatDTO stat = xrayClientTrafficSampleApi.applyAgentStats(serverId, snapshot);
-        log.info("[receiveXrayTraffic] serverId={} 上报={} 入库={} 孤儿={}",
-                serverId, req.getStats().size(), stat.upserted(), stat.skipped());
     }
 
     private static String extractField(String json, String key) {

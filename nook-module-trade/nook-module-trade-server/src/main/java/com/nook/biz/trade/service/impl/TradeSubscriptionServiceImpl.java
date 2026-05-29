@@ -216,7 +216,6 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         dto.setServerId(frontlineId);
         dto.setIpId(landingId);
         dto.setMemberUserId(req.getMemberUserId());
-        dto.setTotalBytes(plan.getTrafficGb() == null ? 0L : (long) plan.getTrafficGb() * GB);
         return dto;
     }
 

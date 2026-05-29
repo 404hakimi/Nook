@@ -67,7 +67,6 @@ public class XrayClientReconcileApiImpl implements XrayClientReconcileApi {
                     .uuid(c.getClientUuid())
                     .protocol(cfg.getProtocol())
                     .flow("")
-                    .totalBytes(c.getTotalBytes() == null ? 0L : c.getTotalBytes())
                     .build();
 
             XrayReconcileClientDTO dto = new XrayReconcileClientDTO();

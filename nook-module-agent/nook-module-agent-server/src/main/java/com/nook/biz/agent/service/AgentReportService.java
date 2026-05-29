@@ -4,7 +4,6 @@ import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskResultReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
-import com.nook.biz.agent.controller.vo.AgentXrayTrafficReqVO;
 
 import java.util.List;
 
@@ -48,12 +47,4 @@ public interface AgentReportService {
      * @param req      任务结果
      */
     void receiveTaskResult(String serverId, AgentTaskResultReqVO req);
-
-    /**
-     * 接收 xray user 流量上报
-     *
-     * @param serverId server 编号
-     * @param req      xray 流量快照
-     */
-    void receiveXrayTraffic(String serverId, AgentXrayTrafficReqVO req);
 }
