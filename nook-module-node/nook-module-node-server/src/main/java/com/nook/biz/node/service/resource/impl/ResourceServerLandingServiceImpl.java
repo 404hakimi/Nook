@@ -1,12 +1,17 @@
 package com.nook.biz.node.service.resource.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerProvisionModeEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
+import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
+import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
+import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCoreUpdateReqVO;
@@ -38,12 +43,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * SOCKS5 落地节点 Service 实现类
@@ -298,6 +307,116 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         Map<String, ResourceServerRuntimeDO> runtimes = CollectionUtils.convertMap(
                 runtimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
         return new SubtablesBundle(landings, bills, caps, runtimes);
+    }
+
+    @Override
+    public List<LandingSummaryDTO> listSummaryByServerIds(Collection<String> serverIds) {
+        if (CollUtil.isEmpty(serverIds)) {
+            return Collections.emptyList();
+        }
+        Map<String, ResourceServerDO> srvMap = CollectionUtils.convertMap(
+                resourceServerMapper.selectBatchIds(serverIds), ResourceServerDO::getId);
+        Map<String, ResourceServerLandingDO> landingMap = CollectionUtils.convertMap(
+                landingMapper.selectBatchIds(serverIds), ResourceServerLandingDO::getServerId);
+        return serverIds.stream()
+                .map(id -> {
+                    ResourceServerDO s = srvMap.get(id);
+                    if (s == null) {
+                        return null;
+                    }
+                    LandingSummaryDTO dto = new LandingSummaryDTO();
+                    dto.setServerId(id);
+                    dto.setLifecycleState(s.getLifecycleState());
+                    dto.setIpAddress(s.getIpAddress());
+                    ResourceServerLandingDO l = landingMap.get(id);
+                    if (l != null) {
+                        dto.setStatus(l.getStatus());
+                        dto.setIpTypeId(l.getIpTypeId());
+                    }
+                    return dto;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<LandingSummaryDTO> findMatchingForPlan(String region, String ipTypeId,
+                                                       int minTrafficGb, int minBandwidthMbps) {
+        if (StrUtil.isBlank(region) || StrUtil.isBlank(ipTypeId)) {
+            return Collections.emptyList();
+        }
+        // 该 IP 类型的落地机子表
+        List<ResourceServerLandingDO> landings = landingMapper.selectList(
+                Wrappers.<ResourceServerLandingDO>lambdaQuery()
+                        .eq(ResourceServerLandingDO::getIpTypeId, ipTypeId));
+        if (landings.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<String> ids = CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId);
+        // 主表过滤: 同区域 + landing 角色 + LIVE (selectBatchIds 自动滤 deleted)
+        Map<String, ResourceServerDO> srvMap = resourceServerMapper.selectBatchIds(ids).stream()
+                .filter(s -> ResourceServerTypeEnum.LANDING.matches(s.getServerType())
+                        && ResourceServerLifecycleEnum.LIVE.matches(s.getLifecycleState())
+                        && region.equals(s.getRegion()))
+                .collect(Collectors.toMap(ResourceServerDO::getId, Function.identity()));
+        if (srvMap.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // 容量过滤: monthly_traffic_gb / bandwidth_limit_mbps ≥ 套餐 (0/null=不限)
+        Map<String, ResourceServerCapacityDO> capMap = CollectionUtils.convertMap(
+                capacityMapper.selectBatchIds(srvMap.keySet()), ResourceServerCapacityDO::getServerId);
+        List<LandingSummaryDTO> out = new ArrayList<>();
+        for (ResourceServerLandingDO l : landings) {
+            ResourceServerDO s = srvMap.get(l.getServerId());
+            if (s == null) {
+                continue;
+            }
+            ResourceServerCapacityDO cap = capMap.get(l.getServerId());
+            Integer q = cap == null ? null : cap.getMonthlyTrafficGb();
+            Integer bw = cap == null ? null : cap.getBandwidthLimitMbps();
+            if (q != null && q > 0 && q < minTrafficGb) {
+                continue;
+            }
+            if (bw != null && bw > 0 && bw < minBandwidthMbps) {
+                continue;
+            }
+            LandingSummaryDTO dto = new LandingSummaryDTO();
+            dto.setServerId(l.getServerId());
+            dto.setLifecycleState(s.getLifecycleState());
+            dto.setStatus(l.getStatus());
+            dto.setIpTypeId(l.getIpTypeId());
+            dto.setIpAddress(s.getIpAddress());
+            out.add(dto);
+        }
+        return out;
+    }
+
+    @Override
+    public Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs) {
+        if (CollUtil.isEmpty(specs)) {
+            return Collections.emptyMap();
+        }
+        Map<String, PlanCapacityDTO> result = new HashMap<>(specs.size());
+        for (PlanSpecDTO spec : specs) {
+            result.put(spec.getPlanId(), capacityOf(spec));
+        }
+        return result;
+    }
+
+    /** 单套餐容量: 匹配落地机后按 status 分桶 (total / available / occupied). */
+    private PlanCapacityDTO capacityOf(PlanSpecDTO spec) {
+        List<LandingSummaryDTO> matching = findMatchingForPlan(
+                spec.getRegionCode(), spec.getIpTypeId(), spec.getTrafficGb(), spec.getBandwidthMbps());
+        int avail = 0;
+        int occ = 0;
+        for (LandingSummaryDTO l : matching) {
+            if (ResourceServerLandingStatusEnum.AVAILABLE.matches(l.getStatus())) {
+                avail++;
+            } else if (ResourceServerLandingStatusEnum.OCCUPIED.matches(l.getStatus())) {
+                occ++;
+            }
+        }
+        return new PlanCapacityDTO(matching.size(), avail, occ);
     }
 
 }

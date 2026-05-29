@@ -5,6 +5,9 @@ import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityUpdateReqVO
 import com.nook.biz.node.controller.resource.vo.ServerLandingCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5UpdateReqVO;
+import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
+import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
+import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
@@ -13,6 +16,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.common.web.response.PageResult;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -155,6 +159,34 @@ public interface ResourceServerLandingService {
      * @return 子表批量返回包
      */
     SubtablesBundle batchLoadSubtables(Collection<String> serverIds);
+
+    /**
+     * 批量查落地机概要 (主表 lifecycle + landing 子表 status/ipType/ipAddress)
+     *
+     * @param serverIds 落地节点编号集合
+     * @return 概要列表 (不存在的 id 跳过)
+     */
+    List<LandingSummaryDTO> listSummaryByServerIds(Collection<String> serverIds);
+
+    /**
+     * 查匹配套餐的 LIVE 落地机 (同区域 + 同 IP 类型 + 容量达标; 落地机配额/带宽为 0/null 视为不限)
+     *
+     * @param region           区域码
+     * @param ipTypeId         IP 类型编号
+     * @param minTrafficGb     套餐月流量 (落地机配额须 ≥)
+     * @param minBandwidthMbps 套餐带宽 (落地机带宽须 ≥)
+     * @return 匹配的 LIVE 落地机概要 (含 status, 供算容量 / 挑机)
+     */
+    List<LandingSummaryDTO> findMatchingForPlan(String region, String ipTypeId,
+                                                int minTrafficGb, int minBandwidthMbps);
+
+    /**
+     * 批量算套餐落地机池容量 (各规格匹配后按 status 分桶)
+     *
+     * @param specs 套餐规格集合 (planId + 区域 + IP类型 + 流量 + 带宽)
+     * @return planId → 容量 (total/available/occupied)
+     */
+    Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs);
 
     /** 4 张子表批量返回包 (SSH 凭据走公共 /admin/resource/server/get-credential, 不在此包). */
     record SubtablesBundle(
