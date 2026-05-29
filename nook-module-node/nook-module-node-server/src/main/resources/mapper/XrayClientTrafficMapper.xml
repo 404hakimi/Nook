@@ -9,8 +9,9 @@
              last_counter_uplink, last_counter_downlink, last_sampled_at, created_at, updated_at)
         VALUES
         <foreach collection="rows" item="r" separator=",">
-            /* 新行: 累计字段直接放当前值, 同时把当前值记成"上次值" */
-            (#{r.id}, #{r.clientId}, #{r.serverId}, #{r.curUp}, #{r.curDown},
+            /* 新行: 累计从 0 起 (当前 xray 计数器可能含复用 email 的历史余量, 不能当本客户用量);
+               当前值只记成"上次值"基线, 下一轮采样起按"当前 - 上次"算本客户增量 */
+            (#{r.id}, #{r.clientId}, #{r.serverId}, 0, 0,
              #{r.curUp}, #{r.curDown}, #{r.sampledAt}, NOW(), NOW())
         </foreach>
         ON DUPLICATE KEY UPDATE
