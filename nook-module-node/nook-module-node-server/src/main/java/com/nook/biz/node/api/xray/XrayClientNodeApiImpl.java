@@ -92,6 +92,16 @@ public class XrayClientNodeApiImpl implements XrayClientNodeApi {
     }
 
     @Override
+    public Map<String, String> getLandingIdByClientIds(Collection<String> clientIds) {
+        if (clientIds == null || clientIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return clientMapper.selectBatchIds(clientIds).stream()
+                .filter(c -> Objects.nonNull(c.getIpId()))
+                .collect(Collectors.toMap(XrayClientDO::getId, XrayClientDO::getIpId, (a, b) -> a));
+    }
+
+    @Override
     public Map<String, Long> getUsedBytesByClientIds(Collection<String> clientIds) {
         if (clientIds == null || clientIds.isEmpty()) {
             return Collections.emptyMap();
