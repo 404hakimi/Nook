@@ -2,9 +2,7 @@ package com.nook.biz.node.controller.xray;
 
 import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientTrafficRespVO;
 import com.nook.biz.node.convert.xray.XrayClientConvert;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
@@ -111,41 +109,7 @@ public class XrayClientController {
         return Result.ok(xrayClientService.getXrayClientCredential(id));
     }
 
-    /**
-     * 获得 server 下客户端同步态
-     *
-     * @param serverId 服务器编号
-     * @return 同步态报告
-     */
-    @GetMapping("/get-sync-status")
-    public Result<XrayClientSyncStatusRespVO> getSyncStatus(@RequestParam("serverId") String serverId) {
-        return Result.ok(xrayClientService.getSyncStatus(serverId));
-    }
-
-    /**
-     * 单客户端补推
-     *
-     * @param id 客户端编号
-     * @return 是否成功
-     */
-    @PostMapping("/sync-xray-client")
-    public Result<Boolean> syncXrayClient(@RequestParam("id") String id) {
-        xrayClientService.syncXrayClient(id);
-        return Result.ok(true);
-    }
-
-    /**
-     * server 全量重放
-     *
-     * @param serverId 服务器编号
-     * @return 重放报告
-     */
-    @PostMapping("/replay-xray-server")
-    public Result<XrayClientReplayReportRespVO> replayServer(@RequestParam("serverId") String serverId) {
-        return Result.ok(xrayClientService.replayServer(serverId));
-    }
-
-    /** 单条 detail / create / rotate 共用 enrich 路径. */
+    /** 单条 detail / rotate 共用 enrich 路径. */
     private XrayClientRespVO convertOne(XrayClientDO entity) {
         List<XrayClientDO> single = Collections.singletonList(entity);
         Set<String> serverIds = XrayClientConvert.collectServerIds(single);

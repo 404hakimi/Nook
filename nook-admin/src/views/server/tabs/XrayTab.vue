@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { Activity, Calendar, FileText, FolderOpen, Info, Lock, Network, Rocket, RotateCcw, ServerCog } from 'lucide-vue-next'
+import { Activity, Calendar, FileText, FolderOpen, Info, Lock, Network, Rocket, RotateCcw } from 'lucide-vue-next'
 import { NAlert, NButton, NCard, NDescriptions, NDescriptionsItem, NIcon, NSpin, NTag, useDialog, useMessage } from 'naive-ui'
 import { getXrayServer, type XrayServer } from '@/api/xray/xray-server'
 import { getXrayConfig, type XrayConfig } from '@/api/xray/xray-config'
@@ -9,7 +9,6 @@ import type { ServerFrontlineListItem } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import XrayServerInstallInfoDialog from '@/views/xray/XrayServerInstallInfoDialog.vue'
 import XrayServerStatusDialog from '@/views/xray/XrayServerStatusDialog.vue'
-import XrayConfigDiffDialog from '@/views/xray/XrayConfigDiffDialog.vue'
 import XrayServerLogDialog from '@/views/xray/XrayServerLogDialog.vue'
 import ServerInstallDialog from '@/views/resource/ServerInstallDialog.vue'
 
@@ -49,7 +48,6 @@ watch(() => props.serverId, load)
 // ===== Dialogs =====
 const installInfoOpen = ref(false)
 const statusOpen = ref(false)
-const diffOpen = ref(false)
 const logOpen = ref(false)
 const installOpen = ref(false)
 
@@ -98,10 +96,6 @@ function onRestart() {
         <NButton size="small" type="info" @click="statusOpen = true">
           <template #icon><NIcon><Activity /></NIcon></template>
           运行状态
-        </NButton>
-        <NButton size="small" quaternary @click="diffOpen = true">
-          <template #icon><NIcon><ServerCog /></NIcon></template>
-          配置 Diff
         </NButton>
         <NButton size="small" quaternary @click="logOpen = true">
           <template #icon><NIcon><FileText /></NIcon></template>
@@ -220,7 +214,6 @@ function onRestart() {
 
       <XrayServerInstallInfoDialog v-model="installInfoOpen" :server="server" :config="config" />
       <XrayServerStatusDialog v-model="statusOpen" :server="server" />
-      <XrayConfigDiffDialog v-model="diffOpen" :server="server" />
       <XrayServerLogDialog v-model="logOpen" :server="server" />
     </div>
 

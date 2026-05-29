@@ -3,8 +3,6 @@ package com.nook.biz.node.service.xray.client;
 import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
@@ -67,29 +65,6 @@ public interface XrayClientService {
      * @return 协议级凭据
      */
     XrayClientCredentialRespVO getXrayClientCredential(String id);
-
-    /**
-     * 获得 server 远端 vs DB 同步态
-     *
-     * @param serverId 服务器编号
-     * @return 同步态
-     */
-    XrayClientSyncStatusRespVO getSyncStatus(String serverId);
-
-    /**
-     * 单客户端补推到远端
-     *
-     * @param id 客户端编号
-     */
-    void syncXrayClient(String id);
-
-    /**
-     * server 下客户端全量重放
-     *
-     * @param serverId 服务器编号
-     * @return 重放报告
-     */
-    XrayClientReplayReportRespVO replayServer(String serverId);
 
     /**
      * 批量获得客户端 email

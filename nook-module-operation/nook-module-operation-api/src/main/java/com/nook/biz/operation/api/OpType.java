@@ -18,10 +18,6 @@ public enum OpType {
     CLIENT_PROVISION,
     CLIENT_REVOKE,
     CLIENT_ROTATE,
-    CLIENT_SYNC,
     CLIENT_RESET_TRAFFIC,
-
-    /** 手动一键同步全部客户端到指定 server. */
-    CLIENT_ALL_SYNC,
     ;
 }

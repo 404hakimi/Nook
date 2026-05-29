@@ -4,7 +4,6 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
@@ -17,17 +16,13 @@ import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientTrafficMapper;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
-import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
-import com.nook.biz.node.framework.xray.cli.XrayRoutingCli;
 import com.nook.biz.node.framework.xray.cli.XrayStatsCli;
 import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.xray.config.XrayConfigService;
-import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.biz.node.validator.XrayServerValidator;
 import com.nook.biz.operation.api.OpProgressSink;
-import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
@@ -39,15 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-
-import static com.nook.biz.node.framework.xray.XrayConstants.outboundTagOf;
-import static com.nook.biz.node.framework.xray.XrayConstants.ruleTagOf;
 
 /**
  * Xray 客户端操作执行器 (handler 委托用; 不在 OpOrchestrator → Handler → Service 链上重新进入 Service 防循环依赖)
@@ -64,8 +51,6 @@ public class ClientOpExecutor {
     private final XrayClientMapper xrayClientMapper;
     private final XrayClientTrafficMapper xrayClientTrafficMapper;
     private final XrayInboundCli inboundCli;
-    private final XrayOutboundCli outboundCli;
-    private final XrayRoutingCli routingCli;
     private final XrayStatsCli statsCli;
     private final XrayConfigService xrayConfigService;
     private final ResourceServerCapacityMapper capacityMapper;
@@ -73,7 +58,6 @@ public class ClientOpExecutor {
     private final ResourceServerLandingMapper landingMapper;
     private final XrayClientValidator clientValidator;
     private final XrayServerValidator xrayServerValidator;
-    private final ResourceServerValidator serverValidator;
     private final TransactionTemplate transactionTemplate;
 
     /** xray 部署聚合视图: 实例元数据 + inbound 配置; 单方法多处用时复用一次查询 */
@@ -223,19 +207,6 @@ public class ClientOpExecutor {
         return e;
     }
 
-    /** 单客户端推远端 (user + rule + outbound 幂等重建) */
-    void doSyncOne(String clientId, OpProgressSink progress) {
-        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
-        XrayClientDO c = clientValidator.validateExists(clientId);
-        sink.report("加载服务器信息", 20);
-        XrayDeployment dep = loadDeployment(c.getServerId());
-        sink.report("连接服务器", 30);
-        SshSession session = SshSessions.acquire(c.getServerId(), SshSessionScope.RECONCILE);
-        sink.report("加载落地凭据", 40);
-        ResourceServerDO landingSrv = serverValidator.validateExists(c.getIpId());
-        syncSingle(session, dep, c, landingSrv, sink);
-    }
-
     /** 流量清零; 以远端当前累计作为新基线, 后续采样从此起算 */
     @Transactional(rollbackFor = Exception.class)
     void doResetTraffic(String clientId, OpProgressSink progress) {
@@ -260,146 +231,4 @@ public class ClientOpExecutor {
                 snap.getUpBytes(), snap.getDownBytes());
     }
 
-    /** CLIENT_ALL_SYNC: 把该 server 下所有非停 client 三段配置幂等推到远端 */
-    XrayClientReplayReportRespVO doReplayServer(String serverId, OpProgressSink progress) {
-        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
-        sink.report("加载服务器信息", 15);
-        XrayDeployment dep = loadDeployment(serverId);
-        sink.report("连接服务器", 25);
-        SshSession session = SshSessions.acquire(serverId, SshSessionScope.RECONCILE);
-        return replayInternal(session, dep, sink);
-    }
-
-    private XrayClientReplayReportRespVO replayInternal(SshSession session, XrayDeployment dep, OpProgressSink progress) {
-        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
-        String serverId = dep.server().getServerId();
-
-        sink.report("加载待同步列表", 35);
-        List<XrayClientDO> targets = new ArrayList<>();
-        for (XrayClientDO c : xrayClientMapper.selectByServerId(serverId)) {
-            if (c.getStatus() != null && c.getStatus() == 2) continue;
-            targets.add(c);
-        }
-
-        sink.report("加载落地凭据", 50);
-        Set<String> ipIds = CollectionUtils.convertSet(targets, XrayClientDO::getIpId);
-        // 落地服务器主表 + landing 子表分别批量拉, syncSingle 内部组合查
-        Map<String, ResourceServerLandingDO> landingMap = landingService.getLandingMap(ipIds);
-        // 主表 ipAddress 用 batch fetch (走 serverValidator.validateExists 单条太慢)
-        java.util.Map<String, ResourceServerDO> srvMap = new java.util.HashMap<>(ipIds.size());
-        for (String ipId : ipIds) {
-            try {
-                srvMap.put(ipId, serverValidator.validateExists(ipId));
-            } catch (RuntimeException ignore) { /* 单条不存在 syncSingle 兜底标 status=3 */ }
-        }
-
-        int success = 0;
-        List<String> failed = new ArrayList<>();
-        int total = targets.size();
-        int idx = 0;
-        for (XrayClientDO c : targets) {
-            idx++;
-            if (total > 0) {
-                int pct = 55 + (40 * idx) / total;
-                sink.report("同步客户端 " + idx + "/" + total, Math.min(95, pct));
-            }
-            try {
-                syncSingleWithSocks(session, dep, c, srvMap.get(c.getIpId()),
-                        landingMap.get(c.getIpId()), OpProgressSink.noop());
-                success++;
-            } catch (Exception ex) {
-                log.error("[reconciler] 同步失败 客户端={} 邮箱={}: {}",
-                        c.getId(), c.getClientEmail(), ex.getMessage());
-                failed.add(c.getId());
-            }
-        }
-
-        XrayClientReplayReportRespVO report = new XrayClientReplayReportRespVO();
-        report.setServerId(serverId);
-        report.setTotalCount(total);
-        report.setAlreadyOkCount(0);
-        report.setSuccessCount(success);
-        report.setFailedClientIds(failed);
-        log.info("[reconciler] 回放完成 服务器={} 总数={} 同步成功={} 失败={}",
-                serverId, total, success, failed.size());
-        return report;
-    }
-
-    /** 单条 sync (运行时单查 landing 子表); doSyncOne 用 */
-    private void syncSingle(SshSession session, XrayDeployment dep, XrayClientDO c,
-                            ResourceServerDO landingSrv, OpProgressSink progress) {
-        ResourceServerLandingDO landing = landingSrv == null
-                ? null : landingMapper.selectByServerId(landingSrv.getId());
-        syncSingleWithSocks(session, dep, c, landingSrv, landing, progress);
-    }
-
-    /** 共用 sync 路径; replay 走批量预拉, doSyncOne 走单查后调这里 */
-    private void syncSingleWithSocks(SshSession session, XrayDeployment dep, XrayClientDO c,
-                                     ResourceServerDO landingSrv, ResourceServerLandingDO landing,
-                                     OpProgressSink progress) {
-        if (landingSrv == null || StrUtil.isBlank(landingSrv.getIpAddress())
-                || landing == null || ObjectUtil.isNull(landing.getSocks5Port())) {
-            xrayClientMapper.updateStatus(c.getId(), 3, LocalDateTime.now());
-            throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
-                    c.getIpId(), "落地凭据丢失, 无法 sync");
-        }
-
-        String xrayBin = dep.server().getXrayBinaryPath();
-        int apiPort = dep.server().getXrayApiPort();
-        String protocol = dep.config() == null ? null : dep.config().getProtocol();
-        String outboundTag = outboundTagOf(c.getId());
-        String ruleTag = ruleTagOf(c.getId());
-
-        progress.report("移除旧客户配置", 55);
-        try {
-            inboundCli.removeUser(session, xrayBin, apiPort, SHARED_INBOUND_TAG, c.getClientEmail());
-        } catch (BusinessException be) {
-            if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) throw be;
-        }
-        progress.report("下发新客户配置", 65);
-        InboundUserSpec spec = InboundUserSpec.builder()
-                .email(c.getClientEmail())
-                .uuid(c.getClientUuid())
-                .protocol(protocol)
-                .flow("")
-                .build();
-        try {
-            inboundCli.addUser(session, xrayBin, apiPort, SHARED_INBOUND_TAG, spec);
-        } catch (RuntimeException addErr) {
-            xrayClientMapper.updateStatus(c.getId(), 3, LocalDateTime.now());
-            throw addErr;
-        }
-
-        progress.report("移除旧路由规则", 72);
-        try {
-            routingCli.removeRule(session, xrayBin, apiPort, ruleTag);
-        } catch (RuntimeException ignore) { }
-        progress.report("下发新路由规则", 78);
-        try {
-            routingCli.addRule(session, xrayBin, apiPort, ruleTag,
-                    Collections.singletonList(c.getClientEmail()), outboundTag);
-        } catch (RuntimeException addErr) {
-            xrayClientMapper.updateStatus(c.getId(), 3, LocalDateTime.now());
-            throw addErr;
-        }
-
-        progress.report("移除旧落地出口", 85);
-        try {
-            outboundCli.removeOutbound(session, xrayBin, apiPort, outboundTag);
-        } catch (BusinessException be) {
-            if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) throw be;
-        }
-        progress.report("下发新落地出口", 92);
-        try {
-            outboundCli.addSocksOutbound(session, xrayBin, apiPort, outboundTag,
-                    landingSrv.getIpAddress(), landing.getSocks5Port(),
-                    landing.getSocks5Username(), landing.getSocks5Password());
-        } catch (RuntimeException addErr) {
-            xrayClientMapper.updateStatus(c.getId(), 3, LocalDateTime.now());
-            throw addErr;
-        }
-
-        xrayClientMapper.updateStatus(c.getId(), 1, LocalDateTime.now());
-        progress.report("更新状态", 95);
-    }
 }
