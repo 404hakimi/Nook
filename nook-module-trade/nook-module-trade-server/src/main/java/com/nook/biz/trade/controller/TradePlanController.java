@@ -3,9 +3,15 @@ package com.nook.biz.trade.controller;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanRespVO;
 import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
+import com.nook.biz.trade.convert.TradePlanConvert;
+import com.nook.biz.trade.convert.TradePlanConvert.PlanCapacity;
+import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.service.TradePlanService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
+
+import java.util.List;
+import java.util.Map;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -34,13 +40,17 @@ public class TradePlanController {
     /** 套餐分页 (含匹配落地机容量). */
     @GetMapping("/page-plan")
     public Result<PageResult<TradePlanRespVO>> getPage(@Valid TradePlanPageReqVO reqVO) {
-        return Result.ok(planService.getPlanPage(reqVO));
+        PageResult<TradePlanDO> page = planService.getPlanPage(reqVO);
+        Map<String, PlanCapacity> capMap = planService.getCapacityMap(page.getRecords());
+        return Result.ok(TradePlanConvert.INSTANCE.convertPage(page, capMap));
     }
 
     /** 套餐详情. */
     @GetMapping("/get-plan")
     public Result<TradePlanRespVO> getPlan(@RequestParam("id") String id) {
-        return Result.ok(planService.getPlan(id));
+        TradePlanDO plan = planService.getPlan(id);
+        Map<String, PlanCapacity> capMap = planService.getCapacityMap(List.of(plan));
+        return Result.ok(TradePlanConvert.INSTANCE.toRespVO(plan, capMap.get(plan.getId())));
     }
 
     /** 创建套餐 (默认下架). */

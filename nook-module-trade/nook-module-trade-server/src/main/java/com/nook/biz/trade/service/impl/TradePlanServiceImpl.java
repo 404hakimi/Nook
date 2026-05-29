@@ -5,9 +5,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
-import com.nook.biz.trade.controller.vo.TradePlanRespVO;
 import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
 import com.nook.biz.trade.convert.TradePlanConvert;
+import com.nook.biz.trade.convert.TradePlanConvert.PlanCapacity;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.service.TradePlanService;
@@ -17,10 +17,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * 套餐管理 Service 实现.
+ * 套餐管理 Service 实现. 返回 DO; VO 转换由 controller + convert 层处理.
  *
  * <p>套餐 = 区域 + 规格 (不绑具体资源); 下单时 allocator 按区域 + IP 类型自动匹配落地机 + 线路机。
  * 容量 = 同区域 + 同 IP 类型 + 规格达标的可用落地机数。
@@ -39,21 +43,28 @@ public class TradePlanServiceImpl implements TradePlanService {
     private final ResourceServerLandingApi landingApi;
 
     @Override
-    public PageResult<TradePlanRespVO> getPlanPage(TradePlanPageReqVO req) {
+    public PageResult<TradePlanDO> getPlanPage(TradePlanPageReqVO req) {
         IPage<TradePlanDO> page = planMapper.selectPageByQuery(
                 Page.of(req.getPageNo(), req.getPageSize()),
                 req.getRegionCode(), req.getIpTypeId(), req.getEnabled(), req.getKeyword());
-        List<TradePlanRespVO> records = TradePlanConvert.INSTANCE.toRespVOList(page.getRecords());
-        records.forEach(this::fillCapacity);
-        return PageResult.of(page.getTotal(), records);
+        return PageResult.of(page.getTotal(), page.getRecords());
     }
 
     @Override
-    public TradePlanRespVO getPlan(String id) {
-        TradePlanDO e = planValidator.validateExists(id);
-        TradePlanRespVO vo = TradePlanConvert.INSTANCE.toRespVO(e);
-        fillCapacity(vo);
-        return vo;
+    public TradePlanDO getPlan(String id) {
+        return planValidator.validateExists(id);
+    }
+
+    @Override
+    public Map<String, PlanCapacity> getCapacityMap(Collection<TradePlanDO> plans) {
+        if (plans == null || plans.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, PlanCapacity> map = new HashMap<>(plans.size());
+        for (TradePlanDO plan : plans) {
+            map.put(plan.getId(), capacityOf(plan));
+        }
+        return map;
     }
 
     @Override
@@ -95,21 +106,17 @@ public class TradePlanServiceImpl implements TradePlanService {
     }
 
     /** 容量 = 同区域 + 同 IP 类型 + 规格达标的 LIVE 落地机 (按 status 分 available / occupied). */
-    private void fillCapacity(TradePlanRespVO vo) {
-        if (vo.getRegionCode() == null || vo.getIpTypeId() == null) {
-            vo.setCapacityTotal(0);
-            vo.setCapacityAvailable(0);
-            vo.setCapacityOccupied(0);
-            return;
+    private PlanCapacity capacityOf(TradePlanDO plan) {
+        if (plan.getRegionCode() == null || plan.getIpTypeId() == null) {
+            return new PlanCapacity(0, 0, 0);
         }
         List<LandingSummaryDTO> matching = landingApi.findMatchingForPlan(
-                vo.getRegionCode(), vo.getIpTypeId(),
-                vo.getTrafficGb() == null ? 0 : vo.getTrafficGb(),
-                vo.getBandwidthMbps() == null ? 0 : vo.getBandwidthMbps());
-        vo.setCapacityTotal(matching.size());
-        vo.setCapacityAvailable((int) matching.stream()
-                .filter(l -> AVAILABLE.equals(l.getStatus())).count());
-        vo.setCapacityOccupied((int) matching.stream()
-                .filter(l -> OCCUPIED.equals(l.getStatus())).count());
+                plan.getRegionCode(), plan.getIpTypeId(),
+                plan.getTrafficGb() == null ? 0 : plan.getTrafficGb(),
+                plan.getBandwidthMbps() == null ? 0 : plan.getBandwidthMbps());
+        int total = matching.size();
+        int avail = (int) matching.stream().filter(l -> AVAILABLE.equals(l.getStatus())).count();
+        int occ = (int) matching.stream().filter(l -> OCCUPIED.equals(l.getStatus())).count();
+        return new PlanCapacity(total, avail, occ);
     }
 }

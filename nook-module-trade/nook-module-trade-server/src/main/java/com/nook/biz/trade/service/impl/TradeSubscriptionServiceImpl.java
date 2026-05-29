@@ -16,7 +16,6 @@ import com.nook.biz.trade.api.enums.TradeErrorCode;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
 import com.nook.biz.trade.controller.vo.AdminCreateSubReqVO;
 import com.nook.biz.trade.controller.vo.TradeSubscriptionPageReqVO;
-import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
@@ -34,6 +33,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -67,7 +67,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public TradeSubscriptionRespVO adminCreate(AdminCreateSubReqVO req) {
+    public TradeSubscriptionDO adminCreate(AdminCreateSubReqVO req) {
         TradePlanDO plan = planValidator.validateEnabled(req.getPlanId());
         int planBw = plan.getBandwidthMbps() == null ? 0 : plan.getBandwidthMbps();
         int planTraffic = plan.getTrafficGb() == null ? 0 : plan.getTrafficGb();
@@ -106,26 +106,25 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
             subMapper.insert(sub);
             log.info("[adminCreate] OK member={} plan={} frontline={} landing={} client={}",
                     req.getMemberUserId(), plan.getId(), frontlineId, landingId, clientId);
-            return toRespVO(sub, plan.getName());
+            return sub;
         }
     }
 
     @Override
-    public PageResult<TradeSubscriptionRespVO> getPage(TradeSubscriptionPageReqVO req) {
+    public PageResult<TradeSubscriptionDO> getPage(TradeSubscriptionPageReqVO req) {
         IPage<TradeSubscriptionDO> page = subMapper.selectPageByQuery(
                 Page.of(req.getPageNo(), req.getPageSize()),
                 req.getMemberUserId(), req.getPlanId(), req.getStatus());
-        if (page.getRecords().isEmpty()) {
-            return PageResult.of(page.getTotal(), Collections.emptyList());
+        return PageResult.of(page.getTotal(), page.getRecords());
+    }
+
+    @Override
+    public Map<String, String> getPlanNameMap(Collection<String> planIds) {
+        if (planIds == null || planIds.isEmpty()) {
+            return Collections.emptyMap();
         }
-        Set<String> planIds = page.getRecords().stream()
-                .map(TradeSubscriptionDO::getPlanId).collect(Collectors.toSet());
-        Map<String, String> planNameMap = planMapper.selectBatchIds(planIds).stream()
+        return planMapper.selectBatchIds(planIds).stream()
                 .collect(Collectors.toMap(TradePlanDO::getId, TradePlanDO::getName));
-        List<TradeSubscriptionRespVO> records = page.getRecords().stream()
-                .map(s -> toRespVO(s, planNameMap.get(s.getPlanId())))
-                .collect(Collectors.toList());
-        return PageResult.of(page.getTotal(), records);
     }
 
     @Override
@@ -217,20 +216,6 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         dto.setIpId(landingId);
         dto.setMemberUserId(req.getMemberUserId());
         return dto;
-    }
-
-    private TradeSubscriptionRespVO toRespVO(TradeSubscriptionDO sub, String planName) {
-        TradeSubscriptionRespVO vo = new TradeSubscriptionRespVO();
-        vo.setId(sub.getId());
-        vo.setMemberUserId(sub.getMemberUserId());
-        vo.setPlanId(sub.getPlanId());
-        vo.setPlanName(planName);
-        vo.setXrayClientId(sub.getXrayClientId());
-        vo.setStartedAt(sub.getStartedAt());
-        vo.setExpiresAt(sub.getExpiresAt());
-        vo.setStatus(sub.getStatus());
-        vo.setCreatedAt(sub.getCreatedAt());
-        return vo;
     }
 
     private static LocalDateTime toLdt(long epochMs) {
