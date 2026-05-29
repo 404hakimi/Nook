@@ -2,8 +2,10 @@ package com.nook.biz.node.api.resource;
 
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
+import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
@@ -120,5 +122,17 @@ public class ResourceServerLandingApiImpl implements ResourceServerLandingApi {
             out.add(dto);
         }
         return out;
+    }
+
+    @Override
+    public PlanCapacityDTO countCapacityForPlan(String region, String ipTypeId,
+                                                int minTrafficGb, int minBandwidthMbps) {
+        List<LandingSummaryDTO> matching = findMatchingForPlan(region, ipTypeId, minTrafficGb, minBandwidthMbps);
+        int total = matching.size();
+        int avail = (int) matching.stream()
+                .filter(l -> ResourceServerLandingStatusEnum.AVAILABLE.matches(l.getStatus())).count();
+        int occ = (int) matching.stream()
+                .filter(l -> ResourceServerLandingStatusEnum.OCCUPIED.matches(l.getStatus())).count();
+        return new PlanCapacityDTO(total, avail, occ);
     }
 }

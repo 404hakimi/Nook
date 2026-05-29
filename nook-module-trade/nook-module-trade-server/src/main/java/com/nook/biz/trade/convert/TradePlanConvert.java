@@ -1,5 +1,6 @@
 package com.nook.biz.trade.convert;
 
+import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.trade.controller.vo.TradePlanRespVO;
 import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
@@ -15,7 +16,7 @@ import java.util.stream.Collectors;
 /**
  * 套餐 VO 转换; 纯转换, 不依赖 Api / Service.
  *
- * <p>容量 (capacityTotal/Available/Occupied) 不在 DO 上, 由 controller 从 service 取落地机池余量后传入.
+ * <p>容量 (capacityTotal/Available/Occupied) 不在 DO 上, 由 controller 从 node landingApi 取后传入.
  *
  * @author nook
  */
@@ -23,9 +24,6 @@ import java.util.stream.Collectors;
 public interface TradePlanConvert {
 
     TradePlanConvert INSTANCE = Mappers.getMapper(TradePlanConvert.class);
-
-    /** 套餐余量: 同区域+同IP类型+规格达标的落地机, 按 status 分桶. service 按落地机池实时算后传入. */
-    record PlanCapacity(int total, int available, int occupied) { }
 
     TradePlanDO toDO(TradePlanSaveReqVO vo);
 
@@ -35,18 +33,18 @@ public interface TradePlanConvert {
     @Mapping(target = "capacityOccupied", ignore = true)
     TradePlanRespVO toRespVO(TradePlanDO bean);
 
-    default TradePlanRespVO toRespVO(TradePlanDO bean, PlanCapacity cap) {
+    default TradePlanRespVO toRespVO(TradePlanDO bean, PlanCapacityDTO cap) {
         TradePlanRespVO vo = toRespVO(bean);
         if (cap != null) {
-            vo.setCapacityTotal(cap.total());
-            vo.setCapacityAvailable(cap.available());
-            vo.setCapacityOccupied(cap.occupied());
+            vo.setCapacityTotal(cap.getTotal());
+            vo.setCapacityAvailable(cap.getAvailable());
+            vo.setCapacityOccupied(cap.getOccupied());
         }
         return vo;
     }
 
     default PageResult<TradePlanRespVO> convertPage(PageResult<TradePlanDO> page,
-                                                    Map<String, PlanCapacity> capMap) {
+                                                    Map<String, PlanCapacityDTO> capMap) {
         List<TradePlanRespVO> records = page.getRecords().stream()
                 .map(p -> toRespVO(p, capMap.get(p.getId())))
                 .collect(Collectors.toList());

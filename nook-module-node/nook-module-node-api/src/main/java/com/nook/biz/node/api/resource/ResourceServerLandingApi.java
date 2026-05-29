@@ -1,6 +1,7 @@
 package com.nook.biz.node.api.resource;
 
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
+import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 
 import java.util.Collection;
 import java.util.List;
@@ -32,4 +33,16 @@ public interface ResourceServerLandingApi {
      */
     List<LandingSummaryDTO> findMatchingForPlan(String region, String ipTypeId,
                                                 int minTrafficGb, int minBandwidthMbps);
+
+    /**
+     * 算套餐的落地机池容量 (匹配后按 status 分桶); trade 套餐列表/详情 enrich 用.
+     *
+     * @param region           区域码
+     * @param ipTypeId         IP 类型
+     * @param minTrafficGb     套餐月流量
+     * @param minBandwidthMbps 套餐带宽
+     * @return total / available / occupied
+     */
+    PlanCapacityDTO countCapacityForPlan(String region, String ipTypeId,
+                                         int minTrafficGb, int minBandwidthMbps);
 }
