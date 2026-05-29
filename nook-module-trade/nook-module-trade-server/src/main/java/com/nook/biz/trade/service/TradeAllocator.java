@@ -1,5 +1,6 @@
 package com.nook.biz.trade.service;
 
+import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
@@ -12,6 +13,7 @@ import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
+import com.nook.common.utils.collection.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * 资源分配器 (自动匹配, 强制同区域).
@@ -34,7 +35,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TradeAllocator {
 
-    private static final String AVAILABLE = "AVAILABLE";
     /** 带宽预留率: 不超卖, 线路机留 10% 余量. */
     private static final double RESERVE_RATIO = 0.10;
 
@@ -103,7 +103,8 @@ public class TradeAllocator {
     public String pickLanding(String region, String ipTypeId, int minTrafficGb,
                               int minBandwidthMbps, Set<String> exclude) {
         return landingApi.findMatchingForPlan(region, ipTypeId, minTrafficGb, minBandwidthMbps).stream()
-                .filter(l -> AVAILABLE.equals(l.getStatus()) && !exclude.contains(l.getServerId()))
+                .filter(l -> ResourceServerLandingStatusEnum.AVAILABLE.matches(l.getStatus())
+                        && !exclude.contains(l.getServerId()))
                 .map(LandingSummaryDTO::getServerId)
                 .findFirst()
                 .orElse(null);
@@ -115,14 +116,12 @@ public class TradeAllocator {
         if (active.isEmpty()) {
             return Map.of();
         }
-        Set<String> clientIds = active.stream()
-                .map(TradeSubscriptionDO::getXrayClientId).collect(Collectors.toSet());
+        Set<String> clientIds = CollectionUtils.convertSet(active, TradeSubscriptionDO::getXrayClientId);
         Map<String, String> clientToServer = clientNodeApi.getServerIdByClientIds(clientIds);
-        Set<String> planIds = active.stream()
-                .map(TradeSubscriptionDO::getPlanId).collect(Collectors.toSet());
-        Map<String, Integer> planBw = planMapper.selectBatchIds(planIds).stream()
-                .collect(Collectors.toMap(TradePlanDO::getId,
-                        p -> p.getBandwidthMbps() == null ? 0 : p.getBandwidthMbps()));
+        Set<String> planIds = CollectionUtils.convertSet(active, TradeSubscriptionDO::getPlanId);
+        Map<String, Integer> planBw = CollectionUtils.convertMap(
+                planMapper.selectBatchIds(planIds), TradePlanDO::getId,
+                p -> p.getBandwidthMbps() == null ? 0 : p.getBandwidthMbps());
         Map<String, Integer> committed = new HashMap<>();
         for (TradeSubscriptionDO s : active) {
             String fId = clientToServer.get(s.getXrayClientId());

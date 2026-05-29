@@ -23,6 +23,7 @@ import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import com.nook.biz.trade.service.TradeAllocator;
 import com.nook.biz.trade.service.TradeSubscriptionService;
 import com.nook.biz.trade.validator.TradePlanValidator;
+import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.function.Function;
 
 /**
  * 订阅管理 Service 实现.
@@ -52,7 +53,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
-    private static final long GB = 1024L * 1024 * 1024;
     private static final long DAY_MS = 86_400_000L;
     private static final int DEFAULT_PORT = 443;
     private static final DateTimeFormatter EXPIRE_FMT = DateTimeFormatter.ofPattern("MM-dd");
@@ -120,11 +120,11 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
     @Override
     public Map<String, String> getPlanNameMap(Collection<String> planIds) {
-        if (planIds == null || planIds.isEmpty()) {
+        if (CollectionUtils.isAnyEmpty(planIds)) {
             return Collections.emptyMap();
         }
-        return planMapper.selectBatchIds(planIds).stream()
-                .collect(Collectors.toMap(TradePlanDO::getId, TradePlanDO::getName));
+        return CollectionUtils.convertMap(
+                planMapper.selectBatchIds(planIds), TradePlanDO::getId, TradePlanDO::getName);
     }
 
     @Override
@@ -141,27 +141,32 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
     @Override
     public String renderSubscription(String subToken) {
+        // token 无效 / 会员被禁用 → 返 null, 上层转 404 (不暴露"token 存在但禁用"的区别)
         MemberSubscriberDTO member = memberUserApi.getActiveBySubToken(subToken);
         if (member == null) {
             return null;
         }
+        // 会员名下全部 ACTIVE 订阅聚合成一份订阅; 无订阅返空串 (客户端导入得到空列表, 不报错)
         List<TradeSubscriptionDO> subs = subMapper.selectActiveByMember(member.getId());
         if (subs.isEmpty()) {
             return Base64.encode("");
         }
-        Map<String, TradeSubscriptionDO> subByClient = subs.stream()
-                .collect(Collectors.toMap(TradeSubscriptionDO::getXrayClientId, s -> s, (a, b) -> a));
+        // 按 clientId 索引, 后面用节点信息回查订阅 (一个 client 一份订阅, 撞 key 取先到的)
+        Map<String, TradeSubscriptionDO> subByClient = CollectionUtils.convertMap(
+                subs, TradeSubscriptionDO::getXrayClientId, Function.identity(), (a, b) -> a);
+        // 节点信息按 RUNNING + 可拼 host 过滤后返回; 全不可用 (如刚下单还没 reconcile) 返空串
         List<XrayClientNodeDTO> nodes = clientNodeApi.getNodeInfos(subByClient.keySet());
         if (nodes.isEmpty()) {
             return Base64.encode("");
         }
-        Set<String> planIds = subs.stream()
-                .map(TradeSubscriptionDO::getPlanId).collect(Collectors.toSet());
-        Map<String, String> planNameMap = planMapper.selectBatchIds(planIds).stream()
-                .collect(Collectors.toMap(TradePlanDO::getId, TradePlanDO::getName));
+        // 套餐名只用于节点备注展示, 批量查一次避免逐订阅查库
+        Set<String> planIds = CollectionUtils.convertSet(subs, TradeSubscriptionDO::getPlanId);
+        Map<String, String> planNameMap = CollectionUtils.convertMap(
+                planMapper.selectBatchIds(planIds), TradePlanDO::getId, TradePlanDO::getName);
 
         StringBuilder lines = new StringBuilder();
         for (XrayClientNodeDTO node : nodes) {
+            // getNodeInfos 可能比 subByClient 多 (并发场景), 回查不到的节点跳过
             TradeSubscriptionDO sub = subByClient.get(node.getClientId());
             if (sub == null) {
                 continue;

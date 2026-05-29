@@ -2,6 +2,7 @@ package com.nook.biz.trade.service.impl;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
@@ -34,9 +35,6 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class TradePlanServiceImpl implements TradePlanService {
-
-    private static final String AVAILABLE = "AVAILABLE";
-    private static final String OCCUPIED = "OCCUPIED";
 
     private final TradePlanMapper planMapper;
     private final TradePlanValidator planValidator;
@@ -115,8 +113,10 @@ public class TradePlanServiceImpl implements TradePlanService {
                 plan.getTrafficGb() == null ? 0 : plan.getTrafficGb(),
                 plan.getBandwidthMbps() == null ? 0 : plan.getBandwidthMbps());
         int total = matching.size();
-        int avail = (int) matching.stream().filter(l -> AVAILABLE.equals(l.getStatus())).count();
-        int occ = (int) matching.stream().filter(l -> OCCUPIED.equals(l.getStatus())).count();
+        int avail = (int) matching.stream()
+                .filter(l -> ResourceServerLandingStatusEnum.AVAILABLE.matches(l.getStatus())).count();
+        int occ = (int) matching.stream()
+                .filter(l -> ResourceServerLandingStatusEnum.OCCUPIED.matches(l.getStatus())).count();
         return new PlanCapacity(total, avail, occ);
     }
 }

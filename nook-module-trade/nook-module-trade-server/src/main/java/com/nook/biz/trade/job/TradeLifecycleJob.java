@@ -63,14 +63,12 @@ public class TradeLifecycleJob {
         }
         LocalDateTime now = LocalDateTime.now();
 
-        Set<String> planIds = active.stream()
-                .map(TradeSubscriptionDO::getPlanId).collect(Collectors.toSet());
-        Map<String, Integer> planTrafficGb = planMapper.selectBatchIds(planIds).stream()
-                .collect(Collectors.toMap(TradePlanDO::getId,
-                        p -> p.getTrafficGb() == null ? 0 : p.getTrafficGb()));
-        Set<String> clientIds = active.stream()
-                .map(TradeSubscriptionDO::getXrayClientId).filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        Set<String> planIds = CollectionUtils.convertSet(active, TradeSubscriptionDO::getPlanId);
+        Map<String, Integer> planTrafficGb = CollectionUtils.convertMap(
+                planMapper.selectBatchIds(planIds), TradePlanDO::getId,
+                p -> p.getTrafficGb() == null ? 0 : p.getTrafficGb());
+        Set<String> clientIds = CollectionUtils.convertSet(
+                active, TradeSubscriptionDO::getXrayClientId, s -> s.getXrayClientId() != null);
         // clientId → 落地机 ip_id, 再取落地机当周期 tx
         Map<String, String> landingByClient = clientNodeApi.getLandingIdByClientIds(clientIds);
         Set<String> landingIds = new HashSet<>(landingByClient.values());
