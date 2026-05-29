@@ -120,4 +120,16 @@ public class AgentController {
     public Result<List<XrayReconcileClientDTO>> reconcileDesired(@AuthenticatedAgent String serverId) {
         return Result.ok(xrayClientReconcileApi.getDesiredClients(serverId));
     }
+
+    /**
+     * 落地 agent 拉本机应施加的 tc 限速 (Mbps); 落地 1:1, 取占用它的 RUNNING client 的套餐带宽.
+     * agent 跟本地 tc qdisc 比对 → 幂等重放 / rate 变更 / 清除。
+     *
+     * @param serverId 已认证 server id (落地机)
+     * @return 限速 Mbps; 0 = 不限 (无客户占用)
+     */
+    @GetMapping("/landing/desired-bandwidth")
+    public Result<Integer> landingDesiredBandwidth(@AuthenticatedAgent String serverId) {
+        return Result.ok(xrayClientReconcileApi.getLandingDesiredBandwidthMbps(serverId));
+    }
 }

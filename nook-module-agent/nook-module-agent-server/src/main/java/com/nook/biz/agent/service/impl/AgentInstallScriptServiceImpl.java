@@ -166,14 +166,18 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         sb.append("  interface: ").append(r.getNicInterface()).append("\n\n");
         sb.append("poller:\n");
         sb.append("  interval_seconds: ").append(r.getPollerIntervalSeconds()).append("\n\n");
+        int reconcileInterval = r.getReconcileIntervalSeconds() == null
+                ? DEFAULT_RECONCILE_INTERVAL_SECONDS : r.getReconcileIntervalSeconds();
         if (AgentRole.FRONTLINE.getCode().equals(r.getRole())) {
-            int reconcileInterval = r.getReconcileIntervalSeconds() == null
-                    ? DEFAULT_RECONCILE_INTERVAL_SECONDS : r.getReconcileIntervalSeconds();
             sb.append("xray:\n");
             sb.append("  bin: ").append(r.getXrayBin()).append("\n");
             sb.append("  api_port: ").append(r.getXrayApiPort()).append("\n");
             sb.append("  stats_interval_seconds: ").append(XRAY_STATS_INTERVAL_SECONDS).append("\n");
             sb.append("  reconcile_interval_seconds: ").append(reconcileInterval).append("\n\n");
+        } else if (AgentRole.LANDING.getCode().equals(r.getRole())) {
+            // 落地机 tc 限速 reconcile 周期; 复用部署表单的"对账间隔"
+            sb.append("landing:\n");
+            sb.append("  bandwidth_reconcile_interval_seconds: ").append(reconcileInterval).append("\n\n");
         }
         sb.append("runtime:\n");
         sb.append("  bin_path: ").append(r.getBinPath()).append("\n");

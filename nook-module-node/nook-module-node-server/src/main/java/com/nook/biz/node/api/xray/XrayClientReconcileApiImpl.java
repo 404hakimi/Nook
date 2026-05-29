@@ -86,4 +86,18 @@ public class XrayClientReconcileApiImpl implements XrayClientReconcileApi {
         }
         return out;
     }
+
+    @Override
+    public int getLandingDesiredBandwidthMbps(String landingServerId) {
+        // 落地机 1:1 独占, 正常至多一个 RUNNING client; 取其 bandwidthMbps 作 tc 限速值
+        return clientMapper.selectList(com.baomidou.mybatisplus.core.toolkit.Wrappers
+                        .<XrayClientDO>lambdaQuery()
+                        .eq(XrayClientDO::getIpId, landingServerId)
+                        .eq(XrayClientDO::getStatus, XrayClientStatusEnum.RUNNING.getCode()))
+                .stream()
+                .map(XrayClientDO::getBandwidthMbps)
+                .filter(bw -> bw != null && bw > 0)
+                .max(Integer::compareTo)
+                .orElse(0);
+    }
 }

@@ -75,10 +75,15 @@ xray:
   reconcile_interval_seconds: 300
 `
 
-// === Landing 专属 (跑 socks5; 当前空壳, socks5 接管待后续 sprint) ===
+// === Landing 专属 (跑 tc 限速; socks5 仍由 backend SSH 装) ===
 const LANDING_TAIL = `
-# === Socks5 集成 (landing 专属; 当前空壳) ===
-# socks5 接管由 backend SSH 完成 (跟 xray 一样); 后续 sprint agent 接管时这里加配置
+# === 落地机限速 (landing 专属; agent 跑 tc 整形出口网卡) ===
+landing:
+  # tc 限速 (对账) 周期 (秒); 拉后端期望带宽 (= 占用本机的套餐带宽) 跟本地 tc 比对, 不一致才改; 默认 5min
+  bandwidth_reconcile_interval_seconds: 300
+
+# === Socks5 集成 (landing 专属) ===
+# socks5 接管由 backend SSH 完成; 后续 sprint agent 接管时这里加配置
 `
 
 const FRONTLINE_TEMPLATE = `# ============================================================================

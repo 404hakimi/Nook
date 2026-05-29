@@ -219,6 +219,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         dto.setTotalBytes(plan.getTrafficGb() == null ? 0L : (long) plan.getTrafficGb() * GB);
         dto.setExpiryEpochMillis(expiry);
         dto.setLimitIp(0);
+        dto.setBandwidthMbps(plan.getBandwidthMbps() == null ? 0 : plan.getBandwidthMbps());
         return dto;
     }
 

@@ -119,6 +119,7 @@ public class ClientOpExecutor {
                 .totalBytes(reqVO.getTotalBytes() == null ? 0L : reqVO.getTotalBytes())
                 .expiryEpochMillis(reqVO.getExpiryEpochMillis() == null ? 0L : reqVO.getExpiryEpochMillis())
                 .limitIp(reqVO.getLimitIp() == null ? 0 : reqVO.getLimitIp())
+                .bandwidthMbps(reqVO.getBandwidthMbps() == null ? 0 : reqVO.getBandwidthMbps())
                 .status(1)
                 .build();
         try {

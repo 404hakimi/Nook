@@ -90,7 +90,7 @@ func (r *Reporter) sampleCurrentMonth() (rx, tx int64, periodStart string, err e
 	iface := r.iface
 	if iface == "" || iface == "auto" {
 		// 自动探测默认路由网卡 (Linux /proc/net/route); 探测失败回 eth0 兜底
-		detected, derr := detectDefaultIface()
+		detected, derr := DetectDefaultIface()
 		if derr != nil {
 			log.Printf("[nic] 自动探测网卡失败, 回退 eth0: %v", derr)
 			iface = "eth0"
@@ -126,9 +126,9 @@ func (r *Reporter) sampleCurrentMonth() (rx, tx int64, periodStart string, err e
 		nil
 }
 
-// detectDefaultIface 从 /proc/net/route 找 default route (Destination=00000000) 那一行的网卡名.
+// DetectDefaultIface 从 /proc/net/route 找 default route (Destination=00000000) 那一行的网卡名.
 // 跨发行版稳: 不依赖 ip / ifconfig / iproute2 工具, 直接读 procfs.
-func detectDefaultIface() (string, error) {
+func DetectDefaultIface() (string, error) {
 	f, err := os.Open("/proc/net/route")
 	if err != nil {
 		return "", err

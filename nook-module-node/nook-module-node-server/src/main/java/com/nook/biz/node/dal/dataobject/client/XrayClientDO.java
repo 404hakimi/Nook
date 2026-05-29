@@ -45,6 +45,9 @@ public class XrayClientDO extends BaseEntity {
     /** 同时连接 IP 数; 0/null=不限. */
     private Integer limitIp;
 
+    /** 带宽上限 Mbps; 0/null=不限 (派生自套餐, 落地机 tc 按此限速). */
+    private Integer bandwidthMbps;
+
     /** 客户端状态 {@link XrayClientStatusEnum} */
     private Integer status;
 

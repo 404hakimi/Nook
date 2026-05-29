@@ -16,6 +16,7 @@ type Config struct {
 	NIC       NICConfig          `yaml:"nic"`
 	Poller    PollerConfig       `yaml:"poller"`
 	Xray      XrayConfig         `yaml:"xray"`
+	Landing   LandingConfig      `yaml:"landing"`
 	Runtime   AgentRuntimeConfig `yaml:"runtime"`
 }
 
@@ -51,6 +52,12 @@ type XrayConfig struct {
 	StatsIntervalSeconds int    `yaml:"stats_interval_seconds"`
 	// reconcile 轮询周期 (秒); 0/缺省时 frontline 回退到 stats_interval.
 	ReconcileIntervalSeconds int `yaml:"reconcile_interval_seconds"`
+}
+
+// LandingConfig: landing 角色专属; frontline 整段缺省 (zero value). 当前只承载 tc 限速 reconcile.
+type LandingConfig struct {
+	// tc 限速 reconcile 周期 (秒); 0/缺省 = 不启用限速 reconcile.
+	BandwidthReconcileIntervalSeconds int `yaml:"bandwidth_reconcile_interval_seconds"`
 }
 
 // Load 读 config.yml + 强校验; 字段缺一报错, 不补默认.
@@ -112,4 +119,7 @@ func (c *Config) XrayStatsInterval() time.Duration {
 }
 func (c *Config) XrayReconcileInterval() time.Duration {
 	return time.Duration(c.Xray.ReconcileIntervalSeconds) * time.Second
+}
+func (c *Config) LandingBandwidthReconcileInterval() time.Duration {
+	return time.Duration(c.Landing.BandwidthReconcileIntervalSeconds) * time.Second
 }

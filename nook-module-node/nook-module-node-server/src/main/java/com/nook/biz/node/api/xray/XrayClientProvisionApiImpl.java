@@ -35,6 +35,7 @@ public class XrayClientProvisionApiImpl implements XrayClientProvisionApi {
         reqVO.setTotalBytes(req.getTotalBytes());
         reqVO.setExpiryEpochMillis(req.getExpiryEpochMillis());
         reqVO.setLimitIp(req.getLimitIp());
+        reqVO.setBandwidthMbps(req.getBandwidthMbps());
         XrayClientDO client = xrayClientService.provisionXrayClient(reqVO);
         return client.getId();
     }

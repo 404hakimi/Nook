@@ -308,12 +308,13 @@ onUnmounted(() => { if (deployAbort) deployAbort.abort() })
         </template>
         <NInputNumber v-model:value="form.pollerIntervalSeconds" :min="5" :max="600" class="w-40" />
       </NFormItem>
-      <NFormItem v-if="role === 'frontline'" path="reconcileIntervalSeconds">
+      <NFormItem path="reconcileIntervalSeconds">
         <template #label>
           对账间隔 (秒)
           <NTooltip trigger="hover">
             <template #trigger><NIcon class="hint"><HelpCircle :size="14" /></NIcon></template>
-            线路机 reconcile (对账) 周期: 拉后端期望态跟本地 xray 比对, 缺补多删自愈. 默认 300 秒 (5min).
+            <span v-if="role === 'frontline'">线路机 reconcile (对账) 周期: 拉后端期望态跟本地 xray 比对, 缺补多删自愈. 默认 300 秒 (5min).</span>
+            <span v-else>落地机 tc 限速 (对账) 周期: 拉后端期望带宽跟本地 tc 比对, 不一致才改. 默认 300 秒 (5min).</span>
           </NTooltip>
         </template>
         <NInputNumber v-model:value="form.reconcileIntervalSeconds" :min="30" :max="3600" class="w-40" />

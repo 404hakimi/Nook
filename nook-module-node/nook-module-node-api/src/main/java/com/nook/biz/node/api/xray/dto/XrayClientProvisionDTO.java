@@ -26,4 +26,7 @@ public class XrayClientProvisionDTO {
 
     /** 同时连接 IP 数; 0 = 不限. */
     private Integer limitIp;
+
+    /** 带宽上限 Mbps; 0 = 不限 (落地机 tc 按此限速). */
+    private Integer bandwidthMbps;
 }

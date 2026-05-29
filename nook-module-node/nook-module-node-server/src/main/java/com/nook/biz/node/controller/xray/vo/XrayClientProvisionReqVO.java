@@ -39,4 +39,8 @@ public class XrayClientProvisionReqVO {
     /** 单客户端最多并发源 IP 数; 0 = 不限. */
     @Min(value = 0, message = "limitIp 不能为负")
     private Integer limitIp;
+
+    /** 带宽上限 Mbps; 0 = 不限 (落地机 tc 按此限速). */
+    @Min(value = 0, message = "bandwidthMbps 不能为负")
+    private Integer bandwidthMbps;
 }
