@@ -26,10 +26,4 @@ public class InboundUserSpec {
 
     /** 流量上限字节数; 0 表无限制. */
     private long totalBytes;
-
-    /** 到期时间 epoch millis; 0 表永不到期. */
-    private long expiryEpochMillis;
-
-    /** 同账号 IP 数限制; 0 表无限制. */
-    private int limitIp;
 }

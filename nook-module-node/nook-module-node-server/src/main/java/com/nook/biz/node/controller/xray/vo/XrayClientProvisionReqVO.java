@@ -31,16 +31,4 @@ public class XrayClientProvisionReqVO {
     /** 流量上限(字节); 0 = 不限. */
     @Min(value = 0, message = "totalBytes 不能为负")
     private Long totalBytes;
-
-    /** 到期时间戳(毫秒); 0 = 永久. */
-    @Min(value = 0, message = "expiryEpochMillis 不能为负")
-    private Long expiryEpochMillis;
-
-    /** 单客户端最多并发源 IP 数; 0 = 不限. */
-    @Min(value = 0, message = "limitIp 不能为负")
-    private Integer limitIp;
-
-    /** 带宽上限 Mbps; 0 = 不限 (落地机 tc 按此限速). */
-    @Min(value = 0, message = "bandwidthMbps 不能为负")
-    private Integer bandwidthMbps;
 }

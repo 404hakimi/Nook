@@ -9,6 +9,7 @@ import com.nook.biz.agent.framework.auth.AuthenticatedAgent;
 import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.node.api.xray.XrayClientReconcileApi;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
+import com.nook.biz.trade.api.TradeBandwidthApi;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,6 +38,7 @@ public class AgentController {
 
     private final AgentReportService agentReportService;
     private final XrayClientReconcileApi xrayClientReconcileApi;
+    private final TradeBandwidthApi tradeBandwidthApi;
 
     /**
      * 心跳上报 (每 1min).
@@ -130,6 +132,6 @@ public class AgentController {
      */
     @GetMapping("/landing/desired-bandwidth")
     public Result<Integer> landingDesiredBandwidth(@AuthenticatedAgent String serverId) {
-        return Result.ok(xrayClientReconcileApi.getLandingDesiredBandwidthMbps(serverId));
+        return Result.ok(tradeBandwidthApi.getLandingDesiredBandwidthMbps(serverId));
     }
 }

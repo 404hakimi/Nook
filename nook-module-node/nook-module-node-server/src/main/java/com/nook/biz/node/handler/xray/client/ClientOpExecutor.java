@@ -81,7 +81,6 @@ public class ClientOpExecutor {
     public XrayClientDO doProvision(XrayClientProvisionReqVO reqVO, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
         sink.report("校验入参", 15);
-        clientValidator.validateForProvision(reqVO);
         clientValidator.validateIpNotInUse(reqVO.getIpId());
 
         sink.report("加载服务器信息", 25);
@@ -117,9 +116,6 @@ public class ClientOpExecutor {
                 .clientUuid(clientUuid)
                 .clientEmail(clientEmail)
                 .totalBytes(reqVO.getTotalBytes() == null ? 0L : reqVO.getTotalBytes())
-                .expiryEpochMillis(reqVO.getExpiryEpochMillis() == null ? 0L : reqVO.getExpiryEpochMillis())
-                .limitIp(reqVO.getLimitIp() == null ? 0 : reqVO.getLimitIp())
-                .bandwidthMbps(reqVO.getBandwidthMbps() == null ? 0 : reqVO.getBandwidthMbps())
                 .status(1)
                 .build();
         try {

@@ -18,12 +18,4 @@ public interface XrayClientReconcileApi {
      * @return 期望态列表 (空表返空 list)
      */
     List<XrayReconcileClientDTO> getDesiredClients(String serverId);
-
-    /**
-     * 某落地机当前应施加的 tc 限速 (Mbps); 落地 1:1, 取占用它的 RUNNING client 的 bandwidthMbps.
-     *
-     * @param landingServerId 落地机 server id
-     * @return 限速 Mbps; 0 = 不限 (无 RUNNING client 占用 / 套餐不限速)
-     */
-    int getLandingDesiredBandwidthMbps(String landingServerId);
 }

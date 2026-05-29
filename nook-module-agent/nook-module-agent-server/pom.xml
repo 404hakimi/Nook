@@ -28,6 +28,12 @@
             <artifactId>nook-module-node-api</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- 落地机 tc 限速值从套餐派生, 走 trade-api 解析 -->
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-module-trade-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- 框架 starter -->
         <dependency>

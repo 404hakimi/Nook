@@ -50,16 +50,6 @@ public class XrayClientValidator {
     }
 
     /**
-     * provision 入参业务校验; 字段级约束已由 jakarta validation 处理.
-     *
-     * @param reqVO provision 入参
-     */
-    public void validateForProvision(XrayClientProvisionReqVO reqVO) {
-        validateExpiry(reqVO.getExpiryEpochMillis());
-        validateLimitIp(reqVO.getLimitIp());
-    }
-
-    /**
      * 客户数硬上限校验: 该 server 活客户数 ≥ clientMaxCount 则不允许再开通.
      *
      * @param serverId       resource_server.id
@@ -75,19 +65,4 @@ public class XrayClientValidator {
         }
     }
 
-    private void validateExpiry(Long expiryEpochMillis) {
-        if (expiryEpochMillis == null || expiryEpochMillis == 0L) return;
-        if (expiryEpochMillis <= System.currentTimeMillis()) {
-            throw new BusinessException(XrayErrorCode.CLIENT_PROVISION_INVALID,
-                    "expiryEpochMillis=" + expiryEpochMillis + " 不在未来");
-        }
-    }
-
-    private void validateLimitIp(Integer limitIp) {
-        if (limitIp == null) return;
-        if (limitIp > MAX_LIMIT_IP) {
-            throw new BusinessException(XrayErrorCode.CLIENT_PROVISION_INVALID,
-                    "limitIp=" + limitIp + " 超过上限 " + MAX_LIMIT_IP);
-        }
-    }
 }

@@ -39,15 +39,6 @@ public class XrayClientDO extends BaseEntity {
     /** 流量上限字节; 0/null=不限 (写 xray client totalBytes; reconcile 期望态用). */
     private Long totalBytes;
 
-    /** 到期时间戳 ms; 0/null=永久. */
-    private Long expiryEpochMillis;
-
-    /** 同时连接 IP 数; 0/null=不限. */
-    private Integer limitIp;
-
-    /** 带宽上限 Mbps; 0/null=不限 (派生自套餐, 落地机 tc 按此限速). */
-    private Integer bandwidthMbps;
-
     /** 客户端状态 {@link XrayClientStatusEnum} */
     private Integer status;
 

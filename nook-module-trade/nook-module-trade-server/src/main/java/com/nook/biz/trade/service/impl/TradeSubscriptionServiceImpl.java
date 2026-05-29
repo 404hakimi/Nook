@@ -89,7 +89,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
             // 仅 provision 失败 (如 landing 被并发抢占) 才换下一个落地机重试
             String clientId;
             try {
-                clientId = provisionApi.provision(buildProvisionDTO(req, plan, frontlineId, landingId, expiry));
+                clientId = provisionApi.provision(buildProvisionDTO(req, plan, frontlineId, landingId));
             } catch (BusinessException e) {
                 log.warn("[adminCreate] provision 失败 landing={}, 试下一个: {}", landingId, e.getMessage());
                 continue;
@@ -211,15 +211,12 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     }
 
     private XrayClientProvisionDTO buildProvisionDTO(AdminCreateSubReqVO req, TradePlanDO plan,
-                                                     String frontlineId, String landingId, long expiry) {
+                                                     String frontlineId, String landingId) {
         XrayClientProvisionDTO dto = new XrayClientProvisionDTO();
         dto.setServerId(frontlineId);
         dto.setIpId(landingId);
         dto.setMemberUserId(req.getMemberUserId());
         dto.setTotalBytes(plan.getTrafficGb() == null ? 0L : (long) plan.getTrafficGb() * GB);
-        dto.setExpiryEpochMillis(expiry);
-        dto.setLimitIp(0);
-        dto.setBandwidthMbps(plan.getBandwidthMbps() == null ? 0 : plan.getBandwidthMbps());
         return dto;
     }
 
