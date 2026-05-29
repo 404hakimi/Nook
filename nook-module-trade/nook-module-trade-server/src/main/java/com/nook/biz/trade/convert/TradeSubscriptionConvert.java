@@ -7,11 +7,8 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -26,14 +23,9 @@ public interface TradeSubscriptionConvert {
 
     TradeSubscriptionConvert INSTANCE = Mappers.getMapper(TradeSubscriptionConvert.class);
 
-    /** 从一批 DO 抽去重 planId, 供 controller 一次性批量查套餐名. */
-    static Set<String> collectPlanIds(Collection<TradeSubscriptionDO> records) {
-        return records.stream().map(TradeSubscriptionDO::getPlanId)
-                .filter(Objects::nonNull).collect(Collectors.toSet());
-    }
-
-    /** planName 由带 map 的重载补; 单独调本方法时留 null. */
+    /** planName / memberEmail 由带 map 的重载补; 单独调本方法时留 null. */
     @Mapping(target = "planName", ignore = true)
+    @Mapping(target = "memberEmail", ignore = true)
     TradeSubscriptionRespVO toRespVO(TradeSubscriptionDO sub);
 
     default TradeSubscriptionRespVO toRespVO(TradeSubscriptionDO sub, String planName) {
@@ -43,9 +35,14 @@ public interface TradeSubscriptionConvert {
     }
 
     default PageResult<TradeSubscriptionRespVO> convertPage(PageResult<TradeSubscriptionDO> page,
-                                                            Map<String, String> planNameMap) {
+                                                            Map<String, String> planNameMap,
+                                                            Map<String, String> memberEmailMap) {
         List<TradeSubscriptionRespVO> records = page.getRecords().stream()
-                .map(s -> toRespVO(s, planNameMap.get(s.getPlanId())))
+                .map(s -> {
+                    TradeSubscriptionRespVO vo = toRespVO(s, planNameMap.get(s.getPlanId()));
+                    vo.setMemberEmail(memberEmailMap.get(s.getMemberUserId()));
+                    return vo;
+                })
                 .collect(Collectors.toList());
         return PageResult.of(page.getTotal(), records);
     }

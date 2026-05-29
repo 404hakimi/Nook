@@ -6,6 +6,7 @@ import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
 import com.nook.biz.trade.convert.TradeSubscriptionConvert;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.service.TradeSubscriptionService;
+import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 
@@ -42,13 +43,22 @@ public class TradeSubscriptionController {
         return Result.ok(TradeSubscriptionConvert.INSTANCE.toRespVO(sub, planNameMap.get(sub.getPlanId())));
     }
 
-    /** 订阅分页. */
+    /** 订阅分页 (enrich 套餐名 + 会员邮箱). */
     @GetMapping("/page-sub")
     public Result<PageResult<TradeSubscriptionRespVO>> getPage(@Valid TradeSubscriptionPageReqVO reqVO) {
         PageResult<TradeSubscriptionDO> page = subscriptionService.getPage(reqVO);
+        List<TradeSubscriptionDO> records = page.getRecords();
         Map<String, String> planNameMap = subscriptionService.getPlanNameMap(
-                TradeSubscriptionConvert.collectPlanIds(page.getRecords()));
-        return Result.ok(TradeSubscriptionConvert.INSTANCE.convertPage(page, planNameMap));
+                CollectionUtils.convertSet(records, TradeSubscriptionDO::getPlanId));
+        Map<String, String> memberEmailMap = subscriptionService.getMemberEmailMap(
+                CollectionUtils.convertSet(records, TradeSubscriptionDO::getMemberUserId));
+        return Result.ok(TradeSubscriptionConvert.INSTANCE.convertPage(page, planNameMap, memberEmailMap));
+    }
+
+    /** 各套餐当前活跃订阅数 (planId → 数量); 套餐卡片展示订阅人数用. */
+    @GetMapping("/count-active-by-plan")
+    public Result<Map<String, Integer>> countActiveByPlan() {
+        return Result.ok(subscriptionService.countActiveByPlan());
     }
 
     /** 退订 (吊销 client + 落地机释放). */

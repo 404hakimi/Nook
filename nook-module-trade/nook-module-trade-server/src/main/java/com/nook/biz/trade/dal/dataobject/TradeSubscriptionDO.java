@@ -1,6 +1,7 @@
 package com.nook.biz.trade.dal.dataobject;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
 import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -29,6 +30,6 @@ public class TradeSubscriptionDO extends BaseEntity {
 
     private LocalDateTime expiresAt;
 
-    /** ACTIVE / EXPIRED / CANCELLED; {@link com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum}. */
+    /** 订阅状态 {@link TradeSubscriptionStatusEnum} */
     private String status;
 }
