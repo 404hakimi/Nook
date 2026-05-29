@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Activity, Plus, RefreshCcw, RotateCw, Share2, Trash2, Zap } from 'lucide-vue-next'
+import { Activity, RefreshCcw, RotateCw, Share2, Zap } from 'lucide-vue-next'
 import {
   NButton,
   NDataTable,
@@ -15,12 +15,10 @@ import {
   CLIENT_STATUS_LABELS,
   pageClients,
   resetClientTraffic,
-  revokeClient,
   rotateClient,
   type XrayClient
 } from '@/api/xray/client'
 import { formatDateTime } from '@/utils/date'
-import ClientProvisionDialog from './ClientProvisionDialog.vue'
 import ClientShareDialog from './ClientShareDialog.vue'
 import ClientTrafficDialog from './ClientTrafficDialog.vue'
 
@@ -66,10 +64,7 @@ function statusType(s: number): 'success' | 'warning' | 'error' | 'default' {
   return 'default'
 }
 
-// ===== Provision (该 server 预选好) =====
-const provisionOpen = ref(false)
-
-// ===== 行操作: 分享 / 流量 / 轮换 / 清流量 / 吊销 =====
+// ===== 行操作: 分享 / 流量 / 轮换 / 清流量 =====
 async function onRotate(c: XrayClient) {
   if (busy.value[c.id]) return
   const ok = await confirm({
@@ -102,25 +97,6 @@ async function onResetTraffic(c: XrayClient) {
   try {
     await resetClientTraffic(c.id)
     message.success('已清零')
-  } catch { /* */ } finally {
-    busy.value[c.id] = false
-  }
-}
-
-async function onRevoke(c: XrayClient) {
-  if (busy.value[c.id]) return
-  const ok = await confirm({
-    title: '吊销客户端',
-    message: `吊销客户端 ${c.clientEmail}?`,
-    type: 'danger',
-    confirmText: '吊销'
-  })
-  if (!ok) return
-  busy.value[c.id] = true
-  try {
-    await revokeClient(c.id)
-    message.success('已吊销')
-    loadList()
   } catch { /* */ } finally {
     busy.value[c.id] = false
   }
@@ -208,7 +184,7 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
     title: '操作',
     key: 'actions',
     align: 'right',
-    width: 360,
+    width: 300,
     render: (row) => {
       const rowBusy = busy.value[row.id]
       return h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
@@ -227,11 +203,7 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
         h(NButton, {
           size: 'tiny', quaternary: true, disabled: rowBusy,
           onClick: () => onResetTraffic(row), title: '清零累计流量'
-        }, { icon: () => h(NIcon, null, { default: () => h(Zap) }), default: () => '清流量' }),
-        h(NButton, {
-          size: 'tiny', quaternary: true, type: 'error', disabled: rowBusy,
-          onClick: () => onRevoke(row), title: '吊销客户端 (远端 inbound + DB 双删)'
-        }, { icon: () => h(NIcon, null, { default: () => h(Trash2) }), default: () => '吊销' })
+        }, { icon: () => h(NIcon, null, { default: () => h(Zap) }), default: () => '清流量' })
       ])
     }
   }
@@ -257,10 +229,6 @@ onMounted(loadList)
       <span class="text-xs font-semibold text-zinc-600 dark:text-zinc-300">Xray 客户端</span>
       <span class="text-xs text-zinc-400">共 {{ total }} 个</span>
       <div class="flex-1"></div>
-      <NButton size="tiny" type="primary" @click="provisionOpen = true">
-        <template #icon><NIcon><Plus /></NIcon></template>
-        手动 Provision
-      </NButton>
       <NButton size="tiny" quaternary :loading="loading" @click="loadList">
         <template #icon><NIcon><RefreshCcw /></NIcon></template>
         刷新
@@ -277,7 +245,6 @@ onMounted(loadList)
       size="small"
     />
 
-    <ClientProvisionDialog v-model="provisionOpen" :server-id="serverId" @saved="loadList" />
     <ClientShareDialog v-model="shareOpen" :client="shareTarget" />
     <ClientTrafficDialog v-model="trafficOpen" :inbound="trafficTarget" />
   </div>

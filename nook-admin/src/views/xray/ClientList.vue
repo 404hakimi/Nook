@@ -3,12 +3,10 @@ import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Activity,
-  Plus,
   RefreshCcw,
   RotateCw,
   Search,
   Share2,
-  Trash2,
   Zap
 } from 'lucide-vue-next'
 import {
@@ -27,13 +25,11 @@ import {
   CLIENT_STATUS_LABELS,
   pageClients,
   resetClientTraffic,
-  revokeClient,
   rotateClient,
   type XrayClient,
   type XrayClientQuery
 } from '@/api/xray/client'
 import { formatDateTime } from '@/utils/date'
-import ClientProvisionDialog from './ClientProvisionDialog.vue'
 import ClientShareDialog from './ClientShareDialog.vue'
 import ClientTrafficDialog from './ClientTrafficDialog.vue'
 
@@ -114,34 +110,8 @@ function statusType(s: number): 'success' | 'warning' | 'error' | 'info' | 'defa
   return 'info'
 }
 
-// ===== Provision =====
-const provisionOpen = ref(false)
-async function onProvisioned() {
-  await loadList()
-}
-
 // 行级操作 in-flight 标记；防止用户狂点同一行触发多次请求
 const busy = ref<Record<string, boolean>>({})
-
-// ===== 删除 (revoke) =====
-async function onRevoke(e: XrayClient) {
-  if (busy.value[e.id]) return
-  const ok = await confirm({
-    title: '吊销客户端',
-    message: `吊销客户端 ${e.clientEmail}?`,
-    type: 'danger',
-    confirmText: '吊销'
-  })
-  if (!ok) return
-  busy.value[e.id] = true
-  try {
-    await revokeClient(e.id)
-    message.success('已吊销')
-    loadList()
-  } catch { /* */ } finally {
-    busy.value[e.id] = false
-  }
-}
 
 // ===== 轮换 UUID (rotate) =====
 async function onRotate(e: XrayClient) {
@@ -293,7 +263,7 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
     title: '操作',
     key: 'actions',
     align: 'right',
-    width: 460,
+    width: 360,
     render: (row) => {
       const rowBusy = busy.value[row.id]
       return h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
@@ -340,18 +310,6 @@ const columns = computed<DataTableColumns<XrayClient>>(() => [
             title: '清零累计流量'
           },
           { icon: () => h(NIcon, null, { default: () => h(Zap) }), default: () => '清流量' }
-        ),
-        h(
-          NButton,
-          {
-            size: 'tiny',
-            quaternary: true,
-            type: 'error',
-            disabled: rowBusy,
-            onClick: () => onRevoke(row),
-            title: '吊销客户端 (远端 inbound + DB 双删)'
-          },
-          { icon: () => h(NIcon, null, { default: () => h(Trash2) }), default: () => '吊销' }
         )
       ])
     }
@@ -433,11 +391,6 @@ onMounted(() => {
             {{ advancedFilterCount }}
           </NTag>
         </NButton>
-        <div class="flex-1"></div>
-        <NButton type="primary" size="small" @click="provisionOpen = true">
-          <template #icon><NIcon><Plus /></NIcon></template>
-          手动 Provision
-        </NButton>
       </div>
 
       <!-- 高级筛选：默认折叠；按 ID 精确定位时才展开 -->
@@ -489,7 +442,6 @@ onMounted(() => {
       />
     </NCard>
 
-    <ClientProvisionDialog v-model="provisionOpen" @saved="onProvisioned" />
     <ClientTrafficDialog v-model="trafficOpen" :inbound="trafficTarget" />
     <ClientShareDialog v-model="shareOpen" :client="shareTarget" />
     <!-- 点击列表 IP 列触发: 只读详情, 不带改 IP 入口 (改 IP 走 IP 池管理页) -->

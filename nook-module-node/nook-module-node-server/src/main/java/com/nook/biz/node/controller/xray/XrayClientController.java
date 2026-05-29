@@ -2,7 +2,6 @@ package com.nook.biz.node.controller.xray;
 
 import com.nook.biz.node.controller.xray.vo.XrayClientCredentialRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientPageReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientReplayReportRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayClientSyncStatusRespVO;
@@ -13,14 +12,11 @@ import com.nook.biz.node.service.xray.client.XrayClientService;
 import com.nook.biz.node.service.xray.client.XrayClientTrafficService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -68,29 +64,6 @@ public class XrayClientController {
     @GetMapping("/get-xray-client")
     public Result<XrayClientRespVO> getXrayClient(@RequestParam("id") String id) {
         return Result.ok(convertOne(xrayClientService.getXrayClient(id)));
-    }
-
-    /**
-     * 开通 xray 客户端
-     *
-     * @param createReqVO 开通入参
-     * @return 客户端详情
-     */
-    @PostMapping("/create-xray-client")
-    public Result<XrayClientRespVO> createXrayClient(@Valid @RequestBody XrayClientProvisionReqVO createReqVO) {
-        return Result.ok(convertOne(xrayClientService.provisionXrayClient(createReqVO)));
-    }
-
-    /**
-     * 吊销 xray 客户端
-     *
-     * @param id 客户端编号
-     * @return 是否成功
-     */
-    @DeleteMapping("/delete-xray-client")
-    public Result<Boolean> deleteXrayClient(@RequestParam("id") String id) {
-        xrayClientService.revokeXrayClient(id);
-        return Result.ok(true);
     }
 
     /**

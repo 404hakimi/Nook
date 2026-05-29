@@ -47,22 +47,6 @@ export interface XrayClientQuery {
 }
 
 /**
- * 手动 provision 入参; 共享 inbound 模型下协议 / 传输 / listen IP 都是 server 级固有属性,
- * 不从前端传, 后端按 server 的 xray inbound 配置走.
- */
-export interface XrayClientProvisionDTO {
-  serverId: string
-  ipId: string
-  memberUserId: string
-  /** 流量上限(字节); 0/不传 = 不限. */
-  totalBytes?: number
-  /** 到期时间戳(毫秒); 0/不传 = 永久. */
-  expiryEpochMillis?: number
-  /** 单客户端最多并发源 IP 数; 0/不传 = 不限, 上限 100. */
-  limitIp?: number
-}
-
-/**
  * 实时流量出参 (后端 ClientTrafficRespVO); 字段名以"挂在 inbound 上的 client 实体 id"语义对齐.
  *
  * <p>字节字段双形态: *Bytes (number, 精确数值, 比较/排序) + *BytesText (string, "190.50 KB" 这种人读串, 直接展示).
@@ -132,14 +116,6 @@ export const CLIENT_STATUS_LABELS: Record<number, string> = {
 
 export function pageClients(params: XrayClientQuery) {
   return request.get<unknown, PageResult<XrayClient>>('/admin/xray/client/page-xray-client', { params })
-}
-
-export function provisionClient(dto: XrayClientProvisionDTO) {
-  return request.post<unknown, XrayClient>('/admin/xray/client/create-xray-client', dto)
-}
-
-export function revokeClient(id: string) {
-  return request.delete<unknown, void>('/admin/xray/client/delete-xray-client', { params: { id } })
 }
 
 export function rotateClient(id: string) {
