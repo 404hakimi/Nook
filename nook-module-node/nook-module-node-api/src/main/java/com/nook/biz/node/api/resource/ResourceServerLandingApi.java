@@ -2,9 +2,11 @@ package com.nook.biz.node.api.resource;
 
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
+import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 落地机概要查询 Api (跨模块; trade 算 SKU 池容量 + 绑定校验用).
@@ -35,14 +37,10 @@ public interface ResourceServerLandingApi {
                                                 int minTrafficGb, int minBandwidthMbps);
 
     /**
-     * 算套餐的落地机池容量 (匹配后按 status 分桶); trade 套餐列表/详情 enrich 用.
+     * 批量算套餐落地机池容量 (各规格匹配后按 status 分桶); trade 套餐列表/详情 enrich 用.
      *
-     * @param region           区域码
-     * @param ipTypeId         IP 类型
-     * @param minTrafficGb     套餐月流量
-     * @param minBandwidthMbps 套餐带宽
-     * @return total / available / occupied
+     * @param specs 套餐规格集合 (planId + 区域 + IP类型 + 流量 + 带宽)
+     * @return planId → 容量 (total/available/occupied)
      */
-    PlanCapacityDTO countCapacityForPlan(String region, String ipTypeId,
-                                         int minTrafficGb, int minBandwidthMbps);
+    Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs);
 }

@@ -1,6 +1,7 @@
 package com.nook.biz.trade.convert;
 
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
+import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 import com.nook.biz.trade.controller.vo.TradePlanRespVO;
 import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
@@ -9,6 +10,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -24,6 +26,16 @@ import java.util.stream.Collectors;
 public interface TradePlanConvert {
 
     TradePlanConvert INSTANCE = Mappers.getMapper(TradePlanConvert.class);
+
+    /** 从一批套餐抽容量匹配规格, 供 controller 一次性调 node landingApi 算容量. */
+    static List<PlanSpecDTO> collectCapacitySpecs(Collection<TradePlanDO> plans) {
+        return plans.stream()
+                .map(p -> new PlanSpecDTO(
+                        p.getId(), p.getRegionCode(), p.getIpTypeId(),
+                        p.getTrafficGb() == null ? 0 : p.getTrafficGb(),
+                        p.getBandwidthMbps() == null ? 0 : p.getBandwidthMbps()))
+                .collect(Collectors.toList());
+    }
 
     TradePlanDO toDO(TradePlanSaveReqVO vo);
 

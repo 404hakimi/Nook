@@ -6,6 +6,7 @@ import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
+import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -125,9 +127,21 @@ public class ResourceServerLandingApiImpl implements ResourceServerLandingApi {
     }
 
     @Override
-    public PlanCapacityDTO countCapacityForPlan(String region, String ipTypeId,
-                                                int minTrafficGb, int minBandwidthMbps) {
-        List<LandingSummaryDTO> matching = findMatchingForPlan(region, ipTypeId, minTrafficGb, minBandwidthMbps);
+    public Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs) {
+        if (specs == null || specs.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, PlanCapacityDTO> result = new HashMap<>(specs.size());
+        for (PlanSpecDTO spec : specs) {
+            result.put(spec.getPlanId(), capacityOf(spec));
+        }
+        return result;
+    }
+
+    /** 单套餐容量: 匹配落地机后按 status 分桶 (total/available/occupied). */
+    private PlanCapacityDTO capacityOf(PlanSpecDTO spec) {
+        List<LandingSummaryDTO> matching = findMatchingForPlan(
+                spec.getRegionCode(), spec.getIpTypeId(), spec.getTrafficGb(), spec.getBandwidthMbps());
         int total = matching.size();
         int avail = (int) matching.stream()
                 .filter(l -> ResourceServerLandingStatusEnum.AVAILABLE.matches(l.getStatus())).count();

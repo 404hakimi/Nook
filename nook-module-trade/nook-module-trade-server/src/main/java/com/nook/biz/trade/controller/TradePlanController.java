@@ -8,10 +8,10 @@ import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
 import com.nook.biz.trade.convert.TradePlanConvert;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.service.TradePlanService;
-import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 
+import java.util.List;
 import java.util.Map;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -43,8 +43,8 @@ public class TradePlanController {
     @GetMapping("/page-plan")
     public Result<PageResult<TradePlanRespVO>> getPage(@Valid TradePlanPageReqVO reqVO) {
         PageResult<TradePlanDO> page = planService.getPlanPage(reqVO);
-        Map<String, PlanCapacityDTO> capMap = CollectionUtils.convertMap(
-                page.getRecords(), TradePlanDO::getId, this::capacityOf);
+        Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(
+                TradePlanConvert.collectCapacitySpecs(page.getRecords()));
         return Result.ok(TradePlanConvert.INSTANCE.convertPage(page, capMap));
     }
 
@@ -52,15 +52,9 @@ public class TradePlanController {
     @GetMapping("/get-plan")
     public Result<TradePlanRespVO> getPlan(@RequestParam("id") String id) {
         TradePlanDO plan = planService.getPlan(id);
-        return Result.ok(TradePlanConvert.INSTANCE.toRespVO(plan, capacityOf(plan)));
-    }
-
-    /** 落地机池容量 enrich: 调 node landingApi 按套餐规格匹配 + 分桶. */
-    private PlanCapacityDTO capacityOf(TradePlanDO plan) {
-        return landingApi.countCapacityForPlan(
-                plan.getRegionCode(), plan.getIpTypeId(),
-                plan.getTrafficGb() == null ? 0 : plan.getTrafficGb(),
-                plan.getBandwidthMbps() == null ? 0 : plan.getBandwidthMbps());
+        Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(
+                TradePlanConvert.collectCapacitySpecs(List.of(plan)));
+        return Result.ok(TradePlanConvert.INSTANCE.toRespVO(plan, capMap.get(plan.getId())));
     }
 
     /** 创建套餐 (默认下架). */
