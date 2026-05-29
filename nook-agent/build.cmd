@@ -11,7 +11,7 @@ REM   build.cmd 0.7.1 frontline  REM 只编一个 role (frontline | landing)
 setlocal
 
 set "VERSION=%~1"
-if "%VERSION%"=="" set "VERSION=0.7.0"
+if "%VERSION%"=="" set "VERSION=0.8.3"
 set "ONLY_ROLE=%~2"
 
 set "SCRIPT_DIR=%~dp0"
