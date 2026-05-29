@@ -31,9 +31,12 @@ application-local.properties
 .env.local
 .mcp.ssh-config.json
 
-# go agent
+# nook-agent
 /agent/nook-*
 nook-agent/dist/
 
-#
+# nook-admin
+nook-admin/tsconfig.app.tsbuildinfo
+
+# other
 .claude
