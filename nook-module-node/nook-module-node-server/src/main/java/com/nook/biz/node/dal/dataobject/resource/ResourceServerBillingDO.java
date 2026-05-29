@@ -17,20 +17,25 @@ import java.time.LocalDateTime;
 @TableName("resource_server_billing")
 public class ResourceServerBillingDO {
 
+    /** 服务器 id (主键); FK → resource_server.id. */
     @TableId
     private String serverId;
 
+    /** 云厂商/机房. */
     private String idcProvider;
 
     /** 月成本 CNY. */
     private BigDecimal costMonthly;
 
-    /** 账单日 1-28. */
+    /** 账单日 1-28; NIC 流量按此日重置. */
     private Integer billingCycleDay;
 
+    /** 服务器租约到期日. */
     private LocalDate expiresAt;
 
+    /** 创建时间. */
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     private LocalDateTime updatedAt;
 }

@@ -15,16 +15,22 @@ import java.time.LocalDateTime;
 @TableName("resource_server_frontline")
 public class ResourceServerFrontlineDO {
 
+    /** 线路机 id (主键); FK → resource_server.id. */
     @TableId
     private String serverId;
 
+    /** 线路机对外域名 (客户端接入入口). */
     private String domain;
 
+    /** Cloudflare Zone ID; 维护该域名解析用. */
     private String cfZoneId;
 
+    /** Cloudflare DNS 记录 ID; 指向本机的 A 记录. */
     private String cfRecordId;
 
+    /** 创建时间. */
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     private LocalDateTime updatedAt;
 }

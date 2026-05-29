@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 @TableName("resource_server_capacity")
 public class ResourceServerCapacityDO {
 
+    /** 服务器 id (主键); FK → resource_server.id. */
     @TableId
     private String serverId;
 
@@ -45,7 +46,9 @@ public class ResourceServerCapacityDO {
     /** 线路机出站接口实际限速 Mbps; 0=不限; agent 跑 tc qdisc 落实. */
     private Integer bandwidthLimitMbps;
 
+    /** 创建时间. */
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     private LocalDateTime updatedAt;
 }

@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @TableName("resource_server_runtime")
 public class ResourceServerRuntimeDO {
 
+    /** 服务器 id (主键); FK → resource_server.id. */
     @TableId
     private String serverId;
 
@@ -34,5 +35,6 @@ public class ResourceServerRuntimeDO {
     /** 连续心跳缺失次数; 心跳到达时清零. */
     private Integer consecutiveMiss;
 
+    /** 更新时间. */
     private LocalDateTime updatedAt;
 }

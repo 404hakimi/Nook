@@ -23,6 +23,7 @@ public class XrayConfigDO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /** 服务器 id (主键); FK → resource_server.id. */
     @TableId(value = "server_id", type = IdType.INPUT)
     private String serverId;
 
@@ -47,11 +48,14 @@ public class XrayConfigDO implements Serializable {
     /** TLS 证书路径 (acme.sh 签发后填). */
     private String tlsCertPath;
 
+    /** TLS 私钥路径 (acme.sh 签发后填). */
     private String tlsKeyPath;
 
+    /** 创建时间. */
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     @TableField(value = "updated_at", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 }

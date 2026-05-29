@@ -15,25 +15,34 @@ import java.time.LocalDateTime;
 @TableName("resource_server_credential")
 public class ResourceServerCredentialDO {
 
+    /** 落地/线路机 id (主键); FK → resource_server.id. */
     @TableId
     private String serverId;
 
-    /** SSH 端口; 主机 = resource_server.ip_address (canonical) */
+    /** SSH 端口; 主机取 resource_server.ip_address. */
     private Integer sshPort;
 
+    /** SSH 登录用户名. */
     private String sshUser;
 
+    /** SSH 登录密码 (明文). */
     private String sshPassword;
 
+    /** SSH 握手超时秒. */
     private Integer sshTimeoutSeconds;
 
+    /** 单条命令执行超时秒. */
     private Integer sshOpTimeoutSeconds;
 
+    /** SCP 上传超时秒. */
     private Integer sshUploadTimeoutSeconds;
 
+    /** 装机整体超时秒. */
     private Integer installTimeoutSeconds;
 
+    /** 创建时间. */
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     private LocalDateTime updatedAt;
 }

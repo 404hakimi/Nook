@@ -23,6 +23,7 @@ public class XrayServerDO implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /** 服务器 id (主键); FK → resource_server.id. */
     @TableId(value = "server_id", type = IdType.INPUT)
     private String serverId;
 
@@ -53,12 +54,14 @@ public class XrayServerDO implements Serializable {
     /** 最近一次部署完成时间; 重装时也会覆写, 不是单纯的"首次"语义. */
     private LocalDateTime installedAt;
 
-    /** 上次探测到的 xray 启动时间, 用于判断是否需 replay; 重装时清零等 reconciler 重新探测填. */
+    /** 上次探测到的 xray 启动时间; reconciler 探测填, 重装时清零后重新探测. */
     private LocalDateTime lastXrayUptime;
 
+    /** 创建时间. */
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     @TableField(value = "updated_at", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 }
