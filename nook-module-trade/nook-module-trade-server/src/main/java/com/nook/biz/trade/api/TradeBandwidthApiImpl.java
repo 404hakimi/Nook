@@ -6,14 +6,13 @@ import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
+import com.nook.common.utils.collection.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * {@link TradeBandwidthApi} 实现; 落地机 1:1, 限速值取占用它的 ACTIVE 订阅的套餐带宽.
@@ -37,9 +36,8 @@ public class TradeBandwidthApiImpl implements TradeBandwidthApi {
         if (active.isEmpty()) {
             return 0;
         }
-        Set<String> clientIds = active.stream()
-                .map(TradeSubscriptionDO::getXrayClientId).filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        Set<String> clientIds = CollectionUtils.convertSet(
+                active, TradeSubscriptionDO::getXrayClientId, s -> s.getXrayClientId() != null);
         Map<String, String> landingByClient = clientNodeApi.getLandingIdByClientIds(clientIds);
         for (TradeSubscriptionDO s : active) {
             if (landingServerId.equals(landingByClient.get(s.getXrayClientId()))) {

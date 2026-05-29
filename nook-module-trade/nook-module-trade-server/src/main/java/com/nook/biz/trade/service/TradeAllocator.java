@@ -57,8 +57,7 @@ public class TradeAllocator {
         if (frontlines.isEmpty()) {
             return null;
         }
-        Set<String> fIds = frontlines.stream()
-                .map(ResourceServerRespDTO::getId).collect(Collectors.toSet());
+        Set<String> fIds = CollectionUtils.convertSet(frontlines, ResourceServerRespDTO::getId);
         Map<String, ResourceServerCapacityRespDTO> capMap = capacityApi.listByServerIds(fIds);
         Map<String, Integer> committed = committedBandwidthByFrontline(fIds);
         Map<String, Integer> clientCounts = provisionApi.countActiveByServerIds(fIds);
