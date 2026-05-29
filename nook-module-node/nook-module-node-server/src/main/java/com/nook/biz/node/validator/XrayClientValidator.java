@@ -2,7 +2,6 @@ package com.nook.biz.node.validator;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.api.enums.XrayErrorCode;
@@ -18,8 +17,6 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class XrayClientValidator {
-
-    private static final int MAX_LIMIT_IP = 100;
 
     private final XrayClientMapper xrayClientMapper;
 
