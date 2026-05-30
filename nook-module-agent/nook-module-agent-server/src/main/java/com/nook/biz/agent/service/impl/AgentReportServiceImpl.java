@@ -18,7 +18,7 @@ import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.agent.service.AgentRuntimeConfigService;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,16 +35,19 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AgentReportServiceImpl implements AgentReportService {
 
     private static final double GB_BYTES = 1024.0 * 1024 * 1024;
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private final ResourceServerRuntimeApi resourceServerRuntimeApi;
-    private final ResourceServerCapacityApi resourceServerCapacityApi;
-    private final AgentTaskMapper agentTaskMapper;
-    private final AgentRuntimeConfigService agentRuntimeConfigService;
+    @Resource
+    private ResourceServerRuntimeApi resourceServerRuntimeApi;
+    @Resource
+    private ResourceServerCapacityApi resourceServerCapacityApi;
+    @Resource
+    private AgentTaskMapper agentTaskMapper;
+    @Resource
+    private AgentRuntimeConfigService agentRuntimeConfigService;
 
     @Override
     public void receiveHeartbeat(String serverId, AgentHeartbeatReqVO req, String clientIp) {

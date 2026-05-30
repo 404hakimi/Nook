@@ -5,8 +5,8 @@ import com.nook.biz.agent.controller.vo.AgentInstallMetaRespVO;
 import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
 import com.nook.biz.agent.service.AgentInstallScriptService;
 import com.nook.common.web.response.Result;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,11 +24,11 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
  */
 @RestController
 @RequestMapping("/admin/agent")
-@RequiredArgsConstructor
 @Validated
 public class AgentInstallController {
 
-    private final AgentInstallScriptService agentInstallScriptService;
+    @Resource
+    private AgentInstallScriptService agentInstallScriptService;
 
     /**
      * SSH 自动装 nook-agent (流式日志)

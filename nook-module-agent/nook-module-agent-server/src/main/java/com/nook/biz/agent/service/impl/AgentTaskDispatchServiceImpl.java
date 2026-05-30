@@ -5,7 +5,7 @@ import com.nook.biz.agent.api.enums.AgentTaskStatus;
 import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentTaskMapper;
 import com.nook.biz.agent.service.AgentTaskDispatchService;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -16,10 +16,10 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AgentTaskDispatchServiceImpl implements AgentTaskDispatchService {
 
-    private final AgentTaskMapper agentTaskMapper;
+    @Resource
+    private AgentTaskMapper agentTaskMapper;
 
     @Override
     public String dispatch(AgentRole agentType, String sourceId, String taskType, String payloadJson) {

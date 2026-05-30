@@ -4,8 +4,8 @@ import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.framework.auth.AuthenticatedAgent;
 import com.nook.biz.agent.framework.config.AgentProperties;
 import com.nook.biz.agent.framework.binary.AgentBinaryResolver;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,11 +28,12 @@ import java.nio.file.Paths;
 @Slf4j
 @RestController
 @RequestMapping("/admin/agent-dist")
-@RequiredArgsConstructor
 public class AgentSourceDownloadController {
 
-    private final AgentBinaryResolver agentBinaryResolver;
-    private final AgentProperties agentProperties;
+    @Resource
+    private AgentBinaryResolver agentBinaryResolver;
+    @Resource
+    private AgentProperties agentProperties;
 
     /**
      * 装机 / 升级时 agent 回拉 binary; AgentBinaryResolver 按 role/os/arch 解析 nook.agent.bin-dir 下最新文件.

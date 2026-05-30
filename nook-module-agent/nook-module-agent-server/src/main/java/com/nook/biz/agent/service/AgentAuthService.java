@@ -5,7 +5,7 @@ import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -16,10 +16,10 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AgentAuthService {
 
-    private final ResourceServerApi resourceServerApi;
+    @Resource
+    private ResourceServerApi resourceServerApi;
 
     /**
      * 校验 token 并获得 server

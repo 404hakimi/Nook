@@ -18,7 +18,7 @@ import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 /**
@@ -27,15 +27,20 @@ import org.springframework.stereotype.Service;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class AdminAgentServiceImpl implements AdminAgentService {
 
-    private final ResourceServerApi resourceServerApi;
-    private final ResourceServerRuntimeApi resourceServerRuntimeApi;
-    private final AgentTaskDispatchService agentTaskDispatchService;
-    private final AgentBinaryResolver agentBinaryResolver;
-    private final AgentTaskMapper agentTaskMapper;
-    private final AgentProperties agentProperties;
+    @Resource
+    private ResourceServerApi resourceServerApi;
+    @Resource
+    private ResourceServerRuntimeApi resourceServerRuntimeApi;
+    @Resource
+    private AgentTaskDispatchService agentTaskDispatchService;
+    @Resource
+    private AgentBinaryResolver agentBinaryResolver;
+    @Resource
+    private AgentTaskMapper agentTaskMapper;
+    @Resource
+    private AgentProperties agentProperties;
 
     @Override
     public String dispatchUpgrade(String serverId) {

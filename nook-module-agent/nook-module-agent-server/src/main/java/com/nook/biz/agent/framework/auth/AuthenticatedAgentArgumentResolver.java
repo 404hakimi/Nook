@@ -2,7 +2,7 @@ package com.nook.biz.agent.framework.auth;
 
 import com.nook.biz.agent.service.AgentAuthService;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.core.MethodParameter;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.support.WebDataBinderFactory;
@@ -16,12 +16,12 @@ import org.springframework.web.method.support.ModelAndViewContainer;
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class AuthenticatedAgentArgumentResolver implements HandlerMethodArgumentResolver {
 
     private static final String TOKEN_HEADER = "X-Agent-Token";
 
-    private final AgentAuthService agentAuthService;
+    @Resource
+    private AgentAuthService agentAuthService;
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {

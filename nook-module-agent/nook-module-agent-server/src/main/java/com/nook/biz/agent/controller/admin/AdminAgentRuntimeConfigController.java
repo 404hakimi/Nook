@@ -10,8 +10,8 @@ import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.Result;
 import com.nook.framework.security.stp.StpSystemUtil;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -27,11 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/admin/agent-runtime-config")
-@RequiredArgsConstructor
 @Validated
 public class AdminAgentRuntimeConfigController {
 
-    private final AgentRuntimeConfigService agentRuntimeConfigService;
+    @Resource
+    private AgentRuntimeConfigService agentRuntimeConfigService;
 
     /**
      * 取某 server 当前 yaml + 同步状态.

@@ -12,7 +12,7 @@ import com.nook.biz.agent.validator.AgentRuntimeConfigValidator;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
@@ -28,15 +28,18 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AgentRuntimeConfigServiceImpl implements AgentRuntimeConfigService {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private final AgentRuntimeConfigMapper agentRuntimeConfigMapper;
-    private final ResourceServerApi resourceServerApi;
-    private final AgentTaskDispatchService agentTaskDispatchService;
-    private final AgentRuntimeConfigValidator agentRuntimeConfigValidator;
+    @Resource
+    private AgentRuntimeConfigMapper agentRuntimeConfigMapper;
+    @Resource
+    private ResourceServerApi resourceServerApi;
+    @Resource
+    private AgentTaskDispatchService agentTaskDispatchService;
+    @Resource
+    private AgentRuntimeConfigValidator agentRuntimeConfigValidator;
 
     @Override
     public AgentRuntimeConfigDO get(String serverId) {

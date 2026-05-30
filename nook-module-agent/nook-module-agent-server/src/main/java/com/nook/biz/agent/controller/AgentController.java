@@ -11,9 +11,9 @@ import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 import com.nook.biz.trade.api.TradeBandwidthApi;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.ClientIpResolver;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,13 +31,15 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/agent")
-@RequiredArgsConstructor
 @Validated
 public class AgentController {
 
-    private final AgentReportService agentReportService;
-    private final XrayClientReconcileApi xrayClientReconcileApi;
-    private final TradeBandwidthApi tradeBandwidthApi;
+    @Resource
+    private AgentReportService agentReportService;
+    @Resource
+    private XrayClientReconcileApi xrayClientReconcileApi;
+    @Resource
+    private TradeBandwidthApi tradeBandwidthApi;
 
     /**
      * 心跳上报 (每 1min).

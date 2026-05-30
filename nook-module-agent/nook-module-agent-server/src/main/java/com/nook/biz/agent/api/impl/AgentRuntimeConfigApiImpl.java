@@ -6,7 +6,7 @@ import com.nook.biz.agent.convert.AgentRuntimeConfigConvert;
 import com.nook.biz.agent.dal.dataobject.AgentRuntimeConfigDO;
 import com.nook.biz.agent.dal.mysql.mapper.AgentRuntimeConfigMapper;
 import com.nook.common.utils.collection.CollectionUtils;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -20,10 +20,10 @@ import java.util.Map;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class AgentRuntimeConfigApiImpl implements AgentRuntimeConfigApi {
 
-    private final AgentRuntimeConfigMapper agentRuntimeConfigMapper;
+    @Resource
+    private AgentRuntimeConfigMapper agentRuntimeConfigMapper;
 
     @Override
     public Map<String, String> getSyncStateMap(Collection<String> serverIds) {

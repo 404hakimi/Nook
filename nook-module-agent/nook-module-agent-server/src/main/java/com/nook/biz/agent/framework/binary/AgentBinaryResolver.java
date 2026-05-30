@@ -3,7 +3,7 @@ package com.nook.biz.agent.framework.binary;
 import com.nook.biz.agent.framework.config.AgentProperties;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -26,14 +26,14 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AgentBinaryResolver {
 
     /** 文件名 pattern: nook-{role}-{version}-{os}-{arch}; role = frontline / landing. */
     private static final Pattern FILE_PATTERN = Pattern.compile(
             "^nook-(?<role>frontline|landing)-(?<version>.+)-(?<os>linux|darwin|windows)-(?<arch>amd64|arm64)$");
 
-    private final AgentProperties agentProperties;
+    @Resource
+    private AgentProperties agentProperties;
 
     public record AgentBinary(Path path, String role, String version, String os, String arch, long sizeBytes, String sha256) {}
 

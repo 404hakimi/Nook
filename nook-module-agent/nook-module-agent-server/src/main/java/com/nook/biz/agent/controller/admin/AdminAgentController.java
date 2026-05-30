@@ -6,8 +6,8 @@ import com.nook.biz.agent.convert.AgentTaskConvert;
 import com.nook.biz.agent.service.AdminAgentService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -23,11 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/admin/agent")
-@RequiredArgsConstructor
 @Validated
 public class AdminAgentController {
 
-    private final AdminAgentService adminAgentService;
+    @Resource
+    private AdminAgentService adminAgentService;
 
     /**
      * 派 agent_upgrade task; agent 端拉 backend 当前部署的 binary (nook-agent-*-linux-amd64).

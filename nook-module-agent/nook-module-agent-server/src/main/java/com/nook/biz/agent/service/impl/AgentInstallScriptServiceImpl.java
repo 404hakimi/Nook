@@ -20,7 +20,7 @@ import com.nook.framework.ssh.core.SshSessions;
 import com.nook.framework.ssh.script.ScriptCatalog;
 import com.nook.framework.web.StreamingEndpointSupport;
 import com.nook.framework.web.WebStreamingProperties;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
@@ -37,7 +37,6 @@ import java.util.function.Consumer;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AgentInstallScriptServiceImpl implements AgentInstallScriptService {
 
     /** xray stats 上报间隔; agent-side 轮询率, 装机时统一值, 后续 ConfigEditDialog 可改. */
@@ -45,15 +44,24 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
     /** reconcile (对账) 间隔默认值; admin 未填时用. */
     private static final int DEFAULT_RECONCILE_INTERVAL_SECONDS = 300;
 
-    private final ResourceServerApi resourceServerApi;
-    private final ResourceServerCredentialApi resourceServerCredentialApi;
-    private final XrayServerApi xrayServerApi;
-    private final ScriptCatalog scriptCatalog;
-    private final AgentInstallValidator agentInstallValidator;
-    private final AgentRuntimeConfigService agentRuntimeConfigService;
-    private final AgentProperties agentProperties;
-    private final StreamingEndpointSupport streamingSupport;
-    private final WebStreamingProperties webStreamingProperties;
+    @Resource
+    private ResourceServerApi resourceServerApi;
+    @Resource
+    private ResourceServerCredentialApi resourceServerCredentialApi;
+    @Resource
+    private XrayServerApi xrayServerApi;
+    @Resource
+    private ScriptCatalog scriptCatalog;
+    @Resource
+    private AgentInstallValidator agentInstallValidator;
+    @Resource
+    private AgentRuntimeConfigService agentRuntimeConfigService;
+    @Resource
+    private AgentProperties agentProperties;
+    @Resource
+    private StreamingEndpointSupport streamingSupport;
+    @Resource
+    private WebStreamingProperties webStreamingProperties;
 
     @Override
     public ResponseBodyEmitter installStream(String sourceId, AgentInstallReqVO reqVO) {

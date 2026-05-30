@@ -4,7 +4,7 @@ import com.nook.framework.ssh.script.ScriptCatalog;
 import com.nook.framework.ssh.script.ScriptCategory;
 import com.nook.framework.ssh.script.ScriptModule;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +17,6 @@ import java.util.Set;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AgentScripts {
 
     /** Agent 装机脚本; 跟 agent-server resources/scripts/install/nook-agent.sh.tmpl 对齐. */
@@ -30,7 +29,8 @@ public class AgentScripts {
             Set.of("SERVER_NAME", "ROLE", "BACKEND_URL", "AGENT_TOKEN", "CONFIG_YAML",
                     "NOOK_HOME", "BIN_PATH", "CONFIG_PATH", "SYSTEMD_UNIT_PATH"));
 
-    private final ScriptCatalog scriptCatalog;
+    @Resource
+    private ScriptCatalog scriptCatalog;
 
     @PostConstruct
     void register() {
