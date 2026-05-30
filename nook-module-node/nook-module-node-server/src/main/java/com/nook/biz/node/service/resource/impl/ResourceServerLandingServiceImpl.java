@@ -397,7 +397,21 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         for (PlanSpecDTO spec : specs) {
             List<ResourceServerLandingDO> candidates = bucket.getOrDefault(
                     this.regionIpKey(spec.getRegionCode(), spec.getIpTypeId()), List.of());
-            result.put(spec.getPlanId(), this.tallyCapacity(candidates, capMap, spec));
+            int total = 0;
+            int available = 0;
+            int occupied = 0;
+            for (ResourceServerLandingDO landing : candidates) {
+                if (this.belowPlanSpec(capMap.get(landing.getServerId()), spec.getTrafficGb(), spec.getBandwidthMbps())) {
+                    continue;
+                }
+                total++;
+                if (ResourceServerLandingStatusEnum.AVAILABLE.matches(landing.getStatus())) {
+                    available++;
+                } else if (ResourceServerLandingStatusEnum.OCCUPIED.matches(landing.getStatus())) {
+                    occupied++;
+                }
+            }
+            result.put(spec.getPlanId(), new PlanCapacityDTO(total, available, occupied));
         }
         return result;
     }
@@ -405,26 +419,6 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     /** (区域 + IP 类型) 复合 key; 把落地机按套餐匹配维度分桶. */
     private String regionIpKey(String region, String ipTypeId) {
         return region + '|' + ipTypeId;
-    }
-
-    /** 候选落地机按套餐流量 / 带宽阈值过滤后, 按 status 统计 (total / available / occupied). */
-    private PlanCapacityDTO tallyCapacity(List<ResourceServerLandingDO> candidates,
-                                          Map<String, ResourceServerCapacityDO> capMap, PlanSpecDTO spec) {
-        int total = 0;
-        int available = 0;
-        int occupied = 0;
-        for (ResourceServerLandingDO landing : candidates) {
-            if (this.belowPlanSpec(capMap.get(landing.getServerId()), spec.getTrafficGb(), spec.getBandwidthMbps())) {
-                continue;
-            }
-            total++;
-            if (ResourceServerLandingStatusEnum.AVAILABLE.matches(landing.getStatus())) {
-                available++;
-            } else if (ResourceServerLandingStatusEnum.OCCUPIED.matches(landing.getStatus())) {
-                occupied++;
-            }
-        }
-        return new PlanCapacityDTO(total, available, occupied);
     }
 
 }

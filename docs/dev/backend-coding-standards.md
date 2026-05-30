@@ -1169,12 +1169,16 @@ for (User u : users) { ... }
 
 ```java
 // ✅ 对
-result.put(spec.getPlanId(), this.capacityOf(spec));
-matched.add(this.toSummary(server, landing));
+if (this.belowPlanSpec(cap, minTrafficGb, minBandwidthMbps)) { ... }
+String key = this.regionIpKey(region, ipTypeId);
 
 // ❌ 错: 裸方法名, 看不出是本类方法还是静态导入 / 父类方法
-result.put(spec.getPlanId(), capacityOf(spec));
+if (belowPlanSpec(cap, minTrafficGb, minBandwidthMbps)) { ... }
 ```
+
+### 别为单处使用过度拆私有方法
+
+私有 helper 在**多处复用 / 封装非平凡逻辑**时才抽 (如 `belowPlanSpec`、`regionIpKey` 都被 ≥2 处调用); **只一处调用且短小**的逻辑直接内联在调用处 —— 私有方法堆太多反而割裂阅读 (来回跳转), 可读性不升反降. 判据: 抽出去是让人"少看几行"还是"多跳一次".
 
 ### package-info.java
 
