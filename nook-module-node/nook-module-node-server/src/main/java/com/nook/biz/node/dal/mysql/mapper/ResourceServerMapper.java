@@ -65,6 +65,14 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .eq(ResourceServerDO::getRegion, region));
     }
 
+    /** 多区域内 LIVE 落地机主表 (批量算容量用; 一次覆盖一批套餐涉及的所有区域). */
+    default List<ResourceServerDO> selectLiveLandingsByRegions(Collection<String> regions) {
+        return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.LANDING.getState())
+                .eq(ResourceServerDO::getLifecycleState, ResourceServerLifecycleEnum.LIVE.getState())
+                .in(ResourceServerDO::getRegion, regions));
+    }
+
     /**
      * 列表分页. ipAddress 直接 LIKE 主表; idIn (来自子表预过滤如 landing.status) 可选作 id 集合过滤;
      * serverType (frontline / landing) 可选.

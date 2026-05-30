@@ -92,4 +92,12 @@ public interface ResourceServerLandingMapper extends BaseMapper<ResourceServerLa
                 .in(ResourceServerLandingDO::getServerId, serverIds)
                 .eq(ResourceServerLandingDO::getIpTypeId, ipTypeId));
     }
+
+    /** 指定 server 集合里多个 IP 类型的落地子表 (批量算容量用). */
+    default List<ResourceServerLandingDO> selectByServerIdsAndIpTypes(Collection<String> serverIds,
+                                                                      Collection<String> ipTypeIds) {
+        return selectList(Wrappers.<ResourceServerLandingDO>lambdaQuery()
+                .in(ResourceServerLandingDO::getServerId, serverIds)
+                .in(ResourceServerLandingDO::getIpTypeId, ipTypeIds));
+    }
 }

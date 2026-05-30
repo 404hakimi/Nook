@@ -395,28 +395,57 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         if (CollUtil.isEmpty(specs)) {
             return Collections.emptyMap();
         }
-        // 每个套餐一次匹配查询; 套餐分页规格数有限 (页大小级别), 不展开成跨规格大 JOIN
+        // ① 批量捞 (固定 3 查询, 不随套餐数增长): 涉及区域的 LIVE 落地机 → 这批机器里涉及 IP 类型的落地子表 → 容量子表
+        Set<String> regions = CollectionUtils.convertSet(specs, PlanSpecDTO::getRegionCode);
+        Set<String> ipTypeIds = CollectionUtils.convertSet(specs, PlanSpecDTO::getIpTypeId);
+        Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(
+                resourceServerMapper.selectLiveLandingsByRegions(regions), ResourceServerDO::getId);
+        List<ResourceServerLandingDO> landings = serverMap.isEmpty() ? List.of()
+                : landingMapper.selectByServerIdsAndIpTypes(serverMap.keySet(), ipTypeIds);
+        Map<String, ResourceServerCapacityDO> capMap = landings.isEmpty() ? Map.of()
+                : CollectionUtils.convertMap(capacityMapper.selectBatchIds(
+                        CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
+                        ResourceServerCapacityDO::getServerId);
+        // ② 落地机按 (区域 + IP 类型) 分桶, 让每个套餐 O(1) 命中自己的候选
+        Map<String, List<ResourceServerLandingDO>> bucket = new HashMap<>();
+        for (ResourceServerLandingDO landing : landings) {
+            ResourceServerDO server = serverMap.get(landing.getServerId());
+            bucket.computeIfAbsent(this.regionIpKey(server.getRegion(), landing.getIpTypeId()),
+                    k -> new ArrayList<>()).add(landing);
+        }
+        // ③ 每个套餐在自己的桶里按容量阈值过滤 + status 计数 (纯内存, 不再查库)
         Map<String, PlanCapacityDTO> result = new HashMap<>(specs.size());
         for (PlanSpecDTO spec : specs) {
-            result.put(spec.getPlanId(), this.capacityOf(spec));
+            List<ResourceServerLandingDO> candidates = bucket.getOrDefault(
+                    this.regionIpKey(spec.getRegionCode(), spec.getIpTypeId()), List.of());
+            result.put(spec.getPlanId(), this.tallyCapacity(candidates, capMap, spec));
         }
         return result;
     }
 
-    /** 单套餐容量: 匹配落地机后按 status 分桶 (total / available / occupied). */
-    private PlanCapacityDTO capacityOf(PlanSpecDTO spec) {
-        List<LandingSummaryDTO> matching = this.findMatchingForPlan(
-                spec.getRegionCode(), spec.getIpTypeId(), spec.getTrafficGb(), spec.getBandwidthMbps());
+    /** (区域 + IP 类型) 复合 key; 把落地机按套餐匹配维度分桶. */
+    private String regionIpKey(String region, String ipTypeId) {
+        return region + '|' + ipTypeId;
+    }
+
+    /** 候选落地机按套餐流量 / 带宽阈值过滤后, 按 status 统计 (total / available / occupied). */
+    private PlanCapacityDTO tallyCapacity(List<ResourceServerLandingDO> candidates,
+                                          Map<String, ResourceServerCapacityDO> capMap, PlanSpecDTO spec) {
+        int total = 0;
         int available = 0;
         int occupied = 0;
-        for (LandingSummaryDTO landing : matching) {
+        for (ResourceServerLandingDO landing : candidates) {
+            if (this.belowPlanSpec(capMap.get(landing.getServerId()), spec.getTrafficGb(), spec.getBandwidthMbps())) {
+                continue;
+            }
+            total++;
             if (ResourceServerLandingStatusEnum.AVAILABLE.matches(landing.getStatus())) {
                 available++;
             } else if (ResourceServerLandingStatusEnum.OCCUPIED.matches(landing.getStatus())) {
                 occupied++;
             }
         }
-        return new PlanCapacityDTO(matching.size(), available, occupied);
+        return new PlanCapacityDTO(total, available, occupied);
     }
 
 }
