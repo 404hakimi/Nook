@@ -338,6 +338,7 @@ throw new BusinessException(SomeErrorCode.NAME_EXISTS, name);
 **例外 (保留惯例)**:
 - 鉴权端点: `/login` `/logout` `/register` `/me` (语义自明, 行业惯例)
 - Agent 协议端点 `/api/agent/*`: `/heartbeat` `/tasks` `/task-result` 等 (agent → backend 的 push 协议, 不是 REST CRUD)
+- 订阅 / 分享类公开 URL (如 `/portal/sub/{token}`): 供外部客户端 (v2rayN / clash 等) 直接导入, 路径式 token 是行业惯例, 改 query 参数会破坏已分发链接; 允许 `@PathVariable`
 
 ### 类与方法
 
@@ -630,7 +631,8 @@ public class SomeServiceImpl implements SomeService {
 
 ### 事务
 
-- **写操作**必须 `@Transactional(rollbackFor = Exception.class)` (默认只回滚 `RuntimeException`)
+- **多条 / 多表写入**必须 `@Transactional(rollbackFor = Exception.class)` (默认只回滚 `RuntimeException`)
+- **单条 DML** (一次 insert / update / delete) 本身原子, **不必**加 `@Transactional`; 即便前面有校验读、后面跟外部调用, 只要落库是单条写就不需要事务
 - **读操作**不加事务
 - 跨多表写入 + 外部调用 (HTTP / RPC): 事务内只做 DB, 外部调用拆事务外 (见 [03-业务核心 §4.7](../subscription-system-v3/03-业务核心-算法与流程.md) provision 模式)
 
@@ -1182,7 +1184,7 @@ for (User u : users) { ... }
 - [ ] VO 不用注解做枚举取值 / 业务唯一 / 跨表存在 / 跨字段条件校验, 一律走 Validator (见 §9)
 
 **事务、日志**
-- [ ] 写操作 `@Transactional(rollbackFor = Exception.class)`, 读操作不加
+- [ ] 多条 / 多表写入 `@Transactional(rollbackFor = Exception.class)`; 单条 DML 不必; 读操作不加
 - [ ] 跨多表写入 + 外部调用: 外部调用拆事务外
 - [ ] 日志 `@Slf4j`, 格式 `[methodName] 描述: key={}`, 异常对象放最后
 
