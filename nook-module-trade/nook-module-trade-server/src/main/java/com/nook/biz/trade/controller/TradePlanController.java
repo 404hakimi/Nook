@@ -1,18 +1,13 @@
 package com.nook.biz.trade.controller;
 
-import com.nook.biz.node.api.resource.ResourceServerLandingApi;
-import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanRespVO;
 import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
 import com.nook.biz.trade.convert.TradePlanConvert;
-import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.service.TradePlanService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 
-import java.util.List;
-import java.util.Map;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -37,28 +32,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class TradePlanController {
 
     private final TradePlanService planService;
-    private final ResourceServerLandingApi landingApi;
 
     /** 套餐分页 (含匹配落地机容量). */
     @GetMapping("/page-plan")
     public Result<PageResult<TradePlanRespVO>> getPage(@Valid TradePlanPageReqVO reqVO) {
-        // ① service 取套餐 DO 分页
-        PageResult<TradePlanDO> page = planService.getPlanPage(reqVO);
-        // ② 按套餐规格批量问 node 落地机池容量 (planId → total/available/occupied)
-        Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(
-                TradePlanConvert.INSTANCE.toSpecs(page.getRecords()));
-        // ③ convert 把容量拼进 VO
-        return Result.ok(TradePlanConvert.INSTANCE.convertPage(page, capMap));
+        // 容量编排在 service 层完成, controller 只拿结果转 VO
+        TradePlanService.PlanPage result = planService.getPlanPage(reqVO);
+        return Result.ok(TradePlanConvert.INSTANCE.convertPage(result.page(), result.capMap()));
     }
 
     /** 套餐详情. */
     @GetMapping("/get-plan")
     public Result<TradePlanRespVO> getPlan(@RequestParam("id") String id) {
-        TradePlanDO plan = planService.getPlan(id);
-        // 单个套餐也走批量容量接口, 取回 map 后按 planId 拿
-        Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(
-                TradePlanConvert.INSTANCE.toSpecs(List.of(plan)));
-        return Result.ok(TradePlanConvert.INSTANCE.toRespVO(plan, capMap.get(plan.getId())));
+        TradePlanService.PlanDetail detail = planService.getPlan(id);
+        return Result.ok(TradePlanConvert.INSTANCE.toRespVO(detail.plan(), detail.capacity()));
     }
 
     /** 创建套餐 (默认下架). */

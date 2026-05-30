@@ -65,17 +65,25 @@ Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查
 
 参考: `nook-module-agent` 的 `-api` / `-server` 拆分.
 
-### 关联数据拼接 (三步走)
+### 关联数据拼接 (跨模块调用放 Service, Controller 只转换)
+
+跨模块 Api 调用 / 关联数据计算属**业务编排, 放 Service**; Service 把主数据 + 关联数据组装成 carrier (record) 返回, Controller 只调 Service + Convert 出 VO, **不直接注入其他模块的 Api**.
 
 ```java
-// Controller
-List<SomeDO> list = someService.list();
-Set<String> userIds = SomeConvert.INSTANCE.extractMemberIds(list);           // ① Convert 提取 ID
-Map<String, String> userNameMap = memberUserApi.loadUserNameMap(userIds);    // ② Controller 批量查
-return Result.ok(SomeConvert.INSTANCE.convertListWithInfo(list, userNameMap)); // ③ Convert 拼接
+// Service: 取主数据 + 跨模块拿关联 / 计算数据, 组装 carrier 返回
+public PlanPage getPlanPage(SomePageReqVO req) {
+    PageResult<SomeDO> page = someMapper.selectPageByQuery(...);
+    Map<String, XxxDTO> infoMap = xxxApi.loadInfo(SomeConvert.INSTANCE.toSpecs(page.getRecords()));
+    return new PlanPage(page, infoMap);
+}
+record PlanPage(PageResult<SomeDO> page, Map<String, XxxDTO> infoMap) { }
+
+// Controller: 只调 Service + Convert, 不碰其他模块的 Api
+PlanPage result = someService.getPlanPage(req);
+return Result.ok(SomeConvert.INSTANCE.convertPage(result.page(), result.infoMap()));
 ```
 
-Convert 的 `convertListWithInfo` 只接收纯数据 Map, **禁止**接收 Service.
+Convert 只接纯数据 Map / DTO 拼 VO, **禁止**注入 Service / Api.
 
 ---
 
@@ -445,7 +453,7 @@ Convert 本质是**跨层数据格式翻译**. 按输入类型决定谁调用 Co
 |---|---|---|
 | **业务实体 DO** (`dal/dataobject/*DO`) | **Controller** | 标准三层: Controller 拿 Service 返的 DO → Convert → VO |
 | **基础设施 Snapshot** (`framework/**/snapshot/*` 等 framework 层数据载体) | **Service** | snapshot 是 service 从 framework 拉的中间数据; Controller 不该 import framework 内部结构, service 是唯一能桥接基础设施层 ↔ 业务 VO 的位置 |
-| **跨表聚合 record / Map** | **Controller** | §1 关联拼接三步走: Convert 提 ID → Controller 批量查 → Convert 拼接 |
+| **跨表聚合 record / Map** | **Controller** | 跨模块查 / 算在 Service 完成并组装 carrier; Controller 拿 carrier 调 Convert 出 VO (见 §1) |
 
 **核心判定**: Convert 的输入来自哪一层, 就由那一层的调用者触发翻译.
 

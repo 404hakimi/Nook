@@ -2,6 +2,8 @@ package com.nook.biz.trade.service.impl;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nook.biz.node.api.resource.ResourceServerLandingApi;
+import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
 import com.nook.biz.trade.convert.TradePlanConvert;
@@ -12,6 +14,9 @@ import com.nook.biz.trade.validator.TradePlanValidator;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * 套餐管理 Service 实现类
@@ -24,18 +29,26 @@ public class TradePlanServiceImpl implements TradePlanService {
 
     private final TradePlanMapper planMapper;
     private final TradePlanValidator planValidator;
+    private final ResourceServerLandingApi landingApi;
 
     @Override
-    public PageResult<TradePlanDO> getPlanPage(TradePlanPageReqVO req) {
+    public PlanPage getPlanPage(TradePlanPageReqVO req) {
         IPage<TradePlanDO> page = planMapper.selectPageByQuery(
                 Page.of(req.getPageNo(), req.getPageSize()),
                 req.getRegionCode(), req.getIpTypeId(), req.getEnabled(), req.getKeyword());
-        return PageResult.of(page.getTotal(), page.getRecords());
+        PageResult<TradePlanDO> result = PageResult.of(page.getTotal(), page.getRecords());
+        // 跨模块: 按套餐规格批量算落地机池容量 (planId → 容量), 编排在本层完成
+        Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(
+                TradePlanConvert.INSTANCE.toSpecs(result.getRecords()));
+        return new PlanPage(result, capMap);
     }
 
     @Override
-    public TradePlanDO getPlan(String id) {
-        return planValidator.validateExists(id);
+    public PlanDetail getPlan(String id) {
+        TradePlanDO plan = planValidator.validateExists(id);
+        Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(
+                TradePlanConvert.INSTANCE.toSpecs(List.of(plan)));
+        return new PlanDetail(plan, capMap.get(plan.getId()));
     }
 
     @Override
