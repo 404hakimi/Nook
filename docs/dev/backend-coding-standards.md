@@ -16,7 +16,7 @@
 | 时间字段 | `created_at` / `updated_at`, 实体字段 `createdAt` / `updatedAt`, `MetaObjectHandlerImpl` 自动 fill | 列名下划线 / 字段名驼峰 |
 | 软删除 | `deleted TINYINT` (0/1), 实体 `@TableLogic Integer deleted` | |
 | Mapper 基类 | MP 原生 `BaseMapper<T>`, 用 `Wrappers.lambdaQuery()` / `lambdaUpdate()` | **没有** `BaseMapperX` / `LambdaQueryWrapperX` |
-| 注入 | `@RequiredArgsConstructor` + `final` 构造注入 | **不用** `@Resource` / `@Autowired` |
+| 注入 | `@Resource` 字段注入 | **不用** `@Autowired` / `@RequiredArgsConstructor` 构造注入 |
 | 响应 | `com.nook.common.web.response.Result` + `Result.ok(data)` / `Result.ok()` | 不用 `CommonResult` / `success()` |
 | 分页 | `com.nook.common.web.response.PageResult` + `PageResult.of(total, list)` | API 一致 |
 | 错误码 | `BusinessException(ErrorCode)`, `ErrorCode` 是接口, 各模块自定义实现常量类 | 不用 `new ErrorCode(数字, "msg")` 数字编码 |
@@ -35,7 +35,7 @@
 Controller  → 参数校验、调用 Service、调 Convert 组装 VO、返回 Result
 Service     → 业务逻辑、事务、缓存; 校验委托 Validator; 返回 DO, 不构建 VO (跨模块/聚合视图例外: 经 Convert 返 VO, 见下方关联拼接 / §8)
 Validator   → 集中存在性 / 唯一性 / 业务前置校验, 抛 BusinessException; 每个含校验逻辑的 Service 配对一个 XxxValidator
-Convert     → DO ↔ VO; 接收纯数据 Map / List 拼接, 禁止注入 Service
+Convert     → DO ↔ VO / DTO 映射; 接收纯数据 Map / List 拼接; **禁止注入** Service / Api (依赖单向); 由 Controller 或 (跨模块/聚合视图) Service 调用
 Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查询 Wrapper
 ```
 
@@ -354,11 +354,11 @@ throw new BusinessException(SomeErrorCode.NAME_EXISTS, name);
 ```java
 @RestController
 @RequestMapping("/admin/<module>/<feature>")     // admin 路径; customer 路径前缀 /customer
-@RequiredArgsConstructor
 @Validated
 public class SomeController {
 
-    private final SomeService someService;
+    @Resource
+    private SomeService someService;
 
     @PostMapping("/create-some")
     public Result<String> create(@RequestBody @Valid SomeCreateReqVO reqVO) {
@@ -405,7 +405,7 @@ public class SomeController {
 
 ### 依赖注入与返回
 
-- 用 `@RequiredArgsConstructor` + `private final SomeService someService` 构造注入. **禁止** `@Autowired` / `@Resource`.
+- 用 `@Resource` 字段注入 (`@Resource private SomeService someService`). **禁止** `@Autowired` / `@RequiredArgsConstructor` 构造注入.
 - 字段声明用 import 后的短名, **禁止**全限定名.
 - 返回 `Result.ok(SomeConvert.INSTANCE.convertList(list))`, **禁止**手动 `new RespVO(...)` 逐字段赋值.
 
@@ -618,11 +618,12 @@ public interface SomeService {
 }
 
 @Service
-@RequiredArgsConstructor
 public class SomeServiceImpl implements SomeService {
 
-    private final SomeMapper someMapper;
-    private final SomeValidator someValidator;
+    @Resource
+    private SomeMapper someMapper;
+    @Resource
+    private SomeValidator someValidator;
     // ...
 
     @Override
@@ -650,10 +651,10 @@ public class SomeServiceImpl implements SomeService {
 
 ```java
 @Component
-@RequiredArgsConstructor
 public class SomeAsyncHelper {
 
-    private final SomeServiceImpl someService;
+    @Resource
+    private SomeServiceImpl someService;
 
     @Async("someExecutor")
     public void doAsync(...) {
@@ -665,14 +666,14 @@ public class SomeAsyncHelper {
 
 ### Validator (强制: 含校验逻辑的 Service 必须配对独立 `XxxValidator` 类)
 
-校验逻辑 (存在性 / 唯一性 / 业务前置 / 参数语义) **统一集中**到独立的 `XxxValidator` 类, Service 通过构造注入调用. 命名与目标 Service 一一对应 (`SomeService` ↔ `SomeValidator`); 简单读 / 仅透传的 Service 没有校验逻辑可省 Validator.
+校验逻辑 (存在性 / 唯一性 / 业务前置 / 参数语义) **统一集中**到独立的 `XxxValidator` 类, Service 注入后调用. 命名与目标 Service 一一对应 (`SomeService` ↔ `SomeValidator`); 简单读 / 仅透传的 Service 没有校验逻辑可省 Validator.
 
 ```java
 @Component
-@RequiredArgsConstructor
 public class SomeValidator {
 
-    private final SomeMapper someMapper;
+    @Resource
+    private SomeMapper someMapper;
 
     /**
      * 聚合入口: Create/Update 共用; id=null 表示 Create.
@@ -712,11 +713,12 @@ public class SomeValidator {
 
 ```java
 @Service
-@RequiredArgsConstructor
 public class SomeServiceImpl implements SomeService {
 
-    private final SomeMapper someMapper;
-    private final SomeValidator someValidator;
+    @Resource
+    private SomeMapper someMapper;
+    @Resource
+    private SomeValidator someValidator;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -738,7 +740,7 @@ public class SomeServiceImpl implements SomeService {
 
 **约定**:
 - 位置: `nook-module-<name>-server/.../validator/XxxValidator.java`
-- 注解: `@Component` + `@RequiredArgsConstructor` (跟全局注入规范一致, 禁 `@Resource`)
+- 注解: `@Component`; 依赖用 `@Resource` 字段注入 (跟全局注入规范一致)
 - 方法命名: `validateXxxExists` / `validateXxxUnique` / `validateXxxForCreateOrUpdate` / `validateXxxValue` (语义校验) 等
 - 跨 Service 复用: 同模块多个 Service 引用同一个 Validator 即可; **跨模块**走 `nook-module-<name>-api` 的 `XxxApi` (见 §1), 不要让其他模块直接注入 Validator
 - 参数校验注解能搞定的 (如 `@NotBlank`, `@Email`) 仍由 `@Valid` 在 Controller 层完成, Validator 只接业务层的存在性 / 唯一性 / 跨字段约束
@@ -968,7 +970,6 @@ public interface SomeService { ... }
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class SomeServiceImpl implements SomeService { ... }
 
 /**
@@ -977,7 +978,6 @@ public class SomeServiceImpl implements SomeService { ... }
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class SomeValidator { ... }
 
 /**
@@ -1211,7 +1211,7 @@ if (belowPlanSpec(cap, minTrafficGb, minBandwidthMbps)) { ... }
 **注解与校验**
 - [ ] Controller 加 `@Validated`; 方法 `@RequestBody` 参数加 `@Valid`
 - [ ] VO 必填加 `@NotBlank / @NotNull` 中文 message; 嵌套对象加 `@Valid`
-- [ ] 注入用 `@RequiredArgsConstructor` + `private final`, **不用** `@Resource` / `@Autowired`
+- [ ] 注入用 `@Resource` 字段注入, **不用** `@Autowired` / `@RequiredArgsConstructor` 构造注入
 - [ ] VO 不用注解做枚举取值 / 业务唯一 / 跨表存在 / 跨字段条件校验, 一律走 Validator (见 §9)
 
 **事务、日志**
