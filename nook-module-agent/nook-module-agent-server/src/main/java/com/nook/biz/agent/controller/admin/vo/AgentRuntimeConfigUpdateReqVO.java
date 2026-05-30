@@ -5,12 +5,12 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 管理后台 - Agent 运行时配置保存 Request VO
+ * 管理后台 - Agent 运行时配置更新 Request VO
  *
  * @author nook
  */
 @Data
-public class AgentRuntimeConfigSaveReqVO {
+public class AgentRuntimeConfigUpdateReqVO {
 
     /** 完整 yaml 配置内容. */
     @NotBlank(message = "yaml 不能为空")

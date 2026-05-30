@@ -1,6 +1,6 @@
 package com.nook.biz.trade.service;
 
-import com.nook.biz.trade.controller.vo.AdminCreateSubReqVO;
+import com.nook.biz.trade.controller.vo.SubscriptionCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradeSubscriptionPageReqVO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.common.web.response.PageResult;
@@ -21,7 +21,7 @@ public interface TradeSubscriptionService {
      * @param req 下单信息
      * @return 订阅
      */
-    TradeSubscriptionDO adminCreate(AdminCreateSubReqVO req);
+    TradeSubscriptionDO adminCreate(SubscriptionCreateReqVO req);
 
     /**
      * 获得订阅分页列表

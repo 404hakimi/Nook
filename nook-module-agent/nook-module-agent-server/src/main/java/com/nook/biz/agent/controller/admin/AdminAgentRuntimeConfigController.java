@@ -1,13 +1,11 @@
 package com.nook.biz.agent.controller.admin;
 
-import com.nook.biz.agent.api.enums.AgentRole;
+import com.nook.biz.agent.api.enums.AgentConfigSyncState;
 import com.nook.biz.agent.controller.admin.vo.AgentRuntimeConfigRespVO;
-import com.nook.biz.agent.controller.admin.vo.AgentRuntimeConfigSaveReqVO;
+import com.nook.biz.agent.controller.admin.vo.AgentRuntimeConfigUpdateReqVO;
 import com.nook.biz.agent.convert.AgentRuntimeConfigConvert;
 import com.nook.biz.agent.dal.dataobject.AgentRuntimeConfigDO;
 import com.nook.biz.agent.service.AgentRuntimeConfigService;
-import com.nook.common.web.error.CommonErrorCode;
-import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.Result;
 import com.nook.framework.security.stp.StpSystemUtil;
 import jakarta.annotation.Resource;
@@ -41,12 +39,13 @@ public class AdminAgentRuntimeConfigController {
      */
     @GetMapping("/get-config")
     public Result<AgentRuntimeConfigRespVO> get(@RequestParam("serverId") String serverId) {
-        return Result.ok(AgentRuntimeConfigConvert.INSTANCE.convertDetail(
-                serverId, agentRuntimeConfigService.get(serverId)));
+        AgentRuntimeConfigDO row = agentRuntimeConfigService.get(serverId);
+        AgentConfigSyncState syncState = agentRuntimeConfigService.classifySyncState(row);
+        return Result.ok(AgentRuntimeConfigConvert.INSTANCE.convertDetail(serverId, row, syncState));
     }
 
     /**
-     * 保存 yaml 并派 config_reload task. agentType 从 DB row 读 (装机时已定下, admin 改 yaml 不改 role).
+     * 保存 yaml 并派 config_reload task.
      *
      * @param serverId server 主键
      * @param req      含新 yaml
@@ -54,15 +53,9 @@ public class AdminAgentRuntimeConfigController {
      */
     @PutMapping("/save-config")
     public Result<String> save(@RequestParam("serverId") String serverId,
-                               @Valid @RequestBody AgentRuntimeConfigSaveReqVO req) {
-        AgentRuntimeConfigDO existing = agentRuntimeConfigService.get(serverId);
-        if (existing == null) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID,
-                    "agent 尚未装机 (DB 无 agent_runtime_config 行), 走装机流程而非改配置");
-        }
-        AgentRole agentType = AgentRole.fromCode(existing.getAgentType());
+                               @Valid @RequestBody AgentRuntimeConfigUpdateReqVO req) {
         String taskId = agentRuntimeConfigService.save(
-                serverId, agentType, req.getConfigYaml(), StpSystemUtil.getLoginIdAsString());
+                serverId, req.getConfigYaml(), StpSystemUtil.getLoginIdAsString());
         return Result.ok(taskId);
     }
 }

@@ -1,8 +1,9 @@
 package com.nook.biz.trade.controller;
 
+import com.nook.biz.trade.controller.vo.TradePlanCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanRespVO;
-import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
+import com.nook.biz.trade.controller.vo.TradePlanUpdateReqVO;
 import com.nook.biz.trade.service.TradePlanService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
@@ -46,13 +47,13 @@ public class TradePlanController {
 
     /** 创建套餐 (默认下架). */
     @PostMapping("/create-plan")
-    public Result<String> createPlan(@Valid @RequestBody TradePlanSaveReqVO reqVO) {
+    public Result<String> createPlan(@Valid @RequestBody TradePlanCreateReqVO reqVO) {
         return Result.ok(planService.createPlan(reqVO));
     }
 
     /** 更新套餐 (仅可变字段). */
     @PutMapping("/update-plan")
-    public Result<Boolean> updatePlan(@Valid @RequestBody TradePlanSaveReqVO reqVO) {
+    public Result<Boolean> updatePlan(@Valid @RequestBody TradePlanUpdateReqVO reqVO) {
         planService.updatePlan(reqVO);
         return Result.ok(true);
     }

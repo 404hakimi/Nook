@@ -15,7 +15,7 @@ import com.nook.biz.node.api.xray.dto.XrayClientNodeDTO;
 import com.nook.biz.node.api.xray.dto.XrayClientProvisionDTO;
 import com.nook.biz.trade.api.enums.TradeErrorCode;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
-import com.nook.biz.trade.controller.vo.AdminCreateSubReqVO;
+import com.nook.biz.trade.controller.vo.SubscriptionCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradeSubscriptionPageReqVO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
@@ -76,7 +76,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     private ObjectMapper objectMapper;
 
     @Override
-    public TradeSubscriptionDO adminCreate(AdminCreateSubReqVO req) {
+    public TradeSubscriptionDO adminCreate(SubscriptionCreateReqVO req) {
         TradePlanDO plan = planValidator.validateEnabled(req.getPlanId());
         int planBw = plan.getBandwidthMbps() == null ? 0 : plan.getBandwidthMbps();
         int planTraffic = plan.getTrafficGb() == null ? 0 : plan.getTrafficGb();
@@ -240,7 +240,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         }
     }
 
-    private XrayClientProvisionDTO buildProvisionDTO(AdminCreateSubReqVO req, TradePlanDO plan,
+    private XrayClientProvisionDTO buildProvisionDTO(SubscriptionCreateReqVO req, TradePlanDO plan,
                                                      String frontlineId, String landingId) {
         XrayClientProvisionDTO dto = new XrayClientProvisionDTO();
         dto.setServerId(frontlineId);

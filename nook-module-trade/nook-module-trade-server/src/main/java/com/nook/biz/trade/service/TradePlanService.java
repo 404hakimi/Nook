@@ -1,8 +1,9 @@
 package com.nook.biz.trade.service;
 
+import com.nook.biz.trade.controller.vo.TradePlanCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanRespVO;
-import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
+import com.nook.biz.trade.controller.vo.TradePlanUpdateReqVO;
 import com.nook.common.web.response.PageResult;
 
 /**
@@ -34,14 +35,14 @@ public interface TradePlanService {
      * @param req 创建信息
      * @return 主键ID
      */
-    String createPlan(TradePlanSaveReqVO req);
+    String createPlan(TradePlanCreateReqVO req);
 
     /**
      * 更新套餐
      *
      * @param req 更新信息
      */
-    void updatePlan(TradePlanSaveReqVO req);
+    void updatePlan(TradePlanUpdateReqVO req);
 
     /**
      * 上/下架套餐

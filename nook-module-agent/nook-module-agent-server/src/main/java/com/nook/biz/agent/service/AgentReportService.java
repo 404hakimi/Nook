@@ -4,6 +4,7 @@ import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskResultReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
+import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 
 import java.util.List;
 
@@ -47,4 +48,20 @@ public interface AgentReportService {
      * @param req      任务结果
      */
     void receiveTaskResult(String serverId, AgentTaskResultReqVO req);
+
+    /**
+     * 获得本机应存在的全部 xray 客户端期望态
+     *
+     * @param serverId server 编号
+     * @return 期望态列表
+     */
+    List<XrayReconcileClientDTO> getDesiredClients(String serverId);
+
+    /**
+     * 获得落地机应施加的限速
+     *
+     * @param serverId 落地机 server 编号
+     * @return 限速 Mbps (0 = 不限)
+     */
+    int getLandingDesiredBandwidthMbps(String serverId);
 }

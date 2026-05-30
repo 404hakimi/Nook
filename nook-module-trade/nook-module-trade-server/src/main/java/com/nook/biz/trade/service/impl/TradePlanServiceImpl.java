@@ -5,9 +5,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
+import com.nook.biz.trade.controller.vo.TradePlanCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanRespVO;
-import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
+import com.nook.biz.trade.controller.vo.TradePlanUpdateReqVO;
 import com.nook.biz.trade.convert.TradePlanConvert;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
@@ -56,17 +57,16 @@ public class TradePlanServiceImpl implements TradePlanService {
     }
 
     @Override
-    public String createPlan(TradePlanSaveReqVO req) {
+    public String createPlan(TradePlanCreateReqVO req) {
         planValidator.validateCodeUnique(req.getCode(), null);
         TradePlanDO e = TradePlanConvert.INSTANCE.toDO(req);
-        e.setId(null);
         e.setEnabled(0);
         planMapper.insert(e);
         return e.getId();
     }
 
     @Override
-    public void updatePlan(TradePlanSaveReqVO req) {
+    public void updatePlan(TradePlanUpdateReqVO req) {
         TradePlanDO existing = planValidator.validateExists(req.getId());
         // 可改: 名称/备注/售价/周期 (售价仅展示, 周期仅影响之后下单, 都不动在用订阅)
         // 锁定: 区域/IP类型/流量/带宽/套餐码 (改了破在用订阅: 配额/限速/选址/容量统计)

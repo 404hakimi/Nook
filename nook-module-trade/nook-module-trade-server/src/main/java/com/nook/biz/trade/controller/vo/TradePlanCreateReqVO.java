@@ -8,15 +8,12 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 /**
- * 管理后台 - 套餐保存 Request VO
+ * 管理后台 - 套餐创建 Request VO
  *
  * @author nook
  */
 @Data
-public class TradePlanSaveReqVO {
-
-    /** 主键ID; 更新时必填, 创建留空. */
-    private String id;
+public class TradePlanCreateReqVO {
 
     /** 套餐码. */
     @NotBlank(message = "套餐码必填")

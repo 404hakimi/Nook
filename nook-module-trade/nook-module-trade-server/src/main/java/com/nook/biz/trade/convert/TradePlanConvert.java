@@ -2,8 +2,8 @@ package com.nook.biz.trade.convert;
 
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
+import com.nook.biz.trade.controller.vo.TradePlanCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanRespVO;
-import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
@@ -20,7 +20,7 @@ public interface TradePlanConvert {
 
     TradePlanConvert INSTANCE = Mappers.getMapper(TradePlanConvert.class);
 
-    TradePlanDO toDO(TradePlanSaveReqVO vo);
+    TradePlanDO toDO(TradePlanCreateReqVO vo);
 
     @Mapping(target = "capacityTotal", source = "cap.total")
     @Mapping(target = "capacityAvailable", source = "cap.available")

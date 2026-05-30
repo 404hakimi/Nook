@@ -4,12 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * admin 代客下单入参.
+ * 管理后台 - 订阅代客下单 Request VO
  *
  * @author nook
  */
 @Data
-public class AdminCreateSubReqVO {
+public class SubscriptionCreateReqVO {
 
     @NotBlank(message = "会员必填")
     private String memberUserId;

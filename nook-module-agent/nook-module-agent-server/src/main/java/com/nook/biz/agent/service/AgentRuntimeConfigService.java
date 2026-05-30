@@ -1,5 +1,6 @@
 package com.nook.biz.agent.service;
 
+import com.nook.biz.agent.api.enums.AgentConfigSyncState;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.dal.dataobject.AgentRuntimeConfigDO;
 
@@ -19,15 +20,22 @@ public interface AgentRuntimeConfigService {
     AgentRuntimeConfigDO get(String serverId);
 
     /**
+     * 判定配置同步状态
+     *
+     * @param row 配置对象 (null 视为从未配置)
+     * @return 同步状态
+     */
+    AgentConfigSyncState classifySyncState(AgentRuntimeConfigDO row);
+
+    /**
      * 保存 yaml 并派发配置重载任务
      *
      * @param serverId   server 编号
-     * @param agentType  agent 角色
      * @param yaml       yaml 内容
      * @param operatorId 操作人编号
      * @return 任务编号
      */
-    String save(String serverId, AgentRole agentType, String yaml, String operatorId);
+    String save(String serverId, String yaml, String operatorId);
 
     /**
      * 装机时把当前渲染的 yaml 直接入库标已同步

@@ -6,9 +6,7 @@ import com.nook.biz.agent.controller.vo.AgentTaskResultReqVO;
 import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
 import com.nook.biz.agent.framework.auth.AuthenticatedAgent;
 import com.nook.biz.agent.service.AgentReportService;
-import com.nook.biz.node.api.xray.XrayClientReconcileApi;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
-import com.nook.biz.trade.api.TradeBandwidthApi;
 import com.nook.common.web.response.Result;
 import com.nook.framework.web.ClientIpResolver;
 import jakarta.annotation.Resource;
@@ -36,10 +34,6 @@ public class AgentController {
 
     @Resource
     private AgentReportService agentReportService;
-    @Resource
-    private XrayClientReconcileApi xrayClientReconcileApi;
-    @Resource
-    private TradeBandwidthApi tradeBandwidthApi;
 
     /**
      * 心跳上报 (每 1min).
@@ -107,7 +101,7 @@ public class AgentController {
      */
     @GetMapping("/reconcile/desired")
     public Result<List<XrayReconcileClientDTO>> reconcileDesired(@AuthenticatedAgent String serverId) {
-        return Result.ok(xrayClientReconcileApi.getDesiredClients(serverId));
+        return Result.ok(agentReportService.getDesiredClients(serverId));
     }
 
     /**
@@ -119,6 +113,6 @@ public class AgentController {
      */
     @GetMapping("/landing/desired-bandwidth")
     public Result<Integer> landingDesiredBandwidth(@AuthenticatedAgent String serverId) {
-        return Result.ok(tradeBandwidthApi.getLandingDesiredBandwidthMbps(serverId));
+        return Result.ok(agentReportService.getLandingDesiredBandwidthMbps(serverId));
     }
 }

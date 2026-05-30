@@ -18,6 +18,9 @@ import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.agent.service.AgentRuntimeConfigService;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
+import com.nook.biz.node.api.xray.XrayClientReconcileApi;
+import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
+import com.nook.biz.trade.api.TradeBandwidthApi;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -48,6 +51,10 @@ public class AgentReportServiceImpl implements AgentReportService {
     private AgentTaskMapper agentTaskMapper;
     @Resource
     private AgentRuntimeConfigService agentRuntimeConfigService;
+    @Resource
+    private XrayClientReconcileApi xrayClientReconcileApi;
+    @Resource
+    private TradeBandwidthApi tradeBandwidthApi;
 
     @Override
     public void receiveHeartbeat(String serverId, AgentHeartbeatReqVO req, String clientIp) {
@@ -105,6 +112,16 @@ public class AgentReportServiceImpl implements AgentReportService {
                 }
             }
         }
+    }
+
+    @Override
+    public List<XrayReconcileClientDTO> getDesiredClients(String serverId) {
+        return xrayClientReconcileApi.getDesiredClients(serverId);
+    }
+
+    @Override
+    public int getLandingDesiredBandwidthMbps(String serverId) {
+        return tradeBandwidthApi.getLandingDesiredBandwidthMbps(serverId);
     }
 
     private static String extractField(String json, String key) {

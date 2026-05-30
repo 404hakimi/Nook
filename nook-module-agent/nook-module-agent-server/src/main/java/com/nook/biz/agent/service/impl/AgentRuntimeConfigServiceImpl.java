@@ -2,6 +2,7 @@ package com.nook.biz.agent.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nook.biz.agent.api.enums.AgentConfigSyncState;
 import com.nook.biz.agent.api.enums.AgentRole;
 import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.dal.dataobject.AgentRuntimeConfigDO;
@@ -48,23 +49,29 @@ public class AgentRuntimeConfigServiceImpl implements AgentRuntimeConfigService 
     }
 
     @Override
+    public AgentConfigSyncState classifySyncState(AgentRuntimeConfigDO row) {
+        if (row == null) {
+            return AgentConfigSyncState.NEVER_CONFIGURED;
+        }
+        return md5(row.getConfigYaml()).equals(row.getAppliedYamlMd5())
+                ? AgentConfigSyncState.SYNCED
+                : AgentConfigSyncState.PENDING;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
-    public String save(String serverId, AgentRole agentType, String yaml, String operatorId) {
+    public String save(String serverId, String yaml, String operatorId) {
         resourceServerApi.validateExists(serverId);
         agentRuntimeConfigValidator.validateYaml(yaml);
         AgentRuntimeConfigDO existing = agentRuntimeConfigMapper.selectById(serverId);
-        LocalDateTime now = LocalDateTime.now();
         if (existing == null) {
-            AgentRuntimeConfigDO row = new AgentRuntimeConfigDO();
-            row.setServerId(serverId);
-            row.setAgentType(agentType.getCode());
-            row.setConfigYaml(yaml);
-            row.setUpdatedAt(now);
-            row.setUpdatedBy(operatorId);
-            agentRuntimeConfigMapper.insert(row);
-        } else {
-            agentRuntimeConfigMapper.updateConfigYaml(serverId, yaml, now, operatorId);
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID,
+                    "agent 尚未装机 (DB 无 agent_runtime_config 行), 走装机流程而非改配置");
         }
+        // agentType 装机时已定下, admin 改 yaml 不改 role
+        AgentRole agentType = AgentRole.fromCode(existing.getAgentType());
+        LocalDateTime now = LocalDateTime.now();
+        agentRuntimeConfigMapper.updateConfigYaml(serverId, yaml, now, operatorId);
         String md5 = md5(yaml);
         String payload;
         try {

@@ -1,6 +1,6 @@
 package com.nook.biz.trade.controller;
 
-import com.nook.biz.trade.controller.vo.AdminCreateSubReqVO;
+import com.nook.biz.trade.controller.vo.SubscriptionCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradeSubscriptionPageReqVO;
 import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
 import com.nook.biz.trade.convert.TradeSubscriptionConvert;
@@ -37,7 +37,7 @@ public class TradeSubscriptionController {
 
     /** admin 代客下单 (allocator 选址 + 复用 provision 开通). */
     @PostMapping("/admin-create")
-    public Result<TradeSubscriptionRespVO> adminCreate(@Valid @RequestBody AdminCreateSubReqVO reqVO) {
+    public Result<TradeSubscriptionRespVO> adminCreate(@Valid @RequestBody SubscriptionCreateReqVO reqVO) {
         TradeSubscriptionDO sub = subscriptionService.adminCreate(reqVO);
         Map<String, String> planNameMap = subscriptionService.getPlanNameMap(List.of(sub.getPlanId()));
         // 下单结果只回套餐名, 邮箱不在此场景展示 → memberEmail 传 null
