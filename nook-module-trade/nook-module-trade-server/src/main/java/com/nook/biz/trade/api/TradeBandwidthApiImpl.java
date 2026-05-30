@@ -1,6 +1,8 @@
 package com.nook.biz.trade.api;
 
 import cn.hutool.core.util.StrUtil;
+import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
+import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
 import com.nook.biz.node.api.xray.XrayClientNodeApi;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
@@ -28,6 +30,8 @@ public class TradeBandwidthApiImpl implements TradeBandwidthApi {
     private TradePlanMapper planMapper;
     @Resource
     private XrayClientNodeApi clientNodeApi;
+    @Resource
+    private ResourceServerCapacityApi capacityApi;
 
     @Override
     public int getLandingDesiredBandwidthMbps(String landingServerId) {
@@ -42,10 +46,21 @@ public class TradeBandwidthApiImpl implements TradeBandwidthApi {
                 active, TradeSubscriptionDO::getXrayClientId, s -> s.getXrayClientId() != null);
         Map<String, String> landingByClient = clientNodeApi.getLandingIdByClientIds(clientIds);
         for (TradeSubscriptionDO s : active) {
-            if (landingServerId.equals(landingByClient.get(s.getXrayClientId()))) {
-                TradePlanDO plan = planMapper.selectById(s.getPlanId());
-                return plan != null && plan.getBandwidthMbps() != null ? plan.getBandwidthMbps() : 0;
+            if (!landingServerId.equals(landingByClient.get(s.getXrayClientId()))) {
+                continue;
             }
+            // 套餐带宽与落地机自身带宽上限取较小: 套餐封顶(不超卖客户没买的), 落地机可往下压; 任一为 0/null 表示该侧不限
+            TradePlanDO plan = planMapper.selectById(s.getPlanId());
+            int planBw = plan != null && plan.getBandwidthMbps() != null ? plan.getBandwidthMbps() : 0;
+            ResourceServerCapacityRespDTO cap = capacityApi.listByServerIds(List.of(landingServerId)).get(landingServerId);
+            int landingBw = cap != null && cap.getBandwidthLimitMbps() != null ? cap.getBandwidthLimitMbps() : 0;
+            if (planBw <= 0) {
+                return Math.max(landingBw, 0);
+            }
+            if (landingBw <= 0) {
+                return planBw;
+            }
+            return Math.min(planBw, landingBw);
         }
         return 0;
     }

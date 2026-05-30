@@ -4,11 +4,23 @@ import request from '@/api/request'
 export interface TradeSubscription {
   id: string
   memberUserId: string
-  /** enrich: 会员邮箱 (后端 page-sub 补). */
+  /** 会员邮箱 (后端 page-sub 补). */
   memberEmail?: string
   planId: string
   planName?: string
   xrayClientId: string
+  /** 套餐总流量配额 (GB); 后端 page-sub 补. */
+  trafficGb?: number
+  /** 本周期已用流量 (字节); 后端 page-sub 补. */
+  usedBytes?: number
+  /** 所在线路机 server id; 后端 page-sub 补. */
+  frontlineServerId?: string
+  /** 所在线路机出网 IP; 后端 page-sub 补. */
+  frontlineIp?: string
+  /** 占用的落地机 server id; 后端 page-sub 补. */
+  landingServerId?: string
+  /** 占用的落地机出网 IP; 后端 page-sub 补. */
+  landingIp?: string
   startedAt?: string
   expiresAt?: string
   /** ACTIVE / EXPIRED / CANCELLED. */

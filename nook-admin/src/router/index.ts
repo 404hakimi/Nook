@@ -38,10 +38,22 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '套餐管理' }
       },
       {
+        path: 'trade/plans/:id',
+        name: 'trade-plan-detail',
+        component: () => import('@/views/trade/PlanDetail.vue'),
+        meta: { title: '套餐详情' }
+      },
+      {
         path: 'trade/subscriptions',
         name: 'trade-subscriptions',
         component: () => import('@/views/trade/SubscriptionList.vue'),
         meta: { title: '订阅管理' }
+      },
+      {
+        path: 'trade/subscription-change-log',
+        name: 'trade-subscription-change-log',
+        component: () => import('@/views/trade/SubscriptionChangeLogList.vue'),
+        meta: { title: '换机日志' }
       },
       {
         path: 'member/logs',

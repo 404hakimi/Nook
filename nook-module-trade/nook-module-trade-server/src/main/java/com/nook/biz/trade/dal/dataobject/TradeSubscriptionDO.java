@@ -24,7 +24,7 @@ public class TradeSubscriptionDO extends BaseEntity {
     /** 所购套餐. */
     private String planId;
 
-    /** 绑定的 xray 客户端, 1:1. */
+    /** 绑定的 xray 客户端 */
     private String xrayClientId;
 
     /** 生效时间. */

@@ -1,10 +1,13 @@
 package com.nook.biz.trade.convert;
 
 import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
+import com.nook.biz.trade.dal.dataobject.MemberPlanTrafficDO;
+import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
 import java.util.Map;
@@ -14,13 +17,37 @@ public interface TradeSubscriptionConvert {
 
     TradeSubscriptionConvert INSTANCE = Mappers.getMapper(TradeSubscriptionConvert.class);
 
+    // trafficGb/usedBytes/线路机/落地机 由 convertPage 按行补全, 单行场景留空
+    @Mapping(target = "trafficGb", ignore = true)
+    @Mapping(target = "usedBytes", ignore = true)
+    @Mapping(target = "frontlineServerId", ignore = true)
+    @Mapping(target = "frontlineIp", ignore = true)
+    @Mapping(target = "landingServerId", ignore = true)
+    @Mapping(target = "landingIp", ignore = true)
     TradeSubscriptionRespVO toRespVO(TradeSubscriptionDO sub, String planName, String memberEmail);
 
     default PageResult<TradeSubscriptionRespVO> convertPage(PageResult<TradeSubscriptionDO> page,
-                                                            Map<String, String> planNameMap,
-                                                            Map<String, String> memberEmailMap) {
-        return PageResult.of(page.getTotal(),
-                CollectionUtils.convertList(page.getRecords(), s -> toRespVO(
-                        s, planNameMap.get(s.getPlanId()), memberEmailMap.get(s.getMemberUserId()))));
+                                                            Map<String, TradePlanDO> planMap,
+                                                            Map<String, String> memberEmailMap,
+                                                            Map<String, MemberPlanTrafficDO> trafficMap,
+                                                            Map<String, String> clientFrontlineMap,
+                                                            Map<String, String> clientLandingMap,
+                                                            Map<String, String> serverIpMap) {
+        return PageResult.of(page.getTotal(), CollectionUtils.convertList(page.getRecords(), sub -> {
+            TradePlanDO plan = planMap.get(sub.getPlanId());
+            TradeSubscriptionRespVO vo = toRespVO(sub,
+                    plan == null ? null : plan.getName(),
+                    memberEmailMap.get(sub.getMemberUserId()));
+            vo.setTrafficGb(plan == null ? null : plan.getTrafficGb());
+            MemberPlanTrafficDO traffic = trafficMap.get(sub.getId());
+            vo.setUsedBytes(traffic == null || traffic.getUsedBytes() == null ? 0L : traffic.getUsedBytes());
+            String frontlineServerId = clientFrontlineMap.get(sub.getXrayClientId());
+            vo.setFrontlineServerId(frontlineServerId);
+            vo.setFrontlineIp(frontlineServerId == null ? null : serverIpMap.get(frontlineServerId));
+            String landingServerId = clientLandingMap.get(sub.getXrayClientId());
+            vo.setLandingServerId(landingServerId);
+            vo.setLandingIp(landingServerId == null ? null : serverIpMap.get(landingServerId));
+            return vo;
+        }));
     }
 }

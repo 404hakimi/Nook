@@ -16,31 +16,30 @@ import java.util.Map;
 public interface ResourceServerLandingApi {
 
     /**
-     * 批量查落地机概要 (主表 lifecycle + landing 子表 status/ipType/ipAddress).
+     * 批量查落地机概要
      *
      * @param serverIds 落地机 server id 集合
-     * @return 概要列表 (不存在的 id 跳过)
+     * @return List<LandingSummaryDTO>
      */
     List<LandingSummaryDTO> listSummaryByServerIds(Collection<String> serverIds);
 
     /**
-     * 查匹配套餐的 LIVE 落地机 (同区域 + 同 IP 类型 + 容量达标; 任意 status, 带 status 供算容量/挑机).
-     * 落地机 monthly_traffic_gb / bandwidth_limit_mbps 为 0/null = 不限, 跳过该项判定。
+     * 查匹配套餐的 LIVE 落地机 (同区域 + 同 IP 类型 + 容量达标)
      *
      * @param region           区域码
      * @param ipTypeId         IP 类型
-     * @param minTrafficGb     套餐月流量 (落地机配额须 ≥, 0/null=不限)
-     * @param minBandwidthMbps 套餐带宽 (落地机带宽须 ≥, 0/null=不限)
-     * @return 匹配的 LIVE 落地机概要 (含 status)
+     * @param minTrafficGb     套餐月流量
+     * @param minBandwidthMbps 套餐带宽
+     * @return List<LandingSummaryDTO>
      */
     List<LandingSummaryDTO> findMatchingForPlan(String region, String ipTypeId,
                                                 int minTrafficGb, int minBandwidthMbps);
 
     /**
-     * 批量算套餐落地机池容量 (各规格匹配后按 status 分桶); trade 套餐列表/详情 enrich 用.
+     * 批量计算套餐落地机池容量
      *
-     * @param specs 套餐规格集合 (planId + 区域 + IP类型 + 流量 + 带宽)
-     * @return planId → 容量 (total/available/occupied)
+     * @param specs 套餐规格集合
+     * @return Map<String, PlanCapacityDTO>
      */
     Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs);
 }

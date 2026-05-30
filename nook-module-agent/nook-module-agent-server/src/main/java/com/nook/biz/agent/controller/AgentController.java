@@ -105,7 +105,7 @@ public class AgentController {
     }
 
     /**
-     * 落地 agent 拉本机应施加的 tc 限速 (Mbps); 落地 1:1, 取占用它的 RUNNING client 的套餐带宽.
+     * 落地 agent 拉本机应施加的 tc 限速 (Mbps); 落地 1:1, 取占用它的订阅套餐带宽与本机带宽上限的较小值.
      * agent 跟本地 tc qdisc 比对 → 幂等重放 / rate 变更 / 清除。
      *
      * @param serverId 已认证 server id (落地机)

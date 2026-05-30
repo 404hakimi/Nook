@@ -41,7 +41,8 @@ export interface TradePlanSaveDTO {
 export interface TradePlanQuery {
   pageNo?: number
   pageSize?: number
-  regionCode?: string
+  /** 区域码集合 (城市选单个, 国家选该国全部城市). */
+  regionCodes?: string[]
   ipTypeId?: string
   enabled?: number
   keyword?: string
@@ -53,7 +54,11 @@ export interface PageResult<T> {
 }
 
 export function pageTradePlan(params: TradePlanQuery) {
-  return request.get<unknown, PageResult<TradePlan>>('/admin/trade/plan/page-plan', { params })
+  const { regionCodes, ...rest } = params
+  // 后端 List<String> 用逗号串绑定, 避免 axios 默认数组序列化带 [] 绑不上
+  return request.get<unknown, PageResult<TradePlan>>('/admin/trade/plan/page-plan', {
+    params: { ...rest, regionCodes: regionCodes && regionCodes.length ? regionCodes.join(',') : undefined }
+  })
 }
 
 export function getTradePlan(id: string) {

@@ -107,45 +107,67 @@ function close() {
     :show="modelValue"
     preset="card"
     :title="isEdit ? '编辑套餐' : '新建套餐'"
-    style="max-width: 44rem; width: 92vw"
+    style="max-width: 33rem; width: 92vw"
     :bordered="false"
     :mask-closable="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <NForm label-placement="top" size="small">
-      <div class="grid grid-cols-2 gap-x-4">
-        <NFormItem label="套餐码" required :validation-status="errors.code ? 'error' : undefined" :feedback="errors.code">
-          <NInput v-model:value="form.code" :disabled="isEdit" placeholder="jp_tyo_isp_100gb_monthly" />
-        </NFormItem>
-        <NFormItem label="套餐名" required :validation-status="errors.name ? 'error' : undefined" :feedback="errors.name">
-          <NInput v-model:value="form.name" placeholder="日本东京 ISP 100GB 月付" />
-        </NFormItem>
+      <!-- 基本信息: 标识字段整行 -->
+      <div class="form-section">基本信息</div>
+      <NFormItem label="套餐码" required :validation-status="errors.code ? 'error' : undefined" :feedback="errors.code">
+        <NInput v-model:value="form.code" :disabled="isEdit" placeholder="jp_tyo_isp_100gb_monthly" />
+      </NFormItem>
+      <NFormItem label="套餐名" required :validation-status="errors.name ? 'error' : undefined" :feedback="errors.name">
+        <NInput v-model:value="form.name" placeholder="日本东京 ISP 100GB 月付" />
+      </NFormItem>
+
+      <!-- 产品规格: 选择项两列, 数值规格三列 -->
+      <div class="form-section">
+        产品规格
+        <span class="form-section-hint">区域 + IP 类型决定下单时匹配哪些落地机</span>
+      </div>
+      <div class="grid grid-cols-2 gap-x-3">
         <NFormItem label="区域" required :validation-status="errors.regionCode ? 'error' : undefined" :feedback="errors.regionCode">
           <NSelect v-model:value="form.regionCode" :options="regionOptions" :disabled="isEdit" filterable placeholder="选区域" />
         </NFormItem>
         <NFormItem label="IP 类型" required :validation-status="errors.ipTypeId ? 'error' : undefined" :feedback="errors.ipTypeId">
           <NSelect v-model:value="form.ipTypeId" :options="ipTypeOptions" :disabled="isEdit" placeholder="选 IP 类型" />
         </NFormItem>
-        <NFormItem label="月流量 (GB)" required :validation-status="errors.trafficGb ? 'error' : undefined" :feedback="errors.trafficGb">
-          <NInputNumber v-model:value="form.trafficGb" :min="1" :disabled="isEdit" class="w-full" />
-        </NFormItem>
-        <NFormItem label="带宽 (Mbps)" required :validation-status="errors.bandwidthMbps ? 'error' : undefined" :feedback="errors.bandwidthMbps">
-          <NInputNumber v-model:value="form.bandwidthMbps" :min="1" :disabled="isEdit" class="w-full" />
-        </NFormItem>
-        <NFormItem label="周期 (天)" required :validation-status="errors.periodDays ? 'error' : undefined" :feedback="errors.periodDays">
-          <NInputNumber v-model:value="form.periodDays" :min="1" :disabled="isEdit" class="w-full" />
-        </NFormItem>
-        <NFormItem label="售价 (¥)" required :validation-status="errors.price ? 'error' : undefined" :feedback="errors.price">
-          <NInputNumber v-model:value="form.price" :min="0" :precision="2" :disabled="isEdit" class="w-full" />
-        </NFormItem>
-        <div class="col-span-2">
-          <NFormItem label="备注">
-            <NInput v-model:value="form.remark" type="textarea" :rows="2" />
-          </NFormItem>
-        </div>
       </div>
-      <div class="text-xs text-zinc-400">区域 + IP 类型决定下单时自动匹配哪些落地机 (同区域同类型, 带宽/流量达标的可用落地机)</div>
-      <div v-if="isEdit" class="text-xs text-zinc-400">灰色为已售卖不可变字段; 需调整请建新套餐 + 旧的下架</div>
+      <div class="grid grid-cols-3 gap-x-3">
+        <NFormItem label="月流量" required :validation-status="errors.trafficGb ? 'error' : undefined" :feedback="errors.trafficGb">
+          <NInputNumber v-model:value="form.trafficGb" :min="1" :show-button="false" :disabled="isEdit" class="w-full">
+            <template #suffix>GB</template>
+          </NInputNumber>
+        </NFormItem>
+        <NFormItem label="带宽" required :validation-status="errors.bandwidthMbps ? 'error' : undefined" :feedback="errors.bandwidthMbps">
+          <NInputNumber v-model:value="form.bandwidthMbps" :min="1" :show-button="false" :disabled="isEdit" class="w-full">
+            <template #suffix>Mbps</template>
+          </NInputNumber>
+        </NFormItem>
+        <NFormItem label="周期" required :validation-status="errors.periodDays ? 'error' : undefined" :feedback="errors.periodDays">
+          <NInputNumber v-model:value="form.periodDays" :min="1" :show-button="false" class="w-full">
+            <template #suffix>天</template>
+          </NInputNumber>
+        </NFormItem>
+      </div>
+
+      <!-- 定价 + 备注: 同一行左右分布 -->
+      <div class="form-section">定价</div>
+      <div class="grid grid-cols-2 gap-x-3">
+        <NFormItem label="售价" required :validation-status="errors.price ? 'error' : undefined" :feedback="errors.price">
+          <NInputNumber v-model:value="form.price" :min="0" :precision="2" :show-button="false" class="w-full">
+            <template #prefix>¥</template>
+          </NInputNumber>
+        </NFormItem>
+      </div>
+
+      <NFormItem label="备注">
+        <NInput v-model:value="form.remark" type="textarea" :rows="2" placeholder="选填, 仅内部备注" />
+      </NFormItem>
+
+      <div v-if="isEdit" class="text-xs text-zinc-400 -mt-1">售价 / 周期可改 (仅影响展示与之后下单); 灰色为已售卖锁定字段 (区域/规格), 需调整请建新套餐 + 旧的下架</div>
     </NForm>
     <template #footer>
       <NSpace justify="end">
@@ -157,3 +179,26 @@ function close() {
     </template>
   </NModal>
 </template>
+
+<style scoped>
+/* 分区标题: 单列表单的视觉分组, 比纯堆叠更像 VPS 面板配置 */
+.form-section {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nook-fg);
+  margin: 4px 0 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.12);
+}
+.form-section:not(:first-child) {
+  margin-top: 14px;
+}
+.form-section-hint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--nook-fg-faint);
+}
+</style>

@@ -5,7 +5,7 @@ import { pageMemberAccounts } from '@/api/member/user'
 import { pageTradePlan, type TradePlan } from '@/api/trade/plan'
 import { adminCreateSubscription } from '@/api/trade/subscription'
 
-const props = defineProps<{ modelValue: boolean }>()
+const props = defineProps<{ modelValue: boolean; presetPlanId?: string }>()
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
   (e: 'created'): void
@@ -57,7 +57,7 @@ watch(
   (open) => {
     if (!open) return
     memberId.value = null
-    planId.value = null
+    planId.value = props.presetPlanId ?? null
     loadMembers()
     loadPlans()
   }
@@ -119,6 +119,7 @@ function close() {
           v-model:value="planId"
           :options="planOptions"
           :loading="loadingPlans"
+          :disabled="!!presetPlanId"
           filterable
           placeholder="选套餐 (仅上架)"
         />

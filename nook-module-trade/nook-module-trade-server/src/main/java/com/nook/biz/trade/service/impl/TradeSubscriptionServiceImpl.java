@@ -9,26 +9,37 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nook.biz.member.api.MemberUserApi;
 import com.nook.biz.member.api.dto.MemberSubscriberDTO;
+import com.nook.biz.node.api.resource.ResourceServerLandingApi;
+import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.xray.XrayClientNodeApi;
 import com.nook.biz.node.api.xray.XrayClientProvisionApi;
 import com.nook.biz.node.api.xray.dto.XrayClientNodeDTO;
 import com.nook.biz.node.api.xray.dto.XrayClientProvisionDTO;
 import com.nook.biz.trade.api.enums.TradeErrorCode;
+import com.nook.biz.trade.api.enums.TradeSubscriptionChangeReasonEnum;
+import com.nook.biz.trade.api.enums.TradeSubscriptionChangeTypeEnum;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
 import com.nook.biz.trade.controller.vo.SubscriptionCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradeSubscriptionPageReqVO;
+import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
+import com.nook.biz.trade.convert.TradeSubscriptionConvert;
+import com.nook.biz.trade.dal.dataobject.MemberPlanTrafficDO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
+import com.nook.biz.trade.dal.mysql.mapper.MemberPlanTrafficMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
+import com.nook.biz.trade.event.SubscriptionMachineChangeEvent;
 import com.nook.biz.trade.service.TradeAllocator;
 import com.nook.biz.trade.service.TradeSubscriptionService;
 import com.nook.biz.trade.validator.TradePlanValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
+import com.nook.framework.security.stp.StpSystemUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -65,6 +76,8 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Resource
     private TradePlanMapper planMapper;
     @Resource
+    private MemberPlanTrafficMapper trafficMapper;
+    @Resource
     private TradePlanValidator planValidator;
     @Resource
     private TradeAllocator allocator;
@@ -73,9 +86,13 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Resource
     private XrayClientNodeApi clientNodeApi;
     @Resource
+    private ResourceServerLandingApi landingApi;
+    @Resource
     private MemberUserApi memberUserApi;
     @Resource
     private ObjectMapper objectMapper;
+    @Resource
+    private ApplicationEventPublisher eventPublisher;
 
     @Override
     public TradeSubscriptionDO adminCreate(SubscriptionCreateReqVO req) {
@@ -117,16 +134,50 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
             subMapper.insert(sub);
             log.info("[adminCreate] OK member={} plan={} frontline={} landing={} client={}",
                     req.getMemberUserId(), plan.getId(), frontlineId, landingId, clientId);
+            // 发布开通分配事件 (监听器落换机历史日志, 与下单流程解耦)
+            String operator = StpSystemUtil.getLoginIdOrSystem();
+            eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), req.getMemberUserId(),
+                    TradeSubscriptionChangeTypeEnum.FRONTLINE, null, frontlineId,
+                    TradeSubscriptionChangeReasonEnum.OPEN, operator));
+            eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), req.getMemberUserId(),
+                    TradeSubscriptionChangeTypeEnum.LANDING, null, landingId,
+                    TradeSubscriptionChangeReasonEnum.OPEN, operator));
             return sub;
         }
     }
 
     @Override
-    public PageResult<TradeSubscriptionDO> getPage(TradeSubscriptionPageReqVO req) {
+    public PageResult<TradeSubscriptionRespVO> getPage(TradeSubscriptionPageReqVO req) {
         IPage<TradeSubscriptionDO> page = subMapper.selectPageByQuery(
                 Page.of(req.getPageNo(), req.getPageSize()),
                 req.getMemberUserId(), req.getPlanId(), req.getStatus());
-        return PageResult.of(page.getTotal(), page.getRecords());
+        List<TradeSubscriptionDO> records = page.getRecords();
+        if (CollUtil.isEmpty(records)) {
+            return PageResult.of(page.getTotal(), Collections.emptyList());
+        }
+        // 套餐(取名 + 总流量配额): 同套餐多订阅, 批量查一次
+        Map<String, TradePlanDO> planMap = CollectionUtils.convertMap(
+                planMapper.selectBatchIds(CollectionUtils.convertSet(records, TradeSubscriptionDO::getPlanId)),
+                TradePlanDO::getId);
+        // 会员邮箱
+        Map<String, String> emailMap = getMemberEmailMap(
+                CollectionUtils.convertSet(records, TradeSubscriptionDO::getMemberUserId));
+        // 已用流量(一份订阅一行; 尚未计量的订阅无行, 已用按 0)
+        Map<String, MemberPlanTrafficDO> trafficMap = CollectionUtils.convertMap(
+                trafficMapper.selectBatchIds(CollectionUtils.convertSet(records, TradeSubscriptionDO::getId)),
+                MemberPlanTrafficDO::getSubscriptionId);
+        // 客户端 → 所在线路机 / 占用落地机
+        Set<String> clientIds = CollectionUtils.convertSet(records, TradeSubscriptionDO::getXrayClientId);
+        Map<String, String> clientFrontlineMap = clientNodeApi.getServerIdByClientIds(clientIds);
+        Map<String, String> clientLandingMap = clientNodeApi.getLandingIdByClientIds(clientIds);
+        // 线路机 + 落地机出网 IP 合并一次查回
+        Set<String> serverIds = new HashSet<>(clientFrontlineMap.values());
+        serverIds.addAll(clientLandingMap.values());
+        Map<String, String> serverIpMap = CollectionUtils.convertMap(
+                landingApi.listSummaryByServerIds(serverIds),
+                LandingSummaryDTO::getServerId, LandingSummaryDTO::getIpAddress);
+        return TradeSubscriptionConvert.INSTANCE.convertPage(PageResult.of(page.getTotal(), records),
+                planMap, emailMap, trafficMap, clientFrontlineMap, clientLandingMap, serverIpMap);
     }
 
     @Override
@@ -161,10 +212,26 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         if (sub == null) {
             throw new BusinessException(TradeErrorCode.SUB_NOT_FOUND, id);
         }
+        // 吊销前先取占用的线路机/落地机, 退订后这些绑定会被释放
+        Set<String> clientIds = Collections.singleton(sub.getXrayClientId());
+        String frontlineId = clientNodeApi.getServerIdByClientIds(clientIds).get(sub.getXrayClientId());
+        String landingId = clientNodeApi.getLandingIdByClientIds(clientIds).get(sub.getXrayClientId());
         provisionApi.revoke(sub.getXrayClientId());
         sub.setStatus(TradeSubscriptionStatusEnum.CANCELLED.getState());
         subMapper.updateById(sub);
         log.info("[cancel] sub={} client={} → CANCELLED", id, sub.getXrayClientId());
+        // 发布退订释放事件 (监听器落换机历史日志, 与退订流程解耦)
+        String operator = StpSystemUtil.getLoginIdOrSystem();
+        if (frontlineId != null) {
+            eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), sub.getMemberUserId(),
+                    TradeSubscriptionChangeTypeEnum.FRONTLINE, frontlineId, null,
+                    TradeSubscriptionChangeReasonEnum.RELEASE, operator));
+        }
+        if (landingId != null) {
+            eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), sub.getMemberUserId(),
+                    TradeSubscriptionChangeTypeEnum.LANDING, landingId, null,
+                    TradeSubscriptionChangeReasonEnum.RELEASE, operator));
+        }
     }
 
     @Override

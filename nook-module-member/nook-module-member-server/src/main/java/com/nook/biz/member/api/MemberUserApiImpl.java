@@ -7,6 +7,11 @@ import com.nook.biz.member.mapper.MemberUserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 /**
  * {@link MemberUserApi} 实现.
  *
@@ -34,5 +39,14 @@ public class MemberUserApiImpl implements MemberUserApi {
         dto.setId(member.getId());
         dto.setEmail(member.getEmail());
         return dto;
+    }
+
+    @Override
+    public Map<String, String> getEmailMap(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return memberUserMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(MemberUser::getId, MemberUser::getEmail));
     }
 }

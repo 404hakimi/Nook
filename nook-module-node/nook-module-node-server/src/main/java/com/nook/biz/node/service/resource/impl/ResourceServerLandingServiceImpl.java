@@ -401,14 +401,19 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
             int available = 0;
             int occupied = 0;
             for (ResourceServerLandingDO landing : candidates) {
+                // 占用中的落地机在服务本套餐订阅, 即便被降配到不达标也照常计入 (运行时按 min(套餐,落地机) 带宽限速)
+                if (ResourceServerLandingStatusEnum.OCCUPIED.matches(landing.getStatus())) {
+                    total++;
+                    occupied++;
+                    continue;
+                }
+                // 空闲机器需达标才算"可售"
                 if (this.belowPlanSpec(capMap.get(landing.getServerId()), spec.getTrafficGb(), spec.getBandwidthMbps())) {
                     continue;
                 }
                 total++;
                 if (ResourceServerLandingStatusEnum.AVAILABLE.matches(landing.getStatus())) {
                     available++;
-                } else if (ResourceServerLandingStatusEnum.OCCUPIED.matches(landing.getStatus())) {
-                    occupied++;
                 }
             }
             result.put(spec.getPlanId(), new PlanCapacityDTO(total, available, occupied));

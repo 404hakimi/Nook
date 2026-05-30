@@ -41,7 +41,7 @@ public class TradePlanServiceImpl implements TradePlanService {
     public PageResult<TradePlanRespVO> getPlanPage(TradePlanPageReqVO req) {
         IPage<TradePlanDO> page = planMapper.selectPageByQuery(
                 Page.of(req.getPageNo(), req.getPageSize()),
-                req.getRegionCode(), req.getIpTypeId(), req.getEnabled(), req.getKeyword());
+                req.getRegionCodes(), req.getIpTypeId(), req.getEnabled(), req.getKeyword());
         PageResult<TradePlanDO> plans = PageResult.of(page.getTotal(), page.getRecords());
         // 容量(可售/已售)不在套餐表上, 落地机池属 node 域: 按套餐规格跨模块批量算, 再拼进 VO
         List<PlanSpecDTO> specs = TradePlanConvert.INSTANCE.toSpecs(plans.getRecords());

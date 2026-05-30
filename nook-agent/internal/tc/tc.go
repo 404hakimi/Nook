@@ -119,17 +119,29 @@ func (r *Reconciler) currentRateMbps(ctx context.Context, iface string) int {
 	return int(val + 0.5)
 }
 
-// setRate 用 htb root + 单 default class 整形 egress; replace 幂等.
+// setRate 用 htb root + 单 default class 整形 egress; root 建一次, 速率改动落 class.
 func (r *Reconciler) setRate(ctx context.Context, iface string, mbps int) error {
-	rate := strconv.Itoa(mbps) + "mbit"
-	cmds := [][]string{
-		{"qdisc", "replace", "dev", iface, "root", "handle", "1:", "htb", "default", "1"},
-		{"class", "replace", "dev", iface, "parent", "1:", "classid", "1:1", "htb", "rate", rate, "ceil", rate},
+	if err := r.ensureRootQdisc(ctx, iface); err != nil {
+		return err
 	}
-	for _, a := range cmds {
-		if out, err := exec.CommandContext(ctx, "tc", a...).CombinedOutput(); err != nil {
-			return fmt.Errorf("tc %s: %w (out=%s)", strings.Join(a, " "), err, strings.TrimSpace(string(out)))
-		}
+	rate := strconv.Itoa(mbps) + "mbit"
+	a := []string{"class", "replace", "dev", iface, "parent", "1:", "classid", "1:1", "htb", "rate", rate, "ceil", rate}
+	if out, err := exec.CommandContext(ctx, "tc", a...).CombinedOutput(); err != nil {
+		return fmt.Errorf("tc %s: %w (out=%s)", strings.Join(a, " "), err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// ensureRootQdisc 确保 htb root 存在: 已是我们的 htb 就不动 (对同类 htb 跑 replace 会退化成 change, htb 不支持 → "Change operation not supported");
+// 否则把默认 root (noqueue/fq_codel 等) replace 成 htb (异类 replace = 删+建, 正常).
+func (r *Reconciler) ensureRootQdisc(ctx context.Context, iface string) error {
+	out, err := exec.CommandContext(ctx, "tc", "qdisc", "show", "dev", iface).CombinedOutput()
+	if err == nil && strings.Contains(string(out), "qdisc htb 1:") {
+		return nil
+	}
+	a := []string{"qdisc", "replace", "dev", iface, "root", "handle", "1:", "htb", "default", "1"}
+	if out, err := exec.CommandContext(ctx, "tc", a...).CombinedOutput(); err != nil {
+		return fmt.Errorf("tc %s: %w (out=%s)", strings.Join(a, " "), err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

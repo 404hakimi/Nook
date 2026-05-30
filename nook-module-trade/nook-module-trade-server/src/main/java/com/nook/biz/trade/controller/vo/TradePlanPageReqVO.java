@@ -4,6 +4,8 @@ import com.nook.common.web.request.PageParam;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.List;
+
 /**
  * 管理后台 - 套餐分页查询 Request VO
  *
@@ -13,8 +15,8 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class TradePlanPageReqVO extends PageParam {
 
-    /** 区域码. */
-    private String regionCode;
+    /** 区域码集合 (按城市选单个, 按国家选该国全部城市). */
+    private List<String> regionCodes;
 
     /** IP 类型. */
     private String ipTypeId;

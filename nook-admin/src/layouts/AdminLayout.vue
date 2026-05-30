@@ -18,7 +18,8 @@ import {
   LogOut,
   ScrollText,
   History,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ArrowLeftRight
 } from 'lucide-vue-next'
 import {
   NAvatar,
@@ -77,7 +78,8 @@ const menuOptions: MenuOption[] = [
     icon: icon(Package),
     children: [
       { key: '/trade/plans', label: routerLabel('/trade/plans', '套餐'), icon: icon(Package) },
-      { key: '/trade/subscriptions', label: routerLabel('/trade/subscriptions', '订阅'), icon: icon(ScrollText) }
+      { key: '/trade/subscriptions', label: routerLabel('/trade/subscriptions', '订阅'), icon: icon(ScrollText) },
+      { key: '/trade/subscription-change-log', label: routerLabel('/trade/subscription-change-log', '换机日志'), icon: icon(ArrowLeftRight) }
     ]
   },
   // 服务器统一入口 (B 方案): 卡片总览, 点卡片进详情 tab (基本/Xray/Agent/任务); Xray节点 + Agent 不再独立 menu

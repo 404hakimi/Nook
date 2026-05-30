@@ -2,6 +2,7 @@ package com.nook.biz.trade.service;
 
 import com.nook.biz.trade.controller.vo.SubscriptionCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradeSubscriptionPageReqVO;
+import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.common.web.response.PageResult;
 
@@ -24,12 +25,12 @@ public interface TradeSubscriptionService {
     TradeSubscriptionDO adminCreate(SubscriptionCreateReqVO req);
 
     /**
-     * 获得订阅分页列表
+     * 获得订阅分页列表 (附套餐名/会员邮箱/已用流量/占用落地机)
      *
      * @param req 分页条件
      * @return 分页列表
      */
-    PageResult<TradeSubscriptionDO> getPage(TradeSubscriptionPageReqVO req);
+    PageResult<TradeSubscriptionRespVO> getPage(TradeSubscriptionPageReqVO req);
 
     /**
      * 批量查套餐名(key=套餐ID, value=套餐名)
