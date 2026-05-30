@@ -36,7 +36,7 @@ public class TradePlanValidator {
     }
 
     /**
-     * 校验套餐存在且 "上架" (下单 / 选址用)
+     * 校验套餐存在且 "上架"
      *
      * @param id 套餐ID
      * @return 套餐 DO
@@ -50,10 +50,10 @@ public class TradePlanValidator {
     }
 
     /**
-     * 校验套餐码唯一 (excludeId 非空时排除自身, 用于更新查重)
+     * 校验套餐码唯一
      *
      * @param code      套餐码
-     * @param excludeId 需排除的套餐ID; null 表示新增
+     * @param excludeId 需排除的套餐ID; null 表示新增, 非空表示排除自身
      */
     public void validateCodeUnique(String code, String excludeId) {
         boolean dup = excludeId == null
@@ -65,7 +65,7 @@ public class TradePlanValidator {
     }
 
     /**
-     * 校验套餐下是否存在 "生效中" 的订阅 (删套餐前置, 有则拒删)
+     * 校验套餐下是否存在 "生效中" 的订阅
      *
      * @param id 套餐ID
      */

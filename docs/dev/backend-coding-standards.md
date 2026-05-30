@@ -422,18 +422,17 @@ public interface SomeConvert {
 
     SomeConvert INSTANCE = Mappers.getMapper(SomeConvert.class);
 
+    // Convert 不写类 / 方法 javadoc (见下方 "Convert 注释规则")
     SomeRespVO convert(SomeDO entity);
 
     List<SomeRespVO> convertList(List<SomeDO> list);
 
     SomeDO convert(SomeCreateReqVO vo);
 
-    /** 提取 memberId 集合, 供 Controller 批量查关联. */
     default Set<String> extractMemberIds(List<SomeDO> list) {
         return CollectionUtils.convertSet(list, SomeDO::getMemberUserId);
     }
 
-    /** 与会员名拼接. */
     default List<SomeRespVO> convertListWithMemberName(List<SomeDO> list, Map<String, String> memberNameMap) {
         List<SomeRespVO> voList = convertList(list);
         for (SomeRespVO vo : voList) {
@@ -1111,20 +1110,22 @@ ServiceImpl 内的 `@Override` 方法**不重复写 javadoc** (跟接口 javadoc
 **Validator public 方法用完整标准 javadoc (描述 + `@param` / `@return`), 跟 Service 接口方法对齐, 不要写成单行** (Validator 是被多处复用的业务校验, 单行说不清). Service 内 private helper 可酌情更详细或单行.
 
 ```java
-// ✅ Validator public 方法: 完整 javadoc, 描述用枚举 label 不写 raw code
+// ✅ 完整 javadoc; 描述只说"做什么", 用枚举 label
 /**
- * 校验套餐下是否存在 "生效中" 的订阅 (删套餐前置, 有则拒删)
+ * 校验套餐下是否存在 "生效中" 的订阅
  *
  * @param id 套餐ID
  */
 public void validateNoActiveSub(String id) { ... }
 
-// ❌ 单行 + 写 raw 值 ACTIVE
+// ❌ 单行 + 写 raw 值 ACTIVE + 写了调用场景 "删套餐前"
 /** 删套餐前: 不能还有 ACTIVE 订阅. */
 public void validateNoActiveSub(String id) { ... }
 ```
 
 **描述状态 / 枚举取值用枚举的 `label` (人话), 不写 raw `code` / `value`**: 如 `生效中` 而非 `ACTIVE`, `已上架` 而非 `1` —— label 是给人读的、更准确, raw 值是给机器比的. 适用于 javadoc / 行内 / 字段注释.
+
+**javadoc 只描述方法"做什么", 不写"在哪用 / 调用场景"** (如 `删套餐前置`、`下单时用`): 方法可能被多处调用, 写死某个调用场景既不全也易过时, 属画蛇添足. 调用关系交给 IDE 的"查找用法".
 
 ### 字段级 Javadoc
 
@@ -1196,7 +1197,7 @@ if (belowPlanSpec(cap, minTrafficGb, minBandwidthMbps)) { ... }
 - [ ] VO 后缀 ∈ `CreateReqVO / UpdateReqVO / PageReqVO / RespVO / SimpleRespVO`
 - [ ] Mapper 继承 `BaseMapper<T>`, default 方法封装 Wrapper, Service 不直接构造 Wrapper
 - [ ] 跨模块调用走 `com.nook.biz.<module>.api.*`, 不直注其他模块的 Service / Mapper
-- [ ] 关联拼接三步走: Convert 提取 ID → Controller 批量查 → Convert 拼接
+- [ ] 跨模块 / 聚合视图: 跨模块 Api 调用放 Service, Service 经 Convert **直接返 VO** (禁 carrier record); 普通单表 CRUD 仍 Controller 调 Convert (见 §1 / §8)
 
 **数据处理**
 - [ ] 主键 `CHAR(32)`, 实体继承 `BaseEntity`, **不重复声明** id / createdAt / updatedAt
@@ -1240,6 +1241,7 @@ if (belowPlanSpec(cap, minTrafficGb, minBandwidthMbps)) { ... }
 - [ ] 调用本类方法带 `this.` 前缀 (区分本类方法 vs 注入依赖)
 - [ ] Validator public 方法用完整 javadoc (描述 + `@param`/`@return`), 不写单行
 - [ ] 注释描述状态 / 枚举取值用 label (`生效中`) 而非 raw code (`ACTIVE` / `1`)
+- [ ] javadoc 只写方法"做什么", 不写"在哪用 / 调用场景" (调用方可能多处)
 
 ---
 
