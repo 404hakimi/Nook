@@ -4,11 +4,14 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
+import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * 服务器资源 Mapper
@@ -49,9 +52,17 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
     }
 
     /** 按 server_type 拉全表 (summary 统计用; 小规模 OK). */
-    default java.util.List<ResourceServerDO> selectByServerType(String serverType) {
+    default List<ResourceServerDO> selectByServerType(String serverType) {
         return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
                 .eq(ResourceServerDO::getServerType, serverType));
+    }
+
+    /** 区域内 LIVE 落地机主表 (选址第一步, 区域过滤把范围缩到一个机房). */
+    default List<ResourceServerDO> selectLiveLandingsByRegion(String region) {
+        return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.LANDING.getState())
+                .eq(ResourceServerDO::getLifecycleState, ResourceServerLifecycleEnum.LIVE.getState())
+                .eq(ResourceServerDO::getRegion, region));
     }
 
     /**

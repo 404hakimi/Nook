@@ -3,7 +3,6 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
@@ -51,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -345,50 +343,51 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         if (StrUtil.isBlank(region) || StrUtil.isBlank(ipTypeId)) {
             return Collections.emptyList();
         }
-        // 该 IP 类型的落地机子表
-        List<ResourceServerLandingDO> landings = landingMapper.selectList(
-                Wrappers.<ResourceServerLandingDO>lambdaQuery()
-                        .eq(ResourceServerLandingDO::getIpTypeId, ipTypeId));
+        // ① 区域 + LIVE + landing 角色: 主表先筛, 把范围缩到本机房在线落地机 (区域选择性最强, deleted 自动滤)
+        List<ResourceServerDO> liveServers = resourceServerMapper.selectLiveLandingsByRegion(region);
+        if (liveServers.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(liveServers, ResourceServerDO::getId);
+        // ② IP 类型: 只在上面这批机器里筛对应 IP 类型的落地子表
+        List<ResourceServerLandingDO> landings =
+                landingMapper.selectByServerIdsAndIpType(serverMap.keySet(), ipTypeId);
         if (landings.isEmpty()) {
             return Collections.emptyList();
         }
-        Set<String> ids = CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId);
-        // 主表过滤: 同区域 + landing 角色 + LIVE (selectBatchIds 自动滤 deleted)
-        Map<String, ResourceServerDO> srvMap = resourceServerMapper.selectBatchIds(ids).stream()
-                .filter(s -> ResourceServerTypeEnum.LANDING.matches(s.getServerType())
-                        && ResourceServerLifecycleEnum.LIVE.matches(s.getLifecycleState())
-                        && region.equals(s.getRegion()))
-                .collect(Collectors.toMap(ResourceServerDO::getId, Function.identity()));
-        if (srvMap.isEmpty()) {
-            return Collections.emptyList();
-        }
-        // 容量过滤: monthly_traffic_gb / bandwidth_limit_mbps ≥ 套餐 (0/null=不限)
+        // ③ 容量: 批量取容量子表, 逐台按套餐流量 / 带宽阈值过滤后转概要
         Map<String, ResourceServerCapacityDO> capMap = CollectionUtils.convertMap(
-                capacityMapper.selectBatchIds(srvMap.keySet()), ResourceServerCapacityDO::getServerId);
-        List<LandingSummaryDTO> out = new ArrayList<>();
-        for (ResourceServerLandingDO l : landings) {
-            ResourceServerDO s = srvMap.get(l.getServerId());
-            if (s == null) {
+                capacityMapper.selectBatchIds(CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
+                ResourceServerCapacityDO::getServerId);
+        List<LandingSummaryDTO> matched = new ArrayList<>();
+        for (ResourceServerLandingDO landing : landings) {
+            if (this.belowPlanSpec(capMap.get(landing.getServerId()), minTrafficGb, minBandwidthMbps)) {
                 continue;
             }
-            ResourceServerCapacityDO cap = capMap.get(l.getServerId());
-            Integer q = cap == null ? null : cap.getMonthlyTrafficGb();
-            Integer bw = cap == null ? null : cap.getBandwidthLimitMbps();
-            if (q != null && q > 0 && q < minTrafficGb) {
-                continue;
-            }
-            if (bw != null && bw > 0 && bw < minBandwidthMbps) {
-                continue;
-            }
-            LandingSummaryDTO dto = new LandingSummaryDTO();
-            dto.setServerId(l.getServerId());
-            dto.setLifecycleState(s.getLifecycleState());
-            dto.setStatus(l.getStatus());
-            dto.setIpTypeId(l.getIpTypeId());
-            dto.setIpAddress(s.getIpAddress());
-            out.add(dto);
+            matched.add(this.toSummary(serverMap.get(landing.getServerId()), landing));
         }
-        return out;
+        return matched;
+    }
+
+    /** 落地机配额 / 带宽是否达不到套餐要求 (机器侧 0/null = 不限, 视为达标). */
+    private boolean belowPlanSpec(ResourceServerCapacityDO cap, int minTrafficGb, int minBandwidthMbps) {
+        Integer quotaGb = cap == null ? null : cap.getMonthlyTrafficGb();
+        Integer bandwidthMbps = cap == null ? null : cap.getBandwidthLimitMbps();
+        if (quotaGb != null && quotaGb > 0 && quotaGb < minTrafficGb) {
+            return true;
+        }
+        return bandwidthMbps != null && bandwidthMbps > 0 && bandwidthMbps < minBandwidthMbps;
+    }
+
+    /** 主表 + 落地子表拼落地机概要. */
+    private LandingSummaryDTO toSummary(ResourceServerDO server, ResourceServerLandingDO landing) {
+        LandingSummaryDTO dto = new LandingSummaryDTO();
+        dto.setServerId(landing.getServerId());
+        dto.setLifecycleState(server.getLifecycleState());
+        dto.setStatus(landing.getStatus());
+        dto.setIpTypeId(landing.getIpTypeId());
+        dto.setIpAddress(server.getIpAddress());
+        return dto;
     }
 
     @Override
@@ -396,27 +395,28 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         if (CollUtil.isEmpty(specs)) {
             return Collections.emptyMap();
         }
+        // 每个套餐一次匹配查询; 套餐分页规格数有限 (页大小级别), 不展开成跨规格大 JOIN
         Map<String, PlanCapacityDTO> result = new HashMap<>(specs.size());
         for (PlanSpecDTO spec : specs) {
-            result.put(spec.getPlanId(), capacityOf(spec));
+            result.put(spec.getPlanId(), this.capacityOf(spec));
         }
         return result;
     }
 
     /** 单套餐容量: 匹配落地机后按 status 分桶 (total / available / occupied). */
     private PlanCapacityDTO capacityOf(PlanSpecDTO spec) {
-        List<LandingSummaryDTO> matching = findMatchingForPlan(
+        List<LandingSummaryDTO> matching = this.findMatchingForPlan(
                 spec.getRegionCode(), spec.getIpTypeId(), spec.getTrafficGb(), spec.getBandwidthMbps());
-        int avail = 0;
-        int occ = 0;
-        for (LandingSummaryDTO l : matching) {
-            if (ResourceServerLandingStatusEnum.AVAILABLE.matches(l.getStatus())) {
-                avail++;
-            } else if (ResourceServerLandingStatusEnum.OCCUPIED.matches(l.getStatus())) {
-                occ++;
+        int available = 0;
+        int occupied = 0;
+        for (LandingSummaryDTO landing : matching) {
+            if (ResourceServerLandingStatusEnum.AVAILABLE.matches(landing.getStatus())) {
+                available++;
+            } else if (ResourceServerLandingStatusEnum.OCCUPIED.matches(landing.getStatus())) {
+                occupied++;
             }
         }
-        return new PlanCapacityDTO(matching.size(), avail, occ);
+        return new PlanCapacityDTO(matching.size(), available, occupied);
     }
 
 }

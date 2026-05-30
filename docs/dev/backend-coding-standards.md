@@ -1150,6 +1150,19 @@ if (user == null || !bcrypt.matches(...)) throw new BusinessException(LOGIN_FAIL
 for (User u : users) { ... }
 ```
 
+### 调用本类方法用 `this.` 前缀
+
+调用当前类自己的方法 (private helper / 同类 public 方法) **一律带 `this.`**, 一眼区分"调本类"还是"调注入的依赖", 可读性更好.
+
+```java
+// ✅ 对
+result.put(spec.getPlanId(), this.capacityOf(spec));
+matched.add(this.toSummary(server, landing));
+
+// ❌ 错: 裸方法名, 看不出是本类方法还是静态导入 / 父类方法
+result.put(spec.getPlanId(), capacityOf(spec));
+```
+
 ### package-info.java
 
 仅作占位, **只保留 `package` 声明**, 不写 Javadoc 或 `@author`.
@@ -1207,6 +1220,7 @@ for (User u : users) { ... }
 - [ ] `@param` / `@return` 精简 (写内容或类型即可), 不展开成整句描述
 - [ ] 判空用 Hutool (`CollUtil`/`StrUtil`/`ObjectUtil` 等), 不手写 `== null` / `.isEmpty()`
 - [ ] 类级 javadoc 一句话; 核心方法 `@param/@return` 标准格式; 简单方法单行
+- [ ] 调用本类方法带 `this.` 前缀 (区分本类方法 vs 注入依赖)
 
 ---
 

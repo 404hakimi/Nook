@@ -8,6 +8,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -83,5 +84,12 @@ public interface ResourceServerLandingMapper extends BaseMapper<ResourceServerLa
         return selectList(Wrappers.<ResourceServerLandingDO>lambdaQuery()
                 .eq(StrUtil.isNotBlank(status), ResourceServerLandingDO::getStatus, status)
                 .eq(StrUtil.isNotBlank(ipTypeId), ResourceServerLandingDO::getIpTypeId, ipTypeId));
+    }
+
+    /** 指定 server 集合里某 IP 类型的落地子表. */
+    default List<ResourceServerLandingDO> selectByServerIdsAndIpType(Collection<String> serverIds, String ipTypeId) {
+        return selectList(Wrappers.<ResourceServerLandingDO>lambdaQuery()
+                .in(ResourceServerLandingDO::getServerId, serverIds)
+                .eq(ResourceServerLandingDO::getIpTypeId, ipTypeId));
     }
 }
