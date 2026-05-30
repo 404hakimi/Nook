@@ -1108,19 +1108,23 @@ ServiceImpl 内的 `@Override` 方法**不重复写 javadoc** (跟接口 javadoc
 
 #### Validator / 私有方法 javadoc
 
-非 Service 接口方法 (Validator public 方法、Service 内 private helper) 可以补充更详细的语义说明, 因为没有上层接口承载.
+**Validator public 方法用完整标准 javadoc (描述 + `@param` / `@return`), 跟 Service 接口方法对齐, 不要写成单行** (Validator 是被多处复用的业务校验, 单行说不清). Service 内 private helper 可酌情更详细或单行.
 
 ```java
+// ✅ Validator public 方法: 完整 javadoc, 描述用枚举 label 不写 raw code
 /**
- * 校验新密码强度: 至少 8 位且含字母 + 数字.
+ * 校验套餐下是否存在 "生效中" 的订阅 (删套餐前置, 有则拒删)
  *
- * @param password 明文密码
+ * @param id 套餐ID
  */
-private void validatePasswordStrength(String password) { ... }
+public void validateNoActiveSub(String id) { ... }
 
-/** 32 char hex sub_token. */
-private String randomSubToken() { return RandomUtil.randomString(32); }
+// ❌ 单行 + 写 raw 值 ACTIVE
+/** 删套餐前: 不能还有 ACTIVE 订阅. */
+public void validateNoActiveSub(String id) { ... }
 ```
+
+**描述状态 / 枚举取值用枚举的 `label` (人话), 不写 raw `code` / `value`**: 如 `生效中` 而非 `ACTIVE`, `已上架` 而非 `1` —— label 是给人读的、更准确, raw 值是给机器比的. 适用于 javadoc / 行内 / 字段注释.
 
 ### 字段级 Javadoc
 
@@ -1230,6 +1234,8 @@ result.put(spec.getPlanId(), capacityOf(spec));
 - [ ] 判空用 Hutool (`CollUtil`/`StrUtil`/`ObjectUtil` 等), 不手写 `== null` / `.isEmpty()`
 - [ ] 类级 javadoc 一句话; 核心方法 `@param/@return` 标准格式; 简单方法单行
 - [ ] 调用本类方法带 `this.` 前缀 (区分本类方法 vs 注入依赖)
+- [ ] Validator public 方法用完整 javadoc (描述 + `@param`/`@return`), 不写单行
+- [ ] 注释描述状态 / 枚举取值用 label (`生效中`) 而非 raw code (`ACTIVE` / `1`)
 
 ---
 

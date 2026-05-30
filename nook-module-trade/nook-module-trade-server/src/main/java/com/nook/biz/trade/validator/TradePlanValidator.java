@@ -21,7 +21,12 @@ public class TradePlanValidator {
     private final TradePlanMapper planMapper;
     private final TradeSubscriptionMapper subscriptionMapper;
 
-    /** 校验套餐存在. */
+    /**
+     * 校验套餐存在
+     *
+     * @param id 套餐ID
+     * @return 套餐 DO
+     */
     public TradePlanDO validateExists(String id) {
         TradePlanDO e = planMapper.selectById(id);
         if (ObjectUtil.isNull(e)) {
@@ -30,7 +35,12 @@ public class TradePlanValidator {
         return e;
     }
 
-    /** 校验存在且上架 (下单 / allocator 用). */
+    /**
+     * 校验套餐存在且 "上架" (下单 / 选址用)
+     *
+     * @param id 套餐ID
+     * @return 套餐 DO
+     */
     public TradePlanDO validateEnabled(String id) {
         TradePlanDO e = validateExists(id);
         if (e.getEnabled() == null || e.getEnabled() != 1) {
@@ -39,7 +49,12 @@ public class TradePlanValidator {
         return e;
     }
 
-    /** 套餐码唯一 (excludeId 为 null = Create, 否则 Update 排除自身). */
+    /**
+     * 校验套餐码唯一 (excludeId 非空时排除自身, 用于更新查重)
+     *
+     * @param code      套餐码
+     * @param excludeId 需排除的套餐ID; null 表示新增
+     */
     public void validateCodeUnique(String code, String excludeId) {
         boolean dup = excludeId == null
                 ? planMapper.existsByCode(code)
@@ -49,7 +64,11 @@ public class TradePlanValidator {
         }
     }
 
-    /** 删套餐前: 不能还有 ACTIVE 订阅. */
+    /**
+     * 校验套餐下是否存在 "生效中" 的订阅 (删套餐前置, 有则拒删)
+     *
+     * @param id 套餐ID
+     */
     public void validateNoActiveSub(String id) {
         if (subscriptionMapper.existsActiveByPlan(id)) {
             throw new BusinessException(TradeErrorCode.PLAN_HAS_ACTIVE_SUB, id);
