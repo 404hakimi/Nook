@@ -1,5 +1,6 @@
 package com.nook.biz.agent.validator;
 
+import cn.hutool.core.util.StrUtil;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import org.springframework.stereotype.Component;
@@ -24,7 +25,7 @@ public class AgentRuntimeConfigValidator {
      * @param yaml 待校验 yaml 文本
      */
     public void validateYaml(String yaml) {
-        if (yaml == null || yaml.isBlank()) {
+        if (StrUtil.isBlank(yaml)) {
             throw new BusinessException(CommonErrorCode.PARAM_INVALID, "yaml 不能为空");
         }
         try {

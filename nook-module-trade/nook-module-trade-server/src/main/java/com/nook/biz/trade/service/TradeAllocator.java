@@ -1,5 +1,6 @@
 package com.nook.biz.trade.service;
 
+import cn.hutool.core.collection.CollUtil;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
@@ -56,7 +57,7 @@ public class TradeAllocator {
      */
     public String pickFrontline(String region, int planBandwidthMbps) {
         List<ResourceServerRespDTO> frontlines = serverApi.findLiveFrontlinesByRegion(region);
-        if (frontlines.isEmpty()) {
+        if (CollUtil.isEmpty(frontlines)) {
             return null;
         }
         Set<String> fIds = CollectionUtils.convertSet(frontlines, ResourceServerRespDTO::getId);
@@ -114,7 +115,7 @@ public class TradeAllocator {
     /** 各线路机当前已挂带宽 = Σ(经过它的 ACTIVE 订阅的套餐带宽). */
     private Map<String, Integer> committedBandwidthByFrontline(Set<String> frontlineIds) {
         List<TradeSubscriptionDO> active = subMapper.selectAllActive();
-        if (active.isEmpty()) {
+        if (CollUtil.isEmpty(active)) {
             return Map.of();
         }
         Set<String> clientIds = CollectionUtils.convertSet(active, TradeSubscriptionDO::getXrayClientId);

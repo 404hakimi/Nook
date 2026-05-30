@@ -10,27 +10,27 @@ import lombok.Data;
 @Data
 public class AgentInstallMetaRespVO {
 
-    /** Backend 公网 URL (nook.agent.backend-public-url config 读); 前端可改. */
+    /** Backend 公网 URL; 前端可改. */
     private String backendUrl;
 
-    /** Frontline + 选了 server 才填: xray binary 绝对路径 (xray_server 表读). */
+    /** xray binary 绝对路径 (frontline + 选了 server 才填). */
     private String xrayBin;
 
-    /** Frontline + 选了 server 才填: xray api server 端口 (loopback). */
+    /** xray api server 端口 (loopback; frontline + 选了 server 才填). */
     private Integer xrayApiPort;
 
-    /** 选了 server 才填: resource_server.ssh_timeout_seconds. */
+    /** SSH 连接超时秒数 (选了 server 才填). */
     private Integer sshTimeoutSeconds;
 
-    /** 选了 server 才填: resource_server.ssh_op_timeout_seconds. */
+    /** SSH 命令执行超时秒数 (选了 server 才填). */
     private Integer sshOpTimeoutSeconds;
 
-    /** 选了 server 才填: resource_server.ssh_upload_timeout_seconds. */
+    /** SSH 上传超时秒数 (选了 server 才填). */
     private Integer sshUploadTimeoutSeconds;
 
-    /** 选了 server 才填: resource_server.install_timeout_seconds. */
+    /** 装机超时秒数 (选了 server 才填). */
     private Integer installTimeoutSeconds;
 
-    /** Landing + 选了 ipId 才填: ip_pool.ip_address (host 兜底 + admin 展示). */
+    /** 落地机出网 IP (host 兜底 + admin 展示; landing + 选了 ipId 才填). */
     private String ipAddress;
 }

@@ -1,11 +1,12 @@
 package com.nook.biz.trade.controller.vo;
 
+import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
 import com.nook.common.web.request.PageParam;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * 订阅分页查询入参.
+ * 管理后台 - 订阅分页查询 Request VO
  *
  * @author nook
  */
@@ -13,10 +14,12 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class TradeSubscriptionPageReqVO extends PageParam {
 
+    /** 所属会员. */
     private String memberUserId;
 
+    /** 所购套餐. */
     private String planId;
 
-    /** ACTIVE / EXPIRED / CANCELLED. */
+    /** 订阅状态 {@link TradeSubscriptionStatusEnum} */
     private String status;
 }

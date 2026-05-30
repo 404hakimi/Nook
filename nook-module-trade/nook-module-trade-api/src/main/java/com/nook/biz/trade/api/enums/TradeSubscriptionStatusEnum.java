@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 订阅业务状态; DB 字段 trade_subscription.status.
+ * 订阅业务状态枚举
  *
  * @author nook
  */

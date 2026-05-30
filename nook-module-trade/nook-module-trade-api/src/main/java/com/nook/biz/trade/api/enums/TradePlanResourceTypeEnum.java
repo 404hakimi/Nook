@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 套餐关联资源类型; DB 字段 trade_plan_resource.resource_type.
+ * 套餐关联资源类型枚举
  *
  * @author nook
  */

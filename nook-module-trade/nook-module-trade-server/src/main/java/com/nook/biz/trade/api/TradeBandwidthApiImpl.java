@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * {@link TradeBandwidthApi} 实现; 落地机 1:1, 限速值取占用它的 ACTIVE 订阅的套餐带宽.
+ * 落地机限速值解析 Service 实现类
  *
  * @author nook
  */

@@ -8,6 +8,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -34,7 +35,7 @@ public class AgentScripts {
 
     @PostConstruct
     void register() {
-        scriptCatalog.registerAll(java.util.List.of(NOOK_AGENT_INSTALL));
+        scriptCatalog.registerAll(List.of(NOOK_AGENT_INSTALL));
         log.info("[register] agent-server 注册 1 个 ScriptModule (NOOK_AGENT_INSTALL)");
     }
 }

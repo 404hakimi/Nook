@@ -1,6 +1,7 @@
 package com.nook.biz.trade.service.impl;
 
 import cn.hutool.core.codec.Base64;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -173,7 +174,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         }
         // 会员名下全部 ACTIVE 订阅聚合成一份订阅; 无订阅返空串 (客户端导入得到空列表, 不报错)
         List<TradeSubscriptionDO> subs = subMapper.selectActiveByMember(member.getId());
-        if (subs.isEmpty()) {
+        if (CollUtil.isEmpty(subs)) {
             return Base64.encode("");
         }
         // 按 clientId 索引, 后面用节点信息回查订阅 (一个 client 一份订阅, 撞 key 取先到的)
@@ -181,7 +182,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
                 subs, TradeSubscriptionDO::getXrayClientId, Function.identity(), (a, b) -> a);
         // 节点信息按 RUNNING + 可拼 host 过滤后返回; 全不可用 (如刚下单还没 reconcile) 返空串
         List<XrayClientNodeDTO> nodes = clientNodeApi.getNodeInfos(subByClient.keySet());
-        if (nodes.isEmpty()) {
+        if (CollUtil.isEmpty(nodes)) {
             return Base64.encode("");
         }
         // 套餐名只用于节点备注展示, 批量查一次避免逐订阅查库

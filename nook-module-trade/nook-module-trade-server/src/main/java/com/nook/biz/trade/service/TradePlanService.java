@@ -12,21 +12,49 @@ import com.nook.common.web.response.PageResult;
  */
 public interface TradePlanService {
 
-    /** 分页 (含落地机池容量); 跨模块聚合视图, 本层经 Convert 返 VO. */
+    /**
+     * 获得套餐分页列表(含落地机池容量)
+     *
+     * @param req 分页条件
+     * @return 分页列表
+     */
     PageResult<TradePlanRespVO> getPlanPage(TradePlanPageReqVO req);
 
-    /** 详情 (含落地机池容量). */
+    /**
+     * 获得套餐详情(含落地机池容量)
+     *
+     * @param id 套餐ID
+     * @return 套餐
+     */
     TradePlanRespVO getPlan(String id);
 
-    /** 创建 (默认下架 enabled=0). */
+    /**
+     * 创建套餐
+     *
+     * @param req 创建信息
+     * @return 主键ID
+     */
     String createPlan(TradePlanSaveReqVO req);
 
-    /** 更新 (仅可变字段: name/remark/price/periodDays). */
+    /**
+     * 更新套餐
+     *
+     * @param req 更新信息
+     */
     void updatePlan(TradePlanSaveReqVO req);
 
-    /** 上/下架. */
+    /**
+     * 上/下架套餐
+     *
+     * @param id      套餐ID
+     * @param enabled 是否上架
+     */
     void toggleEnabled(String id, boolean enabled);
 
-    /** 软删 (有活跃订阅时拒). */
+    /**
+     * 删除套餐
+     *
+     * @param id 套餐ID
+     */
     void deletePlan(String id);
 }

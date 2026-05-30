@@ -30,7 +30,7 @@ public interface AgentTaskMapper extends BaseMapper<AgentTaskDO> {
                 .last("LIMIT " + Math.max(1, Math.min(limit, 50))));
     }
 
-    /** 标记任务为 PICKED (agent 拉走时调用). */
+    /** 标记任务为 PICKED. */
     default int markPicked(String id, LocalDateTime at) {
         return update(null, Wrappers.<AgentTaskDO>lambdaUpdate()
                 .set(AgentTaskDO::getStatus, AgentTaskStatus.PICKED.name())
@@ -49,7 +49,7 @@ public interface AgentTaskMapper extends BaseMapper<AgentTaskDO> {
                 .eq(AgentTaskDO::getId, id));
     }
 
-    /** Admin 看某 (agentType, sourceId) 的 task 分页 (倒序); 支持类型 + 状态可选筛选. */
+    /** 某 (agentType, sourceId) 的 task 分页 (倒序); 支持类型 + 状态可选筛选. */
     default IPage<AgentTaskDO> selectPageByHost(IPage<AgentTaskDO> page,
                                                 String agentType,
                                                 String sourceId,

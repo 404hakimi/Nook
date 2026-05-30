@@ -23,18 +23,18 @@ public class AgentRuntimeConfigDO {
     /** agent 角色 {@link AgentRole} */
     private String agentType;
 
-    /** 完整 yaml 内容; agent 直接 mv 到 /etc/nook-agent/config.yml. */
+    /** 完整 yaml 内容. */
     private String configYaml;
 
-    /** Admin 改动时间; agent 拿这跟 lastAppliedAt 比. */
+    /** 更新时间. */
     private LocalDateTime updatedAt;
 
-    /** admin user.id. */
+    /** 操作人(admin)编号. */
     private String updatedBy;
 
     /** Agent 应用时间; null=从未. */
     private LocalDateTime appliedAt;
 
-    /** Agent 应用的 yaml MD5; 用来判断 yaml 内容是否真同步 (防 admin 改了但 agent 拿到的是旧的). */
+    /** Agent 已应用 yaml 的 MD5. */
     private String appliedYamlMd5;
 }

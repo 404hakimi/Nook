@@ -5,7 +5,6 @@ import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
 import java.util.Map;
@@ -15,8 +14,6 @@ public interface TradeSubscriptionConvert {
 
     TradeSubscriptionConvert INSTANCE = Mappers.getMapper(TradeSubscriptionConvert.class);
 
-    @Mapping(target = "planName", source = "planName")
-    @Mapping(target = "memberEmail", source = "memberEmail")
     TradeSubscriptionRespVO toRespVO(TradeSubscriptionDO sub, String planName, String memberEmail);
 
     default PageResult<TradeSubscriptionRespVO> convertPage(PageResult<TradeSubscriptionDO> page,

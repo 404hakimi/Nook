@@ -4,7 +4,7 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * Agent 运行时配置跨模块 Api (供 node 模块查 syncState 拼 server 列表用)
+ * Agent 运行时配置跨模块 Api
  *
  * @author nook
  */

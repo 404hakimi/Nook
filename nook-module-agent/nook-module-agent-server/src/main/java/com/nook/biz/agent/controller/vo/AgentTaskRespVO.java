@@ -1,5 +1,6 @@
 package com.nook.biz.agent.controller.vo;
 
+import com.nook.biz.agent.api.enums.AgentTaskType;
 import lombok.Data;
 
 /**
@@ -10,10 +11,12 @@ import lombok.Data;
 @Data
 public class AgentTaskRespVO {
 
+    /** 任务编号. */
     private String id;
 
+    /** 任务类型 {@link AgentTaskType} */
     private String taskType;
 
-    /** 序列化的 JSON 字符串; agent 端按 task_type 反序列化. */
+    /** 任务参数 JSON; agent 端按任务类型反序列化. */
     private String taskPayload;
 }

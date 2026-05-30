@@ -17,7 +17,7 @@ public interface AgentInstallScriptService {
     /**
      * SSH 自动装机
      *
-     * @param sourceId 装机源 (resource_server.id)
+     * @param sourceId 装机源 server 编号
      * @param reqVO    装机参数
      * @param lineSink 日志回调
      */
@@ -33,9 +33,9 @@ public interface AgentInstallScriptService {
     AgentInstallMetaRespVO getInstallMeta(AgentRole role, String sourceId);
 
     /**
-     * 流式 SSH 自动装机 (Controller 单调一行)
+     * 流式 SSH 自动装机
      *
-     * @param sourceId 装机源 (resource_server.id)
+     * @param sourceId 装机源 server 编号
      * @param reqVO    装机参数
      * @return 流式响应
      */

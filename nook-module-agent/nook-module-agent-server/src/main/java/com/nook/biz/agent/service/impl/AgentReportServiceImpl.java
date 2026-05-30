@@ -89,6 +89,7 @@ public class AgentReportServiceImpl implements AgentReportService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void receiveTaskResult(String serverId, AgentTaskResultReqVO req) {
         // agent 可能上报裸字符串, 包装成 {"raw":"..."} 防 result_payload (JSON 列) DataTruncation
         String payload = normalizeJsonOrWrap(req.getResultPayload());
@@ -118,7 +119,7 @@ public class AgentReportServiceImpl implements AgentReportService {
 
     /** 不合法 JSON 包成 {"raw":"..."}; 空值给 null. */
     private static String normalizeJsonOrWrap(String s) {
-        if (s == null || s.isBlank()) {
+        if (StrUtil.isBlank(s)) {
             return null;
         }
         String trimmed = s.trim();

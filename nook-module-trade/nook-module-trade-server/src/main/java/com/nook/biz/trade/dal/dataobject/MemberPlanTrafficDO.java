@@ -8,11 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 订阅流量计量 DO (member_plan_traffic).
- *
- * <p>按订阅记一份用量: 源是该订阅独占落地机的 NIC tx (1:1 ⟹ 机器流量=该用户流量).
- * {@code usedBytes} 是 DB 强一致权威, 机器侧 (vnstat/VPS) 怎么崩都不动它; {@code lastCounterTx}
- * 只是后端算"这次增量"的游标. 累加规则见 {@code TradeLifecycleJob}: 换落地机重基线 / 计数回退当重置 / 正常累加.
+ * 订阅流量计量 DO
  *
  * @author nook
  */

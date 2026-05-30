@@ -1,5 +1,6 @@
 package com.nook.biz.agent.framework.binary;
 
+import cn.hutool.core.util.StrUtil;
 import com.nook.biz.agent.framework.config.AgentProperties;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
@@ -46,7 +47,7 @@ public class AgentBinaryResolver {
      * @return binary 元信息 (Path + version + size + sha256)
      */
     public AgentBinary resolve(String role, String os, String arch) {
-        if (role == null || role.isBlank()) {
+        if (StrUtil.isBlank(role)) {
             throw new BusinessException(CommonErrorCode.PARAM_INVALID, "role 不能为空");
         }
         File dir = resolveDir();

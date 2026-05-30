@@ -1,6 +1,7 @@
 package com.nook.biz.agent.controller.admin.vo;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.nook.biz.agent.api.enums.AgentConfigSyncState;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -13,23 +14,26 @@ import java.time.LocalDateTime;
 @Data
 public class AgentRuntimeConfigRespVO {
 
+    /** 所属 server 编号. */
     private String serverId;
 
     /** 完整 yaml; null = 没配过 (agent 用装机脚本写的本地 yaml). */
     private String configYaml;
 
+    /** 更新时间. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 
+    /** 操作人(admin)编号. */
     private String updatedBy;
 
-    /** Agent 上次应用时间; null = 从未. updatedAt > appliedAt 说明 admin 改了 agent 还没拿到. */
+    /** Agent 上次应用时间; null = 从未. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime appliedAt;
 
-    /** Agent 应用的 yaml md5; 跟 config_yaml 算出来的 md5 比对, 一致 → SYNCED. */
+    /** Agent 已应用 yaml 的 md5. */
     private String appliedYamlMd5;
 
-    /** 同步状态: NEVER_CONFIGURED / SYNCED / PENDING. UI 一眼看. */
+    /** 同步状态 {@link AgentConfigSyncState} */
     private String syncState;
 }

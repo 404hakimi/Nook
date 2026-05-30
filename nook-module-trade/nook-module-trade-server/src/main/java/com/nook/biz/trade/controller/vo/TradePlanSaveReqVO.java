@@ -8,44 +8,51 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 /**
- * 套餐 创建/更新 入参.
- *
- * <p>更新时仅 name / bandwidthMbps / remark 生效; 其余为已售卖不可变字段 (service 忽略). 成本由资源派生, 不在此填.
+ * 管理后台 - 套餐保存 Request VO
  *
  * @author nook
  */
 @Data
 public class TradePlanSaveReqVO {
 
-    /** 更新时必填; 创建留空. */
+    /** 主键ID; 更新时必填, 创建留空. */
     private String id;
 
+    /** 套餐码. */
     @NotBlank(message = "套餐码必填")
     private String code;
 
+    /** 套餐名. */
     @NotBlank(message = "套餐名必填")
     private String name;
 
+    /** 区域码. */
     @NotBlank(message = "区域必填")
     private String regionCode;
 
+    /** IP 类型. */
     @NotBlank(message = "IP 类型必填")
     private String ipTypeId;
 
+    /** 月流量配额 (GB). */
     @NotNull(message = "流量配额必填")
     @Min(value = 1, message = "流量配额至少 1GB")
     private Integer trafficGb;
 
+    /** 带宽 (Mbps). */
     @NotNull(message = "带宽必填")
     @Min(value = 1, message = "带宽至少 1Mbps")
     private Integer bandwidthMbps;
 
+    /** 周期天数. */
     @NotNull(message = "周期天数必填")
     @Min(value = 1, message = "周期至少 1 天")
     private Integer periodDays;
 
+    /** 售价. */
     @NotNull(message = "价格必填")
     private BigDecimal price;
 
+    /** 备注. */
     private String remark;
 }

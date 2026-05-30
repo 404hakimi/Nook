@@ -15,6 +15,7 @@ import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.DigestUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -47,6 +48,7 @@ public class AgentRuntimeConfigServiceImpl implements AgentRuntimeConfigService 
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public String save(String serverId, AgentRole agentType, String yaml, String operatorId) {
         resourceServerApi.validateExists(serverId);
         agentRuntimeConfigValidator.validateYaml(yaml);
@@ -76,13 +78,8 @@ public class AgentRuntimeConfigServiceImpl implements AgentRuntimeConfigService 
         return taskId;
     }
 
-    /**
-     * 装机时: 先入库再 SSH 落地. 把渲染好的 yaml 标 SYNCED 落库, 不派 task (SSH 装机本身已经把 yaml 写到远端 file).
-     *
-     * <p>设计意图: DB 是单一权威态. SSH 失败时 DB 已有数据, admin 可以重新 trigger SSH 重做装机, 不会丢配置.
-     * applied_md5 = md5(yaml), applied_at = now, syncState 直接 SYNCED.
-     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void recordAsSynced(String serverId, AgentRole agentType, String yaml, String operatorId) {
         agentRuntimeConfigValidator.validateYaml(yaml);
         LocalDateTime now = LocalDateTime.now();

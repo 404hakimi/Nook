@@ -1,5 +1,6 @@
 package com.nook.biz.trade.job;
 
+import cn.hutool.core.collection.CollUtil;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
 import com.nook.biz.node.api.xray.XrayClientNodeApi;
@@ -50,7 +51,7 @@ public class TradeLifecycleJob {
     @Scheduled(cron = "${nook.trade.lifecycle-cron:15 * * * * ?}")
     public void check() {
         List<TradeSubscriptionDO> active = subMapper.selectAllActive();
-        if (active.isEmpty()) {
+        if (CollUtil.isEmpty(active)) {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
@@ -64,14 +65,14 @@ public class TradeLifecycleJob {
         // clientId → 落地机 ip_id, 再取落地机当周期 tx
         Map<String, String> landingByClient = clientNodeApi.getLandingIdByClientIds(clientIds);
         Set<String> landingIds = new HashSet<>(landingByClient.values());
-        Map<String, ResourceServerCapacityRespDTO> capMap = landingIds.isEmpty()
+        Map<String, ResourceServerCapacityRespDTO> capMap = CollUtil.isEmpty(landingIds)
                 ? Map.of() : capacityApi.listByServerIds(landingIds);
 
         int expired = 0;
         int suspended = 0;
         for (TradeSubscriptionDO s : active) {
             try {
-                // 1. 到期 → 释放 (revoke); 到期是确定事实, revoke 失败 (client 已不存在) 也照样标 EXPIRED
+                // 到期 → 释放 (revoke); 到期是确定事实, revoke 失败 (client 已不存在) 也照样标 EXPIRED
                 if (s.getExpiresAt() != null && !s.getExpiresAt().isAfter(now)) {
                     try {
                         provisionApi.revoke(s.getXrayClientId());
@@ -84,7 +85,7 @@ public class TradeLifecycleJob {
                     expired++;
                     continue;
                 }
-                // 2. 落地机 tx 累加进 member_plan_traffic; 用满套餐流量 → 停服保留 IP
+                // 落地机 tx 累加进 member_plan_traffic; 用满套餐流量 → 停服保留 IP
                 if (accumulateAndMaybeSuspend(s, now, landingByClient, capMap, planTrafficGb)) {
                     suspended++;
                 }
@@ -139,12 +140,12 @@ public class TradeLifecycleJob {
             long used = row.getUsedBytes() == null ? 0L : row.getUsedBytes();
             long last = row.getLastCounterTx() == null ? cur : row.getLastCounterTx();
             if (!landingId.equals(row.getLandingServerId())) {
-                row.setLandingServerId(landingId); // ① 换落地机: 重基线, used 保留
+                row.setLandingServerId(landingId); // 换落地机: 重基线, used 保留
                 row.setLastCounterTx(cur);
             } else if (cur < last) {
-                row.setLastCounterTx(cur);         // ② 计数回退: 只挪游标, used 不动
+                row.setLastCounterTx(cur);         // 计数回退: 只挪游标, used 不动
             } else {
-                row.setUsedBytes(used + (cur - last)); // ③ 正常累加
+                row.setUsedBytes(used + (cur - last)); // 正常累加
                 row.setLastCounterTx(cur);
             }
             // 周期重置 (cycleResetAt 非空且已到); 当前窗口=订阅生命周期, cycleResetAt 留空不触发

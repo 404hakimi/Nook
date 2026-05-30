@@ -1,7 +1,7 @@
 package com.nook.biz.agent.api;
 
 /**
- * Agent 鉴权 Token 跨模块 Api (供其它模块创建 server 时签发 token)
+ * Agent 鉴权 Token 跨模块 Api
  *
  * @author nook
  */

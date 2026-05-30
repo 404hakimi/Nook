@@ -12,6 +12,7 @@ import lombok.Data;
 @Data
 public class AgentRuntimeConfigSaveReqVO {
 
+    /** 完整 yaml 配置内容. */
     @NotBlank(message = "yaml 不能为空")
     @Size(max = 100_000, message = "yaml 过长 (>100KB), 配置文件不该这么大")
     private String configYaml;

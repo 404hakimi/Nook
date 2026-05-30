@@ -19,27 +19,27 @@ import java.util.List;
 @Mapper
 public interface TradeSubscriptionMapper extends BaseMapper<TradeSubscriptionDO> {
 
-    /** 某会员所有 ACTIVE 订阅 (订阅 URL 用). */
+    /** 某会员所有生效中订阅. */
     default List<TradeSubscriptionDO> selectActiveByMember(String memberUserId) {
         return selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()
                 .eq(TradeSubscriptionDO::getMemberUserId, memberUserId)
                 .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState()));
     }
 
-    /** 所有 ACTIVE 订阅 (allocator 算线路机已挂带宽用). */
+    /** 所有生效中订阅. */
     default List<TradeSubscriptionDO> selectAllActive() {
         return selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()
                 .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState()));
     }
 
-    /** ACTIVE 且已过期 (到期 Job 用). */
+    /** 生效中且已过期的订阅. */
     default List<TradeSubscriptionDO> selectExpiredCandidates(LocalDateTime now) {
         return selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()
                 .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState())
                 .lt(TradeSubscriptionDO::getExpiresAt, now));
     }
 
-    /** 某套餐是否还有 ACTIVE 订阅 (删套餐前校验). */
+    /** 某套餐是否还有生效中订阅. */
     default boolean existsActiveByPlan(String planId) {
         return exists(Wrappers.<TradeSubscriptionDO>lambdaQuery()
                 .eq(TradeSubscriptionDO::getPlanId, planId)

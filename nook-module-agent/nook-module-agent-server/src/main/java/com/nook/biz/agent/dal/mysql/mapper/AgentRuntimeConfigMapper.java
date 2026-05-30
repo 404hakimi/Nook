@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Mapper
 public interface AgentRuntimeConfigMapper extends BaseMapper<AgentRuntimeConfigDO> {
 
-    /** Admin 改 yaml; updatedAt / updatedBy 显式 set 不走 fill (PK 不是 BaseEntity.id). */
+    /** 更新 yaml; updatedAt / updatedBy 显式 set 不走 fill (PK 不是 BaseEntity.id). */
     default int updateConfigYaml(String serverId, String yaml, LocalDateTime updatedAt, String updatedBy) {
         return update(null, Wrappers.<AgentRuntimeConfigDO>lambdaUpdate()
                 .set(AgentRuntimeConfigDO::getConfigYaml, yaml)
@@ -24,7 +24,7 @@ public interface AgentRuntimeConfigMapper extends BaseMapper<AgentRuntimeConfigD
                 .eq(AgentRuntimeConfigDO::getServerId, serverId));
     }
 
-    /** Agent config_reload SUCCESS 回调: 回写应用时间 + 应用 md5. */
+    /** 回写应用时间 + 应用 md5. */
     default int updateApplied(String serverId, LocalDateTime appliedAt, String appliedYamlMd5) {
         return update(null, Wrappers.<AgentRuntimeConfigDO>lambdaUpdate()
                 .set(AgentRuntimeConfigDO::getAppliedAt, appliedAt)
