@@ -59,7 +59,7 @@ public class TradePlanController {
     }
 
     /** 上/下架. */
-    @PostMapping("/toggle-enabled")
+    @PostMapping("/update-plan-enabled")
     public Result<Boolean> toggleEnabled(@RequestParam("id") String id,
                                          @RequestParam("enabled") boolean enabled) {
         planService.toggleEnabled(id, enabled);

@@ -1,6 +1,7 @@
 package com.nook.biz.trade.dal.dataobject;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.nook.biz.trade.api.enums.TradePlanEnabledEnum;
 import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -41,7 +42,7 @@ public class TradePlanDO extends BaseEntity {
     /** 售价 CNY. */
     private BigDecimal price;
 
-    /** 是否上架: 1=上架 0=下架; 仅上架套餐可被下单. */
+    /** 是否上架 {@link TradePlanEnabledEnum}; 仅上架套餐可被下单. */
     private Integer enabled;
 
     /** 备注. */

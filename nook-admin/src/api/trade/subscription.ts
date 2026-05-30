@@ -4,6 +4,8 @@ import request from '@/api/request'
 export interface TradeSubscription {
   id: string
   memberUserId: string
+  /** enrich: 会员邮箱 (后端 page-sub 补). */
+  memberEmail?: string
   planId: string
   planName?: string
   xrayClientId: string
@@ -50,11 +52,16 @@ export function pageTradeSubscription(params: TradeSubscriptionQuery) {
   return request.get<unknown, PageResult<TradeSubscription>>('/admin/trade/subscription/page-sub', { params })
 }
 
+/** 各套餐当前活跃订阅数 (planId → 数量); 套餐卡片展示订阅人数用. */
+export function countActiveSubByPlan() {
+  return request.get<unknown, Record<string, number>>('/admin/trade/subscription/count-active-by-plan')
+}
+
 /** admin 代客下单 (allocator 自动选址 + 开通). */
 export function adminCreateSubscription(memberUserId: string, planId: string) {
-  return request.post<unknown, TradeSubscription>('/admin/trade/subscription/admin-create', { memberUserId, planId })
+  return request.post<unknown, TradeSubscription>('/admin/trade/subscription/create-sub', { memberUserId, planId })
 }
 
 export function cancelSubscription(id: string) {
-  return request.post<unknown, boolean>('/admin/trade/subscription/cancel', null, { params: { id } })
+  return request.post<unknown, boolean>('/admin/trade/subscription/cancel-sub', null, { params: { id } })
 }

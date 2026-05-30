@@ -36,7 +36,7 @@ curl -fSL \
     --compressed \
     --connect-timeout 30 --max-time 600 \
     -H "X-Agent-Token: $AGENT_TOKEN" \
-    "$BACKEND_URL/admin/agent-dist/bin?role=$ROLE" \
+    "$BACKEND_URL/admin/agent-dist/download-bin?role=$ROLE" \
     -o $BIN_PATH.new
 chmod +x $BIN_PATH.new
 mv $BIN_PATH.new $BIN_PATH

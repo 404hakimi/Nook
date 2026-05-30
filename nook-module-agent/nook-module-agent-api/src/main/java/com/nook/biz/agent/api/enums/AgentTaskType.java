@@ -28,6 +28,22 @@ public enum AgentTaskType {
     /** 落库 / 跟 agent 通信用的字符串值. */
     private final String code;
 
+    public static AgentTaskType fromCode(String code) {
+        if (code == null) {
+            return null;
+        }
+        for (AgentTaskType e : values()) {
+            if (e.code.equals(code)) {
+                return e;
+            }
+        }
+        return null;
+    }
+
+    public boolean matches(String code) {
+        return this.code.equals(code);
+    }
+
     /** 给 @RequestParam / @Pattern 等编译期常量用; 普通代码用 enum.code(). */
     public static final class Codes {
         public static final String PING = "ping";

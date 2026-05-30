@@ -52,7 +52,7 @@ public class AdminAgentServiceImpl implements AdminAgentService {
         ResourceServerRuntimeRespDTO rt = resourceServerRuntimeApi.getByServerId(serverId);
         String role = AgentRole.extractCodeFromAgentVersion(rt == null ? null : rt.getAgentVersion());
         AgentBinaryResolver.AgentBinary bin = agentBinaryResolver.resolve(role, "linux", "amd64");
-        String url = agentProperties.getBackendPublicUrl() + "/admin/agent-dist/bin?role=" + role;
+        String url = agentProperties.getBackendPublicUrl() + "/admin/agent-dist/download-bin?role=" + role;
         String fullVersion = role + "-" + bin.version();
         String payload = String.format("{\"url\":\"%s\",\"sha256\":\"%s\",\"version\":\"%s\"}",
                 escape(url), escape(bin.sha256()), escape(fullVersion));

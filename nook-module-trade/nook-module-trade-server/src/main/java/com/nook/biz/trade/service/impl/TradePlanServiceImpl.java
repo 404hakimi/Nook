@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
+import com.nook.biz.trade.api.enums.TradePlanEnabledEnum;
 import com.nook.biz.trade.controller.vo.TradePlanCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanRespVO;
@@ -60,7 +61,7 @@ public class TradePlanServiceImpl implements TradePlanService {
     public String createPlan(TradePlanCreateReqVO req) {
         planValidator.validateCodeUnique(req.getCode(), null);
         TradePlanDO e = TradePlanConvert.INSTANCE.toDO(req);
-        e.setEnabled(0);
+        e.setEnabled(TradePlanEnabledEnum.DISABLED.getCode());
         planMapper.insert(e);
         return e.getId();
     }
@@ -82,7 +83,7 @@ public class TradePlanServiceImpl implements TradePlanService {
         planValidator.validateExists(id);
         TradePlanDO patch = new TradePlanDO();
         patch.setId(id);
-        patch.setEnabled(enabled ? 1 : 0);
+        patch.setEnabled(enabled ? TradePlanEnabledEnum.ENABLED.getCode() : TradePlanEnabledEnum.DISABLED.getCode());
         planMapper.updateById(patch);
     }
 

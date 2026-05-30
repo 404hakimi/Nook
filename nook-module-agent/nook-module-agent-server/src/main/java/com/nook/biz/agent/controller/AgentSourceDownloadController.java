@@ -44,7 +44,7 @@ public class AgentSourceDownloadController {
      * @param arch     CPU 架构 (默认 amd64)
      * @param response 流式写入 binary; 含 X-Bin-Version / X-Bin-Sha256 头给 agent 校验
      */
-    @GetMapping("/bin")
+    @GetMapping("/download-bin")
     public void downloadBin(@AuthenticatedAgent String serverId,
                             @RequestParam(required = false, defaultValue = AgentRole.Codes.FRONTLINE) String role,
                             @RequestParam(required = false, defaultValue = "linux") String os,
@@ -77,7 +77,7 @@ public class AgentSourceDownloadController {
      *
      * @param response 流式写入 tar.gz (Content-Type: application/gzip)
      */
-    @GetMapping("/agent-src.tar.gz")
+    @GetMapping("/download-agent-src")
     public void downloadAgentSrc(HttpServletResponse response) throws IOException {
         Path srcDir = resolveSrcDir();
         if (!srcDir.toFile().isDirectory()) {

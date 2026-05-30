@@ -2,6 +2,7 @@ package com.nook.biz.trade.validator;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.trade.api.enums.TradeErrorCode;
+import com.nook.biz.trade.api.enums.TradePlanEnabledEnum;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
@@ -44,7 +45,7 @@ public class TradePlanValidator {
      */
     public TradePlanDO validateEnabled(String id) {
         TradePlanDO e = validateExists(id);
-        if (e.getEnabled() == null || e.getEnabled() != 1) {
+        if (!TradePlanEnabledEnum.ENABLED.matches(e.getEnabled())) {
             throw new BusinessException(TradeErrorCode.PLAN_DISABLED, id);
         }
         return e;

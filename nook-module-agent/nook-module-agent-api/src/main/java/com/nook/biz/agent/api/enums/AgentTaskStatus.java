@@ -19,4 +19,20 @@ public enum AgentTaskStatus {
     public String code() {
         return name();
     }
+
+    public static AgentTaskStatus fromCode(String code) {
+        if (code == null) {
+            return null;
+        }
+        for (AgentTaskStatus e : values()) {
+            if (e.name().equals(code)) {
+                return e;
+            }
+        }
+        return null;
+    }
+
+    public boolean matches(String code) {
+        return this.name().equals(code);
+    }
 }

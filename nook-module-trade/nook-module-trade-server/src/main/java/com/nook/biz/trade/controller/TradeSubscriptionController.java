@@ -36,7 +36,7 @@ public class TradeSubscriptionController {
     private TradeSubscriptionService subscriptionService;
 
     /** admin 代客下单 (allocator 选址 + 复用 provision 开通). */
-    @PostMapping("/admin-create")
+    @PostMapping("/create-sub")
     public Result<TradeSubscriptionRespVO> adminCreate(@Valid @RequestBody SubscriptionCreateReqVO reqVO) {
         TradeSubscriptionDO sub = subscriptionService.adminCreate(reqVO);
         Map<String, String> planNameMap = subscriptionService.getPlanNameMap(List.of(sub.getPlanId()));
@@ -64,7 +64,7 @@ public class TradeSubscriptionController {
     }
 
     /** 退订 (吊销 client + 落地机释放). */
-    @PostMapping("/cancel")
+    @PostMapping("/cancel-sub")
     public Result<Boolean> cancel(@RequestParam("id") String id) {
         subscriptionService.cancel(id);
         return Result.ok(true);

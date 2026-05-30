@@ -69,7 +69,7 @@ export function updateTradePlan(dto: TradePlanSaveDTO) {
 }
 
 export function toggleTradePlanEnabled(id: string, enabled: boolean) {
-  return request.post<unknown, boolean>('/admin/trade/plan/toggle-enabled', null, { params: { id, enabled } })
+  return request.post<unknown, boolean>('/admin/trade/plan/update-plan-enabled', null, { params: { id, enabled } })
 }
 
 export function deleteTradePlan(id: string) {

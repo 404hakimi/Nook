@@ -17,7 +17,7 @@ public class AgentProperties {
     @NotBlank
     private String binDir = "agent";
 
-    /** Agent 源码根目录 (相对 backend CWD); 装机时 admin 走 /agent-dist/agent-src.tar.gz 流式打包下发. */
+    /** Agent 源码根目录 (相对 backend CWD); 装机时 admin 走 /agent-dist/download-agent-src 流式打包下发. */
     @NotBlank
     private String srcDir = "nook-agent";
 

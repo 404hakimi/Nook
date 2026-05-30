@@ -11,5 +11,21 @@ public enum AgentConfigSyncState {
     /** stored md5 == applied_md5, agent 已应用最新版. */
     SYNCED,
     /** stored md5 != applied_md5, 等待 agent 心跳后 backend 派 config_reload task. */
-    PENDING
+    PENDING;
+
+    public static AgentConfigSyncState fromState(String state) {
+        if (state == null) {
+            return null;
+        }
+        for (AgentConfigSyncState e : values()) {
+            if (e.name().equals(state)) {
+                return e;
+            }
+        }
+        return null;
+    }
+
+    public boolean matches(String state) {
+        return this.name().equals(state);
+    }
 }

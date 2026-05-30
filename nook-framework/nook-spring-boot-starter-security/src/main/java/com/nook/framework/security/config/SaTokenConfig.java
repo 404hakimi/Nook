@@ -22,7 +22,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
             // /admin/** 走后台体系，登录/登出 + agent binary 下载 (走 X-Agent-Token 鉴权) 放行
             SaRouter.match("/admin/**")
                     .notMatch("/admin/system/auth/login", "/admin/system/auth/logout",
-                            "/admin/agent-dist/bin")
+                            "/admin/agent-dist/download-bin")
                     .check(r -> StpSystemUtil.checkLogin());
 
             // /portal/** 走会员体系；登录/注册/订阅链接(走 sub_token)放行
