@@ -7,7 +7,7 @@ import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import com.nook.common.utils.collection.CollectionUtils;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,12 +20,14 @@ import java.util.Set;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class TradeBandwidthApiImpl implements TradeBandwidthApi {
 
-    private final TradeSubscriptionMapper subMapper;
-    private final TradePlanMapper planMapper;
-    private final XrayClientNodeApi clientNodeApi;
+    @Resource
+    private TradeSubscriptionMapper subMapper;
+    @Resource
+    private TradePlanMapper planMapper;
+    @Resource
+    private XrayClientNodeApi clientNodeApi;
 
     @Override
     public int getLandingDesiredBandwidthMbps(String landingServerId) {

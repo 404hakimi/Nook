@@ -12,8 +12,8 @@ import com.nook.common.web.response.Result;
 
 import java.util.List;
 import java.util.Map;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,10 +30,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/trade/subscription")
 @Validated
-@RequiredArgsConstructor
 public class TradeSubscriptionController {
 
-    private final TradeSubscriptionService subscriptionService;
+    @Resource
+    private TradeSubscriptionService subscriptionService;
 
     /** admin 代客下单 (allocator 选址 + 复用 provision 开通). */
     @PostMapping("/admin-create")

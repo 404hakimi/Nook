@@ -1,7 +1,7 @@
 package com.nook.biz.trade.controller;
 
 import com.nook.biz.trade.service.TradeSubscriptionService;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,10 +20,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/portal/sub")
-@RequiredArgsConstructor
 public class TradeSubUrlController {
 
-    private final TradeSubscriptionService subscriptionService;
+    @Resource
+    private TradeSubscriptionService subscriptionService;
 
     /** 订阅内容: Base64 vmess 列表; token 无效返 404. */
     @GetMapping(value = "/{token}", produces = MediaType.TEXT_PLAIN_VALUE)

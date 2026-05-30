@@ -7,8 +7,8 @@ import com.nook.biz.trade.service.TradePlanService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,10 +27,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/admin/trade/plan")
 @Validated
-@RequiredArgsConstructor
 public class TradePlanController {
 
-    private final TradePlanService planService;
+    @Resource
+    private TradePlanService planService;
 
     /** 套餐分页 (含匹配落地机容量). */
     @GetMapping("/page-plan")

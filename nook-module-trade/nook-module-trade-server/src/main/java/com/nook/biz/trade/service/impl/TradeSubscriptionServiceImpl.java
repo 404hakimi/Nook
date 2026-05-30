@@ -26,7 +26,7 @@ import com.nook.biz.trade.validator.TradePlanValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -36,6 +36,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,21 +51,28 @@ import java.util.function.Function;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
     private static final long DAY_MS = 86_400_000L;
     private static final int DEFAULT_PORT = 443;
     private static final DateTimeFormatter EXPIRE_FMT = DateTimeFormatter.ofPattern("MM-dd");
 
-    private final TradeSubscriptionMapper subMapper;
-    private final TradePlanMapper planMapper;
-    private final TradePlanValidator planValidator;
-    private final TradeAllocator allocator;
-    private final XrayClientProvisionApi provisionApi;
-    private final XrayClientNodeApi clientNodeApi;
-    private final MemberUserApi memberUserApi;
-    private final ObjectMapper objectMapper;
+    @Resource
+    private TradeSubscriptionMapper subMapper;
+    @Resource
+    private TradePlanMapper planMapper;
+    @Resource
+    private TradePlanValidator planValidator;
+    @Resource
+    private TradeAllocator allocator;
+    @Resource
+    private XrayClientProvisionApi provisionApi;
+    @Resource
+    private XrayClientNodeApi clientNodeApi;
+    @Resource
+    private MemberUserApi memberUserApi;
+    @Resource
+    private ObjectMapper objectMapper;
 
     @Override
     public TradeSubscriptionDO adminCreate(AdminCreateSubReqVO req) {
@@ -125,6 +133,23 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         }
         return CollectionUtils.convertMap(
                 planMapper.selectBatchIds(planIds), TradePlanDO::getId, TradePlanDO::getName);
+    }
+
+    @Override
+    public Map<String, String> getMemberEmailMap(Collection<String> memberIds) {
+        if (CollectionUtils.isAnyEmpty(memberIds)) {
+            return Collections.emptyMap();
+        }
+        return memberUserApi.getEmailMap(memberIds);
+    }
+
+    @Override
+    public Map<String, Integer> countActiveByPlan() {
+        Map<String, Integer> countMap = new HashMap<>();
+        for (TradeSubscriptionDO sub : subMapper.selectAllActive()) {
+            countMap.merge(sub.getPlanId(), 1, Integer::sum);
+        }
+        return countMap;
     }
 
     @Override

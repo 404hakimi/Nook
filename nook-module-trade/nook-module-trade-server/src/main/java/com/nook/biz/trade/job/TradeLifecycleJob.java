@@ -12,7 +12,7 @@ import com.nook.biz.trade.dal.mysql.mapper.MemberPlanTrafficMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import com.nook.common.utils.collection.CollectionUtils;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -30,17 +30,22 @@ import java.util.Set;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class TradeLifecycleJob {
 
     private static final long GB = 1024L * 1024 * 1024;
 
-    private final TradeSubscriptionMapper subMapper;
-    private final TradePlanMapper planMapper;
-    private final MemberPlanTrafficMapper trafficMapper;
-    private final XrayClientProvisionApi provisionApi;
-    private final XrayClientNodeApi clientNodeApi;
-    private final ResourceServerCapacityApi capacityApi;
+    @Resource
+    private TradeSubscriptionMapper subMapper;
+    @Resource
+    private TradePlanMapper planMapper;
+    @Resource
+    private MemberPlanTrafficMapper trafficMapper;
+    @Resource
+    private XrayClientProvisionApi provisionApi;
+    @Resource
+    private XrayClientNodeApi clientNodeApi;
+    @Resource
+    private ResourceServerCapacityApi capacityApi;
 
     @Scheduled(cron = "${nook.trade.lifecycle-cron:15 * * * * ?}")
     public void check() {

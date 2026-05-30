@@ -14,7 +14,7 @@ import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.service.TradePlanService;
 import com.nook.biz.trade.validator.TradePlanValidator;
 import com.nook.common.web.response.PageResult;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -26,12 +26,14 @@ import java.util.Map;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class TradePlanServiceImpl implements TradePlanService {
 
-    private final TradePlanMapper planMapper;
-    private final TradePlanValidator planValidator;
-    private final ResourceServerLandingApi landingApi;
+    @Resource
+    private TradePlanMapper planMapper;
+    @Resource
+    private TradePlanValidator planValidator;
+    @Resource
+    private ResourceServerLandingApi landingApi;
 
     @Override
     public PageResult<TradePlanRespVO> getPlanPage(TradePlanPageReqVO req) {

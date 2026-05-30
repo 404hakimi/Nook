@@ -6,7 +6,7 @@ import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
@@ -15,11 +15,12 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class TradePlanValidator {
 
-    private final TradePlanMapper planMapper;
-    private final TradeSubscriptionMapper subscriptionMapper;
+    @Resource
+    private TradePlanMapper planMapper;
+    @Resource
+    private TradeSubscriptionMapper subscriptionMapper;
 
     /**
      * 校验套餐存在

@@ -14,7 +14,7 @@ import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import com.nook.common.utils.collection.CollectionUtils;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -28,19 +28,25 @@ import java.util.Set;
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class TradeAllocator {
 
     /** 带宽预留率: 不超卖, 线路机留 10% 余量. */
     private static final double RESERVE_RATIO = 0.10;
 
-    private final ResourceServerApi serverApi;
-    private final ResourceServerLandingApi landingApi;
-    private final ResourceServerCapacityApi capacityApi;
-    private final XrayClientProvisionApi provisionApi;
-    private final XrayClientNodeApi clientNodeApi;
-    private final TradeSubscriptionMapper subMapper;
-    private final TradePlanMapper planMapper;
+    @Resource
+    private ResourceServerApi serverApi;
+    @Resource
+    private ResourceServerLandingApi landingApi;
+    @Resource
+    private ResourceServerCapacityApi capacityApi;
+    @Resource
+    private XrayClientProvisionApi provisionApi;
+    @Resource
+    private XrayClientNodeApi clientNodeApi;
+    @Resource
+    private TradeSubscriptionMapper subMapper;
+    @Resource
+    private TradePlanMapper planMapper;
 
     /**
      * 选同区域、带宽准入通过、剩余带宽最多的 LIVE 线路机; 无候选返 null.
