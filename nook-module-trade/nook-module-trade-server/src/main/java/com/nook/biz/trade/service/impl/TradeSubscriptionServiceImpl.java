@@ -57,6 +57,8 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     private static final long DAY_MS = 86_400_000L;
     private static final int DEFAULT_PORT = 443;
     private static final DateTimeFormatter EXPIRE_FMT = DateTimeFormatter.ofPattern("MM-dd");
+    /** 当前订阅只生成 vmess 链接; 其它协议待协议适配阶段放开 (node 侧已留 InboundProtocolMapping). */
+    private static final String PROTOCOL_VMESS = "vmess";
 
     @Resource
     private TradeSubscriptionMapper subMapper;
@@ -195,6 +197,12 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
             // getNodeInfos 可能比 subByClient 多 (并发场景), 回查不到的节点跳过
             TradeSubscriptionDO sub = subByClient.get(node.getClientId());
             if (sub == null) {
+                continue;
+            }
+            // 目前只生成 vmess; 协议明确非 vmess 的节点跳过 (保留多协议扩展位), 不拼错链接; 协议空按 vmess 默认
+            if (StrUtil.isNotBlank(node.getProtocol()) && !PROTOCOL_VMESS.equalsIgnoreCase(node.getProtocol())) {
+                log.warn("[renderSubscription] 跳过非 vmess 节点: client={} protocol={}",
+                        node.getClientId(), node.getProtocol());
                 continue;
             }
             lines.append(buildVmessLink(node, sub, planNameMap.get(sub.getPlanId()))).append('\n');
