@@ -3,7 +3,6 @@ package com.nook.biz.trade.controller;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
 import com.nook.biz.trade.controller.vo.TradePlanRespVO;
 import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
-import com.nook.biz.trade.convert.TradePlanConvert;
 import com.nook.biz.trade.service.TradePlanService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
@@ -36,16 +35,13 @@ public class TradePlanController {
     /** 套餐分页 (含匹配落地机容量). */
     @GetMapping("/page-plan")
     public Result<PageResult<TradePlanRespVO>> getPage(@Valid TradePlanPageReqVO reqVO) {
-        // 容量编排在 service 层完成, controller 只拿结果转 VO
-        TradePlanService.PlanPage result = planService.getPlanPage(reqVO);
-        return Result.ok(TradePlanConvert.INSTANCE.convertPage(result.page(), result.capMap()));
+        return Result.ok(planService.getPlanPage(reqVO));
     }
 
     /** 套餐详情. */
     @GetMapping("/get-plan")
     public Result<TradePlanRespVO> getPlan(@RequestParam("id") String id) {
-        TradePlanService.PlanDetail detail = planService.getPlan(id);
-        return Result.ok(TradePlanConvert.INSTANCE.toRespVO(detail.plan(), detail.capacity()));
+        return Result.ok(planService.getPlan(id));
     }
 
     /** 创建套餐 (默认下架). */

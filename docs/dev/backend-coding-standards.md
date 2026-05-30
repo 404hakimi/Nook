@@ -33,7 +33,7 @@
 
 ```
 Controller  → 参数校验、调用 Service、调 Convert 组装 VO、返回 Result
-Service     → 业务逻辑、事务、缓存; 校验委托 Validator; 返回 DO, 不构建 VO
+Service     → 业务逻辑、事务、缓存; 校验委托 Validator; 返回 DO, 不构建 VO (跨模块/聚合视图例外: 经 Convert 返 VO, 见下方关联拼接 / §8)
 Validator   → 集中存在性 / 唯一性 / 业务前置校验, 抛 BusinessException; 每个含校验逻辑的 Service 配对一个 XxxValidator
 Convert     → DO ↔ VO; 接收纯数据 Map / List 拼接, 禁止注入 Service
 Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查询 Wrapper
@@ -65,25 +65,26 @@ Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查
 
 参考: `nook-module-agent` 的 `-api` / `-server` 拆分.
 
-### 关联数据拼接 (跨模块调用放 Service, Controller 只转换)
+### 关联数据拼接 (跨模块 / 聚合视图: Service 经 Convert 直接返 VO)
 
-跨模块 Api 调用 / 关联数据计算属**业务编排, 放 Service**; Service 把主数据 + 关联数据组装成 carrier (record) 返回, Controller 只调 Service + Convert 出 VO, **不直接注入其他模块的 Api**.
+跨模块 Api 调用 / 多源聚合属**业务编排, 放 Service**: Service 查主数据 → Convert 转入参 → 调跨模块 Api → Convert 把结果拼成 **VO** 返回; Controller 纯转发. **禁止**用 carrier record (如 `record PlanPage(page, capMap)`) 把 DO + 数据塞回 Controller —— 视图就是 VO, Service 直接返 VO.
 
 ```java
-// Service: 取主数据 + 跨模块拿关联 / 计算数据, 组装 carrier 返回
-public PlanPage getPlanPage(SomePageReqVO req) {
-    PageResult<SomeDO> page = someMapper.selectPageByQuery(...);
-    Map<String, XxxDTO> infoMap = xxxApi.loadInfo(SomeConvert.INSTANCE.toSpecs(page.getRecords()));
-    return new PlanPage(page, infoMap);
+// Service: 查 + 调跨模块 Api + Convert 拼 VO, 直接返 VO (该视图无单一 DO 对应, 属 §8 例外)
+public PageResult<SomeRespVO> getSomePage(SomePageReqVO req) {
+    PageResult<SomeDO> plans = somePageQuery(req);
+    List<XxxSpecDTO> specs = SomeConvert.INSTANCE.toSpecs(plans.getRecords());   // 入参转换抽独立一行, 不内联进 Api 调用
+    Map<String, XxxDTO> capMap = xxxApi.batchLoad(specs);
+    return SomeConvert.INSTANCE.convertPage(plans, capMap);                       // 出参拼 VO
 }
-record PlanPage(PageResult<SomeDO> page, Map<String, XxxDTO> infoMap) { }
 
-// Controller: 只调 Service + Convert, 不碰其他模块的 Api
-PlanPage result = someService.getPlanPage(req);
-return Result.ok(SomeConvert.INSTANCE.convertPage(result.page(), result.infoMap()));
+// Controller: 纯转发
+return Result.ok(someService.getSomePage(req));
 ```
 
-Convert 只接纯数据 Map / DTO 拼 VO, **禁止**注入 Service / Api.
+- 此为 §1「Service 返回 DO, 不构建 VO」的**例外**, 仅限"无单一 DO 对应"的跨模块 / 聚合视图 (跟 §8 snapshot 例外同源); 普通单表 CRUD 仍 Service 返 DO + Controller 调 Convert.
+- 入参转换 (`toSpecs`) 抽成**独立一行**, 不要内联嵌进 Api 调用 (可读性).
+- Convert 只接纯数据 Map / DTO 拼 VO, **禁止**注入 Service / Api.
 
 ---
 
@@ -453,7 +454,7 @@ Convert 本质是**跨层数据格式翻译**. 按输入类型决定谁调用 Co
 |---|---|---|
 | **业务实体 DO** (`dal/dataobject/*DO`) | **Controller** | 标准三层: Controller 拿 Service 返的 DO → Convert → VO |
 | **基础设施 Snapshot** (`framework/**/snapshot/*` 等 framework 层数据载体) | **Service** | snapshot 是 service 从 framework 拉的中间数据; Controller 不该 import framework 内部结构, service 是唯一能桥接基础设施层 ↔ 业务 VO 的位置 |
-| **跨表聚合 record / Map** | **Controller** | 跨模块查 / 算在 Service 完成并组装 carrier; Controller 拿 carrier 调 Convert 出 VO (见 §1) |
+| **跨模块 / 聚合视图** (无单一 DO 对应) | **Service** | Service 查 + 调跨模块 Api + Convert 拼 VO **直接返 VO** (见 §1); Controller 纯转发, 不碰其他模块 Api |
 
 **核心判定**: Convert 的输入来自哪一层, 就由那一层的调用者触发翻译.
 

@@ -1,12 +1,9 @@
 package com.nook.biz.trade.service;
 
-import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.trade.controller.vo.TradePlanPageReqVO;
+import com.nook.biz.trade.controller.vo.TradePlanRespVO;
 import com.nook.biz.trade.controller.vo.TradePlanSaveReqVO;
-import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.common.web.response.PageResult;
-
-import java.util.Map;
 
 /**
  * 套餐管理 Service 接口
@@ -15,11 +12,11 @@ import java.util.Map;
  */
 public interface TradePlanService {
 
-    /** 分页 + 落地机池容量 (跨模块算容量在本层完成, controller 只转 VO). */
-    PlanPage getPlanPage(TradePlanPageReqVO req);
+    /** 分页 (含落地机池容量); 跨模块聚合视图, 本层经 Convert 返 VO. */
+    PageResult<TradePlanRespVO> getPlanPage(TradePlanPageReqVO req);
 
-    /** 详情 + 落地机池容量. */
-    PlanDetail getPlan(String id);
+    /** 详情 (含落地机池容量). */
+    TradePlanRespVO getPlan(String id);
 
     /** 创建 (默认下架 enabled=0). */
     String createPlan(TradePlanSaveReqVO req);
@@ -32,10 +29,4 @@ public interface TradePlanService {
 
     /** 软删 (有活跃订阅时拒). */
     void deletePlan(String id);
-
-    /** 套餐分页 + 容量 (planId → total/available/occupied). */
-    record PlanPage(PageResult<TradePlanDO> page, Map<String, PlanCapacityDTO> capMap) { }
-
-    /** 单套餐 + 容量. */
-    record PlanDetail(TradePlanDO plan, PlanCapacityDTO capacity) { }
 }
