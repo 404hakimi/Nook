@@ -2,6 +2,7 @@ package com.nook.biz.agent.dal.dataobject;
 
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.nook.biz.agent.api.enums.AgentRole;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -19,7 +20,7 @@ public class AgentRuntimeConfigDO {
     @TableId
     private String serverId;
 
-    /** agent 角色; 跟装机时分配的角色一致; 取值见 {@link com.nook.biz.agent.api.enums.AgentRole}. */
+    /** agent 角色 {@link AgentRole} */
     private String agentType;
 
     /** 完整 yaml 内容; agent 直接 mv 到 /etc/nook-agent/config.yml. */

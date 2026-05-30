@@ -1,6 +1,9 @@
 package com.nook.biz.agent.dal.dataobject;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.nook.biz.agent.api.enums.AgentRole;
+import com.nook.biz.agent.api.enums.AgentTaskStatus;
+import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.framework.mybatis.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -17,19 +20,19 @@ import java.time.LocalDateTime;
 @TableName("agent_task")
 public class AgentTaskDO extends BaseEntity {
 
-    /** agent 角色; 取值见 {@link com.nook.biz.agent.api.enums.AgentRole}; 落库为字符串 frontline / landing. */
+    /** agent 角色 {@link AgentRole} */
     private String agentType;
 
     /** 装机源服务器 id. */
     private String sourceId;
 
-    /** 任务类型: xray_provision_user / xray_remove_user / shell_exec 等. */
+    /** 任务类型 {@link AgentTaskType} */
     private String taskType;
 
     /** 任务参数 JSON (序列化为字符串落库; agent 端反序列化按 task_type 决定 schema). */
     private String taskPayload;
 
-    /** 任务状态: PENDING / PICKED / SUCCESS / FAILED. */
+    /** 任务状态 {@link AgentTaskStatus} */
     private String status;
 
     /** 被 agent 拉走的时间. */

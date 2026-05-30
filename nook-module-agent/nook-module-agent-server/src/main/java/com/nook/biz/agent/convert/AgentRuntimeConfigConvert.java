@@ -9,17 +9,12 @@ import org.springframework.util.DigestUtils;
 
 import java.nio.charset.StandardCharsets;
 
-/**
- * Agent 运行时配置 Convert
- *
- * @author nook
- */
 @Mapper
 public interface AgentRuntimeConfigConvert {
 
     AgentRuntimeConfigConvert INSTANCE = Mappers.getMapper(AgentRuntimeConfigConvert.class);
 
-    /** 算 stored yaml 跟 applied md5 是否一致; row=null 视为从未配置. */
+    // 算 stored yaml 跟 applied md5 是否一致; row=null 视为从未配置
     default AgentConfigSyncState classifySyncState(AgentRuntimeConfigDO row) {
         if (row == null) return AgentConfigSyncState.NEVER_CONFIGURED;
         String storedMd5 = DigestUtils.md5DigestAsHex(
@@ -29,7 +24,7 @@ public interface AgentRuntimeConfigConvert {
                 : AgentConfigSyncState.PENDING;
     }
 
-    /** 构建 admin 端详情 VO; row=null 仅填 serverId + NEVER_CONFIGURED. */
+    // 构建 admin 端详情 VO; row=null 仅填 serverId + NEVER_CONFIGURED
     default AgentRuntimeConfigRespVO convertDetail(String serverId, AgentRuntimeConfigDO row) {
         AgentRuntimeConfigRespVO vo = new AgentRuntimeConfigRespVO();
         vo.setServerId(serverId);

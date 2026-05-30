@@ -9,11 +9,6 @@ import org.mapstruct.factory.Mappers;
 
 import java.util.List;
 
-/**
- * Agent 任务 Convert
- *
- * @author nook
- */
 @Mapper
 public interface AgentTaskConvert {
 
@@ -27,7 +22,7 @@ public interface AgentTaskConvert {
         return PageResult.of(page.getTotal(), convertList(page.getRecords()));
     }
 
-    /** Agent 推接口用的精简 VO (仅 id / taskType / taskPayload). */
+    // Agent 推接口用的精简 VO (仅 id / taskType / taskPayload)
     AgentTaskRespVO convertAgent(AgentTaskDO entity);
 
     List<AgentTaskRespVO> convertAgentList(List<AgentTaskDO> list);
