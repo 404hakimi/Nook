@@ -31,6 +31,11 @@
         "chrome-devtools-mcp@latest"
       ]
     },
+    "codegraph": {
+      "type": "stdio",
+      "command": "codegraph",
+      "args": ["serve", "--mcp"]
+    },
     "intellij-idea": {
       "type": "stdio",
       "command": "D:\\IntelliJ IDEA\\jbr\\bin\\java",

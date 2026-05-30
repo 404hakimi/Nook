@@ -40,3 +40,4 @@ nook-admin/tsconfig.app.tsbuildinfo
 
 # other
 .claude
+.codegraph
