@@ -97,7 +97,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
             }
             tried.add(landingId);
 
-            // 仅 provision 失败 (如 landing 被并发抢占) 才换下一个落地机重试
+            // 仅"开通客户端"失败 (如落地机被并发抢占) 才换下一台落地机重试
             String clientId;
             try {
                 clientId = provisionApi.provision(buildProvisionDTO(req, plan, frontlineId, landingId));
@@ -106,7 +106,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
                 continue;
             }
 
-            // provision 成功; sub 落库失败不重试 (留孤儿 client 由对账兜底)
+            // 开通成功; 订阅落库失败不重试 (留下的孤儿客户端由对账兜底)
             TradeSubscriptionDO sub = new TradeSubscriptionDO();
             sub.setMemberUserId(req.getMemberUserId());
             sub.setPlanId(plan.getId());
@@ -182,7 +182,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         // 按 clientId 索引, 后面用节点信息回查订阅 (一个 client 一份订阅, 撞 key 取先到的)
         Map<String, TradeSubscriptionDO> subByClient = CollectionUtils.convertMap(
                 subs, TradeSubscriptionDO::getXrayClientId, Function.identity(), (a, b) -> a);
-        // 节点信息按 RUNNING + 可拼 host 过滤后返回; 全不可用 (如刚下单还没 reconcile) 返空串
+        // 节点按"运行中"且能拼出 host 过滤后返回; 全不可用 (如刚下单还没对账) 返空串
         List<XrayClientNodeDTO> nodes = clientNodeApi.getNodeInfos(subByClient.keySet());
         if (CollUtil.isEmpty(nodes)) {
             return Base64.encode("");

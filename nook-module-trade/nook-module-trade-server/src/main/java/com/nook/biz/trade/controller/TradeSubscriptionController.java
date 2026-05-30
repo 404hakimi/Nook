@@ -35,17 +35,17 @@ public class TradeSubscriptionController {
     @Resource
     private TradeSubscriptionService subscriptionService;
 
-    /** admin 代客下单 (allocator 选址 + 复用 provision 开通). */
+    /** 代客下单（管理端手动给会员分配套餐），自动选址并开通客户端 */
     @PostMapping("/create-sub")
     public Result<TradeSubscriptionRespVO> adminCreate(@Valid @RequestBody SubscriptionCreateReqVO reqVO) {
         TradeSubscriptionDO sub = subscriptionService.adminCreate(reqVO);
         Map<String, String> planNameMap = subscriptionService.getPlanNameMap(List.of(sub.getPlanId()));
-        // 下单结果只回套餐名, 邮箱不在此场景展示 → memberEmail 传 null
+        // 下单结果只回套餐名, 不展示会员邮箱, 故邮箱参数传 null
         return Result.ok(TradeSubscriptionConvert.INSTANCE.toRespVO(
                 sub, planNameMap.get(sub.getPlanId()), null));
     }
 
-    /** 订阅分页 (enrich 套餐名 + 会员邮箱). */
+    /** 订阅分页（附带套餐名、会员邮箱） */
     @GetMapping("/page-sub")
     public Result<PageResult<TradeSubscriptionRespVO>> getPage(@Valid TradeSubscriptionPageReqVO reqVO) {
         PageResult<TradeSubscriptionDO> page = subscriptionService.getPage(reqVO);
@@ -57,13 +57,13 @@ public class TradeSubscriptionController {
         return Result.ok(TradeSubscriptionConvert.INSTANCE.convertPage(page, planNameMap, memberEmailMap));
     }
 
-    /** 各套餐当前活跃订阅数 (planId → 数量); 套餐卡片展示订阅人数用. */
+    /** 统计各套餐当前"生效中"的订阅数（套餐编号 → 数量） */
     @GetMapping("/count-active-by-plan")
     public Result<Map<String, Integer>> countActiveByPlan() {
         return Result.ok(subscriptionService.countActiveByPlan());
     }
 
-    /** 退订 (吊销 client + 落地机释放). */
+    /** 退订（注销该订阅的客户端、释放占用的落地机） */
     @PostMapping("/cancel-sub")
     public Result<Boolean> cancel(@RequestParam("id") String id) {
         subscriptionService.cancel(id);
