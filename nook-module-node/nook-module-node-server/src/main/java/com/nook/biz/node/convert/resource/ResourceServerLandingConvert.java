@@ -5,6 +5,7 @@ import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingInstallRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5RespVO;
+import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
@@ -12,6 +13,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
 import java.util.ArrayList;
@@ -27,6 +29,10 @@ import java.util.Map;
 public interface ResourceServerLandingConvert {
 
     ResourceServerLandingConvert INSTANCE = Mappers.getMapper(ResourceServerLandingConvert.class);
+
+    // 主表 + landing 子表 → 跨模块概要 DTO; serverId 取主表 id, landing 为 null 时 status/ipType 留空
+    @Mapping(target = "serverId", source = "server.id")
+    LandingSummaryDTO toSummary(ResourceServerDO server, ResourceServerLandingDO landing);
 
     /** 主表 → RespVO (仅主表字段; 子表字段需走 enrich) */
     ServerLandingRespVO convert(ResourceServerDO bean);

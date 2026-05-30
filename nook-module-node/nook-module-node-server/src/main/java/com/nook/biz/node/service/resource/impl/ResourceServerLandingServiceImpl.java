@@ -26,6 +26,7 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
+import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
@@ -319,19 +320,8 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         return serverIds.stream()
                 .map(id -> {
                     ResourceServerDO s = srvMap.get(id);
-                    if (s == null) {
-                        return null;
-                    }
-                    LandingSummaryDTO dto = new LandingSummaryDTO();
-                    dto.setServerId(id);
-                    dto.setLifecycleState(s.getLifecycleState());
-                    dto.setIpAddress(s.getIpAddress());
-                    ResourceServerLandingDO l = landingMap.get(id);
-                    if (l != null) {
-                        dto.setStatus(l.getStatus());
-                        dto.setIpTypeId(l.getIpTypeId());
-                    }
-                    return dto;
+                    return s == null ? null
+                            : ResourceServerLandingConvert.INSTANCE.toSummary(s, landingMap.get(id));
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -364,7 +354,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
             if (this.belowPlanSpec(capMap.get(landing.getServerId()), minTrafficGb, minBandwidthMbps)) {
                 continue;
             }
-            matched.add(this.toSummary(serverMap.get(landing.getServerId()), landing));
+            matched.add(ResourceServerLandingConvert.INSTANCE.toSummary(serverMap.get(landing.getServerId()), landing));
         }
         return matched;
     }
@@ -377,17 +367,6 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
             return true;
         }
         return bandwidthMbps != null && bandwidthMbps > 0 && bandwidthMbps < minBandwidthMbps;
-    }
-
-    /** 主表 + 落地子表拼落地机概要. */
-    private LandingSummaryDTO toSummary(ResourceServerDO server, ResourceServerLandingDO landing) {
-        LandingSummaryDTO dto = new LandingSummaryDTO();
-        dto.setServerId(landing.getServerId());
-        dto.setLifecycleState(server.getLifecycleState());
-        dto.setStatus(landing.getStatus());
-        dto.setIpTypeId(landing.getIpTypeId());
-        dto.setIpAddress(server.getIpAddress());
-        return dto;
     }
 
     @Override
