@@ -43,7 +43,7 @@ public class TradePlanServiceImpl implements TradePlanService {
                 Page.of(req.getPageNo(), req.getPageSize()),
                 req.getRegionCode(), req.getIpTypeId(), req.getEnabled(), req.getKeyword());
         PageResult<TradePlanDO> plans = PageResult.of(page.getTotal(), page.getRecords());
-        // 跨模块: 套餐规格 → 落地机池容量, 入参转换单独一行
+        // 容量(可售/已售)不在套餐表上, 落地机池属 node 域: 按套餐规格跨模块批量算, 再拼进 VO
         List<PlanSpecDTO> specs = TradePlanConvert.INSTANCE.toSpecs(plans.getRecords());
         Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(specs);
         return TradePlanConvert.INSTANCE.convertPage(plans, capMap);
@@ -52,6 +52,7 @@ public class TradePlanServiceImpl implements TradePlanService {
     @Override
     public TradePlanRespVO getPlan(String id) {
         TradePlanDO plan = planValidator.validateExists(id);
+        // 单个套餐复用批量容量接口 (传单元素), 再按 planId 取回
         List<PlanSpecDTO> specs = TradePlanConvert.INSTANCE.toSpecs(List.of(plan));
         Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(specs);
         return TradePlanConvert.INSTANCE.toRespVO(plan, capMap.get(plan.getId()));
@@ -61,6 +62,7 @@ public class TradePlanServiceImpl implements TradePlanService {
     public String createPlan(TradePlanCreateReqVO req) {
         planValidator.validateCodeUnique(req.getCode(), null);
         TradePlanDO e = TradePlanConvert.INSTANCE.toDO(req);
+        // 新建一律先下架, admin 确认后手动上架才可被下单
         e.setEnabled(TradePlanEnabledEnum.DISABLED.getCode());
         planMapper.insert(e);
         return e.getId();
