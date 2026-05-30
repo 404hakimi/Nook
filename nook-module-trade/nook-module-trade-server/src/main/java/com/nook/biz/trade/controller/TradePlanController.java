@@ -42,9 +42,12 @@ public class TradePlanController {
     /** 套餐分页 (含匹配落地机容量). */
     @GetMapping("/page-plan")
     public Result<PageResult<TradePlanRespVO>> getPage(@Valid TradePlanPageReqVO reqVO) {
+        // ① service 取套餐 DO 分页
         PageResult<TradePlanDO> page = planService.getPlanPage(reqVO);
+        // ② 按套餐规格批量问 node 落地机池容量 (planId → total/available/occupied)
         Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(
-                TradePlanConvert.collectCapacitySpecs(page.getRecords()));
+                TradePlanConvert.INSTANCE.toSpecs(page.getRecords()));
+        // ③ convert 把容量拼进 VO
         return Result.ok(TradePlanConvert.INSTANCE.convertPage(page, capMap));
     }
 
@@ -52,8 +55,9 @@ public class TradePlanController {
     @GetMapping("/get-plan")
     public Result<TradePlanRespVO> getPlan(@RequestParam("id") String id) {
         TradePlanDO plan = planService.getPlan(id);
+        // 单个套餐也走批量容量接口, 取回 map 后按 planId 拿
         Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(
-                TradePlanConvert.collectCapacitySpecs(List.of(plan)));
+                TradePlanConvert.INSTANCE.toSpecs(List.of(plan)));
         return Result.ok(TradePlanConvert.INSTANCE.toRespVO(plan, capMap.get(plan.getId())));
     }
 

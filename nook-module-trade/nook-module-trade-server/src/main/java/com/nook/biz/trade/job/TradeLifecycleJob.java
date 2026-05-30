@@ -24,19 +24,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 订阅生命周期 Job: 到期释放 + 流量耗尽停服.
- *
- * <p>只写 DB / 调 node 原语, 远端断连交给 reconcile (frontline 按 RUNNING 过滤移除 user/rule/outbound,
- * 落地机无 RUNNING client → tc 自动清零):
- * <ul>
- *   <li>到期 (now ≥ expiresAt): revoke (删 client + 释放落地机回池), 订阅置 EXPIRED;</li>
- *   <li>流量耗尽 (已用 ≥ 套餐 trafficGb): stop (置 STOPPED, 保留 IP + 记录), 订阅置 SUSPENDED.</li>
- * </ul>
- *
- * <p>用量按订阅累加进 member_plan_traffic, 源是该订阅独占落地机的 NIC tx (1:1 ⟹ 机器流量=该用户流量;
- * 用 tx 单向, rx+tx 是中转 2×). used_bytes 是 DB 强一致权威; 落地机 tx 是当周期值 (月度会归零),
- * 累加规则: 换落地机重基线 / 计数回退当机器侧重置(只挪游标不动 used) / 正常累加. 线路机切换不影响
- * (落地机没变); VPS 重建 / vnstat 清都走"回退即重置"分支, used_bytes 一字节不丢.
+ * 订阅生命周期 Job: 到期释放 + 流量耗尽停服
  *
  * @author nook
  */

@@ -12,13 +12,9 @@ import com.nook.biz.trade.validator.TradePlanValidator;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 套餐管理 Service 实现. 返回 DO; VO 转换由 controller + convert 层处理.
- *
- * <p>套餐 = 区域 + 规格 (不绑具体资源); 下单时 allocator 按区域 + IP 类型自动匹配落地机 + 线路机。
- * 容量由 controller 调 node landingApi.countCapacityForPlan 算 (落地机池 = node 域).
+ * 套餐管理 Service 实现类
  *
  * @author nook
  */
@@ -43,7 +39,6 @@ public class TradePlanServiceImpl implements TradePlanService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public String createPlan(TradePlanSaveReqVO req) {
         planValidator.validateCodeUnique(req.getCode(), null);
         TradePlanDO e = TradePlanConvert.INSTANCE.toDO(req);
@@ -54,12 +49,14 @@ public class TradePlanServiceImpl implements TradePlanService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void updatePlan(TradePlanSaveReqVO req) {
         TradePlanDO existing = planValidator.validateExists(req.getId());
-        // 仅可变字段; 已售卖核心字段 (区域/IP类型/流量/带宽/周期/价格) 忽略 (改了破历史订阅)
+        // 可改: 名称/备注/售价/周期 (售价仅展示, 周期仅影响之后下单, 都不动在用订阅)
+        // 锁定: 区域/IP类型/流量/带宽/套餐码 (改了破在用订阅: 配额/限速/选址/容量统计)
         existing.setName(req.getName());
         existing.setRemark(req.getRemark());
+        existing.setPrice(req.getPrice());
+        existing.setPeriodDays(req.getPeriodDays());
         planMapper.updateById(existing);
     }
 
@@ -73,7 +70,6 @@ public class TradePlanServiceImpl implements TradePlanService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void deletePlan(String id) {
         planValidator.validateExists(id);
         planValidator.validateNoActiveSub(id);

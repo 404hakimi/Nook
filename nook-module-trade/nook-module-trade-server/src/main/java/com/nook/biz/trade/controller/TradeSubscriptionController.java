@@ -40,7 +40,9 @@ public class TradeSubscriptionController {
     public Result<TradeSubscriptionRespVO> adminCreate(@Valid @RequestBody AdminCreateSubReqVO reqVO) {
         TradeSubscriptionDO sub = subscriptionService.adminCreate(reqVO);
         Map<String, String> planNameMap = subscriptionService.getPlanNameMap(List.of(sub.getPlanId()));
-        return Result.ok(TradeSubscriptionConvert.INSTANCE.toRespVO(sub, planNameMap.get(sub.getPlanId())));
+        // 下单结果只回套餐名, 邮箱不在此场景展示 → memberEmail 传 null
+        return Result.ok(TradeSubscriptionConvert.INSTANCE.toRespVO(
+                sub, planNameMap.get(sub.getPlanId()), null));
     }
 
     /** 订阅分页 (enrich 套餐名 + 会员邮箱). */
