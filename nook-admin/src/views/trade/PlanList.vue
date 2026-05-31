@@ -9,11 +9,10 @@ import {
   NPagination,
   NProgress,
   NSelect,
-  NSpin,
-  NTree,
-  type TreeOption
+  NSpin
 } from 'naive-ui'
 import {
+  ChevronDown,
   Database,
   Gauge,
   Globe,
@@ -30,9 +29,8 @@ import { storeToRefs } from 'pinia'
 import { useRegionStore } from '@/stores/region'
 import { useIpTypeStore } from '@/stores/ipType'
 import { IP_TYPE_CODE_LABELS } from '@/api/system/ip-type'
-import type { SystemRegion } from '@/api/system/region'
 import { pageTradePlan, type TradePlan } from '@/api/trade/plan'
-import { countActiveSubByPlan } from '@/api/trade/subscription'
+import { compactCount } from '@/utils/format'
 import RegionFlag from '@/components/RegionFlag.vue'
 import PlanEditDialog from './PlanEditDialog.vue'
 
@@ -50,49 +48,49 @@ const pageSize = ref(9)
 const keyword = ref('')
 const filterEnabled = ref<number | undefined>(undefined)
 
-/** planId → 活跃订阅数 (一次拉全量, 卡片合并展示). */
-const subCountMap = ref<Record<string, number>>({})
-
 const createOpen = ref(false)
 
-// ===== 左侧区域树 (国家 → 城市) =====
-const selectedRegionKeys = ref<string[]>(['all'])
-const selectedRegionCodes = ref<string[]>([])
+// ===== 左侧区域 (国家 → 城市): 默认全展开, 点国家展开+筛该国, 点城市筛单城 =====
+interface RegionCountry {
+  code: string
+  name: string
+  flag?: string
+  cities: { code: string; label: string }[]
+}
 
-const regionTree = computed<TreeOption[]>(() => {
-  const groups = new Map<string, { name: string; flag?: string; cities: SystemRegion[] }>()
+const selectedRegionCodes = ref<string[]>([])
+const activeRegionKey = ref('all') // 'all' | country:XX | region:XX, 仅用于高亮
+const collapsedCountries = ref<Record<string, boolean>>({}) // 默认空 = 全部展开
+
+const regionGroups = computed<RegionCountry[]>(() => {
+  const groups = new Map<string, RegionCountry>()
   for (const r of regionList.value) {
     if (!groups.has(r.countryCode)) {
-      groups.set(r.countryCode, { name: r.countryName, flag: r.flagEmoji, cities: [] })
+      groups.set(r.countryCode, { code: r.countryCode, name: r.countryName, flag: r.flagEmoji, cities: [] })
     }
-    groups.get(r.countryCode)!.cities.push(r)
+    groups.get(r.countryCode)!.cities.push({ code: r.code, label: r.city || r.displayName || r.code })
   }
-  const nodes: TreeOption[] = [{ key: 'all', label: '全部区域' }]
-  for (const [cc, g] of groups) {
-    nodes.push({
-      key: `country:${cc}`,
-      label: (g.flag ? g.flag + ' ' : '') + g.name,
-      children: g.cities.map((c) => ({ key: `region:${c.code}`, label: c.city || c.displayName || c.code }))
-    })
-  }
-  return nodes
+  return [...groups.values()]
 })
 
-/** 树选中: all=清空; country:xx=该国全部城市码; region:xx=单个城市码. */
-function onRegionSelect(keys: Array<string | number>) {
-  const arr = keys.map(String)
-  selectedRegionKeys.value = arr
-  const k = arr[0]
-  if (!k || k === 'all') {
-    selectedRegionCodes.value = []
-  } else if (k.startsWith('country:')) {
-    const cc = k.slice('country:'.length)
-    selectedRegionCodes.value = regionList.value.filter((r) => r.countryCode === cc).map((r) => r.code)
-  } else if (k.startsWith('region:')) {
-    selectedRegionCodes.value = [k.slice('region:'.length)]
-  }
+function applyRegion(key: string, codes: string[]) {
+  activeRegionKey.value = key
+  selectedRegionCodes.value = codes
   pageNo.value = 1
   load()
+}
+function selectAllRegions() {
+  applyRegion('all', [])
+}
+function onCountryClick(c: RegionCountry) {
+  collapsedCountries.value[c.code] = false // 点国家即展开
+  applyRegion(`country:${c.code}`, c.cities.map((x) => x.code))
+}
+function onCityClick(code: string) {
+  applyRegion(`region:${code}`, [code])
+}
+function toggleCountry(code: string) {
+  collapsedCountries.value[code] = !collapsedCountries.value[code]
 }
 
 const enabledOptions = [
@@ -104,19 +102,15 @@ const enabledOptions = [
 async function load() {
   loading.value = true
   try {
-    const [page, counts] = await Promise.all([
-      pageTradePlan({
-        pageNo: pageNo.value,
-        pageSize: pageSize.value,
-        keyword: keyword.value.trim() || undefined,
-        enabled: filterEnabled.value,
-        regionCodes: selectedRegionCodes.value.length ? selectedRegionCodes.value : undefined
-      }),
-      countActiveSubByPlan().catch(() => ({} as Record<string, number>))
-    ])
+    const page = await pageTradePlan({
+      pageNo: pageNo.value,
+      pageSize: pageSize.value,
+      keyword: keyword.value.trim() || undefined,
+      enabled: filterEnabled.value,
+      regionCodes: selectedRegionCodes.value.length ? selectedRegionCodes.value : undefined
+    })
     list.value = page.records
     total.value = page.total
-    subCountMap.value = counts
   } catch {
     /* request 拦截器 toast */
   } finally {
@@ -136,7 +130,7 @@ function onSearch() {
 function doReset() {
   keyword.value = ''
   filterEnabled.value = undefined
-  selectedRegionKeys.value = ['all']
+  activeRegionKey.value = 'all'
   selectedRegionCodes.value = []
   pageNo.value = 1
   load()
@@ -197,19 +191,46 @@ function onCreated() {
 
 <template>
   <div class="plan-layout">
-    <!-- ============ 左侧区域树 (国家 → 城市) ============ -->
+    <!-- ============ 左侧区域 (国家 → 城市) ============ -->
     <aside class="region-aside">
-      <div class="region-aside-head">
-        <NIcon :size="15"><Globe /></NIcon>
+      <div class="region-head">
+        <NIcon :size="14"><Globe /></NIcon>
         <span>区域</span>
       </div>
-      <NTree
-        block-line
-        :data="regionTree"
-        :selected-keys="selectedRegionKeys"
-        selectable
-        @update:selected-keys="onRegionSelect"
-      />
+      <div class="region-list">
+        <div class="r-row r-all" :class="{ 'r-active': activeRegionKey === 'all' }" @click="selectAllRegions">
+          全部区域
+        </div>
+        <div v-for="c in regionGroups" :key="c.code" class="r-group">
+          <div
+            class="r-row r-country"
+            :class="{ 'r-active': activeRegionKey === `country:${c.code}` }"
+            @click="onCountryClick(c)"
+          >
+            <span
+              class="r-chevron"
+              :class="{ 'r-collapsed': collapsedCountries[c.code] }"
+              @click.stop="toggleCountry(c.code)"
+            >
+              <NIcon :size="13"><ChevronDown /></NIcon>
+            </span>
+            <span class="r-flag">{{ c.flag || '🏳️' }}</span>
+            <span class="r-name">{{ c.name }}</span>
+            <span class="r-count">{{ c.cities.length }}</span>
+          </div>
+          <div v-show="!collapsedCountries[c.code]" class="r-cities">
+            <div
+              v-for="city in c.cities"
+              :key="city.code"
+              class="r-row r-city"
+              :class="{ 'r-active': activeRegionKey === `region:${city.code}` }"
+              @click="onCityClick(city.code)"
+            >
+              {{ city.label }}
+            </div>
+          </div>
+        </div>
+      </div>
     </aside>
 
     <div class="overview-wrap space-y-4">
@@ -307,7 +328,7 @@ function onCreated() {
               :title="regionLabel(p)"
             />
             <NIcon v-else class="pc-name-icon"><Package :size="16" /></NIcon>
-            <span class="pc-name-text truncate">{{ p.name }}</span>
+            <span class="pc-name-text">{{ p.name }}</span>
           </div>
           <div class="pc-code truncate" :title="p.code">{{ p.code }}</div>
 
@@ -330,12 +351,12 @@ function onCreated() {
               <span class="pc-spec-v">{{ ipTypeLabel(p) }}</span>
             </div>
             <div class="pc-spec">
-              <span class="pc-spec-k"><Database :size="13" />月流量</span>
-              <span class="pc-spec-v">{{ p.trafficGb }} GB</span>
-            </div>
-            <div class="pc-spec">
               <span class="pc-spec-k"><Zap :size="13" />带宽</span>
               <span class="pc-spec-v">{{ p.bandwidthMbps }} Mbps</span>
+            </div>
+            <div class="pc-spec">
+              <span class="pc-spec-k"><Database :size="13" />月流量</span>
+              <span class="pc-spec-v">{{ p.trafficGb }} GB</span>
             </div>
           </div>
 
@@ -345,12 +366,12 @@ function onCreated() {
           <div class="pc-foot">
             <div class="pc-foot-row">
               <span class="pc-foot-k"><Users :size="13" />订阅会员</span>
-              <span class="pc-foot-v">{{ subCountMap[p.id] ?? 0 }} 人</span>
+              <span class="pc-foot-v">{{ compactCount(p.activeSubCount) }} 人</span>
             </div>
             <div class="pc-foot-row">
               <span class="pc-foot-k"><Gauge :size="13" />落地机容量</span>
               <span class="pc-foot-v" :class="{ 'pc-danger': (p.capacityAvailable ?? 0) <= 0 }">
-                剩 {{ p.capacityAvailable ?? 0 }} / 总 {{ p.capacityTotal ?? 0 }}
+                剩 {{ compactCount(p.capacityAvailable) }} / 总 {{ compactCount(p.capacityTotal) }}
               </span>
             </div>
             <NProgress
@@ -388,38 +409,122 @@ function onCreated() {
   display: flex;
   align-items: flex-start;
   gap: 16px;
-  max-width: 1280px;
-  margin: 0 auto;
 }
 .overview-wrap {
   flex: 1;
   min-width: 0;
 }
 
-/* 左侧区域树面板 */
+/* 左侧区域面板 */
 .region-aside {
-  width: 208px;
+  width: 216px;
   flex-shrink: 0;
-  position: sticky;
-  top: 12px;
-  max-height: calc(100vh - 88px);
-  overflow: auto;
-  padding: 10px 6px 12px;
-  background: rgba(127, 127, 127, 0.03);
-  border: 1px solid rgba(127, 127, 127, 0.1);
-  border-radius: 8px;
+  align-self: stretch; /* 与右侧内容等高, 顶部对齐 */
+  overflow-y: auto;
+  scrollbar-gutter: stable; /* 滚动条出现不挤压内容, 避免展开时横向抖动 */
+  padding: 8px;
+  background: var(--card-color, #fff);
+  border: 1px solid rgba(127, 127, 127, 0.12);
+  border-radius: 10px;
 }
-.region-aside-head {
+html[data-theme='dark'] .region-aside {
+  background: #1f1f23;
+}
+.region-head {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
   color: var(--nook-fg-muted);
-  padding: 2px 6px 8px;
+  padding: 4px 8px 8px;
 }
-.region-aside-head :deep(svg) {
+.region-head :deep(svg) {
   color: var(--nook-fg-faint);
+}
+.region-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* 行通用 */
+.r-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--nook-fg);
+  user-select: none;
+  transition: background 0.12s ease;
+}
+.r-row:hover {
+  background: rgba(127, 127, 127, 0.08);
+}
+.r-active,
+.r-active:hover {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--nook-accent);
+  font-weight: 600;
+}
+.r-all {
+  font-weight: 500;
+}
+.r-country {
+  font-weight: 500;
+}
+.r-chevron {
+  display: inline-flex;
+  color: var(--nook-fg-faint);
+  border-radius: 4px;
+  transition: transform 0.15s ease;
+}
+.r-chevron:hover {
+  background: rgba(127, 127, 127, 0.15);
+}
+.r-chevron.r-collapsed {
+  transform: rotate(-90deg);
+}
+.r-flag {
+  font-size: 14px;
+  line-height: 1;
+}
+.r-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.r-count {
+  font-size: 11px;
+  color: var(--nook-fg-faint);
+  background: rgba(127, 127, 127, 0.1);
+  border-radius: 999px;
+  padding: 0 6px;
+  min-width: 18px;
+  text-align: center;
+}
+.r-active .r-count {
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--nook-accent);
+}
+.r-cities {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.r-city {
+  padding-left: 30px;
+  font-size: 12.5px;
+  color: var(--nook-fg-muted);
+}
+.r-city.r-active {
+  color: var(--nook-accent);
 }
 .page-header {
   background: linear-gradient(180deg, rgba(99, 102, 241, 0.03), transparent);
@@ -493,16 +598,18 @@ function onCreated() {
 }
 
 /* 卡片网格: 竖向 (portrait) 卡片 */
+/* 卡片网格: 固定宽 + 靠左排 (从左铺, 自适应换行) */
 .plan-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(244px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, 290px);
+  justify-content: start;
+  gap: 16px;
 }
 .plan-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 16px 16px 14px;
+  padding: 18px 18px 16px;
   background: var(--card-color, #fff);
   border: 1px solid rgba(127, 127, 127, 0.15);
   border-radius: 12px;
@@ -554,18 +661,24 @@ html[data-theme='dark'] .pc-status-on {
 /* 套餐名 (独占一行) */
 .pc-name {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 7px;
-  padding-right: 56px;
+  padding-right: 60px;
   min-width: 0;
 }
 .pc-name-icon {
   color: var(--nook-accent);
+  margin-top: 1px;
 }
 .pc-name-text {
-  font-size: 15px;
+  font-size: 15.5px;
   font-weight: 600;
+  line-height: 1.3;
   color: var(--nook-fg);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .pc-code {
   font-size: 11px;
@@ -580,7 +693,7 @@ html[data-theme='dark'] .pc-status-on {
   align-items: baseline;
   gap: 2px;
   margin-top: 12px;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   line-height: 1.1;
   color: var(--nook-fg);
@@ -607,7 +720,7 @@ html[data-theme='dark'] .pc-status-on {
 .pc-specs {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 11px;
 }
 .pc-spec {
   display: flex;
@@ -625,7 +738,7 @@ html[data-theme='dark'] .pc-status-on {
   color: var(--nook-fg-faint);
 }
 .pc-spec-v {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--nook-fg);
 }
@@ -654,6 +767,7 @@ html[data-theme='dark'] .pc-status-on {
   font-size: 13px;
   font-weight: 600;
   color: var(--nook-fg);
+  white-space: nowrap;
 }
 .pc-danger {
   color: #dc2626;

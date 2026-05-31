@@ -19,7 +19,9 @@ import {
   ScrollText,
   History,
   SlidersHorizontal,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Settings2,
+  MapPin
 } from 'lucide-vue-next'
 import {
   NAvatar,
@@ -61,6 +63,14 @@ const menuOptions: MenuOption[] = [
     icon: icon(Settings),
     children: [
       { key: '/system/users', label: routerLabel('/system/users', '系统用户'), icon: icon(UserCog) }
+    ]
+  },
+  {
+    key: 'config-group',
+    label: '系统配置',
+    icon: icon(Settings2),
+    children: [
+      { key: '/system/regions', label: routerLabel('/system/regions', '区域'), icon: icon(MapPin) }
     ]
   },
   {

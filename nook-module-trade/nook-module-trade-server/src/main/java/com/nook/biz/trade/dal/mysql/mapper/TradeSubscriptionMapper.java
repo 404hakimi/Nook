@@ -5,11 +5,15 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 订阅 Mapper
@@ -37,6 +41,21 @@ public interface TradeSubscriptionMapper extends BaseMapper<TradeSubscriptionDO>
         return selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()
                 .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState())
                 .lt(TradeSubscriptionDO::getExpiresAt, now));
+    }
+
+    /** 批量统计指定套餐的生效中订阅数 (仅本页 planIds, 不全量扫). */
+    default Map<String, Integer> countActiveByPlanIds(Collection<String> planIds) {
+        if (CollUtil.isEmpty(planIds)) {
+            return new HashMap<>();
+        }
+        Map<String, Integer> counts = new HashMap<>();
+        for (TradeSubscriptionDO sub : selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()
+                .select(TradeSubscriptionDO::getPlanId)
+                .in(TradeSubscriptionDO::getPlanId, planIds)
+                .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState()))) {
+            counts.merge(sub.getPlanId(), 1, Integer::sum);
+        }
+        return counts;
     }
 
     /** 某套餐是否还有生效中订阅. */

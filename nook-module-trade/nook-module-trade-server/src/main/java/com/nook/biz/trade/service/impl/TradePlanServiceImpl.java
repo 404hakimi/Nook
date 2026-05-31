@@ -13,8 +13,10 @@ import com.nook.biz.trade.controller.vo.TradePlanUpdateReqVO;
 import com.nook.biz.trade.convert.TradePlanConvert;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
+import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import com.nook.biz.trade.service.TradePlanService;
 import com.nook.biz.trade.validator.TradePlanValidator;
+import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,8 @@ public class TradePlanServiceImpl implements TradePlanService {
     private TradePlanValidator planValidator;
     @Resource
     private ResourceServerLandingApi landingApi;
+    @Resource
+    private TradeSubscriptionMapper subMapper;
 
     @Override
     public PageResult<TradePlanRespVO> getPlanPage(TradePlanPageReqVO req) {
@@ -46,7 +50,9 @@ public class TradePlanServiceImpl implements TradePlanService {
         // 容量(可售/已售)不在套餐表上, 落地机池属 node 域: 按套餐规格跨模块批量算, 再拼进 VO
         List<PlanSpecDTO> specs = TradePlanConvert.INSTANCE.toSpecs(plans.getRecords());
         Map<String, PlanCapacityDTO> capMap = landingApi.countCapacityForPlans(specs);
-        return TradePlanConvert.INSTANCE.convertPage(plans, capMap);
+        Map<String, Integer> subCountMap = subMapper.countActiveByPlanIds(
+                CollectionUtils.convertSet(plans.getRecords(), TradePlanDO::getId));
+        return TradePlanConvert.INSTANCE.convertPage(plans, capMap, subCountMap);
     }
 
     @Override

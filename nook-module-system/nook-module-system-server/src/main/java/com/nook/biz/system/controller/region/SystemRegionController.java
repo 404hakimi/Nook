@@ -1,13 +1,18 @@
 package com.nook.biz.system.controller.region;
 
 import com.nook.biz.system.controller.region.vo.SystemRegionRespVO;
+import com.nook.biz.system.controller.region.vo.SystemRegionSaveReqVO;
 import com.nook.biz.system.dal.dataobject.region.SystemRegionDO;
 import com.nook.biz.system.service.region.SystemRegionService;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.Result;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,5 +54,25 @@ public class SystemRegionController {
                                                   @RequestParam(required = false) Integer enabled) {
         List<SystemRegionDO> list = systemRegionService.list(keyword, enabled);
         return Result.ok(CollectionUtils.convertList(list, e -> BeanUtils.toBean(e, SystemRegionRespVO.class)));
+    }
+
+    /** 新增区域 */
+    @PostMapping("/create-region")
+    public Result<String> create(@Valid @RequestBody SystemRegionSaveReqVO reqVO) {
+        return Result.ok(systemRegionService.create(reqVO));
+    }
+
+    /** 编辑区域（区域码不可改） */
+    @PutMapping("/update-region")
+    public Result<Boolean> update(@Valid @RequestBody SystemRegionSaveReqVO reqVO) {
+        systemRegionService.update(reqVO);
+        return Result.ok(true);
+    }
+
+    /** 启用 / 停用区域 */
+    @PostMapping("/update-region-enabled")
+    public Result<Boolean> toggleEnabled(@RequestParam String code, @RequestParam boolean enabled) {
+        systemRegionService.toggleEnabled(code, enabled);
+        return Result.ok(true);
     }
 }

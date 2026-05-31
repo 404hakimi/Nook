@@ -25,6 +25,9 @@ public enum SystemErrorCode implements ErrorCode {
     INVALID_ROLE(2009, "无效的角色: %s"),
 
     IP_TYPE_NOT_FOUND(2101, "IP 类型 %s 不存在"),
+
+    REGION_NOT_FOUND(2110, "区域 %s 不存在"),
+    REGION_CODE_EXISTS(2111, "区域码 %s 已存在"),
     ;
 
     private final int code;

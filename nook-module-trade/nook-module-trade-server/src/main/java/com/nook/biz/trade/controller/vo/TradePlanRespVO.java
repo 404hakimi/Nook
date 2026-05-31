@@ -49,4 +49,7 @@ public class TradePlanRespVO {
 
     /** 已售 (LIVE + OCCUPIED). */
     private Integer capacityOccupied;
+
+    /** 活跃订阅数. */
+    private Integer activeSubCount;
 }

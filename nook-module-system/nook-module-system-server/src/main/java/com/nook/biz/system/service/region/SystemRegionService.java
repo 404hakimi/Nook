@@ -1,5 +1,6 @@
 package com.nook.biz.system.service.region;
 
+import com.nook.biz.system.controller.region.vo.SystemRegionSaveReqVO;
 import com.nook.biz.system.dal.dataobject.region.SystemRegionDO;
 
 import java.util.Collection;
@@ -12,6 +13,29 @@ import java.util.Map;
  * @author nook
  */
 public interface SystemRegionService {
+
+    /**
+     * 新增区域
+     *
+     * @param req 区域信息
+     * @return 区域码
+     */
+    String create(SystemRegionSaveReqVO req);
+
+    /**
+     * 编辑区域 (区域码不可改)
+     *
+     * @param req 区域信息
+     */
+    void update(SystemRegionSaveReqVO req);
+
+    /**
+     * 启用 / 停用区域
+     *
+     * @param code    区域码
+     * @param enabled 是否启用
+     */
+    void toggleEnabled(String code, boolean enabled);
 
     /**
      * 获得已启用区域列表

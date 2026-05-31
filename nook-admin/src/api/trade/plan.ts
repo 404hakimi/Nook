@@ -22,6 +22,8 @@ export interface TradePlan {
   capacityTotal?: number
   capacityAvailable?: number
   capacityOccupied?: number
+  /** 活跃订阅数 (后端随分页返回). */
+  activeSubCount?: number
 }
 
 /** 套餐 创建/更新 入参; 更新时仅 name/remark 生效. */

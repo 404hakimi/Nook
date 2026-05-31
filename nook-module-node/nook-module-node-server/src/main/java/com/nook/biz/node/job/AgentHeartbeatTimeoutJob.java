@@ -6,6 +6,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
+import com.nook.common.utils.collection.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Agent 心跳超时判定 Job
@@ -40,10 +42,16 @@ public class AgentHeartbeatTimeoutJob {
                         .eq(ResourceServerDO::getDeleted, 0));
         if (servers == null || servers.isEmpty()) return;
 
+        // 批量取 runtime, 避免循环内逐台 selectById 的 N+1 (大规模下每分钟上千次往返)
+        Map<String, ResourceServerRuntimeDO> rtMap = CollectionUtils.convertMap(
+                resourceServerRuntimeMapper.selectBatchIds(
+                        CollectionUtils.convertList(servers, ResourceServerDO::getId)),
+                ResourceServerRuntimeDO::getServerId);
+
         LocalDateTime now = LocalDateTime.now();
         int warn = 0, tempUnhealthy = 0, failover = 0;
         for (ResourceServerDO srv : servers) {
-            ResourceServerRuntimeDO rt = resourceServerRuntimeMapper.selectById(srv.getId());
+            ResourceServerRuntimeDO rt = rtMap.get(srv.getId());
             if (rt == null || rt.getLastHeartbeatAt() == null) {
                 log.warn("[check] serverId={} 无 runtime 行或未收到首次心跳", srv.getId());
                 continue;

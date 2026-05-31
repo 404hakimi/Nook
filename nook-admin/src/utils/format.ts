@@ -11,6 +11,14 @@ export function formatBytes(bytes?: number | null, fractionDigits = 2): string {
   return `${value.toFixed(i === 0 ? 0 : fractionDigits)} ${units[i]}`
 }
 
+/** 大数紧凑展示: <1万原样, ≥1万显示 x.x万 (落地机/订阅等计数用, 避免长数字撑破布局). */
+export function compactCount(n?: number | null): string {
+  const v = n ?? 0
+  if (v < 10000) return String(v)
+  const w = v / 10000
+  return (Number.isInteger(w) ? w.toFixed(0) : w.toFixed(1)) + '万'
+}
+
 const BYTES_PER_GB = 1024 ** 3
 
 /** 已用字节占总配额(GB)的百分比, 上限 100; 总配额为 0/空视为不限返 0. */

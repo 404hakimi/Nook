@@ -26,6 +26,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '系统用户' }
       },
       {
+        path: 'system/regions',
+        name: 'system-regions',
+        component: () => import('@/views/system/RegionList.vue'),
+        meta: { title: '区域管理' }
+      },
+      {
         path: 'member/accounts',
         name: 'member-accounts',
         component: () => import('@/views/member/AccountList.vue'),
