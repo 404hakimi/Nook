@@ -125,4 +125,14 @@ public class ResourceServerLandingValidator {
                     ipAddress, bound.getMemberUserId());
         }
     }
+
+    /**
+     * 是否仍有 xray_client 绑定该落地节点
+     *
+     * @param serverId 落地节点编号
+     * @return 有客户端绑定返回 true
+     */
+    public boolean hasBoundClient(String serverId) {
+        return xrayClientMapper.selectByIpId(serverId) != null;
+    }
 }

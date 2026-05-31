@@ -84,10 +84,10 @@ async function onSubmit() {
   >
     <NSpin :show="loading">
       <NAlert v-if="lifecycleState === 'LIVE'" type="warning" :show-icon="false" size="small" class="mb-3">
-        线路机处于 LIVE 状态, 修改 domain 会导致用户连接断开; 改前请确认。
+        线路机处于 LIVE 状态, 修改域名会导致用户连接断开; 改前请确认。
       </NAlert>
       <NAlert v-else-if="!form.domain" type="info" :show-icon="false" size="small" class="mb-3">
-        LIVE 上线前需填 domain (用户连接的子域名).
+        上线前需填域名 (用户连接的子域名).
       </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <NFormItem label="线路机域名">

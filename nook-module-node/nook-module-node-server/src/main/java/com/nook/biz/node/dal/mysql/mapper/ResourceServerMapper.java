@@ -117,7 +117,19 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .eq(ResourceServerDO::getRegion, oldRegion));
     }
 
-    /** 切换 lifecycle_state; 显式 set updated_at. */
+    /** 列表 (不分页; 落地机按账单到期内存排序用). 过滤同 selectPageByQuery, 去分页与排序. */
+    default List<ResourceServerDO> selectListByQuery(String name, String lifecycleState,
+                                                     Collection<String> regionCodes,
+                                                     Collection<String> idIn, String serverType) {
+        return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(StrUtil.isNotBlank(serverType), ResourceServerDO::getServerType, serverType)
+                .eq(StrUtil.isNotBlank(lifecycleState), ResourceServerDO::getLifecycleState, lifecycleState)
+                .in(CollUtil.isNotEmpty(regionCodes), ResourceServerDO::getRegion, regionCodes)
+                .like(StrUtil.isNotBlank(name), ResourceServerDO::getName, name)
+                .in(idIn != null, ResourceServerDO::getId, idIn));
+    }
+
+    /** 切换生命周期; Wrapper 更新须显式 set updated_at. */
     default int updateLifecycleState(String id, String newState) {
         return update(null, Wrappers.<ResourceServerDO>lambdaUpdate()
                 .set(ResourceServerDO::getLifecycleState, newState)

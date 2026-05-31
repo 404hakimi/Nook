@@ -1,5 +1,6 @@
 import request from '@/api/request'
 import { useUserStore } from '@/stores/user'
+import type { AgentOnlineState } from '@/api/resource/server'
 
 /**
  * 落地机 (SOCKS5 落地节点): server_type='landing' 的 resource_server 行 + resource_server_landing 子表.
@@ -29,6 +30,12 @@ export interface ServerLanding {
   coolingUntil?: string
   reservedExpiresAt?: string
   lastHeartbeatAt?: string
+  /** agent 上报版本 (形如 landing-0.8.2); null = 未上报. */
+  agentVersion?: string
+  /** 在线状态 (与线路机同一判定); 空视为 NEVER. */
+  onlineState?: AgentOnlineState
+  /** 距上次心跳秒数; null = 从未上报. */
+  elapsedSec?: number
   /** 部署模式: 1=自部署 2=第三方. */
   provisionMode?: number
   /** dante 日志关键字组合 (空格分隔); 例 'connect disconnect error'. */
@@ -43,6 +50,8 @@ export interface ServerLanding {
   installDir?: string
   /** 装机完成时间 (install 子表 installed_at; null = 未装机) */
   installedAt?: string
+  /** dante 探测版本 (sockd -v); null = 未装. */
+  danteVersion?: string
   /** landing agent 鉴权 token (装机时自动生成; mask 展示) */
   agentToken?: string
   // SSH 主机 = ipAddress (canonical); 不再单独维护 sshHost

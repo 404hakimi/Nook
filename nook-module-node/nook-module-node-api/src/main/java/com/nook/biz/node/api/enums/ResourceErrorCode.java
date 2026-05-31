@@ -18,7 +18,7 @@ public enum ResourceErrorCode implements ErrorCode {
     SERVER_HOST_DUPLICATE(5003, "服务器主机 %s 已存在"),
     SERVER_DOMAIN_DUPLICATE(5004, "服务器域名 %s 已被占用"),
     SERVER_LIFECYCLE_INVALID_TRANSITION(5005, "服务器生命周期不允许 %s → %s"),
-    SERVER_LIVE_DOMAIN_REQUIRED(5006, "上线 LIVE 前必须先填 domain"),
+    SERVER_LIVE_DOMAIN_REQUIRED(5006, "上线前必须先填域名"),
     SERVER_SSH_LOCKED_AFTER_LIVE(5007, "lifecycle=LIVE 后 host/port 不可改 (需先退到 READY)"),
 
     LANDING_NOT_FOUND(5102, "落地节点 %s 不存在"),
@@ -26,7 +26,7 @@ public enum ResourceErrorCode implements ErrorCode {
     LANDING_SSH_CRED_MISSING(5104, "落地节点 %s 缺 SSH 凭据"),
     LANDING_IP_DUPLICATE(5105, "落地节点 IP %s 已存在"),
     LANDING_HAS_BOUND_CLIENT(5106, "落地节点 %s 仍被客户端 %s 占用, 请先吊销该客户端再删除"),
-    LANDING_IN_USE_CANNOT_RETIRE(5107, "落地机正在被占用, 不能停用; 请先释放占用它的会员订阅"),
+    LANDING_IN_USE_CANNOT_RETIRE(5107, "落地机仍被客户端占用, 不能停用; 请先释放占用它的订阅 / 客户端"),
     ;
 
     private final int code;

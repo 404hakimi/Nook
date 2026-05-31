@@ -403,7 +403,7 @@ onMounted(async () => {
               </span>
               <span
                 class="status-pill"
-                :class="`pill-${parseAgentVersion(s.agentVersion) ? 'default' : 'warning'}`"
+                :class="`pill-${parseAgentVersion(s.agentVersion) ? 'success' : 'default'}`"
                 :title="parseAgentVersion(s.agentVersion) ? 'Agent 已安装' : '未装 Agent (进 Agent tab 安装)'"
               >
                 <NIcon class="pill-icon"><Cpu :size="11" /></NIcon>
@@ -414,7 +414,7 @@ onMounted(async () => {
               </span>
               <span
                 class="status-pill"
-                :class="`pill-${s.xrayVersion ? 'default' : 'warning'}`"
+                :class="`pill-${s.xrayVersion ? 'success' : 'default'}`"
                 :title="s.xrayVersion ? 'Xray 已安装' : '未装 Xray (进 Xray tab 安装)'"
               >
                 <NIcon class="pill-icon"><ServerCog :size="11" /></NIcon>

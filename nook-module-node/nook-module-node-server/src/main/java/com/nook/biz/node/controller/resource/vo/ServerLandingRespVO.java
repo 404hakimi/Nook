@@ -74,6 +74,9 @@ public class ServerLandingRespVO {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime installedAt;
 
+    /** dante 探测版本 (sockd -v); null = 未装. */
+    private String danteVersion;
+
     /** agent 鉴权 token; 装机时一次性签发. */
     private String agentToken;
 
@@ -100,6 +103,15 @@ public class ServerLandingRespVO {
     // ===== runtime 子表 =====
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastHeartbeatAt;
+
+    /** agent 上报版本 (形如 landing-0.8.2); null = 未上报. */
+    private String agentVersion;
+
+    /** 在线状态 {@link com.nook.biz.agent.api.enums.AgentOnlineState} (与线路机同一判定). */
+    private String onlineState;
+
+    /** 距上次心跳秒数; null = 从未上报. */
+    private Long elapsedSec;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;

@@ -3,6 +3,7 @@ package com.nook.biz.node.convert.resource;
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingInstallRespVO;
+import com.nook.biz.agent.api.enums.AgentOnlineState;
 import com.nook.biz.node.controller.resource.vo.ServerLandingRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5RespVO;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
@@ -16,6 +17,8 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +105,7 @@ public interface ResourceServerLandingConvert {
         vo.setFirewallEnabled(landing.getFirewallEnabled());
         vo.setInstallDir(landing.getInstallDir());
         vo.setInstalledAt(landing.getInstalledAt());
+        vo.setDanteVersion(landing.getDanteVersion());
     }
 
     static void enrichBilling(ServerLandingRespVO vo, ResourceServerBillingDO bill) {
@@ -123,7 +127,17 @@ public interface ResourceServerLandingConvert {
     }
 
     static void enrichRuntime(ServerLandingRespVO vo, ResourceServerRuntimeDO runtime) {
-        if (vo == null || runtime == null) return;
-        vo.setLastHeartbeatAt(runtime.getLastHeartbeatAt());
+        if (vo == null) return;
+        LocalDateTime lastHeartbeatAt = runtime == null ? null : runtime.getLastHeartbeatAt();
+        Integer tempUnhealthy = runtime == null ? null : runtime.getTempUnhealthy();
+        vo.setLastHeartbeatAt(lastHeartbeatAt);
+        if (runtime != null) {
+            vo.setAgentVersion(runtime.getAgentVersion());
+        }
+        Long elapsedSec = lastHeartbeatAt == null ? null
+                : Duration.between(lastHeartbeatAt, LocalDateTime.now()).getSeconds();
+        vo.setElapsedSec(elapsedSec);
+        // 在线状态复用线路机同一套判定 (心跳延迟 + temp_unhealthy 阈值 60/180/300s)
+        vo.setOnlineState(AgentOnlineState.classify(elapsedSec, tempUnhealthy).name());
     }
 }

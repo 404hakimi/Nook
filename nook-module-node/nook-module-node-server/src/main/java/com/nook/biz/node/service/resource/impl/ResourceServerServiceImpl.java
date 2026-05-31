@@ -4,9 +4,6 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.agent.api.AgentTokenApi;
-import com.nook.biz.node.api.enums.ResourceErrorCode;
-import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
-import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
@@ -15,10 +12,8 @@ import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.event.ServerCredentialChangedEvent;
@@ -29,9 +24,9 @@ import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
+import com.nook.biz.node.validator.ServerLifecycleValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
-import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +38,6 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 资源服务器 Service 实现类
@@ -59,10 +53,10 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     private final ResourceServerMapper resourceServerMapper;
     private final ResourceServerCapacityMapper resourceServerCapacityMapper;
     private final ResourceServerRuntimeMapper resourceServerRuntimeMapper;
-    private final ResourceServerFrontlineMapper frontlineMapper;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ResourceServerValidator serverValidator;
     private final ResourceServerLandingValidator landingValidator;
+    private final ServerLifecycleValidator lifecycleValidator;
     private final ResourceServerCredentialService credentialService;
     private final ResourceServerBillingService billingService;
     private final ResourceServerFrontlineService frontlineService;
@@ -192,47 +186,15 @@ public class ResourceServerServiceImpl implements ResourceServerService {
                 ResourceServerDO::getIpAddress);
     }
 
-    // 允许的双向流转表; 命名按 from→to, 没列出的组合都拒
-    private static final Set<String> ALLOWED_LIFECYCLE_TRANSITIONS = Set.of(
-            "INSTALLING→READY", "READY→INSTALLING",
-            "READY→LIVE", "LIVE→READY",
-            "LIVE→RETIRED", "READY→RETIRED",
-            "RETIRED→LIVE"
-    );
-
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void transitionLifecycle(String id, String newState) {
         ResourceServerDO srv = serverValidator.validateExists(id);
-        if (ResourceServerLifecycleEnum.fromState(newState) == null) {
-            throw new BusinessException(ResourceErrorCode.SERVER_LIFECYCLE_INVALID_TRANSITION,
-                    srv.getLifecycleState(), newState);
-        }
         if (StrUtil.equals(srv.getLifecycleState(), newState)) {
             return;
         }
-        String key = srv.getLifecycleState() + "→" + newState;
-        if (!ALLOWED_LIFECYCLE_TRANSITIONS.contains(key)) {
-            throw new BusinessException(ResourceErrorCode.SERVER_LIFECYCLE_INVALID_TRANSITION,
-                    srv.getLifecycleState(), newState);
-        }
-        // LIVE 前置: 仅线路机(frontline)需 domain; 落地机(SOCKS5)无 domain 概念, 跳过
-        if (ResourceServerLifecycleEnum.LIVE.matches(newState)
-                && ResourceServerTypeEnum.FRONTLINE.matches(srv.getServerType())) {
-            ResourceServerFrontlineDO frontline = frontlineMapper.selectById(id);
-            if (frontline == null || StrUtil.isBlank(frontline.getDomain())) {
-                throw new BusinessException(ResourceErrorCode.SERVER_LIVE_DOMAIN_REQUIRED);
-            }
-        }
-        // 停用(退役)前置: 占用中(OCCUPIED/RESERVED)的落地机不可停用, 否则会留下 RETIRED+占用矛盾态且打扰在用会员
-        if (ResourceServerLifecycleEnum.RETIRED.matches(newState)
-                && ResourceServerTypeEnum.LANDING.matches(srv.getServerType())) {
-            String landingStatus = landingService.getLanding(id).getStatus();
-            if (ResourceServerLandingStatusEnum.OCCUPIED.matches(landingStatus)
-                    || ResourceServerLandingStatusEnum.RESERVED.matches(landingStatus)) {
-                throw new BusinessException(ResourceErrorCode.LANDING_IN_USE_CANNOT_RETIRE);
-            }
-        }
+        // 转移表 + 各前置守卫 (域名必填 / 占用不可停 / 绑定客户端不可停) 统一收口到生命周期校验器
+        lifecycleValidator.validateTransition(srv, newState);
         resourceServerMapper.updateLifecycleState(id, newState);
         log.info("[server] LIFECYCLE id={} {} → {}", id, srv.getLifecycleState(), newState);
     }

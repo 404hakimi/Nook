@@ -2,8 +2,6 @@ package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerProvisionModeEnum;
@@ -42,9 +40,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -200,11 +200,33 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
                 return PageResult.empty();
             }
         }
-        IPage<ResourceServerDO> page = resourceServerMapper.selectPageByQuery(
-                Page.of(reqVO.getPageNo(), reqVO.getPageSize()),
+        // 全量拉落地机, 按账单到期升序 (无到期排末) → 快到期的靠前便于续费, 再内存分页 (小规模)
+        List<ResourceServerDO> all = resourceServerMapper.selectListByQuery(
                 reqVO.getKeyword(), reqVO.getLifecycleState(), reqVO.getRegionCodes(),
-                null, statusFilterIds, ResourceServerTypeEnum.LANDING.getState());
-        return PageResult.of(page.getTotal(), page.getRecords());
+                statusFilterIds, ResourceServerTypeEnum.LANDING.getState());
+        if (CollUtil.isEmpty(all)) {
+            return PageResult.empty();
+        }
+        Map<String, LocalDate> expiryMap = this.loadExpiryMap(all);
+        all.sort(Comparator
+                .comparing((ResourceServerDO s) -> expiryMap.get(s.getId()), Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(ResourceServerDO::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+        int total = all.size();
+        int from = Math.min((int) ((reqVO.getPageNo() - 1L) * reqVO.getPageSize()), total);
+        int to = Math.min(from + reqVO.getPageSize(), total);
+        return PageResult.of((long) total, new ArrayList<>(all.subList(from, to)));
+    }
+
+    /** 批量取落地机账单到期日 (内存排序用); key=serverId, 无到期的不入表. */
+    private Map<String, LocalDate> loadExpiryMap(List<ResourceServerDO> servers) {
+        Set<String> ids = CollectionUtils.convertSet(servers, ResourceServerDO::getId);
+        Map<String, LocalDate> map = new HashMap<>();
+        for (ResourceServerBillingDO bill : billingMapper.selectBatchIds(ids)) {
+            if (bill.getExpiresAt() != null) {
+                map.put(bill.getServerId(), bill.getExpiresAt());
+            }
+        }
+        return map;
     }
 
     @Override

@@ -2,10 +2,11 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
+  CalendarClock,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  CircleDashed,
+  Cpu,
   Database,
   Gauge,
   Globe2,
@@ -15,6 +16,7 @@ import {
   RefreshCcw,
   Rocket,
   Search,
+  ServerCog,
   Tag as TagIcon,
   Trash2,
   Users,
@@ -48,6 +50,7 @@ import {
   type ServerLandingSummary
 } from '@/api/resource/server-landing'
 import { transitionServerLifecycle } from '@/api/resource/server'
+import { AGENT_ONLINE_TAG_TYPE } from '@/api/agent/agent'
 import type { SystemRegion } from '@/api/system/region'
 import { IP_TYPE_CODE_LABELS, type SystemIpType } from '@/api/system/ip-type'
 import { useRegionStore } from '@/stores/region'
@@ -188,23 +191,64 @@ function statusTagType(status: string): 'success' | 'info' | 'warning' | 'defaul
 }
 
 type PillTone = 'success' | 'warning' | 'error' | 'default'
-/** 探活: 按 agent 上次心跳推算在线度 (心跳缺失越久越红). */
-function probeOf(ip: ServerLanding): { tone: PillTone; label: string } {
-  if (!ip.lastHeartbeatAt) return { tone: 'default', label: '未上报' }
-  const elapsed = (Date.now() - new Date(ip.lastHeartbeatAt).getTime()) / 1000
-  if (elapsed <= 90) return { tone: 'success', label: '在线' }
-  if (elapsed <= 300) return { tone: 'warning', label: '延迟' }
-  return { tone: 'error', label: '离线' }
+/** 在线状态短标签; 在线度配色复用线路机 AGENT_ONLINE_TAG_TYPE. */
+const ONLINE_SHORT: Record<string, string> = {
+  ONLINE: '在线', WARN: '延迟', TEMP_UNHEALTHY: '不健康', OFFLINE: '掉线', NEVER: '未上报'
 }
-/** 安装: 自部署看 dante 是否装完; 第三方无装机概念. */
-function installOf(ip: ServerLanding): { tone: PillTone; label: string; ok: boolean } {
-  if (ip.provisionMode === 2) return { tone: 'default', label: '第三方', ok: true }
-  return ip.installedAt
-    ? { tone: 'success', label: '已部署', ok: true }
-    : { tone: 'warning', label: '未部署', ok: false }
+/** 心跳延迟紧凑格式 (12s / 5m / 2h / 3d). */
+function fmtElapsed(sec?: number): string {
+  if (sec == null) return ''
+  if (sec < 60) return `${sec}s`
+  if (sec < 3600) return `${Math.floor(sec / 60)}m`
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h`
+  return `${Math.floor(sec / 86400)}d`
+}
+/** agent 版本剥角色前缀 (landing-0.8.2 → 0.8.2). */
+function agentVer(v?: string): string | null {
+  if (!v) return null
+  const m = /^(?:frontline|landing)-(.+)$/.exec(v)
+  return m ? m[1] : v
+}
+/** Agent 安装: 上报过版本即视为已装 (已装绿 / 未装灰). */
+function agentOf(ip: ServerLanding): { tone: PillTone; label: string } {
+  const v = agentVer(ip.agentVersion)
+  return v ? { tone: 'success', label: `Agent v${v}` } : { tone: 'default', label: 'Agent 未装' }
+}
+/** SOCKS5(dante) 安装: 第三方无装机概念; 自部署看 dante 版本 / 装机完成 (已装绿 / 未装灰). */
+function socksOf(ip: ServerLanding): { tone: PillTone; label: string } {
+  if (ip.provisionMode === 2) return { tone: 'default', label: '第三方' }
+  if (ip.danteVersion) return { tone: 'success', label: `SOCKS5 ${ip.danteVersion}` }
+  if (ip.installedAt) return { tone: 'success', label: 'SOCKS5 已装' }
+  return { tone: 'default', label: 'SOCKS5 未部署' }
+}
+
+/** 距到期天数; null = 无到期日. */
+function daysToExpiry(d?: string): number | null {
+  if (!d) return null
+  const t = new Date(`${d}T00:00:00`).getTime()
+  return Number.isNaN(t) ? null : Math.floor((t - Date.now()) / 86400000)
+}
+/** 到期紧急度配色: 已过期红 / 30 天内橙 / 其余常态. */
+function expiryTone(d?: string): 'error' | 'warning' | 'normal' {
+  const n = daysToExpiry(d)
+  if (n === null) return 'normal'
+  if (n < 0) return 'error'
+  if (n <= 30) return 'warning'
+  return 'normal'
+}
+function expiryTitle(d?: string): string {
+  const n = daysToExpiry(d)
+  if (n === null) return ''
+  if (n < 0) return `已过期 ${-n} 天, 请尽快续费`
+  if (n === 0) return '今天到期'
+  return `剩 ${n} 天到期`
 }
 
 // ===== lifecycle 流转 (admin 只暴露 2 项: 停用 / 启用; INSTALLING/READY 是装机内部态) =====
+/** 占用中 (已分配 / 预占): 在用, 不可停用. */
+function landingInUse(ip: ServerLanding): boolean {
+  return ip.status === 'OCCUPIED' || ip.status === 'RESERVED'
+}
 async function onSuspend(ip: ServerLanding) {
   // 占用 / 预占中不可停用 (后端同样拦截; 这里提前挡掉)
   if (ip.lifecycleState !== 'LIVE' || ip.status === 'OCCUPIED' || ip.status === 'RESERVED') return
@@ -474,6 +518,14 @@ onMounted(async () => {
               </span>
               <NTag v-if="ip.provisionMode === 2" size="tiny" round :bordered="false" class="lc-third">第三方</NTag>
               <span class="flex-1" />
+              <span
+                v-if="ip.expiresAt"
+                class="lc-expiry"
+                :class="`lc-expiry--${expiryTone(ip.expiresAt)}`"
+                :title="expiryTitle(ip.expiresAt)"
+              >
+                <NIcon :size="12"><CalendarClock /></NIcon>到期 {{ ip.expiresAt }}
+              </span>
               <NTag size="small" :type="SERVER_LANDING_LIFECYCLE_TAG_TYPE[ip.lifecycleState] || 'default'">
                 {{ SERVER_LANDING_LIFECYCLE_LABELS[ip.lifecycleState] || ip.lifecycleState }}
               </NTag>
@@ -490,17 +542,16 @@ onMounted(async () => {
               </span>
               <span
                 class="lc-pill"
-                :class="`lc-pill--${probeOf(ip).tone}`"
+                :class="`lc-pill--${AGENT_ONLINE_TAG_TYPE[ip.onlineState || 'NEVER']}`"
                 :title="ip.lastHeartbeatAt ? `上次心跳 ${ip.lastHeartbeatAt}` : '从未上报心跳'"
               >
-                <span class="lc-dot"></span>{{ probeOf(ip).label }}
+                <span class="lc-dot"></span>{{ ONLINE_SHORT[ip.onlineState || 'NEVER'] }}<span v-if="ip.elapsedSec != null" class="lc-hb">{{ fmtElapsed(ip.elapsedSec) }}</span>
               </span>
-              <span class="lc-pill" :class="`lc-pill--${installOf(ip).tone}`">
-                <NIcon :size="11">
-                  <CheckCircle2 v-if="installOf(ip).ok" />
-                  <CircleDashed v-else />
-                </NIcon>
-                {{ installOf(ip).label }}
+              <span class="lc-pill" :class="`lc-pill--${agentOf(ip).tone}`" title="管理 agent 安装情况">
+                <NIcon :size="11"><Cpu /></NIcon>{{ agentOf(ip).label }}
+              </span>
+              <span class="lc-pill" :class="`lc-pill--${socksOf(ip).tone}`" title="SOCKS5 (dante) 安装情况">
+                <NIcon :size="11"><ServerCog /></NIcon>{{ socksOf(ip).label }}
               </span>
               <span class="lc-field">
                 <NIcon :size="13"><Gauge /></NIcon>
@@ -534,17 +585,23 @@ onMounted(async () => {
               </template>
               <div class="text-xs">装机 (部署 dante)</div>
             </NTooltip>
-            <!-- 停用: 仅 LIVE 且未占用 (占用/预占中不可停用) -->
-            <NTooltip
-              v-if="ip.lifecycleState === 'LIVE' && ip.status !== 'OCCUPIED' && ip.status !== 'RESERVED'"
-              placement="top"
-            >
+            <!-- 停用: LIVE 才有; 占用中禁用并提示原因 (后端同样拦截) -->
+            <NTooltip v-if="ip.lifecycleState === 'LIVE'" placement="top">
               <template #trigger>
-                <NButton size="small" quaternary type="warning" circle @click="onSuspend(ip)">
+                <NButton
+                  size="small"
+                  quaternary
+                  type="warning"
+                  circle
+                  :disabled="landingInUse(ip)"
+                  @click="onSuspend(ip)"
+                >
                   <template #icon><NIcon><PauseCircle /></NIcon></template>
                 </NButton>
               </template>
-              <div class="text-xs">停用 (移出分配池, 不再分配给新订阅)</div>
+              <div class="text-xs">
+                {{ landingInUse(ip) ? '占用中不可停用 (请先释放占用它的订阅)' : '停用 (移出分配池, 不再分配给新订阅)' }}
+              </div>
             </NTooltip>
             <NTooltip v-else-if="ip.lifecycleState === 'RETIRED'" placement="top">
               <template #trigger>
@@ -766,6 +823,22 @@ onMounted(async () => {
 }
 .lc-iptype :deep(svg) { opacity: 0.65; flex-shrink: 0; }
 .lc-third { background: rgba(160, 160, 160, 0.18); color: #555; flex-shrink: 0; }
+.lc-expiry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--n-text-color-3, #9ca3af);
+  font-variant-numeric: tabular-nums;
+}
+.lc-expiry :deep(svg) { opacity: 0.7; }
+.lc-expiry--warning { color: #d97706; }
+.lc-expiry--warning :deep(svg) { opacity: 1; }
+.lc-expiry--error { color: #dc2626; font-weight: 600; }
+.lc-expiry--error :deep(svg) { opacity: 1; }
+html[data-theme='dark'] .lc-expiry--warning { color: #fbbf24; }
+html[data-theme='dark'] .lc-expiry--error { color: #f87171; }
 
 /* 第二行 */
 .lc-r2 {
@@ -806,6 +879,7 @@ onMounted(async () => {
 }
 .lc-pill :deep(svg) { flex-shrink: 0; }
 .lc-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.lc-hb { margin-left: 4px; opacity: 0.75; font-variant-numeric: tabular-nums; }
 .lc-pill--success { color: #16a34a; background: rgba(22, 163, 74, 0.1); border-color: rgba(22, 163, 74, 0.22); }
 .lc-pill--warning { color: #ca8a04; background: rgba(202, 138, 4, 0.1); border-color: rgba(202, 138, 4, 0.22); }
 .lc-pill--error   { color: #dc2626; background: rgba(220, 38, 38, 0.1); border-color: rgba(220, 38, 38, 0.22); }
