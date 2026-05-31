@@ -4,6 +4,8 @@ import com.nook.common.web.request.PageParam;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.List;
+
 /**
  * 管理后台 - SOCKS5 落地节点分页查询 Request VO
  *
@@ -16,8 +18,8 @@ public class ServerLandingPageReqVO extends PageParam {
     /** 关键词 (name / ipAddress 模糊). */
     private String keyword;
 
-    /** 区域过滤. */
-    private String region;
+    /** 区域过滤 (多选, 命中任一即可; 空=不过滤). */
+    private List<String> regionCodes;
 
     /** IP 类型过滤. */
     private String ipTypeId;

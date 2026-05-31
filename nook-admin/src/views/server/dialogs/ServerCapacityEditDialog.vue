@@ -135,7 +135,7 @@ async function onSubmit() {
         </NTag>
       </div>
       <NAlert type="info" :show-icon="false" size="small" class="mb-3">
-        <strong>限定带宽</strong>: 远端带宽限速值; <strong>月流量阈值</strong>: 月用量达到 90% 触发限流的基数; <strong>客户数上限</strong>: 该服务器可分配的最大客户数. 0 = 不限.
+        <strong>限定带宽</strong>: 远端带宽限速值; <strong>月流量阈值</strong>: 月用量达到 90% 触发限流的基数; <strong>客户数上限</strong>: 该机器可分配的最大客户数. 0 = 不限.
       </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">

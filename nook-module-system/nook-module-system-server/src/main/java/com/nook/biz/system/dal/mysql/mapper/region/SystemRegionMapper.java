@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.system.dal.dataobject.region.SystemRegionDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -34,5 +35,26 @@ public interface SystemRegionMapper extends BaseMapper<SystemRegionDO> {
                         .or().like(SystemRegionDO::getCity, keyword)
                         .or().like(SystemRegionDO::getDisplayName, keyword))
                 .orderByAsc(SystemRegionDO::getCode));
+    }
+
+    /** 区域码(主键)改名; updateById 改不了主键, 用 Wrapper set; Wrapper 更新须显式 set updated_at. */
+    default int renameCode(String oldCode, String newCode) {
+        return update(null, Wrappers.<SystemRegionDO>lambdaUpdate()
+                .set(SystemRegionDO::getCode, newCode)
+                .set(SystemRegionDO::getUpdatedAt, LocalDateTime.now())
+                .eq(SystemRegionDO::getCode, oldCode));
+    }
+
+    /** 更新区域展示字段 (city 可清空 → 显式 set 绕 NOT_NULL 策略); Wrapper 更新须显式 set updated_at. */
+    default int updateFields(String code, String countryCode, String countryName,
+                            String city, String displayName, String flagEmoji) {
+        return update(null, Wrappers.<SystemRegionDO>lambdaUpdate()
+                .set(SystemRegionDO::getCountryCode, countryCode)
+                .set(SystemRegionDO::getCountryName, countryName)
+                .set(SystemRegionDO::getCity, city)
+                .set(SystemRegionDO::getDisplayName, displayName)
+                .set(SystemRegionDO::getFlagEmoji, flagEmoji)
+                .set(SystemRegionDO::getUpdatedAt, LocalDateTime.now())
+                .eq(SystemRegionDO::getCode, code));
     }
 }

@@ -1,5 +1,6 @@
 package com.nook.biz.node.dal.mysql.mapper;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
@@ -11,7 +12,9 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 服务器资源 Mapper
@@ -78,18 +81,40 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
      * serverType (frontline / landing) 可选.
      */
     default IPage<ResourceServerDO> selectPageByQuery(IPage<ResourceServerDO> page, String name,
-                                                      String lifecycleState, String region,
+                                                      String lifecycleState, Collection<String> regionCodes,
                                                       String ipAddress,
                                                       Collection<String> idIn,
                                                       String serverType) {
         return selectPage(page, Wrappers.<ResourceServerDO>lambdaQuery()
                 .eq(StrUtil.isNotBlank(serverType), ResourceServerDO::getServerType, serverType)
                 .eq(StrUtil.isNotBlank(lifecycleState), ResourceServerDO::getLifecycleState, lifecycleState)
-                .eq(StrUtil.isNotBlank(region), ResourceServerDO::getRegion, region)
+                .in(CollUtil.isNotEmpty(regionCodes), ResourceServerDO::getRegion, regionCodes)
                 .like(StrUtil.isNotBlank(name), ResourceServerDO::getName, name)
                 .like(StrUtil.isNotBlank(ipAddress), ResourceServerDO::getIpAddress, ipAddress)
                 .in(idIn != null, ResourceServerDO::getId, idIn)
                 .orderByDesc(ResourceServerDO::getCreatedAt));
+    }
+
+    /** 按区域统计机器数 (线路机+落地机, 即全部 resource_server 行); 返回 区域码 → 机器数. */
+    default Map<String, Long> countGroupByRegion() {
+        List<Map<String, Object>> rows = selectMaps(Wrappers.<ResourceServerDO>query()
+                .select("region", "COUNT(*) AS cnt")
+                .isNotNull("region")
+                .ne("region", "")
+                .groupBy("region"));
+        Map<String, Long> result = new HashMap<>(rows.size());
+        for (Map<String, Object> row : rows) {
+            result.put((String) row.get("region"), ((Number) row.get("cnt")).longValue());
+        }
+        return result;
+    }
+
+    /** 区域码迁移: 旧码机器改挂新码 (区域更正级联用); Wrapper 更新须显式 set updated_at. */
+    default int migrateRegion(String oldRegion, String newRegion) {
+        return update(null, Wrappers.<ResourceServerDO>lambdaUpdate()
+                .set(ResourceServerDO::getRegion, newRegion)
+                .set(ResourceServerDO::getUpdatedAt, LocalDateTime.now())
+                .eq(ResourceServerDO::getRegion, oldRegion));
     }
 
     /** 切换 lifecycle_state; 显式 set updated_at. */

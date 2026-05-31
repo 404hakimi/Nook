@@ -40,12 +40,11 @@ import {
   type ServerFrontlineListItem,
   type ResourceServerQuery
 } from '@/api/resource/server'
-import type { SystemRegion } from '@/api/system/region'
 import { useRegionStore } from '@/stores/region'
 import { storeToRefs } from 'pinia'
 import ServerCreateDialog from './dialogs/ServerCreateDialog.vue'
 import RegionFlag from '@/components/RegionFlag.vue'
-import { h } from 'vue'
+import RegionTreeFilter from '@/components/RegionTreeFilter.vue'
 
 const router = useRouter()
 
@@ -55,35 +54,21 @@ const loading = ref(false)
 
 // ===== 区域字典 (启动拉一次; 卡片标题 + 下拉 + 详情头部都映射用) =====
 const regionStore = useRegionStore()
-const { list: regions, map: regionMap } = storeToRefs(regionStore)
+const { map: regionMap } = storeToRefs(regionStore)
 
-// 区域下拉: 用 render label 渲染 RegionFlag (countryCode → SVG 国旗) + displayName
-const regionOptions = computed(() => {
-  return [
-    { label: '全部地区', value: null as string | null },
-    ...regions.value.map((r) => ({
-      label: r.displayName,
-      value: r.code,
-      countryCode: r.countryCode,
-      flagEmoji: r.flagEmoji
-    }))
-  ]
-})
-
-// Naive UI NSelect render-label hook
-function renderRegionLabel(option: { label: string; countryCode?: string; flagEmoji?: string }) {
-  if (!option.countryCode) return option.label
-  return h('span', { style: 'display:flex; align-items:center; gap:6px;' }, [
-    h(RegionFlag, { code: option.countryCode, fallback: option.flagEmoji, size: 14 }),
-    option.label
-  ])
+// 左侧区域树筛选 (即时生效, 不走搜索按钮)
+const regionFilter = ref<InstanceType<typeof RegionTreeFilter> | null>(null)
+const regionCodes = ref<string[]>([])
+function onRegionChange(codes: string[]) {
+  regionCodes.value = codes
+  pageNo.value = 1
+  load()
 }
 
 // ===== 筛选表单 (本地 form state; 点搜索按钮才合到 applied) =====
-const form = ref<{ name: string; host: string; region: string | null; lifecycleState: string | null; onlineState: string | null }>({
+const form = ref<{ name: string; host: string; lifecycleState: string | null; onlineState: string | null }>({
   name: '',
   host: '',
-  region: null,
   lifecycleState: null,
   onlineState: null  // 客户端筛选 (个位数集群单页装下, 本地过滤即可)
 })
@@ -99,7 +84,7 @@ async function load() {
     }
     if (form.value.name.trim()) params.name = form.value.name.trim()
     if (form.value.host.trim()) params.host = form.value.host.trim()
-    if (form.value.region) params.region = form.value.region
+    if (regionCodes.value.length) params.regionCodes = regionCodes.value
     if (form.value.lifecycleState) params.lifecycleState = form.value.lifecycleState
     const res = await pageServers(params)
     list.value = res.records || []
@@ -115,7 +100,9 @@ function doSearch() {
 }
 
 function doReset() {
-  form.value = { name: '', host: '', region: null, lifecycleState: null, onlineState: null }
+  form.value = { name: '', host: '', lifecycleState: null, onlineState: null }
+  regionCodes.value = []
+  regionFilter.value?.reset()
   pageNo.value = 1
   load()
 }
@@ -240,19 +227,21 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="overview-wrap space-y-4">
+  <div class="ov-layout">
+    <RegionTreeFilter ref="regionFilter" @change="onRegionChange" />
+    <div class="overview-wrap space-y-4">
 
     <!-- ============ 头部 ============ -->
     <div class="page-header">
       <div class="flex items-center gap-3 flex-wrap mb-3">
         <div>
-          <div class="text-lg font-semibold">服务器</div>
-          <div class="text-xs text-zinc-500 mt-0.5">统一管理服务器 / Xray 节点 / Agent · 心跳 1min · 任务轮询 60s</div>
+          <div class="text-lg font-semibold">线路机</div>
+          <div class="text-xs text-zinc-500 mt-0.5">统一管理线路机 / Xray 节点 / Agent · 心跳 1min · 任务轮询 60s</div>
         </div>
         <div class="flex-1"></div>
         <NButton type="primary" size="small" @click="openCreate">
           <template #icon><NIcon><Plus :size="14" /></NIcon></template>
-          新建 server
+          新建线路机
         </NButton>
         <NButton quaternary size="small" :loading="loading" @click="load">
           <template #icon><NIcon><RefreshCcw :size="14" /></NIcon></template>
@@ -312,18 +301,6 @@ onMounted(async () => {
             size="small"
             class="w-44"
             @keyup.enter="doSearch"
-          />
-        </div>
-        <div class="filter-item">
-          <label class="filter-label">地区</label>
-          <NSelect
-            v-model:value="form.region"
-            :options="regionOptions"
-            :render-label="renderRegionLabel as any"
-            size="small"
-            class="w-44"
-            clearable
-            filterable
           />
         </div>
         <div class="filter-item">
@@ -511,13 +488,19 @@ onMounted(async () => {
     </NSpin>
 
     <ServerCreateDialog v-model="createOpen" @created="onCreated" />
+    </div>
   </div>
 </template>
 
 <style scoped>
+.ov-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
 .overview-wrap {
-  max-width: 1280px;
-  margin: 0 auto;
+  flex: 1;
+  min-width: 0;
 }
 .page-header {
   background: linear-gradient(180deg, rgba(99, 102, 241, 0.03), transparent);

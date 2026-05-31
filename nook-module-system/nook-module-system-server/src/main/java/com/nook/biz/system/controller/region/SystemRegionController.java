@@ -1,5 +1,6 @@
 package com.nook.biz.system.controller.region;
 
+import com.nook.biz.system.controller.region.vo.SystemRegionRecodeReqVO;
 import com.nook.biz.system.controller.region.vo.SystemRegionRespVO;
 import com.nook.biz.system.controller.region.vo.SystemRegionSaveReqVO;
 import com.nook.biz.system.dal.dataobject.region.SystemRegionDO;
@@ -66,6 +67,13 @@ public class SystemRegionController {
     @PutMapping("/update-region")
     public Result<Boolean> update(@Valid @RequestBody SystemRegionSaveReqVO reqVO) {
         systemRegionService.update(reqVO);
+        return Result.ok(true);
+    }
+
+    /** 更正区域码（改主键 + 级联迁移引用该码的线路机/落地机和套餐） */
+    @PostMapping("/recode-region")
+    public Result<Boolean> recode(@Valid @RequestBody SystemRegionRecodeReqVO reqVO) {
+        systemRegionService.recode(reqVO);
         return Result.ok(true);
     }
 

@@ -84,7 +84,7 @@ async function onSubmit() {
   >
     <NSpin :show="loading">
       <NAlert v-if="lifecycleState === 'LIVE'" type="warning" :show-icon="false" size="small" class="mb-3">
-        服务器处于 LIVE 状态, 修改 domain 会导致用户连接断开; 改前请确认。
+        线路机处于 LIVE 状态, 修改 domain 会导致用户连接断开; 改前请确认。
       </NAlert>
       <NAlert v-else-if="!form.domain" type="info" :show-icon="false" size="small" class="mb-3">
         LIVE 上线前需填 domain (用户连接的子域名).

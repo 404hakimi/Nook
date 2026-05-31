@@ -5,6 +5,8 @@ import com.nook.common.web.request.PageParam;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.List;
+
 /**
  * 管理后台 - 服务器分页查询 Request VO
  *
@@ -23,8 +25,8 @@ public class ResourceServerPageReqVO extends PageParam {
     /** 装机生命周期过滤; 取值见 {@link ResourceServerLifecycleEnum}. */
     private String lifecycleState;
 
-    /** 区域过滤. */
-    private String region;
+    /** 区域过滤 (多选, 命中任一即可; 空=不过滤). */
+    private List<String> regionCodes;
 
     /** server_type 过滤 (frontline / landing); null = 不过滤. */
     private String serverType;

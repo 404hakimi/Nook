@@ -120,7 +120,8 @@ export interface ResourceServerQuery {
   host?: string
   /** 装机生命周期过滤 (INSTALLING/READY/LIVE/RETIRED); 空=全部. */
   lifecycleState?: string
-  region?: string
+  /** 区域码集合 (城市选单个, 国家选该国全部城市; 空=全部). */
+  regionCodes?: string[]
 }
 
 export interface PageResult<T> {
@@ -152,7 +153,16 @@ export const SERVER_LIFECYCLE_OPTIONS = [
 ]
 
 export function pageServers(params: ResourceServerQuery) {
-  return request.get<unknown, PageResult<ServerFrontlineListItem>>('/admin/resource/server-frontline/page-frontline', { params })
+  const { regionCodes, ...rest } = params
+  // 后端 List<String> 用逗号串绑定, 避免 axios 默认数组序列化带 [] 绑不上
+  return request.get<unknown, PageResult<ServerFrontlineListItem>>('/admin/resource/server-frontline/page-frontline', {
+    params: { ...rest, regionCodes: regionCodes && regionCodes.length ? regionCodes.join(',') : undefined }
+  })
+}
+
+/** 按区域统计机器数 (线路机 + 落地机); 区域码 → 机器数. */
+export function getServerRegionUsage() {
+  return request.get<unknown, Record<string, number>>('/admin/resource/server/get-region-usage')
 }
 
 /** 拉全部线路机 (单页 100; 个位数集群够用). 跨页 / 大规模请用 pageServers. */

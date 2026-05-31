@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.agent.api.AgentTokenApi;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
+import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
@@ -161,7 +162,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         // ip_address 直接落主表; host 关键字 LIKE ip_address, 不再 JOIN credential 子表
         IPage<ResourceServerDO> result = resourceServerMapper.selectPageByQuery(
                 Page.of(pageReqVO.getPageNo(), pageReqVO.getPageSize()),
-                pageReqVO.getName(), pageReqVO.getLifecycleState(), pageReqVO.getRegion(),
+                pageReqVO.getName(), pageReqVO.getLifecycleState(), pageReqVO.getRegionCodes(),
                 pageReqVO.getHost(), null, ResourceServerTypeEnum.FRONTLINE.getState());
         return PageResult.of(result.getTotal(), result.getRecords());
     }
@@ -215,14 +216,29 @@ public class ResourceServerServiceImpl implements ResourceServerService {
             throw new BusinessException(ResourceErrorCode.SERVER_LIFECYCLE_INVALID_TRANSITION,
                     srv.getLifecycleState(), newState);
         }
-        // LIVE 前置: frontline.domain 必填
-        if (ResourceServerLifecycleEnum.LIVE.matches(newState)) {
+        // LIVE 前置: 仅线路机(frontline)需 domain; 落地机(SOCKS5)无 domain 概念, 跳过
+        if (ResourceServerLifecycleEnum.LIVE.matches(newState)
+                && ResourceServerTypeEnum.FRONTLINE.matches(srv.getServerType())) {
             ResourceServerFrontlineDO frontline = frontlineMapper.selectById(id);
             if (frontline == null || StrUtil.isBlank(frontline.getDomain())) {
                 throw new BusinessException(ResourceErrorCode.SERVER_LIVE_DOMAIN_REQUIRED);
             }
         }
+        // 停用(退役)前置: 占用中(OCCUPIED/RESERVED)的落地机不可停用, 否则会留下 RETIRED+占用矛盾态且打扰在用会员
+        if (ResourceServerLifecycleEnum.RETIRED.matches(newState)
+                && ResourceServerTypeEnum.LANDING.matches(srv.getServerType())) {
+            String landingStatus = landingService.getLanding(id).getStatus();
+            if (ResourceServerLandingStatusEnum.OCCUPIED.matches(landingStatus)
+                    || ResourceServerLandingStatusEnum.RESERVED.matches(landingStatus)) {
+                throw new BusinessException(ResourceErrorCode.LANDING_IN_USE_CANNOT_RETIRE);
+            }
+        }
         resourceServerMapper.updateLifecycleState(id, newState);
         log.info("[server] LIFECYCLE id={} {} → {}", id, srv.getLifecycleState(), newState);
+    }
+
+    @Override
+    public Map<String, Long> countByRegion() {
+        return resourceServerMapper.countGroupByRegion();
     }
 }

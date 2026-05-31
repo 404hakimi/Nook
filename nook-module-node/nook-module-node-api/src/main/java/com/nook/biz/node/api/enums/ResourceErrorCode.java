@@ -26,6 +26,7 @@ public enum ResourceErrorCode implements ErrorCode {
     LANDING_SSH_CRED_MISSING(5104, "落地节点 %s 缺 SSH 凭据"),
     LANDING_IP_DUPLICATE(5105, "落地节点 IP %s 已存在"),
     LANDING_HAS_BOUND_CLIENT(5106, "落地节点 %s 仍被客户端 %s 占用, 请先吊销该客户端再删除"),
+    LANDING_IN_USE_CANNOT_RETIRE(5107, "落地机正在被占用, 不能停用; 请先释放占用它的会员订阅"),
     ;
 
     private final int code;

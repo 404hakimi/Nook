@@ -101,4 +101,9 @@ public class TradePlanServiceImpl implements TradePlanService {
         planValidator.validateNoActiveSub(id);
         planMapper.deleteById(id);
     }
+
+    @Override
+    public Map<String, Long> countByRegion() {
+        return planMapper.countGroupByRegion();
+    }
 }

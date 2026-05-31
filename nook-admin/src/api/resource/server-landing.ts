@@ -158,7 +158,8 @@ export interface ServerLandingQuery {
   lifecycleState?: string
   /** 占用状态过滤. */
   status?: string
-  region?: string
+  /** 区域码集合 (城市选单个, 国家选该国全部城市; 空=全部). */
+  regionCodes?: string[]
   ipTypeId?: string
 }
 
@@ -227,7 +228,11 @@ export const SERVER_LANDING_STATUS_OPTIONS = [
 ]
 
 export function pageServerLanding(params: ServerLandingQuery) {
-  return request.get<unknown, PageResult<ServerLanding>>('/admin/resource/server-landing/page-landing', { params })
+  const { regionCodes, ...rest } = params
+  // 后端 List<String> 用逗号串绑定, 避免 axios 默认数组序列化带 [] 绑不上
+  return request.get<unknown, PageResult<ServerLanding>>('/admin/resource/server-landing/page-landing', {
+    params: { ...rest, regionCodes: regionCodes && regionCodes.length ? regionCodes.join(',') : undefined }
+  })
 }
 
 /** 落地机总览统计 (顶部 stats 卡片用) */

@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 /**
  * 管理后台 - 套餐管理 Controller
  *
@@ -37,6 +39,12 @@ public class TradePlanController {
     @GetMapping("/page-plan")
     public Result<PageResult<TradePlanRespVO>> getPage(@Valid TradePlanPageReqVO reqVO) {
         return Result.ok(planService.getPlanPage(reqVO));
+    }
+
+    /** 按区域码统计套餐数 (区域管理页引用数用). */
+    @GetMapping("/get-region-usage")
+    public Result<Map<String, Long>> getRegionUsage() {
+        return Result.ok(planService.countByRegion());
     }
 
     /** 套餐详情. */

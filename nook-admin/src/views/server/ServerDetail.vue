@@ -444,7 +444,7 @@ const landingHeartbeatDotColor = computed(() => {
           <template #tab>
             <NSpace :size="6" align="center">
               <NIcon><Info :size="14" /></NIcon>
-              <span>服务器信息</span>
+              <span>{{ isLanding ? '落地机信息' : '线路机信息' }}</span>
             </NSpace>
           </template>
           <ServerInfoTab :server-id="serverId" @refresh="loadServer" />

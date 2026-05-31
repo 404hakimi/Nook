@@ -72,13 +72,13 @@ const routes: RouteRecordRaw[] = [
         path: 'servers',
         name: 'server-overview',
         component: () => import('@/views/server/ServerOverview.vue'),
-        meta: { title: '服务器' }
+        meta: { title: '线路机' }
       },
       {
         path: 'servers/:id',
         name: 'server-detail',
         component: () => import('@/views/server/ServerDetail.vue'),
-        meta: { title: '服务器详情', serverType: 'frontline' }
+        meta: { title: '线路机详情', serverType: 'frontline' }
       },
       // 老路由保留 redirect, 避免外部书签 / 历史链接 404
       { path: 'resource/servers', redirect: '/servers' },

@@ -67,6 +67,11 @@ export function getTradePlan(id: string) {
   return request.get<unknown, TradePlan>('/admin/trade/plan/get-plan', { params: { id } })
 }
 
+/** 按区域码统计套餐数; 区域码 → 套餐数. */
+export function getPlanRegionUsage() {
+  return request.get<unknown, Record<string, number>>('/admin/trade/plan/get-region-usage')
+}
+
 export function createTradePlan(dto: TradePlanSaveDTO) {
   return request.post<unknown, string>('/admin/trade/plan/create-plan', dto)
 }

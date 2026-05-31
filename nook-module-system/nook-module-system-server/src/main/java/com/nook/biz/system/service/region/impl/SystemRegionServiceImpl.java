@@ -2,6 +2,8 @@ package com.nook.biz.system.service.region.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.nook.biz.system.api.region.event.RegionRecodedEvent;
+import com.nook.biz.system.controller.region.vo.SystemRegionRecodeReqVO;
 import com.nook.biz.system.controller.region.vo.SystemRegionSaveReqVO;
 import com.nook.biz.system.dal.dataobject.region.SystemRegionDO;
 import com.nook.biz.system.dal.mysql.mapper.region.SystemRegionMapper;
@@ -10,7 +12,9 @@ import com.nook.biz.system.validator.SystemRegionValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -28,6 +32,7 @@ public class SystemRegionServiceImpl implements SystemRegionService {
 
     private final SystemRegionMapper systemRegionMapper;
     private final SystemRegionValidator systemRegionValidator;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public String create(SystemRegionSaveReqVO req) {
@@ -41,14 +46,26 @@ public class SystemRegionServiceImpl implements SystemRegionService {
     @Override
     public void update(SystemRegionSaveReqVO req) {
         systemRegionValidator.validateExists(req.getCode());
-        // 区域码(主键)不可改; 城市可清空 → 用显式 set 绕过 NOT_NULL 更新策略; 启用状态走 toggleEnabled
-        systemRegionMapper.update(null, Wrappers.<SystemRegionDO>lambdaUpdate()
-                .eq(SystemRegionDO::getCode, req.getCode())
-                .set(SystemRegionDO::getCountryCode, req.getCountryCode())
-                .set(SystemRegionDO::getCountryName, req.getCountryName())
-                .set(SystemRegionDO::getCity, req.getCity())
-                .set(SystemRegionDO::getDisplayName, req.getDisplayName())
-                .set(SystemRegionDO::getFlagEmoji, req.getFlagEmoji()));
+        // 区域码(主键)不可改; 启用状态走 toggleEnabled
+        systemRegionMapper.updateFields(req.getCode(), req.getCountryCode(), req.getCountryName(),
+                req.getCity(), req.getDisplayName(), req.getFlagEmoji());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void recode(SystemRegionRecodeReqVO req) {
+        String oldCode = req.getOldCode();
+        String newCode = req.getCode();
+        systemRegionValidator.validateExists(oldCode);
+        if (!oldCode.equals(newCode)) {
+            systemRegionValidator.validateCodeAvailable(newCode);
+            systemRegionMapper.renameCode(oldCode, newCode);
+            // 各模块 (node: resource_server.region; trade: trade_plan.region_code) 同步迁引用, 同事务
+            eventPublisher.publishEvent(new RegionRecodedEvent(oldCode, newCode));
+        }
+        // 其余展示字段以新码为主键更新
+        systemRegionMapper.updateFields(newCode, req.getCountryCode(), req.getCountryName(),
+                req.getCity(), req.getDisplayName(), req.getFlagEmoji());
     }
 
     @Override

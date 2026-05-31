@@ -1,5 +1,6 @@
 package com.nook.biz.system.service.region;
 
+import com.nook.biz.system.controller.region.vo.SystemRegionRecodeReqVO;
 import com.nook.biz.system.controller.region.vo.SystemRegionSaveReqVO;
 import com.nook.biz.system.dal.dataobject.region.SystemRegionDO;
 
@@ -28,6 +29,13 @@ public interface SystemRegionService {
      * @param req 区域信息
      */
     void update(SystemRegionSaveReqVO req);
+
+    /**
+     * 更正区域码 (改主键 + 级联迁移引用该码的机器 / 套餐); oldCode==新码时仅更新其余字段
+     *
+     * @param req 含 oldCode (原码) + 新码及展示字段
+     */
+    void recode(SystemRegionRecodeReqVO req);
 
     /**
      * 启用 / 停用区域

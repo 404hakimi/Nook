@@ -71,6 +71,16 @@ public class ResourceServerController {
     }
 
     /**
+     * 按区域统计机器数 (线路机 + 落地机; 区域管理页引用数用)
+     *
+     * @return 区域码 → 机器数
+     */
+    @GetMapping("/get-region-usage")
+    public Result<Map<String, Long>> getRegionUsage() {
+        return Result.ok(resourceServerService.countByRegion());
+    }
+
+    /**
      * 获得 server 核心字段
      *
      * @param id server 编号

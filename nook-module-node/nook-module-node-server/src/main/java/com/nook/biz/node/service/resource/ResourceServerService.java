@@ -40,6 +40,13 @@ public interface ResourceServerService {
     void deleteServer(String id);
 
     /**
+     * 按区域统计机器数 (线路机 + 落地机)
+     *
+     * @return 区域码 → 机器数
+     */
+    Map<String, Long> countByRegion();
+
+    /**
      * 获得服务器 (不存在返 null)
      *
      * @param id 服务器编号

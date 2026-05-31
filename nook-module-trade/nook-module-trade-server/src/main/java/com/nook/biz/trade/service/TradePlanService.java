@@ -6,6 +6,8 @@ import com.nook.biz.trade.controller.vo.TradePlanRespVO;
 import com.nook.biz.trade.controller.vo.TradePlanUpdateReqVO;
 import com.nook.common.web.response.PageResult;
 
+import java.util.Map;
+
 /**
  * 套餐管理 Service 接口
  *
@@ -58,4 +60,11 @@ public interface TradePlanService {
      * @param id 套餐ID
      */
     void deletePlan(String id);
+
+    /**
+     * 按区域码统计套餐数
+     *
+     * @return 区域码 → 套餐数
+     */
+    Map<String, Long> countByRegion();
 }

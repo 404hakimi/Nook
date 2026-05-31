@@ -41,6 +41,16 @@ export function updateRegion(dto: SystemRegionSaveDTO) {
   return request.put<unknown, boolean>('/admin/system/region/update-region', dto)
 }
 
+/** 区域码更正 入参: oldCode=原码; 其余同 Save (code 为目标新码). */
+export interface SystemRegionRecodeDTO extends SystemRegionSaveDTO {
+  oldCode: string
+}
+
+/** 更正区域码 (改主键 + 级联迁移引用该码的机器/套餐). */
+export function recodeRegion(dto: SystemRegionRecodeDTO) {
+  return request.post<unknown, boolean>('/admin/system/region/recode-region', dto)
+}
+
 export function toggleRegionEnabled(code: string, enabled: boolean) {
   return request.post<unknown, boolean>('/admin/system/region/update-region-enabled', null, { params: { code, enabled } })
 }

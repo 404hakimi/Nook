@@ -112,7 +112,7 @@ async function onSubmit() {
   >
     <NSpin :show="loading">
       <NAlert v-if="liveLocked" type="warning" :show-icon="false" size="small" class="mb-3">
-        服务器处于 LIVE 状态, SSH 端口已硬锁; 如需修改请先退到 READY (会断 agent 心跳). SSH 主机改在 "编辑核心信息".
+        机器处于 LIVE 状态, SSH 端口已硬锁; 如需修改请先退到 READY (会断 agent 心跳). SSH 主机改在 "编辑核心信息".
       </NAlert>
       <NAlert v-else type="info" :show-icon="false" size="small" class="mb-3">
         SSH 主机 = IP 地址, 改主机请走 "编辑核心信息" dialog. 修改 SSH 凭据会使现有 agent 连接断开, 下次握手走新凭据. 密码留空 = 保留原值.

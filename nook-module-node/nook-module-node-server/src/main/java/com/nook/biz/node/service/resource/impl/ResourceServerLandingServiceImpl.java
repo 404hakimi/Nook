@@ -202,7 +202,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         }
         IPage<ResourceServerDO> page = resourceServerMapper.selectPageByQuery(
                 Page.of(reqVO.getPageNo(), reqVO.getPageSize()),
-                reqVO.getKeyword(), reqVO.getLifecycleState(), reqVO.getRegion(),
+                reqVO.getKeyword(), reqVO.getLifecycleState(), reqVO.getRegionCodes(),
                 null, statusFilterIds, ResourceServerTypeEnum.LANDING.getState());
         return PageResult.of(page.getTotal(), page.getRecords());
     }

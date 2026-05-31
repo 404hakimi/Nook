@@ -196,7 +196,7 @@ function afterEdit() { load(); emit('refresh') }
             <span class="num">{{ detail.totalIpCount ?? '—' }}</span>
             <span class="unit">个</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="服务器 ID">
+          <NDescriptionsItem label="机器 ID">
             <code class="kbd text-xs">{{ detail.id }}</code>
           </NDescriptionsItem>
         </NDescriptions>
