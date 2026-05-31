@@ -1,7 +1,7 @@
-// Package nic 调本地 vnstat -i <iface> --json 取 NIC 流量, 算"当周期累计"后 POST 给 backend.
+// Package nic 调本地 vnstat -i <iface> --json 取网卡累计流量 (traffic.total, 跨重启持久), POST 给 backend.
 //
-// 周期边界由 backend 决定 (CALENDAR_MONTH/BILLING_CYCLE/FIXED); 起步阶段 agent 只发"本月累计",
-// backend 配 quota_reset_policy=CALENDAR_MONTH 时直接拿用.
+// 周期重置由 backend 负责: backend 按重置策略 + 我方重置日, 对累计值做增量累加并到点清零;
+// agent 只发"自监控以来的累计总量", 不切周期。计数器被清(整机重置/vnstat库重置)由 backend 增量逻辑兜。
 package nic
 
 import (
@@ -19,9 +19,9 @@ import (
 )
 
 type Reporter struct {
-	cli       *client.Client
-	interval  time.Duration
-	iface     string
+	cli      *client.Client
+	interval time.Duration
+	iface    string
 }
 
 func New(cli *client.Client, interval time.Duration, iface string) *Reporter {
@@ -31,7 +31,7 @@ func New(cli *client.Client, interval time.Duration, iface string) *Reporter {
 type req struct {
 	RxBytes     int64  `json:"rxBytes"`
 	TxBytes     int64  `json:"txBytes"`
-	PeriodStart string `json:"periodStart"`
+	PeriodStart string `json:"periodStart"` // 已弃用: backend 不再依赖, 保留字段兼容
 }
 
 func (r *Reporter) Run(ctx context.Context) {
@@ -54,39 +54,35 @@ func (r *Reporter) Run(ctx context.Context) {
 	}
 }
 
-// vnstat --json 简化结构 (只关心 month traffic).
+// vnstat --json 简化结构 (只取 traffic.total 累计).
 type vnstatOutput struct {
 	Interfaces []struct {
 		Name    string `json:"name"`
 		Traffic struct {
-			Month []struct {
-				Date struct {
-					Year  int `json:"year"`
-					Month int `json:"month"`
-				} `json:"date"`
+			Total struct {
 				Rx int64 `json:"rx"`
 				Tx int64 `json:"tx"`
-			} `json:"month"`
+			} `json:"total"`
 		} `json:"traffic"`
 	} `json:"interfaces"`
 }
 
 func (r *Reporter) tick() {
-	rx, tx, periodStart, err := r.sampleCurrentMonth()
+	rx, tx, err := r.sampleCumulative()
 	if err != nil {
 		log.Printf("[nic] vnstat 采样失败: %v", err)
 		return
 	}
-	body := req{RxBytes: rx, TxBytes: tx, PeriodStart: periodStart}
+	body := req{RxBytes: rx, TxBytes: tx}
 	if err := r.cli.Post("/api/agent/nic-traffic", body, nil); err != nil {
 		log.Printf("[nic] 上报失败: %v", err)
 	} else {
-		log.Printf("[nic] ok rx=%dGB tx=%dGB period=%s",
-			rx/(1024*1024*1024), tx/(1024*1024*1024), periodStart)
+		log.Printf("[nic] ok 累计 rx=%dGB tx=%dGB", rx/(1024*1024*1024), tx/(1024*1024*1024))
 	}
 }
 
-func (r *Reporter) sampleCurrentMonth() (rx, tx int64, periodStart string, err error) {
+// sampleCumulative 取 vnstat traffic.total (自监控以来累计, 跨重启持久; 仅 vnstat 库被清才归零).
+func (r *Reporter) sampleCumulative() (rx, tx int64, err error) {
 	iface := r.iface
 	if iface == "" || iface == "auto" {
 		// 自动探测默认路由网卡 (Linux /proc/net/route); 探测失败回 eth0 兜底
@@ -101,29 +97,17 @@ func (r *Reporter) sampleCurrentMonth() (rx, tx int64, periodStart string, err e
 	cmd := exec.Command("vnstat", "-i", iface, "--json")
 	out, err := cmd.Output()
 	if err != nil {
-		return 0, 0, "", fmt.Errorf("跑 vnstat (iface=%s) 失败: %w", iface, err)
+		return 0, 0, fmt.Errorf("跑 vnstat (iface=%s) 失败: %w", iface, err)
 	}
 	var parsed vnstatOutput
 	if err := json.Unmarshal(out, &parsed); err != nil {
-		return 0, 0, "", fmt.Errorf("解析 vnstat 输出: %w", err)
+		return 0, 0, fmt.Errorf("解析 vnstat 输出: %w", err)
 	}
-	if len(parsed.Interfaces) == 0 || len(parsed.Interfaces[0].Traffic.Month) == 0 {
-		return 0, 0, "", fmt.Errorf("vnstat 无月度数据 (iface=%s, 可能刚装上, 等几分钟再试)", iface)
+	if len(parsed.Interfaces) == 0 {
+		return 0, 0, fmt.Errorf("vnstat 无接口数据 (iface=%s, 可能刚装上, 等几分钟再试)", iface)
 	}
-	// 取当月 (UTC 同步; backend 也按 server.billing_cycle_day 决定真实周期, agent 只发原始月度数据)
-	now := time.Now().UTC()
-	for _, m := range parsed.Interfaces[0].Traffic.Month {
-		if m.Date.Year == now.Year() && m.Date.Month == int(now.Month()) {
-			return m.Rx, m.Tx,
-				fmt.Sprintf("%04d-%02d-01", m.Date.Year, m.Date.Month),
-				nil
-		}
-	}
-	// vnstat 偶尔月初拿不到当月行, fallback 用最后一条
-	last := parsed.Interfaces[0].Traffic.Month[len(parsed.Interfaces[0].Traffic.Month)-1]
-	return last.Rx, last.Tx,
-		fmt.Sprintf("%04d-%02d-01", last.Date.Year, last.Date.Month),
-		nil
+	t := parsed.Interfaces[0].Traffic.Total
+	return t.Rx, t.Tx, nil
 }
 
 // DetectDefaultIface 从 /proc/net/route 找 default route (Destination=00000000) 那一行的网卡名.
