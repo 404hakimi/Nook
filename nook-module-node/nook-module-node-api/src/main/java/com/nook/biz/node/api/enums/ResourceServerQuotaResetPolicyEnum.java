@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 流量周期重置策略; DB 字段 resource_server_capacity.quota_reset_policy
+ * 流量周期重置策略
  *
  * @author nook
  */
@@ -12,7 +12,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum ResourceServerQuotaResetPolicyEnum {
 
-    BILLING_CYCLE("BILLING_CYCLE", "按账单日重置"),
+    MONTHLY("MONTHLY", "按月重置(我方重置日)"),
     FIXED("FIXED", "永不重置"),
     ;
 

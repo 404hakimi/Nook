@@ -30,7 +30,7 @@ public class ResourceServerCapacityRespVO {
     /** 当周期已用流量字节 = rx + tx. */
     private Long usedTrafficBytes;
 
-    /** 周期重置策略: CALENDAR_MONTH / BILLING_CYCLE / FIXED. */
+    /** 周期重置策略: MONTHLY / FIXED. */
     private String quotaResetPolicy;
 
     /** NORMAL / THROTTLED. */

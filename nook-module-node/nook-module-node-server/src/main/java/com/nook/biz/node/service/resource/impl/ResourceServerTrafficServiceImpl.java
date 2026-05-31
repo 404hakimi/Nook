@@ -1,0 +1,144 @@
+package com.nook.biz.node.service.resource.impl;
+
+import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
+import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerBillingMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
+import com.nook.biz.node.service.resource.ResourceServerTrafficService;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+
+/**
+ * 服务器流量计量 Service 实现类
+ *
+ * @author nook
+ */
+@Slf4j
+@Service
+public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficService {
+
+    private static final long GIB = 1024L * 1024 * 1024;
+    /** 重置日缺省值; 取不到账单日时用 1 号. */
+    private static final int DEFAULT_RESET_DAY = 1;
+
+    @Resource
+    private ResourceServerCapacityMapper capacityMapper;
+    @Resource
+    private ResourceServerBillingMapper billingMapper;
+    @Resource
+    private ResourceServerTrafficMapper trafficMapper;
+
+    /** 全平台流量重置时区; 显式配置, 不依赖 OS 默认. */
+    @Value("${nook.traffic.reset-zone:Asia/Shanghai}")
+    private String resetZone;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void applyNicTraffic(String serverId, long cumRxBytes, long cumTxBytes) {
+        ResourceServerCapacityDO cap = capacityMapper.selectById(serverId);
+        if (cap == null) {
+            return; // 容量行装机时已建; 缺失则跳过(理论不发生)
+        }
+        LocalDate today = LocalDate.now(ZoneId.of(resetZone));
+
+        this.rolloverIfNeeded(cap, today);
+        this.accumulate(cap, cumRxBytes, cumTxBytes);
+        this.markQuotaReached(cap);
+
+        cap.setUpdatedAt(LocalDateTime.now());
+        capacityMapper.updateById(cap);
+    }
+
+    /** 周期翻篇: 跨过我方重置日则归档旧周期并清零 (FIXED 永不翻篇). */
+    private void rolloverIfNeeded(ResourceServerCapacityDO cap, LocalDate today) {
+        if (ResourceServerQuotaResetPolicyEnum.FIXED.matches(cap.getQuotaResetPolicy())) {
+            if (cap.getPeriodStart() == null) {
+                cap.setPeriodStart(today); // 仅记起点, 之后不再推进
+            }
+            return;
+        }
+        LocalDate periodStart = this.currentPeriodStart(cap.getServerId(), today);
+        if (cap.getPeriodStart() == null) {
+            cap.setPeriodStart(periodStart); // 首次建周期, 不归档
+        } else if (cap.getPeriodStart().isBefore(periodStart)) {
+            this.archive(cap, periodStart);
+            cap.setRxBytes(0L);
+            cap.setTxBytes(0L);
+            cap.setUsedTrafficBytes(0L);
+            cap.setPeriodStart(periodStart);
+            cap.setThrottleState(ResourceServerThrottleStateEnum.NORMAL.getState());
+        }
+    }
+
+    /** 增量累加 (抗计数器归零 / 整机重置 / 首次上报). */
+    private void accumulate(ResourceServerCapacityDO cap, long cumRx, long cumTx) {
+        if (cap.getLastCumRxBytes() == null) {
+            // 首次仅建游标, 不把历史全量计入
+            cap.setLastCumRxBytes(cumRx);
+            cap.setLastCumTxBytes(cumTx);
+            return;
+        }
+        long dRx = cumRx >= cap.getLastCumRxBytes() ? cumRx - cap.getLastCumRxBytes() : cumRx;
+        long dTx = cumTx >= cap.getLastCumTxBytes() ? cumTx - cap.getLastCumTxBytes() : cumTx;
+        cap.setRxBytes(nz(cap.getRxBytes()) + dRx);
+        cap.setTxBytes(nz(cap.getTxBytes()) + dTx);
+        cap.setUsedTrafficBytes(cap.getRxBytes() + cap.getTxBytes());
+        cap.setLastCumRxBytes(cumRx);
+        cap.setLastCumTxBytes(cumTx);
+    }
+
+    /** 配额到顶置 THROTTLED (停止分新用户 + 触发同地区切换, 由上层消费); 不限额则不动. */
+    private void markQuotaReached(ResourceServerCapacityDO cap) {
+        Integer quotaGb = cap.getMonthlyTrafficGb();
+        if (quotaGb != null && quotaGb > 0 && nz(cap.getUsedTrafficBytes()) >= (long) quotaGb * GIB) {
+            cap.setThrottleState(ResourceServerThrottleStateEnum.THROTTLED.getState());
+        }
+    }
+
+    /** 当前"按月"周期起点 = ≤today 的最近一个重置日 (复用账单日, clamp 1..28). */
+    private LocalDate currentPeriodStart(String serverId, LocalDate today) {
+        int resetDay = this.resolveResetDay(serverId);
+        return today.getDayOfMonth() >= resetDay
+                ? today.withDayOfMonth(resetDay)
+                : today.minusMonths(1).withDayOfMonth(resetDay);
+    }
+
+    /** 我方重置日 = 账单日(clamp 1..28); 取不到用缺省. */
+    private int resolveResetDay(String serverId) {
+        ResourceServerBillingDO bill = billingMapper.selectById(serverId);
+        Integer day = bill == null ? null : bill.getBillingCycleDay();
+        return (day == null || day < 1 || day > 28) ? DEFAULT_RESET_DAY : day;
+    }
+
+    /** 把结束的周期写入历史表; (server_id, period_start) 唯一, 重复归档忽略. */
+    private void archive(ResourceServerCapacityDO cap, LocalDate periodEnd) {
+        ResourceServerTrafficDO row = new ResourceServerTrafficDO();
+        row.setServerId(cap.getServerId());
+        row.setPeriodStart(cap.getPeriodStart());
+        row.setPeriodEnd(periodEnd);
+        row.setRxBytes(nz(cap.getRxBytes()));
+        row.setTxBytes(nz(cap.getTxBytes()));
+        row.setUsedBytes(nz(cap.getUsedTrafficBytes()));
+        try {
+            trafficMapper.insert(row);
+        } catch (DuplicateKeyException e) {
+            log.warn("[archive] 周期已归档, 跳过: serverId={} periodStart={}", cap.getServerId(), cap.getPeriodStart());
+        }
+    }
+
+    private static long nz(Long v) {
+        return v == null ? 0L : v;
+    }
+}

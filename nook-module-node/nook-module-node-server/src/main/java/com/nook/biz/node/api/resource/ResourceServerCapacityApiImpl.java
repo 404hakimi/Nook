@@ -3,6 +3,7 @@ package com.nook.biz.node.api.resource;
 import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
+import com.nook.biz.node.service.resource.ResourceServerTrafficService;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import lombok.RequiredArgsConstructor;
@@ -21,10 +22,11 @@ import java.util.Map;
 public class ResourceServerCapacityApiImpl implements ResourceServerCapacityApi {
 
     private final ResourceServerCapacityMapper resourceServerCapacityMapper;
+    private final ResourceServerTrafficService trafficService;
 
     @Override
     public void applyNicTraffic(String serverId, long rxBytes, long txBytes) {
-        resourceServerCapacityMapper.applyNicTraffic(serverId, rxBytes, txBytes);
+        trafficService.applyNicTraffic(serverId, rxBytes, txBytes);
     }
 
     @Override

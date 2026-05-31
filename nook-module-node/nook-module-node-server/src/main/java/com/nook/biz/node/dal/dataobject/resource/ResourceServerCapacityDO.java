@@ -6,6 +6,7 @@ import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -34,8 +35,17 @@ public class ResourceServerCapacityDO {
     /** 当周期上行字节 (vnstat tx 累计; Agent push). */
     private Long txBytes;
 
-    /** 当周期已用流量 = rx + tx (Agent push 时同步更新; 老查询继续可用). UI 换算 GB/MB. */
+    /** 当周期已用流量 = rx + tx (增量累加; 重置日清零). UI 换算 GB/MB. */
     private Long usedTrafficBytes;
+
+    /** 上次上报的网卡累计入站字节(增量计算游标); null=尚未建游标. */
+    private Long lastCumRxBytes;
+
+    /** 上次上报的网卡累计出站字节(增量计算游标). */
+    private Long lastCumTxBytes;
+
+    /** 当前流量周期起点(我方重置日). */
+    private LocalDate periodStart;
 
     /** 周期重置策略 {@link ResourceServerQuotaResetPolicyEnum} */
     private String quotaResetPolicy;
