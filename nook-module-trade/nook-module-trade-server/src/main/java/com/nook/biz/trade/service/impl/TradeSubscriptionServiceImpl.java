@@ -219,6 +219,11 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         if (sub == null) {
             throw new BusinessException(TradeErrorCode.SUB_NOT_FOUND, id);
         }
+        // 终态订阅 (已退订 / 已过期) 的 client 已删, 拦在前面, 不再走 revoke 抛底层错
+        if (TradeSubscriptionStatusEnum.CANCELLED.matches(sub.getStatus())
+                || TradeSubscriptionStatusEnum.EXPIRED.matches(sub.getStatus())) {
+            throw new BusinessException(TradeErrorCode.SUB_NOT_ACTIVE, id);
+        }
         // 吊销前先取占用的线路机/落地机, 退订后这些绑定会被释放
         Set<String> clientIds = Collections.singleton(sub.getXrayClientId());
         String frontlineId = clientNodeApi.getServerIdByClientIds(clientIds).get(sub.getXrayClientId());

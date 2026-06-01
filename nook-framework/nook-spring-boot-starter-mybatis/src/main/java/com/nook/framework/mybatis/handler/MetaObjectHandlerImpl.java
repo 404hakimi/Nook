@@ -23,9 +23,9 @@ public class MetaObjectHandlerImpl implements MetaObjectHandler {
         this.strictInsertFill(metaObject, "updatedAt", LocalDateTime.class, now);
     }
 
-    /** UPDATE 时只填 updatedAt。 */
+    /** UPDATE 时强制刷新 updatedAt (无条件覆盖; strictUpdateFill 只填 null 值, 对 updateById 已加载实体不生效). */
     @Override
     public void updateFill(MetaObject metaObject) {
-        this.strictUpdateFill(metaObject, "updatedAt", LocalDateTime.class, LocalDateTime.now());
+        this.setFieldValByName("updatedAt", LocalDateTime.now(), metaObject);
     }
 }
