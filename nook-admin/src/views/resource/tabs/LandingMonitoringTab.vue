@@ -37,7 +37,7 @@ import { formatDateTime } from '@/utils/date'
 /**
  * 落地机详情 — 监控面板 tab. 结构对齐线路机 MonitoringTab.
  *
- * <p>3 metric 卡片 (本月流量 / Agent 心跳 / SOCKS5 监听) + 主机 UFW + 流量详情 + 历史趋势.
+ * <p>3 metric 卡片 (本月流量 / Agent 心跳 / SOCKS5 监听) + 流量详情 + 主机 UFW + 历史趋势.
  * <p>statusData (SOCKS5 服务状态) 由父组件下发, 仅用于 SOCKS5 监听 metric.
  * <p>主机 / UFW 走通用 /admin/resource/server/get-system-info + /get-ufw-status, 跟线路机一致.
  */
@@ -236,6 +236,61 @@ const socks5StateLabel = computed(() => {
         </NCard>
       </div>
 
+      <!-- ============ 流量详情 ============ -->
+      <NCard size="small" :bordered="false" class="info-section">
+        <template #header>
+          <div class="section-header">
+            <NIcon class="section-icon"><Wifi :size="14" /></NIcon>
+            <span>流量详情</span>
+          </div>
+        </template>
+        <NDescriptions
+          bordered
+          size="small"
+          label-placement="left"
+          :column="2"
+          :label-style="{ width: '8rem', verticalAlign: 'middle' }"
+        >
+          <NDescriptionsItem label="限定带宽">
+            <template v-if="capacity?.bandwidthLimitMbps">
+              <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
+              <span class="unit">Mbps</span>
+            </template>
+            <span v-else class="muted">不限</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="本月已用">
+            <span class="num">{{ usedGB }}</span>
+            <span class="unit">GB</span>
+            <template v-if="capacity?.rxBytes != null || capacity?.txBytes != null">
+              <span class="rxtx-divider"></span>
+              <span class="rxtx-tag rx">↓</span>
+              <span class="num">{{ rxGB }}</span><span class="unit">GB</span>
+              <span class="rxtx-tag tx">↑</span>
+              <span class="num">{{ txGB }}</span><span class="unit">GB</span>
+            </template>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="月度配额">
+            <template v-if="totalGB > 0">
+              <span class="num">{{ totalGB }}</span>
+              <span class="unit">GB</span>
+            </template>
+            <span v-else class="muted">不限</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="重置策略">
+            <NTag v-if="capacity?.quotaResetPolicy" size="small" :type="RESET_POLICY_TYPE[capacity.quotaResetPolicy] || 'default'">
+              {{ RESET_POLICY_LABELS[capacity.quotaResetPolicy] || capacity.quotaResetPolicy }}
+            </NTag>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="限流状态" :span="2">
+            <NTag size="small" :type="throttled ? 'error' : 'success'">
+              {{ throttled ? THROTTLE_LABELS.THROTTLED : THROTTLE_LABELS.NORMAL }}
+            </NTag>
+            <span class="text-xs text-zinc-400 ml-2">月用量达 90% 自动切限流, 暂停参与新订阅分配</span>
+          </NDescriptionsItem>
+        </NDescriptions>
+      </NCard>
+
       <!-- ============ 主机 + UFW (自 fetch, 跟线路机一致) ============ -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
@@ -311,61 +366,6 @@ const socks5StateLabel = computed(() => {
             <pre class="ufw-pre">{{ ufwStatus || '(未获取到)' }}</pre>
           </div>
         </template>
-      </NCard>
-
-      <!-- ============ 流量详情 ============ -->
-      <NCard size="small" :bordered="false" class="info-section">
-        <template #header>
-          <div class="section-header">
-            <NIcon class="section-icon"><Wifi :size="14" /></NIcon>
-            <span>流量详情</span>
-          </div>
-        </template>
-        <NDescriptions
-          bordered
-          size="small"
-          label-placement="left"
-          :column="2"
-          :label-style="{ width: '8rem', verticalAlign: 'middle' }"
-        >
-          <NDescriptionsItem label="限定带宽">
-            <template v-if="capacity?.bandwidthLimitMbps">
-              <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
-              <span class="unit">Mbps</span>
-            </template>
-            <span v-else class="muted">不限</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="本月已用">
-            <span class="num">{{ usedGB }}</span>
-            <span class="unit">GB</span>
-            <template v-if="capacity?.rxBytes != null || capacity?.txBytes != null">
-              <span class="rxtx-divider"></span>
-              <span class="rxtx-tag rx">↓</span>
-              <span class="num">{{ rxGB }}</span><span class="unit">GB</span>
-              <span class="rxtx-tag tx">↑</span>
-              <span class="num">{{ txGB }}</span><span class="unit">GB</span>
-            </template>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="月度配额">
-            <template v-if="totalGB > 0">
-              <span class="num">{{ totalGB }}</span>
-              <span class="unit">GB</span>
-            </template>
-            <span v-else class="muted">不限</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="重置策略">
-            <NTag v-if="capacity?.quotaResetPolicy" size="small" :type="RESET_POLICY_TYPE[capacity.quotaResetPolicy] || 'default'">
-              {{ RESET_POLICY_LABELS[capacity.quotaResetPolicy] || capacity.quotaResetPolicy }}
-            </NTag>
-            <span v-else class="muted">—</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="限流状态" :span="2">
-            <NTag size="small" :type="throttled ? 'error' : 'success'">
-              {{ throttled ? THROTTLE_LABELS.THROTTLED : THROTTLE_LABELS.NORMAL }}
-            </NTag>
-            <span class="text-xs text-zinc-400 ml-2">月用量达 90% 自动切限流, 暂停参与新订阅分配</span>
-          </NDescriptionsItem>
-        </NDescriptions>
       </NCard>
 
       <!-- ============ 时序趋势 (placeholder) ============ -->

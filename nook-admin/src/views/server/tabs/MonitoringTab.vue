@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import {
   Activity,
-  Cpu,
   Gauge,
   LineChart,
   RefreshCcw,
@@ -200,23 +199,70 @@ const heartbeatColor = computed(() => {
           </div>
         </NCard>
 
-        <!-- 客户连接配额 -->
-        <NCard size="small" :bordered="false" class="metric-card">
-          <div class="metric-header">
-            <NIcon class="metric-icon"><Cpu :size="16" /></NIcon>
-            <span class="metric-title">客户配额</span>
-          </div>
-          <div v-if="capacity" class="metric-body">
-            <div class="metric-main">
-              <span class="metric-num">—</span>
-              <span class="metric-unit">/ {{ capacity.clientMaxCount ?? '—' }} 个</span>
-            </div>
-            <div class="metric-sub mt-2 text-xs text-zinc-400">
-              已分配数待接入
-            </div>
-          </div>
-        </NCard>
       </div>
+
+      <!-- ============ 流量详情 ============ -->
+      <NCard size="small" :bordered="false" class="info-section">
+        <template #header>
+          <div class="section-header">
+            <NIcon class="section-icon"><Wifi :size="14" /></NIcon>
+            <span>流量详情</span>
+          </div>
+        </template>
+        <!--
+          布局: 左 = 承诺带宽 / 月度配额 (容量类); 右 = 本月已用 / 重置策略 (使用类).
+          本月已用 行内拆 rx (下行) + tx (上行); 限流状态独占一行.
+        -->
+        <!--
+          布局: 左 (承诺带宽 / 月度配额) | 右 (本月已用 / 重置策略); 限流状态 span=2.
+          本月已用 单行展示 合计 + rx/tx, 让每行左右 cell 高度一致, 标签视觉对齐.
+        -->
+        <NDescriptions
+          bordered
+          size="small"
+          label-placement="left"
+          :column="2"
+          :label-style="{ width: '8rem', verticalAlign: 'middle' }"
+        >
+          <NDescriptionsItem label="限定带宽">
+            <template v-if="capacity?.bandwidthLimitMbps">
+              <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
+              <span class="unit">Mbps</span>
+            </template>
+            <span v-else class="muted">不限</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="本月已用">
+            <span class="num">{{ usedGB }}</span>
+            <span class="unit">GB</span>
+            <template v-if="capacity?.rxBytes != null || capacity?.txBytes != null">
+              <span class="rxtx-divider"></span>
+              <span class="rxtx-tag rx">↓</span>
+              <span class="num">{{ rxGB }}</span><span class="unit">GB</span>
+              <span class="rxtx-tag tx">↑</span>
+              <span class="num">{{ txGB }}</span><span class="unit">GB</span>
+            </template>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="月度配额">
+            <template v-if="totalGB > 0">
+              <span class="num">{{ totalGB }}</span>
+              <span class="unit">GB</span>
+            </template>
+            <span v-else class="muted">不限</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="重置策略">
+            <NTag v-if="capacity?.quotaResetPolicy" size="small" :type="RESET_POLICY_TYPE[capacity.quotaResetPolicy] || 'default'">
+              {{ RESET_POLICY_LABELS[capacity.quotaResetPolicy] || capacity.quotaResetPolicy }}
+            </NTag>
+            <span v-else class="muted">—</span>
+          </NDescriptionsItem>
+          <NDescriptionsItem label="限流状态" :span="2">
+            <NTag size="small" :type="throttled ? 'error' : 'success'">
+              {{ throttled ? THROTTLE_LABELS.THROTTLED : THROTTLE_LABELS.NORMAL }}
+            </NTag>
+            <span class="text-xs text-zinc-400 ml-2">月用量达 90% 自动切限流, 暂停参与新订阅分配</span>
+          </NDescriptionsItem>
+        </NDescriptions>
+      </NCard>
 
       <!-- ============ 主机 + UFW (实时 SSH, 懒加载) ============ -->
       <NCard size="small" :bordered="false" class="info-section">
@@ -295,69 +341,6 @@ const heartbeatColor = computed(() => {
         </template>
       </NCard>
 
-      <!-- ============ 流量详情 ============ -->
-      <NCard size="small" :bordered="false" class="info-section">
-        <template #header>
-          <div class="section-header">
-            <NIcon class="section-icon"><Wifi :size="14" /></NIcon>
-            <span>流量详情</span>
-          </div>
-        </template>
-        <!--
-          布局: 左 = 承诺带宽 / 月度配额 (容量类); 右 = 本月已用 / 重置策略 (使用类).
-          本月已用 行内拆 rx (下行) + tx (上行); 限流状态独占一行.
-        -->
-        <!--
-          布局: 左 (承诺带宽 / 月度配额) | 右 (本月已用 / 重置策略); 限流状态 span=2.
-          本月已用 单行展示 合计 + rx/tx, 让每行左右 cell 高度一致, 标签视觉对齐.
-        -->
-        <NDescriptions
-          bordered
-          size="small"
-          label-placement="left"
-          :column="2"
-          :label-style="{ width: '8rem', verticalAlign: 'middle' }"
-        >
-          <NDescriptionsItem label="限定带宽">
-            <template v-if="capacity?.bandwidthLimitMbps">
-              <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
-              <span class="unit">Mbps</span>
-            </template>
-            <span v-else class="muted">不限</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="本月已用">
-            <span class="num">{{ usedGB }}</span>
-            <span class="unit">GB</span>
-            <template v-if="capacity?.rxBytes != null || capacity?.txBytes != null">
-              <span class="rxtx-divider"></span>
-              <span class="rxtx-tag rx">↓</span>
-              <span class="num">{{ rxGB }}</span><span class="unit">GB</span>
-              <span class="rxtx-tag tx">↑</span>
-              <span class="num">{{ txGB }}</span><span class="unit">GB</span>
-            </template>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="月度配额">
-            <template v-if="totalGB > 0">
-              <span class="num">{{ totalGB }}</span>
-              <span class="unit">GB</span>
-            </template>
-            <span v-else class="muted">不限</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="重置策略">
-            <NTag v-if="capacity?.quotaResetPolicy" size="small" :type="RESET_POLICY_TYPE[capacity.quotaResetPolicy] || 'default'">
-              {{ RESET_POLICY_LABELS[capacity.quotaResetPolicy] || capacity.quotaResetPolicy }}
-            </NTag>
-            <span v-else class="muted">—</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="限流状态" :span="2">
-            <NTag size="small" :type="throttled ? 'error' : 'success'">
-              {{ throttled ? THROTTLE_LABELS.THROTTLED : THROTTLE_LABELS.NORMAL }}
-            </NTag>
-            <span class="text-xs text-zinc-400 ml-2">月用量达 90% 自动切限流, 暂停参与新订阅分配</span>
-          </NDescriptionsItem>
-        </NDescriptions>
-      </NCard>
-
       <!-- ============ 时序趋势 (placeholder) ============ -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
@@ -389,10 +372,10 @@ const heartbeatColor = computed(() => {
   flex-wrap: wrap;
 }
 
-/* 关键指标 3 卡 */
+/* 关键指标 2 卡 (本月流量 / Agent 心跳; 客户配额已移除, 分配按带宽+流量算法) */
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
 @media (max-width: 900px) {
