@@ -12,10 +12,10 @@ import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import com.nook.biz.trade.event.SubscriptionMachineChangeEvent;
+import com.nook.biz.trade.config.TradeJobProperties;
 import com.nook.biz.trade.service.TradeAllocator;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -33,13 +33,8 @@ import java.util.Set;
 @Component
 public class FrontlineFailoverJob {
 
-    /** 总开关; 默认关, 确认无误再开 (避免测试期误迁). */
-    @Value("${nook.failover.enabled:false}")
-    private boolean enabled;
-    /** THROTTLED(到顶) 每轮每机迁移条数上限 (渐进迁, 用 15% 余量当 runway); OFFLINE 不限. */
-    @Value("${nook.failover.throttled-batch:5}")
-    private int throttledBatch;
-
+    @Resource
+    private TradeJobProperties tradeJobProperties;
     @Resource
     private ResourceServerApi serverApi;
     @Resource
@@ -55,9 +50,9 @@ public class FrontlineFailoverJob {
     @Resource
     private ApplicationEventPublisher eventPublisher;
 
-    @Scheduled(cron = "${nook.failover.cron:45 * * * * ?}")
+    @Scheduled(cron = "#{@tradeJobProperties.failover.cron}")
     public void check() {
-        if (!enabled) {
+        if (!tradeJobProperties.getFailover().isEnabled()) {
             return;
         }
         Map<String, String> faulted = serverApi.findFrontlinesNeedingFailover();
@@ -86,7 +81,8 @@ public class FrontlineFailoverJob {
         }
         // 掉线=尽快迁完; 到顶=每轮限量(渐进, 用余量当 runway)
         boolean urgent = !ResourceServerThrottleStateEnum.THROTTLED.matches(reason);
-        int budget = urgent ? subs.size() : Math.min(throttledBatch, subs.size());
+        int budget = urgent ? subs.size()
+                : Math.min(tradeJobProperties.getFailover().getThrottledBatch(), subs.size());
         TradeSubscriptionChangeReasonEnum chgReason = urgent
                 ? TradeSubscriptionChangeReasonEnum.FAULT
                 : TradeSubscriptionChangeReasonEnum.TRAFFIC_EXHAUSTED;

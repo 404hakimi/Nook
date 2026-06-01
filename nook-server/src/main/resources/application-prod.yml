@@ -30,6 +30,24 @@ nook:
     src-dir: nook-agent
     # Agent 装机 / 升级回拉 backend binary 的公网 URL; 生产用真实域名 (e.g. https://api.nook.example.com)
     backend-public-url: ${NOOK_BACKEND_PUBLIC_URL:}
+    job:
+      # Agent 心跳监控 / 告警 (仅状态变化时打日志)
+      heartbeat-timeout-cron: "30 * * * * ?"
+  # 各模块定时任务 (cron 为 Quartz 6 段式: 秒 分 时 日 月 周)
+  trade:
+    job:
+      # 订阅生命周期巡检: 到期释放 + 流量耗尽停服
+      lifecycle-cron: "15 * * * * ?"
+      # 线路机故障自动切换
+      failover:
+        # 总开关; 默认关, 确认无误再开
+        enabled: true
+        cron: "45 * * * * ?"
+        # 单轮每机最多迁移的 THROTTLED(到顶)订阅数; OFFLINE 紧急迁移不限
+        throttled-batch: 5
+  # 落地机流量月度重置所用时区
+  traffic:
+    reset-zone: Asia/Shanghai
 
 logging:
   level:

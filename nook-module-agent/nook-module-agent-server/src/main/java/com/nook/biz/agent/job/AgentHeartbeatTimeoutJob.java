@@ -37,7 +37,7 @@ public class AgentHeartbeatTimeoutJob {
     /** 上轮各 server 在线状态; 只在状态变化时打一条, 避免持续不健康每分钟刷屏 (内存态, 进程级). */
     private final Map<String, AgentOnlineState> lastState = new HashMap<>();
 
-    @Scheduled(cron = "${nook.agent.heartbeat-timeout-cron:30 * * * * ?}")
+    @Scheduled(cron = "#{@agentJobProperties.heartbeatTimeoutCron}")
     public void check() {
         List<ResourceServerRespDTO> servers = resourceServerApi.listLive();
         if (CollUtil.isEmpty(servers)) {

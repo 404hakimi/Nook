@@ -41,7 +41,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     private ResourceServerTrafficMapper trafficMapper;
 
     /** 全平台流量重置时区; 显式配置, 不依赖 OS 默认. */
-    @Value("${nook.traffic.reset-zone:Asia/Shanghai}")
+    @Value("${nook.traffic.reset-zone}")
     private String resetZone;
 
     @Override
