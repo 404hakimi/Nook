@@ -14,8 +14,7 @@ public enum OpType {
     XRAY_RESTART,
     SERVER_AUTOSTART,
 
-    // ===== client 生命周期 (开通/吊销已脱离 op 框架, 走 DB-only + reconcile) =====
-    CLIENT_ROTATE,
+    // ===== client 级 (开通/吊销/轮换 UUID 均已脱离 op 框架, 走 DB-only + reconcile) =====
     CLIENT_RESET_TRAFFIC,
     ;
 }

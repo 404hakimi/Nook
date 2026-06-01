@@ -13,25 +13,18 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
-import com.nook.biz.node.framework.xray.XrayConstants;
-import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
-import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.xray.config.XrayConfigService;
 import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.biz.node.validator.XrayServerValidator;
 import com.nook.biz.operation.api.OpProgressSink;
 import com.nook.common.web.exception.BusinessException;
-import com.nook.framework.ssh.core.SshSession;
-import com.nook.framework.ssh.core.SshSessionScope;
-import com.nook.framework.ssh.core.SshSessions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -44,10 +37,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ClientOpExecutor {
 
-    private static final String SHARED_INBOUND_TAG = XrayConstants.SHARED_INBOUND_TAG;
-
     private final XrayClientMapper xrayClientMapper;
-    private final XrayInboundCli inboundCli;
     private final XrayConfigService xrayConfigService;
     private final ResourceServerCapacityMapper capacityMapper;
     private final ResourceServerLandingService landingService;
@@ -138,16 +128,11 @@ public class ClientOpExecutor {
         sink.report("加载客户端", 30);
         XrayClientDO e = clientValidator.validateExists(inboundEntityId);
 
-        // 只写 DB: 删 client + 流量 + 释放落地机; 远端 user/rule/outbound 由 agent reconcile 清掉
+        // 只写 DB: 删 client + 释放落地机 同事务原子 (释放失败一起回滚, 避免 client 没了落地机仍占用的泄漏); 远端由 agent reconcile 清掉
         sink.report("清理 DB + 释放落地机", 80);
         transactionTemplate.executeWithoutResult(txStatus -> {
             xrayClientMapper.deleteById(e.getId());
-            try {
-                landingService.releaseToCoolingForRevoke(e.getIpId());
-            } catch (RuntimeException re) {
-                log.warn("[revoke] landing 退订失败 serverId={}: {} (DB 主流程已完成)",
-                        e.getIpId(), re.getMessage());
-            }
+            landingService.releaseToCoolingForRevoke(e.getIpId());
         });
 
         sink.report("已删, 远端由 agent reconcile 清理", 100);
@@ -156,47 +141,23 @@ public class ClientOpExecutor {
     }
 
     /**
-     * 轮换客户端密钥; CLI 失败则事务回滚 DB, 由 status=3 + 对账兜底
+     * 轮换客户端 UUID (DB-only): 改库即期望态, 远端由 agent reconcile 收敛 (摘旧 UUID 用户 + 装新).
+     *
+     * @param inboundEntityId xray_client.id
+     * @param progress        进度 sink, 允许为 null
+     * @return 改库后的客户端 (含新 UUID)
      */
-    XrayClientDO doRotate(String inboundEntityId, OpProgressSink progress) {
+    public XrayClientDO doRotate(String inboundEntityId, OpProgressSink progress) {
         OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
-        sink.report("加载客户端", 20);
+        sink.report("加载客户端", 30);
         XrayClientDO e = clientValidator.validateExists(inboundEntityId);
-        XrayDeployment dep = loadDeployment(e.getServerId());
         String newUuid = UUID.randomUUID().toString();
-        String email = e.getClientEmail();
-
-        sink.report("连接服务器", 40);
-        SshSession session = SshSessions.acquire(e.getServerId(), SshSessionScope.SHARED);
-
-        sink.report("更新密钥", 70);
-        int apiPort = dep.server().getXrayApiPort();
-        String xrayBin = dep.server().getXrayBinaryPath();
-        String protocol = dep.config() == null ? null : dep.config().getProtocol();
-        try {
-            transactionTemplate.executeWithoutResult(txStatus -> {
-                xrayClientMapper.updateClientUuid(e.getId(), newUuid);
-                try {
-                    inboundCli.removeUser(session, xrayBin, apiPort, SHARED_INBOUND_TAG, email);
-                } catch (BusinessException be) {
-                    if (XrayErrorCode.CLIENT_NOT_FOUND.getCode() != be.getCode()) throw be;
-                }
-                InboundUserSpec spec = InboundUserSpec.builder()
-                        .email(email).uuid(newUuid).protocol(protocol).flow("").build();
-                inboundCli.addUser(session, xrayBin, apiPort, SHARED_INBOUND_TAG, spec);
-            });
-        } catch (RuntimeException remoteErr) {
-            log.warn("[rotate] CLI 失败 DB 已回滚 server={} client={} email={}: {} (status=3, 待对账)",
-                    e.getServerId(), e.getId(), email, remoteErr.getMessage());
-            xrayClientMapper.updateStatus(e.getId(), 3, LocalDateTime.now());
-            throw remoteErr;
-        }
-
+        sink.report("更新 UUID 入库", 80);
+        xrayClientMapper.updateClientUuid(e.getId(), newUuid);
+        sink.report("已入库, 远端由 agent reconcile 下发", 100);
         e.setClientUuid(newUuid);
-        log.info("[rotate] OK server={} client={} email={} 新 UUID 已生效",
-                e.getServerId(), e.getId(), email);
+        log.info("[rotate] DB-only OK server={} client={} email={}; 新 UUID 待 reconcile 下发",
+                e.getServerId(), e.getId(), e.getClientEmail());
         return e;
     }
-
-
 }

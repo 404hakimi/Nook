@@ -16,13 +16,8 @@ import com.nook.biz.node.service.xray.config.XrayConfigService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.XrayServerValidator;
 import com.nook.biz.node.validator.XrayClientValidator;
-import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.dto.OpEnqueueRequest;
-import com.nook.biz.operation.api.spi.OpConfigResolver;
-import com.nook.biz.operation.api.spi.OpOrchestrator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
-import com.nook.framework.security.stp.StpSystemUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -50,8 +45,6 @@ public class XrayClientServiceImpl implements XrayClientService {
     private final ResourceServerService resourceServerService;
     private final XrayClientValidator clientValidator;
     private final ClientOpExecutor clientOpExecutor;
-    private final OpConfigResolver opConfigResolver;
-    private final OpOrchestrator opOrchestrator;
 
     @Override
     public XrayClientDO getXrayClient(String id) {
@@ -79,15 +72,8 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     @Override
     public XrayClientDO rotateXrayClient(String inboundEntityId) {
-        XrayClientDO e = getXrayClient(inboundEntityId);
-        OpEnqueueRequest req = OpEnqueueRequest.builder()
-                .serverId(e.getServerId())
-                .opType(OpType.CLIENT_ROTATE.name())
-                .targetId(inboundEntityId)
-                .operator(StpSystemUtil.getLoginIdOrSystem())
-                .paramsJson("{\"clientId\":\"" + inboundEntityId + "\"}")
-                .build();
-        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.CLIENT_ROTATE.name()), XrayClientDO.class);
+        // DB-only 轮换 UUID, 直接走 executor; 远端由 agent reconcile 收敛
+        return clientOpExecutor.doRotate(inboundEntityId, null);
     }
 
     @Override
