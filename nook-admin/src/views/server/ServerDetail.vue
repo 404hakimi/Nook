@@ -224,6 +224,8 @@ async function loadServer() {
     installInfo.value = inst
     frontlineInfo.value = runtime
     landingCredential.value = cred
+    // monitor 是默认 tab, watch(activeTab) 不在首次挂载触发; 凭据加载完按需补一次 SOCKS5/dante 探测
+    if (activeTab.value === 'monitor') void loadStatus()
   } catch (e) {
     error.value = (e as Error).message || '加载失败'
   } finally {
