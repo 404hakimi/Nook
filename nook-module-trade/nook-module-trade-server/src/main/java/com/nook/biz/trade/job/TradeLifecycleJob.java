@@ -17,6 +17,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -47,8 +48,10 @@ public class TradeLifecycleJob {
     private XrayClientNodeApi clientNodeApi;
     @Resource
     private ResourceServerCapacityApi capacityApi;
+    @Resource
+    private TransactionTemplate transactionTemplate;
 
-    @Scheduled(cron = "${nook.trade.lifecycle-cron:15 * * * * ?}")
+    @Scheduled(cron = "#{@tradeJobProperties.lifecycleCron}")
     public void check() {
         List<TradeSubscriptionDO> active = subMapper.selectAllActive();
         if (CollUtil.isEmpty(active)) {
@@ -90,7 +93,10 @@ public class TradeLifecycleJob {
                     continue;
                 }
                 // 落地机 tx 累加进 member_plan_traffic; 用满套餐流量 → 停服保留 IP
-                if (accumulateAndMaybeSuspend(s, now, landingByClient, capMap, planTrafficGb, trafficBySub)) {
+                // 单订阅一个事务: 累加 + stop + 标 SUSPENDED 原子提交 (private 方法靠 TransactionTemplate, 非 @Transactional self-invocation)
+                Boolean suspendedNow = transactionTemplate.execute(st ->
+                        accumulateAndMaybeSuspend(s, now, landingByClient, capMap, planTrafficGb, trafficBySub));
+                if (Boolean.TRUE.equals(suspendedNow)) {
                     suspended++;
                 }
             } catch (Exception e) {

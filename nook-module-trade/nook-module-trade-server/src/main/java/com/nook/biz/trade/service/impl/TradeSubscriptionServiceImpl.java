@@ -41,6 +41,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -130,7 +131,17 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
             sub.setStartedAt(toLdt(now));
             sub.setExpiresAt(toLdt(expiry));
             sub.setStatus(TradeSubscriptionStatusEnum.ACTIVE.getState());
-            subMapper.insert(sub);
+            try {
+                subMapper.insert(sub);
+            } catch (Exception e) {
+                // 订阅落库失败 → 立即补偿吊销刚开通的 client (删 client + 释放落地机), 不留孤儿; 补偿再失败才退回对账兜底
+                try {
+                    provisionApi.revoke(clientId);
+                } catch (Exception ce) {
+                    log.error("[adminCreate] 补偿吊销失败, 遗留孤儿 client={} 待对账: {}", clientId, ce.getMessage(), ce);
+                }
+                throw e;
+            }
             log.info("[adminCreate] OK member={} plan={} frontline={} landing={} client={}",
                     req.getMemberUserId(), plan.getId(), frontlineId, landingId, clientId);
             // 发布开通分配事件 (监听器落换机历史日志, 与下单流程解耦)
@@ -202,6 +213,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void cancel(String id) {
         TradeSubscriptionDO sub = subMapper.selectById(id);
         if (sub == null) {
