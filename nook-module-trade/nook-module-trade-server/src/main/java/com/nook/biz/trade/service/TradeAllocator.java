@@ -9,7 +9,6 @@ import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.xray.XrayClientNodeApi;
-import com.nook.biz.node.api.xray.XrayClientProvisionApi;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
@@ -41,8 +40,6 @@ public class TradeAllocator {
     @Resource
     private ResourceServerCapacityApi capacityApi;
     @Resource
-    private XrayClientProvisionApi provisionApi;
-    @Resource
     private XrayClientNodeApi clientNodeApi;
     @Resource
     private TradeSubscriptionMapper subMapper;
@@ -65,7 +62,6 @@ public class TradeAllocator {
         Set<String> allocatable = serverApi.filterAllocatable(fIds);
         Map<String, ResourceServerCapacityRespDTO> capMap = capacityApi.listByServerIds(fIds);
         Map<String, Integer> committed = committedBandwidthByFrontline(fIds);
-        Map<String, Integer> clientCounts = provisionApi.countActiveByServerIds(fIds);
 
         String best = null;
         int bestHeadroom = Integer.MIN_VALUE;
@@ -77,12 +73,6 @@ public class TradeAllocator {
             Integer bwLimit = cap == null ? null : cap.getBandwidthLimitMbps();
             // 不超卖语义: 线路机须配带宽上限才能参与准入
             if (bwLimit == null || bwLimit <= 0) {
-                continue;
-            }
-            // 客户数硬上限 (二级保险; 0=不限)
-            Integer maxClients = cap.getClientMaxCount();
-            if (maxClients != null && maxClients > 0
-                    && clientCounts.getOrDefault(f.getId(), 0) >= maxClients) {
                 continue;
             }
             int allowed = (int) Math.floor(bwLimit * (1 - RESERVE_RATIO));

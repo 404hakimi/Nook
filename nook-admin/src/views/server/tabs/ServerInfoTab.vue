@@ -280,14 +280,6 @@ function afterEdit() { load(); emit('refresh') }
             </template>
             <span v-else class="muted">不限</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="客户数上限" :span="2">
-            <template v-if="capacity?.clientMaxCount">
-              <span class="num">{{ capacity.clientMaxCount }}</span>
-              <span class="unit">个</span>
-              <span class="text-xs text-zinc-400 ml-2">可分配最大客户数</span>
-            </template>
-            <span v-else class="muted">不限</span>
-          </NDescriptionsItem>
         </NDescriptions>
       </NCard>
 

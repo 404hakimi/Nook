@@ -178,8 +178,6 @@ export interface ServerCapacity {
   monthlyTrafficGb?: number
   /** 业务限定带宽 Mbps; 0 = 不限. agent tc qdisc 真实 enforce. */
   bandwidthLimitMbps?: number
-  /** 单 server 客户端数硬上限; 0=不限. allocator 候选过滤 + xray inbound 客户数闸. */
-  clientMaxCount?: number
   rxBytes?: number
   txBytes?: number
   usedTrafficBytes?: number
@@ -191,7 +189,6 @@ export interface ServerCapacity {
 export interface ServerCapacityUpdateDTO {
   monthlyTrafficGb?: number
   bandwidthLimitMbps?: number
-  clientMaxCount?: number
   /** 周期重置策略: BILLING_CYCLE / FIXED; 后期"重置流量"业务按该策略派计算. */
   quotaResetPolicy?: string
 }

@@ -28,6 +28,6 @@ public class ResourceServerCapacityServiceImpl implements ResourceServerCapacity
     @Transactional(rollbackFor = Exception.class)
     public void updateQuota(String serverId, ResourceServerCapacityUpdateReqVO reqVO) {
         capacityMapper.updateQuota(serverId, reqVO.getMonthlyTrafficGb(), reqVO.getBandwidthLimitMbps(),
-                reqVO.getClientMaxCount(), reqVO.getQuotaResetPolicy());
+                reqVO.getQuotaResetPolicy());
     }
 }

@@ -63,7 +63,6 @@ public class XrayServerValidator {
 
     /**
      * 重装前置校验: 跟现有活客户冲突的参数变更直接拒绝.
-     * clientMaxCount 缩到比现有客户数还小抛 TOUCHDOWN_SHRINK_BLOCKED;
      * 有活客户且客户面参数 (sharedInboundPort / wsPath / domain 等) 变了抛 NODE_PARAM_CHANGE_BLOCKED;
      * 首次部署或活客户数为 0 都跳过.
      *
@@ -73,10 +72,6 @@ public class XrayServerValidator {
     public void validateAgainstActiveClients(String serverId, XrayServerInstallReqVO reqVO) {
         long activeCount = xrayClientMapper.selectCount(Wrappers.<XrayClientDO>lambdaQuery()
                 .eq(XrayClientDO::getServerId, serverId));
-        if (activeCount > reqVO.getClientMaxCount()) {
-            throw new BusinessException(XrayErrorCode.TOUCHDOWN_SHRINK_BLOCKED,
-                    serverId, activeCount, reqVO.getClientMaxCount());
-        }
 
         XrayServerDO existingServer = xrayServerService.get(serverId);
         if (existingServer == null || activeCount == 0) return;

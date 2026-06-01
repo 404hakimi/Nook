@@ -152,8 +152,6 @@ export interface LineServerInstallDTO {
   xrayConfigPath: string
   /** xray share 目录 (geo*.dat); 前端默认 <installDir>/share/xray. */
   xrayShareDir: string
-  /** 该 server 最多挂载的客户端数 (硬上限); 落到 capacity.client_max_count. */
-  clientMaxCount: number
   /** Xray 内置 api server 端口 (loopback); xray api adi/rmi 用. */
   xrayApiPort: number
   /** xray 日志目录; 前端默认 <installDir>/logs. */

@@ -26,9 +26,6 @@ public class ResourceServerCapacityDO {
     /** 机房 NIC 月配额 GB; 0/null=不限. 同时是 throttle_state 90% 触发的基数 (业务阈值). */
     private Integer monthlyTrafficGb;
 
-    /** 单 server 客户端数硬上限; 0=不限. allocator 候选过滤 + xray inbound 客户数闸. */
-    private Integer clientMaxCount;
-
     /** 当周期下行字节 (vnstat rx 累计; Agent push). */
     private Long rxBytes;
 

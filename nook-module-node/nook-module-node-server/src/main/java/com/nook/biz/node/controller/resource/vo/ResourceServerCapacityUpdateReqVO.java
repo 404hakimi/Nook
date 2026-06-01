@@ -26,11 +26,6 @@ public class ResourceServerCapacityUpdateReqVO {
     @Max(value = 100000)
     private Integer bandwidthLimitMbps;
 
-    /** 单 server 客户端数硬上限; 0=不限. allocator 候选过滤 + xray inbound 客户数闸. */
-    @Min(value = 0)
-    @Max(value = 100000)
-    private Integer clientMaxCount;
-
     /** 周期重置策略 {@link ResourceServerQuotaResetPolicyEnum}; 后续做"重置流量"业务时按该策略派计算. */
     @Size(max = 32)
     private String quotaResetPolicy;

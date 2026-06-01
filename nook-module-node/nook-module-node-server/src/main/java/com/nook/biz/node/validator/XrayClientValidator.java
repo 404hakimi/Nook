@@ -1,7 +1,6 @@
 package com.nook.biz.node.validator;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.api.enums.XrayErrorCode;
@@ -43,22 +42,6 @@ public class XrayClientValidator {
         XrayClientDO dup = xrayClientMapper.selectByIpId(ipId);
         if (ObjectUtil.isNotNull(dup)) {
             throw new BusinessException(XrayErrorCode.CLIENT_IP_ALREADY_USED, ipId);
-        }
-    }
-
-    /**
-     * 客户数硬上限校验: 该 server 活客户数 ≥ clientMaxCount 则不允许再开通.
-     *
-     * @param serverId       resource_server.id
-     * @param clientMaxCount 该 server 的客户数上限 (来自 capacity.client_max_count); null/0 视为无上限不校验
-     */
-    public void validateClientMaxCount(String serverId, Integer clientMaxCount) {
-        if (clientMaxCount == null || clientMaxCount == 0) return;
-        long activeCount = xrayClientMapper.selectCount(Wrappers.<XrayClientDO>lambdaQuery()
-                .eq(XrayClientDO::getServerId, serverId));
-        if (activeCount >= clientMaxCount) {
-            throw new BusinessException(XrayErrorCode.TOUCHDOWN_LIMIT_REACHED,
-                    serverId, clientMaxCount);
         }
     }
 

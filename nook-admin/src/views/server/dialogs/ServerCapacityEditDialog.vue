@@ -22,7 +22,7 @@ import {
 } from '@/api/resource/server'
 
 /**
- * 编辑 server 容量阈值 — 业务阈值 (限速 / 月流量上限 / 客户数上限 / 重置策略).
+ * 编辑 server 容量阈值 — 业务阈值 (限速 / 月流量上限 / 重置策略).
  *
  * <p>throttleState 由后期业务流转 (90% 阈值 + agent push) 自动维护, 这里只读展示.
  * rxBytes/txBytes/usedTrafficBytes 由 agent push, 这里只读展示.
@@ -43,7 +43,6 @@ const loading = ref(false)
 const form = reactive({
   monthlyTrafficGb: null as number | null,
   bandwidthLimitMbps: null as number | null,
-  clientMaxCount: null as number | null,
   quotaResetPolicy: 'FIXED'
 })
 
@@ -58,7 +57,6 @@ const runtime = reactive({
 function fill(c: ServerCapacity | null) {
   form.monthlyTrafficGb = c?.monthlyTrafficGb ?? null
   form.bandwidthLimitMbps = c?.bandwidthLimitMbps ?? null
-  form.clientMaxCount = c?.clientMaxCount ?? null
   form.quotaResetPolicy = c?.quotaResetPolicy ?? 'FIXED'
   runtime.usedTrafficBytes = c?.usedTrafficBytes ?? 0
   runtime.rxBytes = c?.rxBytes ?? 0
@@ -98,7 +96,6 @@ async function onSubmit() {
     await updateServerCapacity(props.serverId, {
       monthlyTrafficGb: form.monthlyTrafficGb ?? 0,
       bandwidthLimitMbps: form.bandwidthLimitMbps ?? 0,
-      clientMaxCount: form.clientMaxCount ?? 0,
       quotaResetPolicy: form.quotaResetPolicy
     })
     message.success('已保存')
@@ -135,7 +132,7 @@ async function onSubmit() {
         </NTag>
       </div>
       <NAlert type="info" :show-icon="false" size="small" class="mb-3">
-        <strong>限定带宽</strong>: 远端带宽限速值; <strong>月流量阈值</strong>: 月用量达到 90% 触发限流的基数; <strong>客户数上限</strong>: 该机器可分配的最大客户数. 0 = 不限.
+        <strong>限定带宽</strong>: 远端带宽限速值; <strong>月流量阈值</strong>: 月用量达到 90% 触发限流的基数. 0 = 不限.
       </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
@@ -144,9 +141,6 @@ async function onSubmit() {
           </NFormItem>
           <NFormItem label="月流量阈值 GB (0=不限)">
             <NInputNumber v-model:value="form.monthlyTrafficGb" :min="0" :max="1000000" class="w-full" />
-          </NFormItem>
-          <NFormItem label="客户数上限 (0=不限)">
-            <NInputNumber v-model:value="form.clientMaxCount" :min="0" :max="100000" class="w-full" />
           </NFormItem>
           <NFormItem label="周期重置策略">
             <NSelect v-model:value="form.quotaResetPolicy" :options="SERVER_QUOTA_RESET_POLICY_OPTIONS as any" />

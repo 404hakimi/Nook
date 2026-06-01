@@ -1,6 +1,5 @@
 package com.nook.biz.node.api.xray;
 
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.node.api.enums.XrayClientStatusEnum;
 import com.nook.biz.node.api.xray.dto.XrayClientProvisionDTO;
 import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
@@ -9,11 +8,6 @@ import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.service.xray.client.XrayClientService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * {@link XrayClientProvisionApi} 实现; 包装 {@link XrayClientService} (op 框架同步执行).
@@ -55,14 +49,4 @@ public class XrayClientProvisionApiImpl implements XrayClientProvisionApi {
         xrayClientMapper.updateServerId(clientId, newServerId);
     }
 
-    @Override
-    public Map<String, Integer> countActiveByServerIds(Collection<String> serverIds) {
-        if (serverIds == null || serverIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return xrayClientMapper.selectList(Wrappers.<XrayClientDO>lambdaQuery()
-                        .in(XrayClientDO::getServerId, serverIds)
-                        .eq(XrayClientDO::getStatus, 1)).stream()
-                .collect(Collectors.groupingBy(XrayClientDO::getServerId, Collectors.summingInt(c -> 1)));
-    }
 }

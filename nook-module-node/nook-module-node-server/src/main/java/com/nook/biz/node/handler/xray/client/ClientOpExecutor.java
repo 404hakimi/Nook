@@ -7,10 +7,8 @@ import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
@@ -39,7 +37,6 @@ public class ClientOpExecutor {
 
     private final XrayClientMapper xrayClientMapper;
     private final XrayConfigService xrayConfigService;
-    private final ResourceServerCapacityMapper capacityMapper;
     private final ResourceServerLandingService landingService;
     private final ResourceServerLandingMapper landingMapper;
     private final XrayClientValidator clientValidator;
@@ -71,9 +68,6 @@ public class ClientOpExecutor {
 
         sink.report("加载服务器信息", 25);
         XrayDeployment dep = loadDeployment(reqVO.getServerId());
-        ResourceServerCapacityDO cap = capacityMapper.selectById(reqVO.getServerId());
-        Integer clientMaxCount = cap == null ? null : cap.getClientMaxCount();
-        clientValidator.validateClientMaxCount(reqVO.getServerId(), clientMaxCount);
 
         // 同事务回滚时 landing 自动归还 (CAS 失败则抛 BusinessException)
         sink.report("占用落地节点", 35);

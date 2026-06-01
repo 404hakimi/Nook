@@ -10,7 +10,6 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import com.nook.biz.node.framework.cloudflare.CloudflareApiClient;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
@@ -68,7 +67,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private final XrayServerService xrayServerService;
     private final XrayConfigService xrayConfigService;
     private final XrayServerValidator xrayServerValidator;
-    private final ResourceServerCapacityMapper capacityMapper;
     private final OpOrchestrator opOrchestrator;
     private final OpConfigResolver opConfigResolver;
     private final CloudflareApiClient cloudflareApiClient;
@@ -77,7 +75,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private final ResourceServerService resourceServerService;
     private final StreamingEndpointSupport streamingSupport;
     private final WebStreamingProperties webStreamingProperties;
-    /** 装机 SSH 调用拆事务外, DB 三表写入由 TransactionTemplate 包同事务 (self-invocation @Transactional 不生效) */
+    /** 装机 SSH 调用拆事务外, DB 两表写入由 TransactionTemplate 包同事务 (self-invocation @Transactional 不生效) */
     private final TransactionTemplate transactionTemplate;
 
     @Override
@@ -121,11 +119,11 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                     + reqVO.getXrayVersion() + ")\n");
         }
 
-        // 部署完成 → 同事务写 xray_server + xray_config + capacity.client_max_count (三表 1:1)
+        // 部署完成 → 同事务写 xray_server + xray_config (两表 1:1)
         // 用 TransactionTemplate 而非 @Transactional self-invocation, 避免 AOP 代理失效
         try {
             transactionTemplate.executeWithoutResult(txStatus -> persistDeployment(serverId, reqVO, resolvedVersion, useTls));
-            lineSink.accept("[nook] ✔ DB 已写入 (clientMaxCount=" + reqVO.getClientMaxCount() + ")\n");
+            lineSink.accept("[nook] ✔ DB 已写入\n");
         } catch (RuntimeException e) {
             log.error("[install] xray 部署成功但 DB 状态初始化失败 server={}, 已自动回滚", serverId, e);
             lineSink.accept("[nook] ⚠ 远端部署 OK, 但 DB 状态初始化失败 (已回滚): "
@@ -134,7 +132,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         }
     }
 
-    /** 三表写入: 实例元数据 / inbound 配置 / 客户数硬上限; caller 必须包事务. */
+    /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. */
     private void persistDeployment(String serverId, XrayServerInstallReqVO r, String resolvedVersion, boolean useTls) {
         XrayServerDO srv = new XrayServerDO();
         srv.setServerId(serverId);
@@ -161,9 +159,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         cfg.setTlsCertPath(useTls ? r.getTlsCertPath() : null);
         cfg.setTlsKeyPath(useTls ? r.getTlsKeyPath() : null);
         xrayConfigService.upsert(cfg);
-
-        // 客户数硬上限直接走 capacity.client_max_count; capacity 行由 server 创建路径已占位
-        capacityMapper.updateQuota(serverId, null, null, r.getClientMaxCount(), null);
     }
 
     @Override
@@ -254,7 +249,6 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         vars.put("RESTART_POLICY", r.getRestartPolicy());
         vars.put("ENABLE_ON_BOOT", String.valueOf(Boolean.TRUE.equals(r.getEnableOnBoot())));
         vars.put("FORCE_REINSTALL", String.valueOf(Boolean.TRUE.equals(r.getForceReinstall())));
-        vars.put("CLIENT_MAX_COUNT", String.valueOf(r.getClientMaxCount()));
         vars.put("SHARED_INBOUND_PORT", String.valueOf(r.getSharedInboundPort()));
         vars.put("WS_PATH", r.getWsPath());
         vars.put("XRAY_BINARY_PATH",       r.getXrayBinaryPath());

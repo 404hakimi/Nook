@@ -128,7 +128,6 @@ const form = reactive<LineServerInstallDTO>({
   xrayBinaryPath: '',
   xrayConfigPath: '',
   xrayShareDir: '',
-  clientMaxCount: 50,
   xrayApiPort: randomXrayApiPort(),
   logDir: '',
   xraySystemdUnitPath: DEFAULT_SYSTEMD_UNIT_PATH,
@@ -215,7 +214,6 @@ function validate() {
   if (form.xrayApiPort < XRAY_API_PORT_MIN || form.xrayApiPort > XRAY_API_PORT_MAX) {
     errors.xrayApiPort = `端口范围 ${XRAY_API_PORT_MIN}-${XRAY_API_PORT_MAX}`
   }
-  if (form.clientMaxCount < 1 || form.clientMaxCount > 200) errors.clientMaxCount = '客户数上限 1-200'
   // logDir 留空 OK (后端派生); 给了就必须绝对路径
   if (form.logDir.trim() && !form.logDir.startsWith('/')) {
     errors.logDir = '必须以 / 开头的绝对路径 (留空走默认 <installDir>/logs)'
@@ -264,7 +262,6 @@ async function onSubmit() {
       xrayBinaryPath: form.xrayBinaryPath?.trim() || d.xrayBinaryPath,
       xrayConfigPath: form.xrayConfigPath?.trim() || d.xrayConfigPath,
       xrayShareDir: form.xrayShareDir?.trim() || d.xrayShareDir,
-      clientMaxCount: form.clientMaxCount,
       xrayApiPort: form.xrayApiPort,
       logDir: form.logDir.trim() || d.logDir,
       xraySystemdUnitPath: form.xraySystemdUnitPath?.trim() || DEFAULT_SYSTEMD_UNIT_PATH,
@@ -442,24 +439,6 @@ function close() {
             :disabled="installing"
             :placeholder="derivedLogDir || '/home/xray/logs'"
             :input-props="{ style: 'font-family: monospace' }"
-          />
-        </NFormItem>
-
-        <NFormItem
-          required
-          :validation-status="errors.clientMaxCount ? 'error' : undefined"
-          :feedback="errors.clientMaxCount"
-        >
-          <template #label>
-            <span>客户数上限</span>
-            <span class="text-xs text-zinc-400 ml-2">该 server 最多挂载的客户端数; 落到 capacity.client_max_count</span>
-          </template>
-          <NInputNumber
-            v-model:value="form.clientMaxCount"
-            :min="1"
-            :max="200"
-            :disabled="installing"
-            class="w-full"
           />
         </NFormItem>
       </div>

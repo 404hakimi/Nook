@@ -162,8 +162,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     public void updateCapacity(String id, ServerLandingCapacityUpdateReqVO reqVO) {
         serverValidator.validateExists(id);
         // capacity 在 create 时已 insert 占位, 这里只走 update 业务阈值
-        capacityMapper.updateQuota(id, reqVO.getMonthlyTrafficGb(), reqVO.getBandwidthLimitMbps(),
-                null, reqVO.getQuotaResetPolicy());
+        capacityMapper.updateQuota(id, reqVO.getMonthlyTrafficGb(), reqVO.getBandwidthLimitMbps(), reqVO.getQuotaResetPolicy());
     }
 
     @Override

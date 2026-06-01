@@ -2,9 +2,6 @@ package com.nook.biz.node.api.xray;
 
 import com.nook.biz.node.api.xray.dto.XrayClientProvisionDTO;
 
-import java.util.Collection;
-import java.util.Map;
-
 /**
  * Xray 客户端开通/吊销跨模块契约 (trade 下单 / 退订时调; 内部走 op 编排框架同步执行).
  *
@@ -34,14 +31,6 @@ public interface XrayClientProvisionApi {
      * @param clientId xray_client.id
      */
     void stop(String clientId);
-
-    /**
-     * 批量统计各线路机活跃 (status=RUNNING) 客户数; allocator 选客户数最少线路机用.
-     *
-     * @param serverIds 线路机 server id 集合
-     * @return serverId → 活跃客户数 (无客户的 server 不在 map 里)
-     */
-    Map<String, Integer> countActiveByServerIds(Collection<String> serverIds);
 
     /**
      * 改客户端所在线路机 (故障切换); 只改 server_id, 落地(ip_id)/uuid 不变, 远端由 reconcile 两端收敛.

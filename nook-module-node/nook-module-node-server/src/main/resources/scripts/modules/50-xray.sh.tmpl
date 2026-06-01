@@ -1,7 +1,7 @@
 # Module 50 — xray binary + 共享 inbound (vmess+ws, users 空) + 仅 api/blackhole 两个静态 outbound.
 # 业务出站 (tag=clientId 的 socks5) 全部靠 `xray api ado` 动态加; restart 兜底走 blackhole 防 IP 泄漏.
 
-log "=== Module 50: Xray 安装 (版本: {{XRAY_VERSION}}, 安装到: {{INSTALL_DIR}}, 客户数上限: {{CLIENT_MAX_COUNT}}) ==="
+log "=== Module 50: Xray 安装 (版本: {{XRAY_VERSION}}, 安装到: {{INSTALL_DIR}}) ==="
 
 INSTALL_DIR="{{INSTALL_DIR}}"
 LOG_DIR="{{LOG_DIR}}"
