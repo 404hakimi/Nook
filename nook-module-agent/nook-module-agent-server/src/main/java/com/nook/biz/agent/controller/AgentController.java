@@ -2,8 +2,6 @@ package com.nook.biz.agent.controller;
 
 import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
-import com.nook.biz.agent.controller.vo.AgentTaskResultReqVO;
-import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
 import com.nook.biz.agent.framework.auth.AuthenticatedAgent;
 import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
@@ -17,7 +15,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -66,33 +63,6 @@ public class AgentController {
     }
 
     /**
-     * Agent 轮询拉 PENDING 任务 (每 30s), 同步 CAS 标 PICKED 防并发重复拾取.
-     *
-     * @param serverId 已认证 server id
-     * @param limit    本次最多拉条数 (默认 10)
-     * @return 已 PICKED 的任务列表; 空列表表示当前无任务
-     */
-    @GetMapping("/tasks")
-    public Result<List<AgentTaskRespVO>> pullTasks(@AuthenticatedAgent String serverId,
-                                                   @RequestParam(value = "limit", defaultValue = "10") int limit) {
-        return Result.ok(agentReportService.pullPendingTasks(serverId, limit));
-    }
-
-    /**
-     * Agent 上报任务执行结果.
-     *
-     * @param serverId 已认证 server id
-     * @param reqVO    任务结果 (taskId + status + resultPayload)
-     * @return 固定 true
-     */
-    @PostMapping("/task-result")
-    public Result<Boolean> taskResult(@AuthenticatedAgent String serverId,
-                                      @RequestBody @Valid AgentTaskResultReqVO reqVO) {
-        agentReportService.receiveTaskResult(serverId, reqVO);
-        return Result.ok(true);
-    }
-
-    /**
      * Agent reconcile 拉本机应存在的全部 xray 客户端期望态 (每 5min + 下单立即推).
      * agent 跟本地实际 diff → adu/rmu/ado/rmo/adrules 收敛。
      *
@@ -105,7 +75,7 @@ public class AgentController {
     }
 
     /**
-     * 落地 agent 拉本机应施加的 tc 限速 (Mbps); 落地 1:1, 取占用它的订阅套餐带宽与本机带宽上限的较小值.
+     * 落地 agent 拉本机应施加的 tc 限速 (Mbps); 取占用它的订阅套餐带宽与本机带宽上限的较小值.
      * agent 跟本地 tc qdisc 比对 → 幂等重放 / rate 变更 / 清除。
      *
      * @param serverId 已认证 server id (落地机)

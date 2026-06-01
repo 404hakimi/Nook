@@ -3,6 +3,7 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
+import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerProvisionModeEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
@@ -373,7 +374,9 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
                 ResourceServerCapacityDO::getServerId);
         List<LandingSummaryDTO> matched = new ArrayList<>();
         for (ResourceServerLandingDO landing : landings) {
-            if (this.belowPlanSpec(capMap.get(landing.getServerId()), minTrafficGb, minBandwidthMbps)) {
+            ResourceServerCapacityDO cap = capMap.get(landing.getServerId());
+            // 规格不达标 或 当周期流量到顶(THROTTLED) → 不进候选
+            if (this.belowPlanSpec(cap, minTrafficGb, minBandwidthMbps) || this.isThrottled(cap)) {
                 continue;
             }
             matched.add(ResourceServerLandingConvert.INSTANCE.toSummary(serverMap.get(landing.getServerId()), landing));
@@ -389,6 +392,11 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
             return true;
         }
         return bandwidthMbps != null && bandwidthMbps > 0 && bandwidthMbps < minBandwidthMbps;
+    }
+
+    /** 落地机当周期流量是否已到顶 (THROTTLED); 到顶的不再作为候选 / 不计可售. */
+    private boolean isThrottled(ResourceServerCapacityDO cap) {
+        return cap != null && ResourceServerThrottleStateEnum.THROTTLED.matches(cap.getThrottleState());
     }
 
     @Override
@@ -429,8 +437,9 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
                     occupied++;
                     continue;
                 }
-                // 空闲机器需达标才算"可售"
-                if (this.belowPlanSpec(capMap.get(landing.getServerId()), spec.getTrafficGb(), spec.getBandwidthMbps())) {
+                // 空闲机器需达标 + 未到顶 才算"可售"
+                ResourceServerCapacityDO cap = capMap.get(landing.getServerId());
+                if (this.belowPlanSpec(cap, spec.getTrafficGb(), spec.getBandwidthMbps()) || this.isThrottled(cap)) {
                     continue;
                 }
                 total++;

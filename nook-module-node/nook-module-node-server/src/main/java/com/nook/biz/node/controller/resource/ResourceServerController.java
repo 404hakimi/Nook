@@ -4,13 +4,13 @@ import com.nook.biz.node.controller.resource.vo.ResourceServerBillingRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerBillingUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityUpdateReqVO;
-import com.nook.biz.agent.api.AgentRuntimeConfigApi;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.convert.resource.ResourceServerBillingConvert;
 import com.nook.biz.node.convert.resource.ResourceServerCapacityConvert;
@@ -55,7 +55,6 @@ public class ResourceServerController {
     private final ResourceServerBillingService billingService;
     private final ResourceServerCapacityService capacityService;
     private final ResourceServerFrontlineService frontlineService;
-    private final AgentRuntimeConfigApi agentRuntimeConfigApi;
 
     /**
      * 创建服务器 (frontline / landing 共用; 按 serverType 分发)
@@ -95,20 +94,18 @@ public class ResourceServerController {
      * 获得 server 详情 + agent 运行时聚合 (frontline / landing 共用; 详情页 header + Agent tab 用)
      *
      * @param id server 编号
-     * @return 主表 + credential / runtime / capacity / xray + configSyncState 拼装结果
+     * @return 主表 + credential / runtime / capacity / xray 拼装结果
      */
     @GetMapping("/get-detail-with-runtime")
     public Result<ServerFrontlineListItemRespVO> getDetailWithRuntime(@RequestParam("id") String id) {
         ResourceServerDO server = resourceServerService.requireServer(id);
         ResourceServerFrontlineService.RuntimeBundle bundle = frontlineService.loadRuntimeBundleSingle(id);
-        Map<String, String> cfgSyncMap = agentRuntimeConfigApi.getSyncStateMap(Set.of(id));
         return Result.ok(ResourceServerFrontlineConvert.INSTANCE.convertSingleWithRuntime(
                 server,
                 bundle.credentialMap().get(id),
                 bundle.runtimeMap().get(id),
                 bundle.capacityMap().get(id),
                 bundle.xrayMap().get(id),
-                cfgSyncMap.get(id),
                 LocalDateTime.now()));
     }
 
@@ -139,7 +136,7 @@ public class ResourceServerController {
     }
 
     /**
-     * 切换 lifecycle_state
+     * 切换服务器的生命周期
      *
      * @param id    server 编号
      * @param state 目标 lifecycle 状态
@@ -160,8 +157,12 @@ public class ResourceServerController {
      */
     @GetMapping("/get-credential")
     public Result<ResourceServerCredentialRespVO> getCredential(@RequestParam("id") String id) {
+        // 校验服务器是否存在
         resourceServerService.requireServer(id);
-        return Result.ok(ResourceServerCredentialConvert.INSTANCE.convert(credentialService.get(id)));
+        // 获取服务器凭证
+        ResourceServerCredentialDO serverCredential = credentialService.getServerCredential(id);
+        // 视图转换返回凭证
+        return Result.ok(ResourceServerCredentialConvert.INSTANCE.convert(serverCredential));
     }
 
     /**
@@ -186,7 +187,9 @@ public class ResourceServerController {
      */
     @GetMapping("/get-billing")
     public Result<ResourceServerBillingRespVO> getBilling(@RequestParam("id") String id) {
+        // 校验服务器是否存在
         resourceServerService.requireServer(id);
+        // 取账面并转换返回
         return Result.ok(ResourceServerBillingConvert.INSTANCE.convert(billingService.get(id)));
     }
 

@@ -1,21 +1,9 @@
 package com.nook.biz.agent.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nook.biz.agent.api.enums.AgentRole;
-import com.nook.biz.agent.api.enums.AgentTaskStatus;
-import com.nook.biz.agent.api.enums.AgentTaskType;
 import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
-import com.nook.biz.agent.controller.vo.AgentTaskResultReqVO;
-import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
-import com.nook.biz.agent.convert.AgentTaskConvert;
-import com.nook.biz.agent.dal.dataobject.AgentTaskDO;
-import com.nook.biz.agent.dal.mysql.mapper.AgentTaskMapper;
 import com.nook.biz.agent.service.AgentReportService;
-import com.nook.biz.agent.service.AgentRuntimeConfigService;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
 import com.nook.biz.node.api.xray.XrayClientReconcileApi;
@@ -24,12 +12,9 @@ import com.nook.biz.trade.api.TradeBandwidthApi;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Agent 上报数据 Service 实现类
@@ -41,16 +26,11 @@ import java.util.Map;
 public class AgentReportServiceImpl implements AgentReportService {
 
     private static final double GB_BYTES = 1024.0 * 1024 * 1024;
-    private static final ObjectMapper JSON = new ObjectMapper();
 
     @Resource
     private ResourceServerRuntimeApi resourceServerRuntimeApi;
     @Resource
     private ResourceServerCapacityApi resourceServerCapacityApi;
-    @Resource
-    private AgentTaskMapper agentTaskMapper;
-    @Resource
-    private AgentRuntimeConfigService agentRuntimeConfigService;
     @Resource
     private XrayClientReconcileApi xrayClientReconcileApi;
     @Resource
@@ -78,43 +58,6 @@ public class AgentReportServiceImpl implements AgentReportService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public List<AgentTaskRespVO> pullPendingTasks(String serverId, int limit) {
-        // 当前 agent push 鉴权走 resource_server (frontline); landing agent 鉴权对接后这里改成
-        // 从 AuthenticatedAgent 上下文拿 agent_type. 现阶段 frontline 写死.
-        List<AgentTaskDO> pending = agentTaskMapper.selectPending(AgentRole.FRONTLINE.getCode(), serverId, limit);
-        if (CollUtil.isEmpty(pending)) {
-            return List.of();
-        }
-        LocalDateTime now = LocalDateTime.now();
-        // markPicked 是 CAS WHERE status=PENDING; 防多 agent 并发拉同一任务 (理论上一 server 只跑一 agent, 防御性)
-        List<AgentTaskDO> picked = new ArrayList<>(pending.size());
-        for (AgentTaskDO t : pending) {
-            if (agentTaskMapper.markPicked(t.getId(), now) > 0) picked.add(t);
-        }
-        return AgentTaskConvert.INSTANCE.convertAgentList(picked);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void receiveTaskResult(String serverId, AgentTaskResultReqVO req) {
-        // agent 可能上报裸字符串, 包装成 {"raw":"..."} 防 result_payload (JSON 列) DataTruncation
-        String payload = normalizeJsonOrWrap(req.getResultPayload());
-        agentTaskMapper.markResult(req.getTaskId(), req.getStatus(), payload);
-        log.info("[receiveTaskResult] serverId={} taskId={} status={}",
-                serverId, req.getTaskId(), req.getStatus());
-        if (AgentTaskStatus.SUCCESS.name().equals(req.getStatus())) {
-            AgentTaskDO task = agentTaskMapper.selectById(req.getTaskId());
-            if (task != null && AgentTaskType.CONFIG_RELOAD.getCode().equals(task.getTaskType())) {
-                String md5 = extractField(task.getTaskPayload(), "md5");
-                if (md5 != null) {
-                    agentRuntimeConfigService.onConfigReloadSuccess(serverId, md5);
-                }
-            }
-        }
-    }
-
-    @Override
     public List<XrayReconcileClientDTO> getDesiredClients(String serverId) {
         return xrayClientReconcileApi.getDesiredClients(serverId);
     }
@@ -122,36 +65,5 @@ public class AgentReportServiceImpl implements AgentReportService {
     @Override
     public int getLandingDesiredBandwidthMbps(String serverId) {
         return tradeBandwidthApi.getLandingDesiredBandwidthMbps(serverId);
-    }
-
-    private static String extractField(String json, String key) {
-        if (json == null) return null;
-        try {
-            JsonNode n = JSON.readTree(json).get(key);
-            return n == null || n.isNull() ? null : n.asText();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /** 不合法 JSON 包成 {"raw":"..."}; 空值给 null. */
-    private static String normalizeJsonOrWrap(String s) {
-        if (StrUtil.isBlank(s)) {
-            return null;
-        }
-        String trimmed = s.trim();
-        char c = trimmed.charAt(0);
-        if (c == '{' || c == '[' || c == '"' || c == 't' || c == 'f' || c == 'n'
-                || c == '-' || (c >= '0' && c <= '9')) {
-            try {
-                JSON.readTree(trimmed);
-                return trimmed;
-            } catch (Exception ignore) { /* fall through */ }
-        }
-        try {
-            return JSON.writeValueAsString(Map.of("raw", s));
-        } catch (Exception e) {
-            return null;
-        }
     }
 }

@@ -48,7 +48,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -199,11 +198,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
     @Override
     public Map<String, Integer> countActiveByPlan() {
-        Map<String, Integer> countMap = new HashMap<>();
-        for (TradeSubscriptionDO sub : subMapper.selectAllActive()) {
-            countMap.merge(sub.getPlanId(), 1, Integer::sum);
-        }
-        return countMap;
+        return subMapper.countActiveGroupByPlan();
     }
 
     @Override

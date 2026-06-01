@@ -24,6 +24,11 @@ public interface ResourceServerLandingMapper extends BaseMapper<ResourceServerLa
         return selectById(serverId);
     }
 
+    /** 按 server_id 集合批量查 (server_id 即主键). */
+    default List<ResourceServerLandingDO> selectByServerIds(Collection<String> serverIds) {
+        return selectBatchIds(serverIds);
+    }
+
     /** 找冷却到期可回 AVAILABLE 的行. */
     default List<ResourceServerLandingDO> selectCoolingExpired(LocalDateTime now) {
         return selectList(Wrappers.<ResourceServerLandingDO>lambdaQuery()

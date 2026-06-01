@@ -2,8 +2,6 @@ package com.nook.biz.agent.service;
 
 import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
-import com.nook.biz.agent.controller.vo.AgentTaskResultReqVO;
-import com.nook.biz.agent.controller.vo.AgentTaskRespVO;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 
 import java.util.List;
@@ -31,23 +29,6 @@ public interface AgentReportService {
      * @param req      NIC 流量上报
      */
     void receiveNicTraffic(String serverId, AgentNicTrafficReqVO req);
-
-    /**
-     * 拉取 Agent 待执行任务
-     *
-     * @param serverId server 编号
-     * @param limit    拉取上限
-     * @return 任务列表
-     */
-    List<AgentTaskRespVO> pullPendingTasks(String serverId, int limit);
-
-    /**
-     * 接收任务执行结果
-     *
-     * @param serverId server 编号
-     * @param req      任务结果
-     */
-    void receiveTaskResult(String serverId, AgentTaskResultReqVO req);
 
     /**
      * 获得本机应存在的全部 xray 客户端期望态

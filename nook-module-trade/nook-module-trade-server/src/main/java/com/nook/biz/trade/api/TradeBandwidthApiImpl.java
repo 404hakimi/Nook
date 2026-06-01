@@ -8,13 +8,10 @@ import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
-import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * 落地机限速值解析 Service 实现类
@@ -38,30 +35,26 @@ public class TradeBandwidthApiImpl implements TradeBandwidthApi {
         if (StrUtil.isBlank(landingServerId)) {
             return 0;
         }
-        List<TradeSubscriptionDO> active = subMapper.selectAllActive();
-        if (active.isEmpty()) {
+        // 落地机 1:1: 直查绑定客户端 → 其生效订阅 → 套餐带宽 (不再全量扫订阅)
+        String clientId = clientNodeApi.getClientIdByLandingId(landingServerId);
+        if (clientId == null) {
             return 0;
         }
-        Set<String> clientIds = CollectionUtils.convertSet(
-                active, TradeSubscriptionDO::getXrayClientId, s -> s.getXrayClientId() != null);
-        Map<String, String> landingByClient = clientNodeApi.getLandingIdByClientIds(clientIds);
-        for (TradeSubscriptionDO s : active) {
-            if (!landingServerId.equals(landingByClient.get(s.getXrayClientId()))) {
-                continue;
-            }
-            // 套餐带宽与落地机自身带宽上限取较小: 套餐封顶(不超卖客户没买的), 落地机可往下压; 任一为 0/null 表示该侧不限
-            TradePlanDO plan = planMapper.selectById(s.getPlanId());
-            int planBw = plan != null && plan.getBandwidthMbps() != null ? plan.getBandwidthMbps() : 0;
-            ResourceServerCapacityRespDTO cap = capacityApi.listByServerIds(List.of(landingServerId)).get(landingServerId);
-            int landingBw = cap != null && cap.getBandwidthLimitMbps() != null ? cap.getBandwidthLimitMbps() : 0;
-            if (planBw <= 0) {
-                return Math.max(landingBw, 0);
-            }
-            if (landingBw <= 0) {
-                return planBw;
-            }
-            return Math.min(planBw, landingBw);
+        TradeSubscriptionDO sub = subMapper.selectActiveByClientId(clientId);
+        if (sub == null) {
+            return 0;
         }
-        return 0;
+        // 套餐带宽与落地机自身带宽上限取较小: 套餐封顶(不超卖客户没买的), 落地机可往下压; 任一为 0/null 表示该侧不限
+        TradePlanDO plan = planMapper.selectById(sub.getPlanId());
+        int planBw = plan != null && plan.getBandwidthMbps() != null ? plan.getBandwidthMbps() : 0;
+        ResourceServerCapacityRespDTO cap = capacityApi.listByServerIds(List.of(landingServerId)).get(landingServerId);
+        int landingBw = cap != null && cap.getBandwidthLimitMbps() != null ? cap.getBandwidthLimitMbps() : 0;
+        if (planBw <= 0) {
+            return Math.max(landingBw, 0);
+        }
+        if (landingBw <= 0) {
+            return planBw;
+        }
+        return Math.min(planBw, landingBw);
     }
 }

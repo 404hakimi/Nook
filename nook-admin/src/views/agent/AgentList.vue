@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, ref } from 'vue'
-import { ArrowUp, FileCog, History, RefreshCcw, Rocket } from 'lucide-vue-next'
+import { RefreshCcw, Rocket } from 'lucide-vue-next'
 import {
   NBadge,
   NButton,
@@ -10,26 +10,18 @@ import {
   NTabs,
   NTabPane,
   NTag,
-  useMessage,
   type DataTableColumns
 } from 'naive-ui'
 import {
   AGENT_ONLINE_LABELS,
-  AGENT_ONLINE_TAG_TYPE,
-  CONFIG_SYNC_LABELS,
-  CONFIG_SYNC_TAG_TYPE
+  AGENT_ONLINE_TAG_TYPE
 } from '@/api/agent/agent'
 import {
   listAllFrontlineServers,
   type ServerFrontlineListItem
 } from '@/api/resource/server'
-import ConfigEditDialog from './ConfigEditDialog.vue'
 import AgentDeployDialog from './AgentDeployDialog.vue'
-import AgentUpgradeDialog from './AgentUpgradeDialog.vue'
-import AgentTaskHistoryDialog from './AgentTaskHistoryDialog.vue'
 import { formatDateTime } from '@/utils/date'
-
-const message = useMessage()
 
 const list = ref<ServerFrontlineListItem[]>([])
 const loading = ref(false)
@@ -73,9 +65,8 @@ const groups = computed(() => {
   return groups
 })
 
-// ===== 部署 / 升级 (拆两个独立 dialog) =====
+// ===== 部署 (装机 / 重新部署 共用一个 dialog) =====
 const deployOpen = ref(false)
-const upgradeOpen = ref(false)
 const provisionTarget = ref<ServerFrontlineListItem | null>(null)
 
 const provisionRole = computed<'frontline' | 'landing'>(() => {
@@ -86,11 +77,6 @@ const provisionRole = computed<'frontline' | 'landing'>(() => {
 function openDeploy(row: ServerFrontlineListItem) {
   provisionTarget.value = row
   deployOpen.value = true
-}
-
-function openUpgrade(row: ServerFrontlineListItem) {
-  provisionTarget.value = row
-  upgradeOpen.value = true
 }
 
 const columns = computed<DataTableColumns<ServerFrontlineListItem>>(() => [
@@ -165,92 +151,27 @@ const columns = computed<DataTableColumns<ServerFrontlineListItem>>(() => [
     render: (row) => formatDateTime(row.lastHeartbeatAt)
   },
   {
-    title: '配置同步',
-    key: 'configSyncState',
-    width: 110,
-    render: (row) => {
-      const s = row.configSyncState || 'NEVER_CONFIGURED'
-      return h(NTag, { size: 'small', type: CONFIG_SYNC_TAG_TYPE[s] || 'default' },
-        { default: () => CONFIG_SYNC_LABELS[s] || s })
-    }
-  },
-  {
     title: '操作',
     key: 'actions',
     align: 'right',
     width: 340,
     render: (row) =>
       h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
+        // 未装 → 部署; 已装 → 重新部署 (都走 SSH 装机流, 覆盖 binary+config+重启)
         h(
           NButton,
           {
             size: 'tiny',
             quaternary: true,
-            type: 'info',
-            onClick: () => openConfig(row),
-            title: '编辑 agent 运行时配置 (yaml); 保存后 30s 内自动应用'
+            type: 'primary',
+            onClick: () => openDeploy(row),
+            title: row.agentVersion ? '重新部署 (覆盖 binary+config+重启)' : 'SSH 自动装 agent (首次部署)'
           },
-          { icon: () => h(NIcon, null, { default: () => h(FileCog) }), default: () => '改配置' }
-        ),
-        // 已装 → 升级; 未装 → 部署. 两种状态各自一个按钮, 文案/icon 明确, 不再 "部署/升级" 二合一
-        row.agentVersion
-          ? h(
-              NButton,
-              {
-                size: 'tiny',
-                quaternary: true,
-                type: 'success',
-                disabled: row.onlineState === 'OFFLINE' || row.onlineState === 'NEVER',
-                onClick: () => openUpgrade(row),
-                title: '一键升级 binary (走 task 链路, 仅替换 binary)'
-              },
-              { icon: () => h(NIcon, null, { default: () => h(ArrowUp) }), default: () => '升级' }
-            )
-          : h(
-              NButton,
-              {
-                size: 'tiny',
-                quaternary: true,
-                type: 'primary',
-                onClick: () => openDeploy(row),
-                title: 'SSH 自动装 agent (首次部署)'
-              },
-              { icon: () => h(NIcon, null, { default: () => h(Rocket) }), default: () => '部署' }
-            ),
-        h(
-          NButton,
-          {
-            size: 'tiny',
-            quaternary: true,
-            onClick: () => openHistory(row),
-            title: '查看该 server 最近的 task 历史 (升级 / 改配置 / xray_*)'
-          },
-          { icon: () => h(NIcon, null, { default: () => h(History) }), default: () => '历史' }
+          { icon: () => h(NIcon, null, { default: () => h(Rocket) }), default: () => (row.agentVersion ? '重新部署' : '部署') }
         )
       ])
   }
 ])
-
-// ===== 改配置弹窗 =====
-const configOpen = ref(false)
-const configTarget = ref<ServerFrontlineListItem | null>(null)
-const configTargetRole = computed<'frontline' | 'landing'>(() => {
-  const v = configTarget.value?.agentVersion
-  if (v && v.startsWith('landing-')) return 'landing'
-  return 'frontline'
-})
-function openConfig(row: ServerFrontlineListItem) {
-  configTarget.value = row
-  configOpen.value = true
-}
-
-// ===== 任务历史弹窗 =====
-const historyOpen = ref(false)
-const historyTarget = ref<ServerFrontlineListItem | null>(null)
-function openHistory(row: ServerFrontlineListItem) {
-  historyTarget.value = row
-  historyOpen.value = true
-}
 
 onMounted(loadList)
 </script>
@@ -260,7 +181,7 @@ onMounted(loadList)
     <NCard size="small">
       <div class="flex items-center gap-3">
         <span class="text-sm font-semibold">Agent 状态总览</span>
-        <span class="text-xs text-zinc-500">心跳每 1min, 任务轮询 30s, NIC 5min</span>
+        <span class="text-xs text-zinc-500">心跳每 1min, NIC 5min</span>
         <div class="flex-1"></div>
         <!-- 顶部统一入口去掉; admin 走 server 详情页 → Agent tab 入口, 或者在本表行内点 -->
         <NButton quaternary size="small" :loading="loading" @click="loadList">
@@ -314,13 +235,6 @@ onMounted(loadList)
       </NTabs>
     </NCard>
 
-    <ConfigEditDialog
-      v-model="configOpen"
-      :server-id="configTarget?.id ?? null"
-      :server-name="configTarget?.name"
-      :role="configTargetRole"
-      @saved="loadList"
-    />
     <AgentDeployDialog
       v-if="provisionTarget"
       v-model="deployOpen"
@@ -328,19 +242,6 @@ onMounted(loadList)
       :role="provisionRole"
       :host-label="provisionTarget.name"
       @deployed="loadListAfterDispatch"
-    />
-    <AgentUpgradeDialog
-      v-if="provisionTarget"
-      v-model="upgradeOpen"
-      :server-id="provisionTarget.id"
-      :host-label="provisionTarget.name"
-      :agent-info="provisionTarget"
-      @upgraded="loadListAfterDispatch"
-    />
-    <AgentTaskHistoryDialog
-      v-model="historyOpen"
-      :server-id="historyTarget?.id ?? null"
-      :server-name="historyTarget?.name"
     />
   </div>
 </template>

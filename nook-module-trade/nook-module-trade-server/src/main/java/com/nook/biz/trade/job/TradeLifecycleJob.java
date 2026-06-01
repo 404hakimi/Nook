@@ -67,6 +67,10 @@ public class TradeLifecycleJob {
         Set<String> landingIds = new HashSet<>(landingByClient.values());
         Map<String, ResourceServerCapacityRespDTO> capMap = CollUtil.isEmpty(landingIds)
                 ? Map.of() : capacityApi.listByServerIds(landingIds);
+        // 订阅用量行: 循环前一次批量载入, 避免逐订阅 selectById (N+1)
+        Map<String, MemberPlanTrafficDO> trafficBySub = CollectionUtils.convertMap(
+                trafficMapper.selectBatchIds(CollectionUtils.convertSet(active, TradeSubscriptionDO::getId)),
+                MemberPlanTrafficDO::getSubscriptionId);
 
         int expired = 0;
         int suspended = 0;
@@ -86,7 +90,7 @@ public class TradeLifecycleJob {
                     continue;
                 }
                 // 落地机 tx 累加进 member_plan_traffic; 用满套餐流量 → 停服保留 IP
-                if (accumulateAndMaybeSuspend(s, now, landingByClient, capMap, planTrafficGb)) {
+                if (accumulateAndMaybeSuspend(s, now, landingByClient, capMap, planTrafficGb, trafficBySub)) {
                     suspended++;
                 }
             } catch (Exception e) {
@@ -114,7 +118,8 @@ public class TradeLifecycleJob {
     private boolean accumulateAndMaybeSuspend(TradeSubscriptionDO s, LocalDateTime now,
                                               Map<String, String> landingByClient,
                                               Map<String, ResourceServerCapacityRespDTO> capMap,
-                                              Map<String, Integer> planTrafficGb) {
+                                              Map<String, Integer> planTrafficGb,
+                                              Map<String, MemberPlanTrafficDO> trafficBySub) {
         String clientId = s.getXrayClientId();
         String landingId = landingByClient.get(clientId);
         if (landingId == null) {
@@ -126,7 +131,7 @@ public class TradeLifecycleJob {
         }
         long cur = cap.getTxBytes();
 
-        MemberPlanTrafficDO row = trafficMapper.selectById(s.getId());
+        MemberPlanTrafficDO row = trafficBySub.get(s.getId());
         if (row == null) {
             row = new MemberPlanTrafficDO();
             row.setSubscriptionId(s.getId());

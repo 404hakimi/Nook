@@ -1,20 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ArrowUp, FileCog, FileText, HelpCircle, History, Rocket } from 'lucide-vue-next'
+import { FileText, HelpCircle, Rocket } from 'lucide-vue-next'
 import { NButton, NDescriptions, NDescriptionsItem, NIcon, NTag, NTooltip } from 'naive-ui'
 import {
   AGENT_ONLINE_LABELS,
-  AGENT_ONLINE_TAG_TYPE,
-  CONFIG_SYNC_LABELS,
-  CONFIG_SYNC_TAG_TYPE
+  AGENT_ONLINE_TAG_TYPE
 } from '@/api/agent/agent'
 import type { ServerFrontlineListItem } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import AgentDeployDialog from '@/views/agent/AgentDeployDialog.vue'
 import AgentLogDialog from '@/views/agent/AgentLogDialog.vue'
-import AgentUpgradeDialog from '@/views/agent/AgentUpgradeDialog.vue'
-import ConfigEditDialog from '@/views/agent/ConfigEditDialog.vue'
-import AgentTaskHistoryDialog from '@/views/agent/AgentTaskHistoryDialog.vue'
 
 const props = defineProps<{
   serverId: string
@@ -25,9 +20,6 @@ const props = defineProps<{
 const emit = defineEmits<{ refresh: [] }>()
 
 const deployOpen = ref(false)
-const upgradeOpen = ref(false)
-const configOpen = ref(false)
-const historyOpen = ref(false)
 const logOpen = ref(false)
 
 const provisioned = computed(() => !!props.agentInfo?.agentVersion)
@@ -51,12 +43,6 @@ function onDeployed() {
   // 部署成功后延 3s 刷, 给 backend 写 + agent 心跳一个余量
   setTimeout(() => emit('refresh'), 3000)
 }
-function onUpgraded() {
-  setTimeout(() => emit('refresh'), 3000)
-}
-function onConfigSaved() {
-  emit('refresh')
-}
 </script>
 
 <template>
@@ -75,34 +61,16 @@ function onConfigSaved() {
       <NButton
         v-if="provisioned"
         size="small"
-        type="success"
-        :disabled="!agentInfo || agentInfo.onlineState === 'OFFLINE' || agentInfo.onlineState === 'NEVER'"
-        @click="upgradeOpen = true"
-      >
-        <template #icon><NIcon><ArrowUp /></NIcon></template>
-        升级 agent
-      </NButton>
-      <NButton
-        v-if="provisioned"
-        size="small"
-        quaternary
+        type="primary"
         @click="deployOpen = true"
-        title="重新跑 SSH 装机流 (覆盖 binary + config + systemd unit)"
+        title="重新跑 SSH 装机流 (覆盖 binary + config + systemd unit + 重启)"
       >
         <template #icon><NIcon><Rocket /></NIcon></template>
-        重装 agent
-      </NButton>
-      <NButton size="small" type="info" :disabled="!provisioned" @click="configOpen = true">
-        <template #icon><NIcon><FileCog /></NIcon></template>
-        改 agent 配置
+        重新部署
       </NButton>
       <NButton size="small" quaternary :disabled="!provisioned" @click="logOpen = true">
         <template #icon><NIcon><FileText /></NIcon></template>
         查看日志
-      </NButton>
-      <NButton size="small" quaternary @click="historyOpen = true">
-        <template #icon><NIcon><History /></NIcon></template>
-        任务历史
       </NButton>
     </div>
 
@@ -145,11 +113,6 @@ function onConfigSaved() {
         </template>
         <NTag size="tiny" :type="healthLabel.type">{{ healthLabel.text }}</NTag>
       </NDescriptionsItem>
-      <NDescriptionsItem label="配置同步" :span="2">
-        <NTag size="tiny" :type="CONFIG_SYNC_TAG_TYPE[agentInfo!.configSyncState || 'NEVER_CONFIGURED'] || 'default'">
-          {{ CONFIG_SYNC_LABELS[agentInfo!.configSyncState || 'NEVER_CONFIGURED'] }}
-        </NTag>
-      </NDescriptionsItem>
     </NDescriptions>
 
     <!-- ===== Dialogs ===== -->
@@ -159,25 +122,6 @@ function onConfigSaved() {
       :role="role"
       :host-label="hostLabel"
       @deployed="onDeployed"
-    />
-    <AgentUpgradeDialog
-      v-model="upgradeOpen"
-      :server-id="serverId"
-      :host-label="hostLabel"
-      :agent-info="agentInfo"
-      @upgraded="onUpgraded"
-    />
-    <ConfigEditDialog
-      v-model="configOpen"
-      :server-id="serverId"
-      :server-name="agentInfo?.name"
-      :role="role"
-      @saved="onConfigSaved"
-    />
-    <AgentTaskHistoryDialog
-      v-model="historyOpen"
-      :server-id="serverId"
-      :server-name="agentInfo?.name"
     />
     <AgentLogDialog
       v-model="logOpen"

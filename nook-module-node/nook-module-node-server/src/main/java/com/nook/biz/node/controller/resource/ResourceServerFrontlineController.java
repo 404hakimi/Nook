@@ -1,6 +1,5 @@
 package com.nook.biz.node.controller.resource;
 
-import com.nook.biz.agent.api.AgentRuntimeConfigApi;
 import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
@@ -23,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -39,10 +37,9 @@ public class ResourceServerFrontlineController {
 
     private final ResourceServerService resourceServerService;
     private final ResourceServerFrontlineService frontlineService;
-    private final AgentRuntimeConfigApi agentRuntimeConfigApi;
 
     /**
-     * 获得线路机分页 (主表 + agent 运行时聚合: online state / agentVersion / xrayVersion / 流量 / throttle / configSyncState).
+     * 获得线路机分页 (主表 + agent 运行时聚合: online state / agentVersion / xrayVersion / 流量 / throttle).
      *
      * <p>规范三步走: ① Convert 提 serverIds → ② Service 批量查 4 子表 + 跨模块查 syncState → ③ Convert 拼装 VO.
      *
@@ -54,10 +51,9 @@ public class ResourceServerFrontlineController {
         PageResult<ResourceServerDO> page = resourceServerService.getServerPage(reqVO);
         Set<String> ids = ResourceServerFrontlineConvert.INSTANCE.extractServerIds(page.getRecords());
         ResourceServerFrontlineService.RuntimeBundle bundle = frontlineService.batchLoadRuntimeBundle(ids);
-        Map<String, String> cfgSyncMap = agentRuntimeConfigApi.getSyncStateMap(ids);
         return Result.ok(ResourceServerFrontlineConvert.INSTANCE.convertPageWithRuntime(
                 page, bundle.credentialMap(), bundle.runtimeMap(), bundle.capacityMap(),
-                bundle.xrayMap(), cfgSyncMap, LocalDateTime.now()));
+                bundle.xrayMap(), LocalDateTime.now()));
     }
 
     /**

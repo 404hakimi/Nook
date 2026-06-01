@@ -1,6 +1,5 @@
 package com.nook.biz.node.convert.resource;
 
-import com.nook.biz.agent.api.enums.AgentConfigSyncState;
 import com.nook.biz.agent.api.enums.AgentOnlineState;
 import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
@@ -45,9 +44,8 @@ public interface ResourceServerFrontlineConvert {
                                                                    ResourceServerRuntimeDO runtime,
                                                                    ResourceServerCapacityDO capacity,
                                                                    XrayServerDO xray,
-                                                                   String cfgSyncState,
                                                                    LocalDateTime now) {
-        return toListItem(server, cred, runtime, capacity, xray, cfgSyncState, now);
+        return toListItem(server, cred, runtime, capacity, xray, now);
     }
 
     /** 列表批量拼装: server 主表 + 5 个 enrich map → 列表项 VO 分页. */
@@ -57,7 +55,6 @@ public interface ResourceServerFrontlineConvert {
             Map<String, ResourceServerRuntimeDO> runtimeMap,
             Map<String, ResourceServerCapacityDO> capacityMap,
             Map<String, XrayServerDO> xrayMap,
-            Map<String, String> cfgSyncStateMap,
             LocalDateTime now) {
         List<ResourceServerDO> records = page.getRecords();
         List<ServerFrontlineListItemRespVO> list = new ArrayList<>(records.size());
@@ -67,19 +64,17 @@ public interface ResourceServerFrontlineConvert {
                     runtimeMap == null ? null : runtimeMap.get(s.getId()),
                     capacityMap == null ? null : capacityMap.get(s.getId()),
                     xrayMap == null ? null : xrayMap.get(s.getId()),
-                    cfgSyncStateMap == null ? null : cfgSyncStateMap.get(s.getId()),
                     now));
         }
         return PageResult.of(page.getTotal(), list);
     }
 
-    /** 组装单行: server 主表 + runtime + capacity + xray + agentConfigSyncState. */
+    /** 组装单行: server 主表 + runtime + capacity + xray. */
     static ServerFrontlineListItemRespVO toListItem(ResourceServerDO s,
                                                     ResourceServerCredentialDO credential,
                                                     ResourceServerRuntimeDO rt,
                                                     ResourceServerCapacityDO cap,
                                                     XrayServerDO xray,
-                                                    String cfgSyncState,
                                                     LocalDateTime now) {
         ServerFrontlineListItemRespVO vo = new ServerFrontlineListItemRespVO();
         vo.setId(s.getId());
@@ -101,7 +96,6 @@ public interface ResourceServerFrontlineConvert {
             }
         }
         vo.setOnlineState(AgentOnlineState.classify(elapsedSec, tempUnhealthy).name());
-        vo.setConfigSyncState(cfgSyncState == null ? AgentConfigSyncState.NEVER_CONFIGURED.name() : cfgSyncState);
         if (cap != null) {
             vo.setMonthlyTrafficGb(cap.getMonthlyTrafficGb());
             vo.setRxBytes(cap.getRxBytes());

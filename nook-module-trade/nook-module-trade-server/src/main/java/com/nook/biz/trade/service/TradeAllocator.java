@@ -2,6 +2,7 @@ package com.nook.biz.trade.service;
 
 import cn.hutool.core.collection.CollUtil;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
+import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
@@ -69,6 +70,10 @@ public class TradeAllocator {
         int bestHeadroom = Integer.MIN_VALUE;
         for (ResourceServerRespDTO f : frontlines) {
             ResourceServerCapacityRespDTO cap = capMap.get(f.getId());
+            // 流量到顶(THROTTLED)的线路机不再接新订阅
+            if (cap != null && ResourceServerThrottleStateEnum.THROTTLED.matches(cap.getThrottleState())) {
+                continue;
+            }
             Integer bwLimit = cap == null ? null : cap.getBandwidthLimitMbps();
             // 不超卖语义: 线路机须配带宽上限才能参与准入
             if (bwLimit == null || bwLimit <= 0) {
@@ -114,12 +119,15 @@ public class TradeAllocator {
 
     /** 各线路机当前已挂带宽 = Σ(经过它的 ACTIVE 订阅的套餐带宽). */
     private Map<String, Integer> committedBandwidthByFrontline(Set<String> frontlineIds) {
-        List<TradeSubscriptionDO> active = subMapper.selectAllActive();
+        // 只捞这批线路机上的 client (不全量扫订阅), 再回查这些 client 的生效订阅
+        Map<String, String> clientToServer = clientNodeApi.getClientServerMapByServerIds(frontlineIds);
+        if (clientToServer.isEmpty()) {
+            return Map.of();
+        }
+        List<TradeSubscriptionDO> active = subMapper.selectActiveByClientIds(clientToServer.keySet());
         if (CollUtil.isEmpty(active)) {
             return Map.of();
         }
-        Set<String> clientIds = CollectionUtils.convertSet(active, TradeSubscriptionDO::getXrayClientId);
-        Map<String, String> clientToServer = clientNodeApi.getServerIdByClientIds(clientIds);
         Set<String> planIds = CollectionUtils.convertSet(active, TradeSubscriptionDO::getPlanId);
         Map<String, Integer> planBw = CollectionUtils.convertMap(
                 planMapper.selectBatchIds(planIds), TradePlanDO::getId,
@@ -127,7 +135,7 @@ public class TradeAllocator {
         Map<String, Integer> committed = new HashMap<>();
         for (TradeSubscriptionDO s : active) {
             String fId = clientToServer.get(s.getXrayClientId());
-            if (fId == null || !frontlineIds.contains(fId)) {
+            if (fId == null) {
                 continue;
             }
             committed.merge(fId, planBw.getOrDefault(s.getPlanId(), 0), Integer::sum);

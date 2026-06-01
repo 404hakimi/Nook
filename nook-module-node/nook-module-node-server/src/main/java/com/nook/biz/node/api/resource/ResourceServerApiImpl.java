@@ -45,11 +45,6 @@ public class ResourceServerApiImpl implements ResourceServerApi {
     }
 
     @Override
-    public List<ResourceServerRespDTO> listAll() {
-        return BeanUtils.toBean(resourceServerMapper.selectList(null), ResourceServerRespDTO.class);
-    }
-
-    @Override
     public PageResult<ResourceServerRespDTO> page(ResourceServerPageReqDTO req) {
         PageResult<ResourceServerDO> page = resourceServerService.getServerPage(
                 BeanUtils.toBean(req, ResourceServerPageReqVO.class));

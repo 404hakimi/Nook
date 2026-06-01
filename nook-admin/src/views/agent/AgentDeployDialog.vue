@@ -12,7 +12,6 @@ import {
   NInputNumber,
   NModal,
   NSelect,
-  NSpin,
   NTag,
   NTooltip,
   useDialog,
@@ -30,7 +29,7 @@ import {
 /**
  * Agent 部署 (SSH 装机) dialog — 从父详情页传 sourceId + role 进来.
  *
- * 跟 AgentUpgradeDialog 完全独立; admin 进来确认 / 改参数 / 看流式日志.
+ * admin 进来确认 / 改参数 / 看流式日志; 已装机的 server 再点即"重新部署".
  * role: frontline (sourceId = resource_server.id) / landing (sourceId = resource_server.id, server_type=landing).
  */
 const props = defineProps<{
@@ -69,7 +68,6 @@ function defaultForm(): AgentInstallDTO {
     heartbeatIntervalSeconds: 60,
     nicIntervalSeconds: 300,
     nicInterface: 'auto',
-    pollerIntervalSeconds: 60,
     reconcileIntervalSeconds: 300,
     nookHome: '/home/nook-agent',
     binPath: '/home/nook-agent/nook-agent',
@@ -297,16 +295,6 @@ onUnmounted(() => { if (deployAbort) deployAbort.abort() })
             拉取网卡
           </NButton>
         </div>
-      </NFormItem>
-      <NFormItem path="pollerIntervalSeconds">
-        <template #label>
-          任务轮询间隔 (秒)
-          <NTooltip trigger="hover">
-            <template #trigger><NIcon class="hint"><HelpCircle :size="14" /></NIcon></template>
-            Agent 轮询后端任务队列的频率.
-          </NTooltip>
-        </template>
-        <NInputNumber v-model:value="form.pollerIntervalSeconds" :min="5" :max="600" class="w-40" />
       </NFormItem>
       <NFormItem path="reconcileIntervalSeconds">
         <template #label>

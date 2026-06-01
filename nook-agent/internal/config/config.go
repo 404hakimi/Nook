@@ -14,10 +14,8 @@ type Config struct {
 	Backend   BackendConfig      `yaml:"backend"`
 	Heartbeat HeartbeatConfig    `yaml:"heartbeat"`
 	NIC       NICConfig          `yaml:"nic"`
-	Poller    PollerConfig       `yaml:"poller"`
 	Xray      XrayConfig         `yaml:"xray"`
 	Landing   LandingConfig      `yaml:"landing"`
-	Runtime   AgentRuntimeConfig `yaml:"runtime"`
 }
 
 type BackendConfig struct {
@@ -30,19 +28,10 @@ type HeartbeatConfig struct {
 	IntervalSeconds int `yaml:"interval_seconds"`
 }
 
-// AgentRuntimeConfig: agent_upgrade 用; bin_path 是当前 binary 绝对路径.
-type AgentRuntimeConfig struct {
-	BinPath string `yaml:"bin_path"`
-}
-
 type NICConfig struct {
 	IntervalSeconds int    `yaml:"interval_seconds"`
 	// "auto" 自动用默认路由出口网卡, 显式给 eth0/ens5 覆盖.
 	Interface string `yaml:"interface"`
-}
-
-type PollerConfig struct {
-	IntervalSeconds int `yaml:"interval_seconds"`
 }
 
 // XrayConfig: frontline 角色必填; landing 角色整段缺省 (yaml 不出现 xray:), 解析后字段 zero value.
@@ -95,12 +84,6 @@ func (c *Config) validate() error {
 	if c.NIC.Interface == "" {
 		return fmt.Errorf("nic.interface 不能为空")
 	}
-	if c.Poller.IntervalSeconds <= 0 {
-		return fmt.Errorf("poller.interval_seconds 必须 > 0")
-	}
-	if c.Runtime.BinPath == "" {
-		return fmt.Errorf("runtime.bin_path 不能为空")
-	}
 	return nil
 }
 
@@ -108,9 +91,6 @@ func (c *Config) HeartbeatInterval() time.Duration {
 	return time.Duration(c.Heartbeat.IntervalSeconds) * time.Second
 }
 func (c *Config) NICInterval() time.Duration { return time.Duration(c.NIC.IntervalSeconds) * time.Second }
-func (c *Config) PollerInterval() time.Duration {
-	return time.Duration(c.Poller.IntervalSeconds) * time.Second
-}
 func (c *Config) HTTPTimeout() time.Duration {
 	return time.Duration(c.Backend.TimeoutSeconds) * time.Second
 }

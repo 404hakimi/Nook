@@ -99,4 +99,23 @@ public class XrayClientNodeApiImpl implements XrayClientNodeApi {
                 .filter(c -> Objects.nonNull(c.getIpId()))
                 .collect(Collectors.toMap(XrayClientDO::getId, XrayClientDO::getIpId, (a, b) -> a));
     }
+
+    @Override
+    public String getClientIdByLandingId(String landingServerId) {
+        if (StrUtil.isBlank(landingServerId)) {
+            return null;
+        }
+        XrayClientDO c = clientMapper.selectByIpId(landingServerId);
+        return c == null ? null : c.getId();
+    }
+
+    @Override
+    public Map<String, String> getClientServerMapByServerIds(Collection<String> serverIds) {
+        if (serverIds == null || serverIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return clientMapper.selectByServerIds(serverIds).stream()
+                .filter(c -> Objects.nonNull(c.getServerId()))
+                .collect(Collectors.toMap(XrayClientDO::getId, XrayClientDO::getServerId, (a, b) -> a));
+    }
 }

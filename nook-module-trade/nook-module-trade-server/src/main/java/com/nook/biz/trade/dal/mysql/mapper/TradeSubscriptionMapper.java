@@ -36,6 +36,39 @@ public interface TradeSubscriptionMapper extends BaseMapper<TradeSubscriptionDO>
                 .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState()));
     }
 
+    /** 某客户端当前生效订阅 (client 1:1 订阅; 无返 null). */
+    default TradeSubscriptionDO selectActiveByClientId(String clientId) {
+        return selectOne(Wrappers.<TradeSubscriptionDO>lambdaQuery()
+                .eq(TradeSubscriptionDO::getXrayClientId, clientId)
+                .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState())
+                .last("LIMIT 1"));
+    }
+
+    /** 指定客户端集合的生效订阅. */
+    default List<TradeSubscriptionDO> selectActiveByClientIds(Collection<String> clientIds) {
+        if (CollUtil.isEmpty(clientIds)) {
+            return List.of();
+        }
+        return selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()
+                .in(TradeSubscriptionDO::getXrayClientId, clientIds)
+                .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState()));
+    }
+
+    /** 各套餐生效订阅数 (GROUP BY 聚合, 不全量加载). */
+    default Map<String, Integer> countActiveGroupByPlan() {
+        Map<String, Integer> counts = new HashMap<>();
+        for (Map<String, Object> row : selectMaps(Wrappers.<TradeSubscriptionDO>query()
+                .select("plan_id AS planId", "COUNT(*) AS cnt")
+                .eq("status", TradeSubscriptionStatusEnum.ACTIVE.getState())
+                .groupBy("plan_id"))) {
+            Object planId = row.get("planId");
+            if (planId != null) {
+                counts.put(planId.toString(), ((Number) row.get("cnt")).intValue());
+            }
+        }
+        return counts;
+    }
+
     /** 生效中且已过期的订阅. */
     default List<TradeSubscriptionDO> selectExpiredCandidates(LocalDateTime now) {
         return selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()

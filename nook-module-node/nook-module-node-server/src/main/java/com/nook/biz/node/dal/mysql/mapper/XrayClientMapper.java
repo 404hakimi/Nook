@@ -10,6 +10,7 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -31,6 +32,12 @@ public interface XrayClientMapper extends BaseMapper<XrayClientDO> {
     default List<XrayClientDO> selectByServerId(String serverId) {
         return selectList(Wrappers.<XrayClientDO>lambdaQuery()
                 .eq(XrayClientDO::getServerId, serverId));
+    }
+
+    /** 列指定 server 集合下所有 client. */
+    default List<XrayClientDO> selectByServerIds(Collection<String> serverIds) {
+        return selectList(Wrappers.<XrayClientDO>lambdaQuery()
+                .in(XrayClientDO::getServerId, serverIds));
     }
 
     /** 更新 status + last_synced_at; 显式 set updated_at 因 wrapper 更新不走 MetaObjectHandler 自动 fill. */

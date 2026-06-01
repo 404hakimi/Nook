@@ -22,6 +22,11 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * {@link XrayClientReconcileApi} 实现; 从 DB 拼某线路机应存在的全部客户端期望态 (含预拼 adu/ado/adrules JSON).
@@ -47,14 +52,26 @@ public class XrayClientReconcileApiImpl implements XrayClientReconcileApi {
         if (cfg == null) {
             return Collections.emptyList();
         }
-        List<XrayClientDO> clients = clientMapper.selectByServerId(serverId);
-        List<XrayReconcileClientDTO> out = new ArrayList<>(clients.size());
-        for (XrayClientDO c : clients) {
-            if (!XrayClientStatusEnum.RUNNING.matches(c.getStatus())) {
-                continue;
-            }
-            ResourceServerDO landingSrv = serverMapper.selectById(c.getIpId());
-            ResourceServerLandingDO landing = landingMapper.selectByServerId(c.getIpId());
+        List<XrayClientDO> running = clientMapper.selectByServerId(serverId).stream()
+                .filter(c -> XrayClientStatusEnum.RUNNING.matches(c.getStatus()))
+                .collect(Collectors.toList());
+        if (running.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // 落地机主表 + 落地子表: 按 ip_id 集合各批量查一次, 避免逐 client 查 (N+1)
+        Set<String> ipIds = running.stream().map(XrayClientDO::getIpId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<String, ResourceServerDO> landingSrvMap = ipIds.isEmpty() ? Map.of()
+                : serverMapper.selectBatchIds(ipIds).stream()
+                        .collect(Collectors.toMap(ResourceServerDO::getId, Function.identity()));
+        Map<String, ResourceServerLandingDO> landingMap = ipIds.isEmpty() ? Map.of()
+                : landingMapper.selectByServerIds(ipIds).stream()
+                        .collect(Collectors.toMap(ResourceServerLandingDO::getServerId, Function.identity()));
+
+        List<XrayReconcileClientDTO> out = new ArrayList<>(running.size());
+        for (XrayClientDO c : running) {
+            ResourceServerDO landingSrv = landingSrvMap.get(c.getIpId());
+            ResourceServerLandingDO landing = landingMap.get(c.getIpId());
             if (landingSrv == null || landing == null
                     || landing.getSocks5Port() == null || landingSrv.getIpAddress() == null) {
                 log.warn("[reconcile-desired] 跳过 client={} 落地机信息缺失 ip_id={}", c.getId(), c.getIpId());

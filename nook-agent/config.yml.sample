@@ -12,14 +12,8 @@ nic:
   interval_seconds: 300
   interface: auto
 
-poller:
-  interval_seconds: 30
-
 # Xray 段仅 frontline role 出现; landing role 无此段
 xray:
   bin: /usr/local/bin/xray
   api_port: 10085
   stats_interval_seconds: 300
-
-runtime:
-  bin_path: /home/nook-agent/nook-agent

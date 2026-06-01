@@ -7,7 +7,6 @@ import com.nook.biz.agent.controller.vo.AgentInstallReqVO;
 import com.nook.biz.agent.framework.config.AgentProperties;
 import com.nook.biz.agent.framework.script.AgentScripts;
 import com.nook.biz.agent.service.AgentInstallScriptService;
-import com.nook.biz.agent.service.AgentRuntimeConfigService;
 import com.nook.biz.agent.validator.AgentInstallValidator;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCredentialApi;
@@ -39,7 +38,7 @@ import java.util.function.Consumer;
 @Service
 public class AgentInstallScriptServiceImpl implements AgentInstallScriptService {
 
-    /** xray stats 上报间隔; agent-side 轮询率, 装机时统一值, 后续 ConfigEditDialog 可改. */
+    /** xray stats 上报间隔; agent-side 轮询率, 装机时统一值. */
     private static final int XRAY_STATS_INTERVAL_SECONDS = 300;
     /** reconcile (对账) 间隔默认值; admin 未填时用. */
     private static final int DEFAULT_RECONCILE_INTERVAL_SECONDS = 300;
@@ -54,8 +53,6 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
     private ScriptCatalog scriptCatalog;
     @Resource
     private AgentInstallValidator agentInstallValidator;
-    @Resource
-    private AgentRuntimeConfigService agentRuntimeConfigService;
     @Resource
     private AgentProperties agentProperties;
     @Resource
@@ -93,10 +90,6 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         lineSink.accept("[nook] agent_token: " + StrUtil.subPre(token, 12) + "… (复用 server 入库时签发)\n");
         lineSink.accept("[nook] role: " + reqVO.getRole() + " / server: " + srv.getName() + "\n");
         lineSink.accept("[nook] 渲染 yaml: " + configYaml.length() + " 字节\n");
-
-        // 优先入库 (DB 是单一权威态), 再 SSH 落地; SSH 失败 admin 可按 DB 重做装机
-        agentRuntimeConfigService.recordAsSynced(sourceId, role, configYaml, "system-install");
-        lineSink.accept("[nook] yaml 已入库 (agent_runtime_config), 状态 SYNCED\n");
 
         SessionCredential sshCred = SessionCredential.builder()
                 .serverId(srv.getId())
@@ -162,7 +155,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
     /** 拼 nook-agent config.yml. 所有值 (URL / 路径 / xray) 都来自 DTO, backend 不兜底. */
     private String buildYaml(AgentInstallReqVO r, String token) {
         StringBuilder sb = new StringBuilder(1024);
-        sb.append("# nook-").append(r.getRole()).append("-agent 配置 (装机时 backend 渲染; ConfigEditDialog 可热改)\n\n");
+        sb.append("# nook-").append(r.getRole()).append("-agent 配置 (装机时 backend 渲染; 改配置后需重新部署)\n\n");
         sb.append("backend:\n");
         sb.append("  api_url: ").append(r.getBackendUrl()).append("\n");
         sb.append("  api_token: ").append(token).append("\n");
@@ -172,8 +165,6 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         sb.append("nic:\n");
         sb.append("  interval_seconds: ").append(r.getNicIntervalSeconds()).append("\n");
         sb.append("  interface: ").append(r.getNicInterface()).append("\n\n");
-        sb.append("poller:\n");
-        sb.append("  interval_seconds: ").append(r.getPollerIntervalSeconds()).append("\n\n");
         int reconcileInterval = r.getReconcileIntervalSeconds() == null
                 ? DEFAULT_RECONCILE_INTERVAL_SECONDS : r.getReconcileIntervalSeconds();
         if (AgentRole.FRONTLINE.getCode().equals(r.getRole())) {
@@ -187,8 +178,6 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
             sb.append("landing:\n");
             sb.append("  bandwidth_reconcile_interval_seconds: ").append(reconcileInterval).append("\n\n");
         }
-        sb.append("runtime:\n");
-        sb.append("  bin_path: ").append(r.getBinPath()).append("\n");
         return sb.toString();
     }
 }

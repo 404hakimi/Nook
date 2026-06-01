@@ -29,7 +29,7 @@ public class ResourceServerCredentialServiceImpl implements ResourceServerCreden
     private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
-    public ResourceServerCredentialDO get(String serverId) {
+    public ResourceServerCredentialDO getServerCredential(String serverId) {
         return credentialMapper.selectById(serverId);
     }
 

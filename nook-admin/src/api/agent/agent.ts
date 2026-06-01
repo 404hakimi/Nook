@@ -1,59 +1,7 @@
 import request from '@/api/request'
-import type { AgentOnlineState, ConfigSyncState } from '@/api/resource/server'
+import type { AgentOnlineState } from '@/api/resource/server'
 
-export type { AgentOnlineState, ConfigSyncState }
-
-export const CONFIG_SYNC_LABELS: Record<ConfigSyncState, string> = {
-  NEVER_CONFIGURED: '未配置',
-  SYNCED: '已同步',
-  PENDING: '待应用'
-}
-
-export const CONFIG_SYNC_TAG_TYPE: Record<ConfigSyncState, 'default' | 'success' | 'warning'> = {
-  NEVER_CONFIGURED: 'default',
-  SYNCED: 'success',
-  PENDING: 'warning'
-}
-
-/** 派升级 task; agent 拉 backend 当前部署的 binary, 无版本选择. 返 taskId. */
-export function upgradeAgent(serverId: string) {
-  return request.post<unknown, string>('/admin/agent/upgrade-agent', null, { params: { serverId } })
-}
-
-/** Agent task 历史项 (升级 / 改配置 / 清日志 / xray_* / ping). */
-export interface AgentTaskHistoryItem {
-  id: string
-  taskType: string
-  /** PENDING / PICKED / SUCCESS / FAILED. */
-  status: string
-  taskPayload?: string
-  resultPayload?: string
-  retryCount?: number
-  createdAt?: string
-  pickedAt?: string
-  updatedAt?: string
-}
-
-export interface AgentTaskPageQuery {
-  pageNo?: number
-  pageSize?: number
-  /** agent_upgrade / config_reload / truncate_log / xray_* / ping; 空 = 全部. */
-  taskType?: string
-  /** PENDING / PICKED / SUCCESS / FAILED; 空 = 全部. */
-  status?: string
-}
-
-export interface PageResultT<T> {
-  total: number
-  records: T[]
-}
-
-/** 取某 server task 历史 分页. */
-export function pageAgentTasks(serverId: string, params: AgentTaskPageQuery) {
-  return request.get<unknown, PageResultT<AgentTaskHistoryItem>>(
-    '/admin/agent/page-task', { params: { ...params, serverId } }
-  )
-}
+export type { AgentOnlineState }
 
 /** Online state → 中文标签. */
 export const AGENT_ONLINE_LABELS: Record<AgentOnlineState, string> = {

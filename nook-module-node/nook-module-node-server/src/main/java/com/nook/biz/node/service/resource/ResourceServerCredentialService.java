@@ -16,7 +16,7 @@ public interface ResourceServerCredentialService {
      * @param serverId 服务器编号
      * @return SSH 凭据
      */
-    ResourceServerCredentialDO get(String serverId);
+    ResourceServerCredentialDO getServerCredential(String serverId);
 
     /**
      * 获得 SSH 凭据 (必存)

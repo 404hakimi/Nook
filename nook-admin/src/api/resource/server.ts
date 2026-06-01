@@ -24,9 +24,6 @@ export interface ResourceServer {
 /** Agent 在线状态. */
 export type AgentOnlineState = 'ONLINE' | 'WARN' | 'TEMP_UNHEALTHY' | 'OFFLINE' | 'NEVER'
 
-/** Agent 配置同步状态. */
-export type ConfigSyncState = 'NEVER_CONFIGURED' | 'SYNCED' | 'PENDING'
-
 /**
  * 线路机列表项 (page-frontline 返回): 主表 + agent 运行时聚合.
  *
@@ -48,7 +45,6 @@ export interface ServerFrontlineListItem {
   tempUnhealthy?: number
   elapsedSec?: number
   onlineState: AgentOnlineState
-  configSyncState?: ConfigSyncState
 
   /** 月度流量配额 GB; 0/null = 不限. */
   monthlyTrafficGb?: number
@@ -239,7 +235,7 @@ export function testServerConnectivity(serverId: string) {
   return request.post<unknown, ConnectivityTestResult>('/admin/resource/server/test-connectivity', null, { params: { id: serverId } })
 }
 
-/** Agent 角色 (跟后端 AgentRole enum 一致); 同时也是 agent_type / agent_task.agent_type 落库值. */
+/** Agent 角色 (跟后端 AgentRole enum 一致); 同时也是 agent_type 落库值. */
 export type AgentType = 'frontline' | 'landing'
 
 /** Agent 装机 meta: backend 已知数据, 前端 prefill 表单用; 用户可改. */
@@ -329,7 +325,6 @@ export interface AgentInstallDTO {
   nicIntervalSeconds: number
   /** auto | eth0 | ens5 ... */
   nicInterface: string
-  pollerIntervalSeconds: number
   /** Frontline reconcile (对账) 间隔 (秒); landing 忽略. */
   reconcileIntervalSeconds?: number
   xrayBin?: string

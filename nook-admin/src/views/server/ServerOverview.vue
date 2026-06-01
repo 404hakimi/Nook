@@ -2,8 +2,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  CheckCircle2,
-  CircleDashed,
   Clock,
   Cpu,
   Gauge,
@@ -29,9 +27,7 @@ import {
 } from 'naive-ui'
 import {
   AGENT_ONLINE_LABELS,
-  AGENT_ONLINE_TAG_TYPE,
-  CONFIG_SYNC_LABELS,
-  CONFIG_SYNC_TAG_TYPE
+  AGENT_ONLINE_TAG_TYPE
 } from '@/api/agent/agent'
 import {
   pageServers,
@@ -388,18 +384,6 @@ onMounted(async () => {
               >
                 <span class="pill-dot" :class="{ pulse: s.onlineState === 'ONLINE' }"></span>
                 <span class="pill-label">{{ AGENT_ONLINE_LABELS[s.onlineState] }}</span>
-              </span>
-              <span
-                class="status-pill"
-                :class="`pill-${CONFIG_SYNC_TAG_TYPE[s.configSyncState || 'NEVER_CONFIGURED'] || 'default'}`"
-                :title="`配置同步: ${CONFIG_SYNC_LABELS[s.configSyncState || 'NEVER_CONFIGURED']}`"
-              >
-                <NIcon class="pill-icon">
-                  <CheckCircle2 v-if="s.configSyncState === 'SYNCED'" :size="11" />
-                  <RefreshCcw v-else-if="s.configSyncState === 'PENDING'" :size="11" />
-                  <CircleDashed v-else :size="11" />
-                </NIcon>
-                <span class="pill-label">{{ CONFIG_SYNC_LABELS[s.configSyncState || 'NEVER_CONFIGURED'] }}</span>
               </span>
               <span
                 class="status-pill"

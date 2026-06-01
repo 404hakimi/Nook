@@ -26,7 +26,7 @@ public class ResourceServerCredentialApiImpl implements ResourceServerCredential
 
     @Override
     public ResourceServerCredentialRespDTO getByServerId(String serverId) {
-        ResourceServerCredentialDO row = credentialService.get(serverId);
+        ResourceServerCredentialDO row = credentialService.getServerCredential(serverId);
         return row == null ? null : BeanUtils.toBean(row, ResourceServerCredentialRespDTO.class);
     }
 

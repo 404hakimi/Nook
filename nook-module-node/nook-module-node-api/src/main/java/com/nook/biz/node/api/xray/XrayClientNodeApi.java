@@ -37,4 +37,20 @@ public interface XrayClientNodeApi {
      * @return clientId → ip_id (落地机 server id; 缺失的跳过)
      */
     Map<String, String> getLandingIdByClientIds(Collection<String> clientIds);
+
+    /**
+     * 查落地机当前绑定的客户端 (落地机 1:1); trade 解析落地机限速直查用.
+     *
+     * @param landingServerId 落地机 server id
+     * @return 绑定的 xray_client.id; 无绑定返 null
+     */
+    String getClientIdByLandingId(String landingServerId);
+
+    /**
+     * 查指定线路机集合上的客户端 → 所在线路机; trade 算线路机已挂带宽用 (只捞这批线路机的 client).
+     *
+     * @param serverIds 线路机 server id 集合
+     * @return clientId → server_id
+     */
+    Map<String, String> getClientServerMapByServerIds(Collection<String> serverIds);
 }

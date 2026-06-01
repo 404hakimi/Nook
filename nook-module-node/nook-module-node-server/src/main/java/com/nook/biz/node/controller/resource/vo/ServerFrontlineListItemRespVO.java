@@ -1,7 +1,6 @@
 package com.nook.biz.node.controller.resource.vo;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.nook.biz.agent.api.enums.AgentConfigSyncState;
 import com.nook.biz.agent.api.enums.AgentOnlineState;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
@@ -46,9 +45,6 @@ public class ServerFrontlineListItemRespVO {
 
     /** agent 在线状态 {@link AgentOnlineState} */
     private String onlineState;
-
-    /** 运行时配置同步状态 {@link AgentConfigSyncState} */
-    private String configSyncState;
 
     /** 月度流量配额 GB; 0/null = 不限. */
     private Integer monthlyTrafficGb;

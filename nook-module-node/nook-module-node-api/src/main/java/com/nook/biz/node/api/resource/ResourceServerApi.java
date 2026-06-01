@@ -32,13 +32,6 @@ public interface ResourceServerApi {
     ResourceServerRespDTO getByAgentToken(String agentToken);
 
     /**
-     * 拉所有未软删的 server (内部 batch 取名 / 跨表用; UI 列表请用 page).
-     *
-     * @return server 列表; 空表返空 list
-     */
-    List<ResourceServerRespDTO> listAll();
-
-    /**
      * 分页查 server (agent 模块拼 admin 列表用).
      *
      * @param reqDTO 分页 + 筛选
@@ -47,7 +40,7 @@ public interface ResourceServerApi {
     PageResult<ResourceServerRespDTO> page(ResourceServerPageReqDTO reqDTO);
 
     /**
-     * 批量获得服务器名称 (跨模块 enrich op_log / agent_task 列表用)
+     * 批量获得服务器名称 (跨模块 enrich op_log 列表用)
      *
      * @param serverIds 服务器编号集合
      * @return 服务器编号 → 服务器名称

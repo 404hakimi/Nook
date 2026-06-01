@@ -23,9 +23,6 @@ public final class XrayConstants {
     /** 业务 routing rule tag 前缀; 完整 tag = RULE_TAG_PREFIX + clientId. */
     public static final String RULE_TAG_PREFIX = "rule_";
 
-    /** lsrules 输出里 xray 自身的 API 通道 rule tag, 对账时需排除. */
-    public static final String BUILTIN_API_RULE_TAG = "api";
-
     /** 由 clientId 派生 outbound tag. */
     public static String outboundTagOf(String clientId) {
         return OUTBOUND_TAG_PREFIX + clientId;

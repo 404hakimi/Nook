@@ -37,10 +37,6 @@ public class AgentInstallReqVO {
     @NotBlank
     private String nicInterface;
 
-    /** 任务轮询间隔 (秒). */
-    @NotNull @Min(5) @Max(600)
-    private Integer pollerIntervalSeconds;
-
     /** Frontline reconcile (对账) 间隔 (秒); 缺省 300. landing 忽略. */
     @Min(30) @Max(3600)
     private Integer reconcileIntervalSeconds;
