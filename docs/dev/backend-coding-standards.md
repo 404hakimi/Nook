@@ -1,6 +1,6 @@
 # Nook 后端开发规范
 
-> 版本: v1.4 ｜ 日期: 2026-06-01 ｜ 适用: 所有 `nook-module-*` 模块
+> 版本: v1.5 ｜ 日期: 2026-06-01 ｜ 适用: 所有 `nook-module-*` 模块
 
 后端开发的强制约束. 本文为 AI 阅读优化, 规则优先于示例.
 
@@ -143,9 +143,20 @@ created_at DATETIME NOT NULL COMMENT '创建时间',
 updated_at DATETIME NOT NULL COMMENT '更新时间'
 ```
 
-### Wrapper 更新绕过 fill
+### 时间字段 (created_at / updated_at) 填充规则
 
-`Wrappers.lambdaUpdate().set(...).eq(...)` 这种写法**不会**触发 `MetaObjectHandlerImpl` 的 INSERT_UPDATE fill. 在 Mapper 的 default 更新方法里**必须显式** `.set(SomeDO::getUpdatedAt, LocalDateTime.now())`. 参考 `SystemUserMapper.updateLastLogin`.
+**触发前提**: MyBatis-Plus 仅当实体**至少有一个字段带 `@TableField(fill=…)`** 时 (即 `TableInfo.isWithInsertFill/isWithUpdateFill` 为真), 才会在 `insert(entity)` / `updateById(entity)` 调用 `MetaObjectHandlerImpl`. 该注解来自「继承 `BaseEntity`」(自带 created/updated 两注解) **或**「DO 字段上显式声明」(如 `XrayServerDO`) —— 两者皆可, **不限于 BaseEntity**.
+
+handler 被调用时:
+- **insertFill** 用 `strictInsertFill` 填 `createdAt` + `updatedAt` (仅填带注解且当前为 null 的字段).
+- **updateFill** 用 `setFieldValByName` **无条件刷新** `updatedAt`. **勿用** `strictUpdateFill` —— 它只填 null 值, 对 `updateById(已查出的实体)` 不生效, 会导致 `updated_at` 永不更新.
+
+**以下两种情况 handler 不会被调用, 必须手动 set (属正常, 勿删):**
+
+1. **Wrapper 更新**: `Wrappers.lambdaUpdate().set(...).eq(...)` 无实体 metaObject, handler 不触发. Mapper 的 default 更新方法里**必须显式** `.set(SomeDO::getUpdatedAt, LocalDateTime.now())`. 参考 `SystemUserMapper.updateLastLogin`.
+2. **既不继承 `BaseEntity`、字段也无 `@TableField(fill)` 的 DO** (主键非 `id` 的子表, PK 为 `server_id` 那类, 如 capacity / landing / credential 等): MP **完全不调用** handler, 其 `insert` 与 `updateById` 的时间字段都不自动填 → **insert 与 update 都必须手动** `setCreatedAt` / `setUpdatedAt`.
+
+> 新建"主键非 id"的 DO 时, 建议在时间字段显式加 `@TableField(value = "created_at", fill = FieldFill.INSERT)` / `@TableField(value = "updated_at", fill = FieldFill.INSERT_UPDATE)` (参考 `XrayServerDO`), 让 insert/update 都自动填充, 全面省去手动 set.
 
 ---
 
