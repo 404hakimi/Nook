@@ -28,7 +28,7 @@ const healthLabel = computed(() => {
   if (!provisioned.value) return { text: '未装', type: 'default' as const }
   const a = props.agentInfo!
   if (a.onlineState === 'OFFLINE') return { text: '离线', type: 'error' as const }
-  if (a.tempUnhealthy === 1) return { text: '心跳不稳定', type: 'warning' as const }
+  if (a.onlineState === 'TEMP_UNHEALTHY') return { text: '心跳不稳定', type: 'warning' as const }
   if (a.onlineState === 'ONLINE') return { text: '正常', type: 'success' as const }
   return { text: AGENT_ONLINE_LABELS[a.onlineState] || '?', type: 'default' as const }
 })

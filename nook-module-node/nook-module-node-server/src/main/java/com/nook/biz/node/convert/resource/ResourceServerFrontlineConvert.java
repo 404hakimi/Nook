@@ -84,18 +84,15 @@ public interface ResourceServerFrontlineConvert {
         vo.setRegion(s.getRegion());
         vo.setLifecycleState(s.getLifecycleState());
         Long elapsedSec = null;
-        Integer tempUnhealthy = null;
         if (rt != null) {
             vo.setAgentVersion(rt.getAgentVersion());
             vo.setLastHeartbeatAt(rt.getLastHeartbeatAt());
-            vo.setTempUnhealthy(rt.getTempUnhealthy());
-            tempUnhealthy = rt.getTempUnhealthy();
             if (rt.getLastHeartbeatAt() != null) {
                 elapsedSec = Duration.between(rt.getLastHeartbeatAt(), now).getSeconds();
                 vo.setElapsedSec(elapsedSec);
             }
         }
-        vo.setOnlineState(AgentOnlineState.classify(elapsedSec, tempUnhealthy).name());
+        vo.setOnlineState(AgentOnlineState.classify(elapsedSec).name());
         if (cap != null) {
             vo.setMonthlyTrafficGb(cap.getMonthlyTrafficGb());
             vo.setRxBytes(cap.getRxBytes());

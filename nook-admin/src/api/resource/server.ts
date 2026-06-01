@@ -42,7 +42,6 @@ export interface ServerFrontlineListItem {
   /** xray 安装版本; null = 未装 xray. */
   xrayVersion?: string
   lastHeartbeatAt?: string
-  tempUnhealthy?: number
   elapsedSec?: number
   onlineState: AgentOnlineState
 

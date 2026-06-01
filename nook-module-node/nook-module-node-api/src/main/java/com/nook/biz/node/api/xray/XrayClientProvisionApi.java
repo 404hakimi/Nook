@@ -42,4 +42,12 @@ public interface XrayClientProvisionApi {
      * @return serverId → 活跃客户数 (无客户的 server 不在 map 里)
      */
     Map<String, Integer> countActiveByServerIds(Collection<String> serverIds);
+
+    /**
+     * 改客户端所在线路机 (故障切换); 只改 server_id, 落地(ip_id)/uuid 不变, 远端由 reconcile 两端收敛.
+     *
+     * @param clientId    xray_client.id
+     * @param newServerId 新线路机 server id
+     */
+    void rebindFrontline(String clientId, String newServerId);
 }

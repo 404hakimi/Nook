@@ -116,7 +116,6 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
         ResourceServerRuntimeDO runtime = new ResourceServerRuntimeDO();
         runtime.setServerId(serverId);
-        runtime.setTempUnhealthy(0);
         runtime.setConsecutiveMiss(0);
         runtime.setUpdatedAt(now);
         resourceServerRuntimeMapper.insert(runtime);

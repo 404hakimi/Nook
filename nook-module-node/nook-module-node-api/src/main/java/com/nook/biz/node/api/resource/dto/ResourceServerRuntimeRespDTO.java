@@ -18,9 +18,6 @@ public class ResourceServerRuntimeRespDTO {
     /** 上次心跳时间; null = 从未上报. */
     private LocalDateTime lastHeartbeatAt;
 
-    /** Backend 主动标的临时不健康 (1=不健康). */
-    private Integer tempUnhealthy;
-
     /** Agent 自报版本字符串 (e.g., "frontline-0.7.0"). */
     private String agentVersion;
 

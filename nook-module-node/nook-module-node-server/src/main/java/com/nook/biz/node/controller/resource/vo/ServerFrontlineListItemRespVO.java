@@ -37,9 +37,6 @@ public class ServerFrontlineListItemRespVO {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastHeartbeatAt;
 
-    /** 0=健康 1=暂时不健康 (3-5min 心跳缺失). */
-    private Integer tempUnhealthy;
-
     /** 距上次心跳秒数; null = 从未心跳. */
     private Long elapsedSec;
 

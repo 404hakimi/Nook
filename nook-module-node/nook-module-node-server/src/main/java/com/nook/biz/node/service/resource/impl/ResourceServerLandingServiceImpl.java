@@ -3,7 +3,6 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
-import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerProvisionModeEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
@@ -26,6 +25,7 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
+import com.nook.biz.node.service.resource.ResourceServerAdmission;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
@@ -73,6 +73,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     private final ResourceServerValidator serverValidator;
     private final ResourceServerLandingValidator landingValidator;
     private final SystemIpTypeApi systemIpTypeApi;
+    private final ResourceServerAdmission admission;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -372,11 +373,12 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         Map<String, ResourceServerCapacityDO> capMap = CollectionUtils.convertMap(
                 capacityMapper.selectBatchIds(CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
                 ResourceServerCapacityDO::getServerId);
+        Set<String> allocatable = admission.filterAllocatable(serverMap.keySet());
         List<LandingSummaryDTO> matched = new ArrayList<>();
         for (ResourceServerLandingDO landing : landings) {
-            ResourceServerCapacityDO cap = capMap.get(landing.getServerId());
-            // 规格不达标 或 当周期流量到顶(THROTTLED) → 不进候选
-            if (this.belowPlanSpec(cap, minTrafficGb, minBandwidthMbps) || this.isThrottled(cap)) {
+            // 健康准入(非LIVE / 到顶 / 心跳不健康) + 规格达标 才进候选
+            if (!allocatable.contains(landing.getServerId())
+                    || this.belowPlanSpec(capMap.get(landing.getServerId()), minTrafficGb, minBandwidthMbps)) {
                 continue;
             }
             matched.add(ResourceServerLandingConvert.INSTANCE.toSummary(serverMap.get(landing.getServerId()), landing));
@@ -392,11 +394,6 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
             return true;
         }
         return bandwidthMbps != null && bandwidthMbps > 0 && bandwidthMbps < minBandwidthMbps;
-    }
-
-    /** 落地机当周期流量是否已到顶 (THROTTLED); 到顶的不再作为候选 / 不计可售. */
-    private boolean isThrottled(ResourceServerCapacityDO cap) {
-        return cap != null && ResourceServerThrottleStateEnum.THROTTLED.matches(cap.getThrottleState());
     }
 
     @Override
@@ -415,6 +412,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
                 : CollectionUtils.convertMap(capacityMapper.selectBatchIds(
                         CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
                         ResourceServerCapacityDO::getServerId);
+        Set<String> allocatable = admission.filterAllocatable(serverMap.keySet());
         // ② 落地机按 (区域 + IP 类型) 分桶, 让每个套餐 O(1) 命中自己的候选
         Map<String, List<ResourceServerLandingDO>> bucket = new HashMap<>();
         for (ResourceServerLandingDO landing : landings) {
@@ -437,9 +435,9 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
                     occupied++;
                     continue;
                 }
-                // 空闲机器需达标 + 未到顶 才算"可售"
-                ResourceServerCapacityDO cap = capMap.get(landing.getServerId());
-                if (this.belowPlanSpec(cap, spec.getTrafficGb(), spec.getBandwidthMbps()) || this.isThrottled(cap)) {
+                // 空闲机器需健康可分配 + 达标 才算"可售"
+                if (!allocatable.contains(landing.getServerId())
+                        || this.belowPlanSpec(capMap.get(landing.getServerId()), spec.getTrafficGb(), spec.getBandwidthMbps())) {
                     continue;
                 }
                 total++;

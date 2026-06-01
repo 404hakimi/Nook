@@ -10,7 +10,7 @@ public enum AgentOnlineState {
     ONLINE,
     /** 心跳距今 60s ~ 180s, 轻微延迟. */
     WARN,
-    /** 心跳距今 180s ~ 300s, 或 temp_unhealthy=1; 暂时不健康, backend 切流. */
+    /** 心跳距今 180s ~ 300s; 暂时不健康, 暂停分配. */
     TEMP_UNHEALTHY,
     /** 心跳距今 ≥ 300s, 视为真故障. */
     OFFLINE,
@@ -22,16 +22,15 @@ public enum AgentOnlineState {
     private static final int OFFLINE_SEC = 300;
 
     /**
-     * 按心跳延迟 + 健康标志推导在线状态.
+     * 按心跳延迟推导在线状态 (纯看距上次心跳秒数; 状态读时实时算, 不依赖持久化标志).
      *
-     * @param elapsedSec    距上次心跳秒数; null 视为从未上报
-     * @param tempUnhealthy resource_server_runtime.temp_unhealthy (1=不健康, 其他=正常)
+     * @param elapsedSec 距上次心跳秒数; null 视为从未上报
      * @return 对应状态枚举
      */
-    public static AgentOnlineState classify(Long elapsedSec, Integer tempUnhealthy) {
+    public static AgentOnlineState classify(Long elapsedSec) {
         if (elapsedSec == null) return NEVER;
         if (elapsedSec >= OFFLINE_SEC) return OFFLINE;
-        if (elapsedSec >= TEMP_UNHEALTHY_SEC || (tempUnhealthy != null && tempUnhealthy == 1)) return TEMP_UNHEALTHY;
+        if (elapsedSec >= TEMP_UNHEALTHY_SEC) return TEMP_UNHEALTHY;
         if (elapsedSec >= WARN_SEC) return WARN;
         return ONLINE;
     }

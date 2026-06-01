@@ -129,7 +129,6 @@ public interface ResourceServerLandingConvert {
     static void enrichRuntime(ServerLandingRespVO vo, ResourceServerRuntimeDO runtime) {
         if (vo == null) return;
         LocalDateTime lastHeartbeatAt = runtime == null ? null : runtime.getLastHeartbeatAt();
-        Integer tempUnhealthy = runtime == null ? null : runtime.getTempUnhealthy();
         vo.setLastHeartbeatAt(lastHeartbeatAt);
         if (runtime != null) {
             vo.setAgentVersion(runtime.getAgentVersion());
@@ -137,7 +136,7 @@ public interface ResourceServerLandingConvert {
         Long elapsedSec = lastHeartbeatAt == null ? null
                 : Duration.between(lastHeartbeatAt, LocalDateTime.now()).getSeconds();
         vo.setElapsedSec(elapsedSec);
-        // 在线状态复用线路机同一套判定 (心跳延迟 + temp_unhealthy 阈值 60/180/300s)
-        vo.setOnlineState(AgentOnlineState.classify(elapsedSec, tempUnhealthy).name());
+        // 在线状态复用线路机同一套判定 (心跳延迟阈值 60/180/300s)
+        vo.setOnlineState(AgentOnlineState.classify(elapsedSec).name());
     }
 }

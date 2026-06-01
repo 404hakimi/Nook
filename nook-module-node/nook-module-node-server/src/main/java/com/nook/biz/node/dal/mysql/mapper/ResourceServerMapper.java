@@ -76,6 +76,27 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .in(ResourceServerDO::getRegion, regions));
     }
 
+    /** 全部 LIVE 线路机主表 (故障切换巡检用). */
+    default List<ResourceServerDO> selectLiveFrontlines() {
+        return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.FRONTLINE.getState())
+                .eq(ResourceServerDO::getLifecycleState, ResourceServerLifecycleEnum.LIVE.getState()));
+    }
+
+    /** 区域内 LIVE 线路机主表 (allocator 选线路机用). */
+    default List<ResourceServerDO> selectLiveFrontlinesByRegion(String region) {
+        return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.FRONTLINE.getState())
+                .eq(ResourceServerDO::getLifecycleState, ResourceServerLifecycleEnum.LIVE.getState())
+                .eq(ResourceServerDO::getRegion, region));
+    }
+
+    /** 按生命周期状态查 server (线路机 + 落地机); 状态值走 {@link ResourceServerLifecycleEnum}. */
+    default List<ResourceServerDO> selectByLifecycleState(String lifecycleState) {
+        return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(ResourceServerDO::getLifecycleState, lifecycleState));
+    }
+
     /**
      * 列表分页. ipAddress 直接 LIKE 主表; idIn (来自子表预过滤如 landing.status) 可选作 id 集合过滤;
      * serverType (frontline / landing) 可选.

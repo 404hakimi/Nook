@@ -7,6 +7,7 @@ import com.nook.common.web.response.PageResult;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 资源服务器 Api 接口
@@ -62,4 +63,26 @@ public interface ResourceServerApi {
      * @return LIVE frontline 列表
      */
     List<ResourceServerRespDTO> findLiveFrontlinesByRegion(String region);
+
+    /**
+     * 从候选 server 里筛出健康可分配的子集 (综合 生命周期 + 流量配额 + 心跳 一处判定).
+     *
+     * @param serverIds 候选 server 编号
+     * @return 可分配的 server 编号子集
+     */
+    Set<String> filterAllocatable(Collection<String> serverIds);
+
+    /**
+     * 查需要故障切换的 LIVE 线路机 (到顶 THROTTLED / 掉线 OFFLINE); trade 故障切换 Job 用.
+     *
+     * @return serverId → 原因 (THROTTLED / OFFLINE)
+     */
+    Map<String, String> findFrontlinesNeedingFailover();
+
+    /**
+     * 列全部 LIVE server (线路机 + 落地机); agent 心跳监控 Job 用.
+     *
+     * @return LIVE server 列表
+     */
+    List<ResourceServerRespDTO> listLive();
 }

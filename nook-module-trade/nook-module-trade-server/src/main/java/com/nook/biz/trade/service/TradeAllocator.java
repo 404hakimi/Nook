@@ -2,7 +2,6 @@ package com.nook.biz.trade.service;
 
 import cn.hutool.core.collection.CollUtil;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
-import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
@@ -62,6 +61,8 @@ public class TradeAllocator {
             return null;
         }
         Set<String> fIds = CollectionUtils.convertSet(frontlines, ResourceServerRespDTO::getId);
+        // 健康准入: 非 LIVE / 到顶 / 心跳不健康 一处判定 (node 侧 ResourceServerAdmission)
+        Set<String> allocatable = serverApi.filterAllocatable(fIds);
         Map<String, ResourceServerCapacityRespDTO> capMap = capacityApi.listByServerIds(fIds);
         Map<String, Integer> committed = committedBandwidthByFrontline(fIds);
         Map<String, Integer> clientCounts = provisionApi.countActiveByServerIds(fIds);
@@ -69,11 +70,10 @@ public class TradeAllocator {
         String best = null;
         int bestHeadroom = Integer.MIN_VALUE;
         for (ResourceServerRespDTO f : frontlines) {
-            ResourceServerCapacityRespDTO cap = capMap.get(f.getId());
-            // 流量到顶(THROTTLED)的线路机不再接新订阅
-            if (cap != null && ResourceServerThrottleStateEnum.THROTTLED.matches(cap.getThrottleState())) {
+            if (!allocatable.contains(f.getId())) {
                 continue;
             }
+            ResourceServerCapacityRespDTO cap = capMap.get(f.getId());
             Integer bwLimit = cap == null ? null : cap.getBandwidthLimitMbps();
             // 不超卖语义: 线路机须配带宽上限才能参与准入
             if (bwLimit == null || bwLimit <= 0) {

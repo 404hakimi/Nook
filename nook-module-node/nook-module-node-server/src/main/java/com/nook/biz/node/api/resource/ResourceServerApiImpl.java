@@ -1,13 +1,13 @@
 package com.nook.biz.node.api.resource;
 
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
+import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.resource.dto.ResourceServerPageReqDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
+import com.nook.biz.node.service.resource.ResourceServerAdmission;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.utils.object.BeanUtils;
@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 资源服务器 Api 实现类
@@ -32,6 +33,7 @@ public class ResourceServerApiImpl implements ResourceServerApi {
     private final ResourceServerValidator serverValidator;
     private final ResourceServerService resourceServerService;
     private final ResourceServerMapper resourceServerMapper;
+    private final ResourceServerAdmission resourceServerAdmission;
 
     @Override
     public ResourceServerRespDTO validateExists(String serverId) {
@@ -70,10 +72,24 @@ public class ResourceServerApiImpl implements ResourceServerApi {
         if (StrUtil.isBlank(region)) {
             return Collections.emptyList();
         }
-        return BeanUtils.toBean(resourceServerMapper.selectList(
-                Wrappers.<ResourceServerDO>lambdaQuery()
-                        .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.FRONTLINE.getState())
-                        .eq(ResourceServerDO::getLifecycleState, "LIVE")
-                        .eq(ResourceServerDO::getRegion, region)), ResourceServerRespDTO.class);
+        return BeanUtils.toBean(resourceServerMapper.selectLiveFrontlinesByRegion(region),
+                ResourceServerRespDTO.class);
+    }
+
+    @Override
+    public Set<String> filterAllocatable(Collection<String> serverIds) {
+        return resourceServerAdmission.filterAllocatable(serverIds);
+    }
+
+    @Override
+    public Map<String, String> findFrontlinesNeedingFailover() {
+        return resourceServerAdmission.findFrontlinesNeedingFailover();
+    }
+
+    @Override
+    public List<ResourceServerRespDTO> listLive() {
+        return BeanUtils.toBean(
+                resourceServerMapper.selectByLifecycleState(ResourceServerLifecycleEnum.LIVE.getState()),
+                ResourceServerRespDTO.class);
     }
 }

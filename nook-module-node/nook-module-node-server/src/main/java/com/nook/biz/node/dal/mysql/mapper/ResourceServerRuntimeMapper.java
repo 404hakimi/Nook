@@ -20,17 +20,8 @@ public interface ResourceServerRuntimeMapper extends BaseMapper<ResourceServerRu
         return update(null, Wrappers.<ResourceServerRuntimeDO>lambdaUpdate()
                 .set(ResourceServerRuntimeDO::getLastHeartbeatAt, at)
                 .set(ResourceServerRuntimeDO::getConsecutiveMiss, 0)
-                .set(ResourceServerRuntimeDO::getTempUnhealthy, 0)
                 .set(ResourceServerRuntimeDO::getAgentVersion, agentVersion)
                 .set(ResourceServerRuntimeDO::getLastAgentSeenIp, agentSeenIp)
-                .set(ResourceServerRuntimeDO::getUpdatedAt, LocalDateTime.now())
-                .eq(ResourceServerRuntimeDO::getServerId, serverId));
-    }
-
-    /** 心跳超时分级 (3-5min). */
-    default int markTempUnhealthy(String serverId, Integer tempUnhealthy) {
-        return update(null, Wrappers.<ResourceServerRuntimeDO>lambdaUpdate()
-                .set(ResourceServerRuntimeDO::getTempUnhealthy, tempUnhealthy)
                 .set(ResourceServerRuntimeDO::getUpdatedAt, LocalDateTime.now())
                 .eq(ResourceServerRuntimeDO::getServerId, serverId));
     }

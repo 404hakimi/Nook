@@ -57,6 +57,14 @@ public interface XrayClientMapper extends BaseMapper<XrayClientDO> {
                 .eq(XrayClientDO::getId, id));
     }
 
+    /** 改 client 所在线路机 (故障切换重绑 server_id); 远端由 reconcile 两端收敛. Wrapper 更新须显式 set updated_at. */
+    default int updateServerId(String id, String serverId) {
+        return update(null, Wrappers.<XrayClientDO>lambdaUpdate()
+                .set(XrayClientDO::getServerId, serverId)
+                .set(XrayClientDO::getUpdatedAt, LocalDateTime.now())
+                .eq(XrayClientDO::getId, id));
+    }
+
     /** 列表分页, 多条件过滤. */
     default IPage<XrayClientDO> selectPageByQuery(IPage<XrayClientDO> page, XrayClientPageReqVO reqVO) {
         return selectPage(page, Wrappers.<XrayClientDO>lambdaQuery()

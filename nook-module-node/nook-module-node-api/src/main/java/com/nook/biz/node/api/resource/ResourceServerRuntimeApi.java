@@ -30,7 +30,7 @@ public interface ResourceServerRuntimeApi {
     Map<String, ResourceServerRuntimeRespDTO> listByServerIds(Collection<String> serverIds);
 
     /**
-     * 心跳: UPSERT runtime, 更新 last_heartbeat_at + agent_version + last_agent_seen_ip + 清 consecutive_miss / temp_unhealthy.
+     * 心跳: UPSERT runtime, 更新 last_heartbeat_at + agent_version + last_agent_seen_ip + 清 consecutive_miss.
      *
      * @param serverId     server 主键
      * @param at           心跳时刻

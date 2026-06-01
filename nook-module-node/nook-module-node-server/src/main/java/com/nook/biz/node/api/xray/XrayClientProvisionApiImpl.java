@@ -50,6 +50,12 @@ public class XrayClientProvisionApiImpl implements XrayClientProvisionApi {
     }
 
     @Override
+    public void rebindFrontline(String clientId, String newServerId) {
+        // 只改 server_id; 旧线路机 reconcile 摘除该 client, 新线路机 reconcile 装上 (uuid/落地不变)
+        xrayClientMapper.updateServerId(clientId, newServerId);
+    }
+
+    @Override
     public Map<String, Integer> countActiveByServerIds(Collection<String> serverIds) {
         if (serverIds == null || serverIds.isEmpty()) {
             return Collections.emptyMap();

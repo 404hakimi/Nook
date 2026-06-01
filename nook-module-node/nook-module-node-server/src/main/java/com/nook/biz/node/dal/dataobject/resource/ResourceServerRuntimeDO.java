@@ -23,9 +23,6 @@ public class ResourceServerRuntimeDO {
     /** agent 上次心跳时间. */
     private LocalDateTime lastHeartbeatAt;
 
-    /** 3-5min 心跳缺失暂时性不健康, allocator 跳过; 0=健康 1=不健康. */
-    private Integer tempUnhealthy;
-
     /** agent 上报的版本号. */
     private String agentVersion;
 
