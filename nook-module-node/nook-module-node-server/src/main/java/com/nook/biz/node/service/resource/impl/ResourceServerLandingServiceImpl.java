@@ -29,8 +29,6 @@ import com.nook.biz.node.service.resource.ResourceServerAdmission;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
-import com.nook.biz.system.api.iptype.SystemIpTypeApi;
-import com.nook.biz.system.api.iptype.dto.SystemIpTypeRespDTO;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.error.CommonErrorCode;
@@ -72,7 +70,6 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     private final ResourceServerRuntimeMapper runtimeMapper;
     private final ResourceServerValidator serverValidator;
     private final ResourceServerLandingValidator landingValidator;
-    private final SystemIpTypeApi systemIpTypeApi;
     private final ResourceServerAdmission admission;
 
     @Override
@@ -162,7 +159,8 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     public void updateCapacity(String id, ServerLandingCapacityUpdateReqVO reqVO) {
         serverValidator.validateExists(id);
         // capacity 在 create 时已 insert 占位, 这里只走 update 业务阈值
-        capacityMapper.updateQuota(id, reqVO.getMonthlyTrafficGb(), reqVO.getBandwidthLimitMbps(), reqVO.getQuotaResetPolicy());
+        capacityMapper.updateQuota(id, reqVO.getMonthlyTrafficGb(), reqVO.getBandwidthLimitMbps(),
+                reqVO.getQuotaResetPolicy(), reqVO.getResetDay());
     }
 
     @Override
@@ -235,7 +233,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         Map<String, Long> result = new HashMap<>();
         long total = 0;
         long installing = 0, ready = 0, live = 0, retired = 0;
-        long available = 0, occupied = 0, cooling = 0, reserved = 0;
+        long available = 0, occupied = 0, reserved = 0;
 
         List<ResourceServerDO> servers = resourceServerMapper.selectByServerType(ResourceServerTypeEnum.LANDING.getState());
         total = servers.size();
@@ -255,7 +253,6 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
                 switch (st) {
                     case AVAILABLE -> available++;
                     case OCCUPIED -> occupied++;
-                    case COOLING -> cooling++;
                     case RESERVED -> reserved++;
                 }
             }
@@ -267,7 +264,6 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         result.put("lifecycle_RETIRED", retired);
         result.put("status_AVAILABLE", available);
         result.put("status_OCCUPIED", occupied);
-        result.put("status_COOLING", cooling);
         result.put("status_RESERVED", reserved);
         return result;
     }
@@ -286,21 +282,11 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void releaseToCoolingForRevoke(String serverId) {
-        ResourceServerLandingDO landing = landingMapper.selectByServerId(serverId);
-        if (landing == null) {
-            log.warn("[landing-release] 子表不存在 serverId={}", serverId);
-            return;
-        }
-        SystemIpTypeRespDTO type = systemIpTypeApi.getById(landing.getIpTypeId());
-        if (type == null || type.getCoolingMinutes() == null) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
-                    "落地节点 " + serverId + " 的 ip_type " + landing.getIpTypeId() + " 未配 coolingMinutes");
-        }
-        LocalDateTime coolingUntil = LocalDateTime.now().plusMinutes(type.getCoolingMinutes());
-        int rows = landingMapper.markCooling(serverId, coolingUntil);
+    public void releaseForRevoke(String serverId) {
+        // 退订直接转 "可分配"
+        int rows = landingMapper.markAvailable(serverId);
         if (rows == 0) {
-            log.warn("[landing-release] markCooling rows=0 serverId={}", serverId);
+            log.warn("[landing-release] markAvailable rows=0 serverId={}", serverId);
         }
     }
 

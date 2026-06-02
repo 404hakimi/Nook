@@ -9,6 +9,8 @@ import com.nook.biz.node.service.xray.client.XrayClientService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
 /**
  * {@link XrayClientProvisionApi} 实现; 包装 {@link XrayClientService} (op 框架同步执行).
  *
@@ -40,7 +42,14 @@ public class XrayClientProvisionApiImpl implements XrayClientProvisionApi {
     public void stop(String clientId) {
         // 仅置停, 不删记录 / 不释放落地机; 远端由 reconcile 收敛 (RUNNING 过滤后自然移除)
         xrayClientMapper.updateStatus(clientId,
-                XrayClientStatusEnum.STOPPED.getCode(), java.time.LocalDateTime.now());
+                XrayClientStatusEnum.STOPPED.getCode(), LocalDateTime.now());
+    }
+
+    @Override
+    public void resume(String clientId) {
+        // 置回 RUNNING; 落地机未释放, 远端由 reconcile 自动装回
+        xrayClientMapper.updateStatus(clientId,
+                XrayClientStatusEnum.RUNNING.getCode(), LocalDateTime.now());
     }
 
     @Override

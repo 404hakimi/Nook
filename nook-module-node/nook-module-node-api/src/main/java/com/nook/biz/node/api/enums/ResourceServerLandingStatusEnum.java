@@ -8,7 +8,7 @@ import java.util.Arrays;
 /**
  * 落地节点占用状态; DB 字段 resource_server_landing.status
  *
- * <p>状态机: AVAILABLE → (RESERVED → OCCUPIED) → COOLING → AVAILABLE.
+ * <p>状态机: AVAILABLE →(占用)→ OCCUPIED →(退订)→ AVAILABLE (RESERVED 为预留态, 暂未启用).
  *
  * @author nook
  */
@@ -19,7 +19,6 @@ public enum ResourceServerLandingStatusEnum {
     AVAILABLE("AVAILABLE", "可分配"),
     RESERVED("RESERVED", "预占中"),
     OCCUPIED("OCCUPIED", "已占用"),
-    COOLING("COOLING", "冷却中"),
     ;
 
     public static final String[] ARRAYS = Arrays.stream(values())

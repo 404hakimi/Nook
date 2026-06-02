@@ -88,6 +88,7 @@ public class XrayClientReconcileApiImpl implements XrayClientReconcileApi {
 
             XrayReconcileClientDTO dto = new XrayReconcileClientDTO();
             dto.setClientEmail(c.getClientEmail());
+            dto.setClientUuid(c.getClientUuid());
             dto.setInboundTag(XrayConstants.SHARED_INBOUND_TAG);
             dto.setOutboundTag(outboundTag);
             dto.setRuleTag(ruleTag);

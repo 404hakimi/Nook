@@ -109,6 +109,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         capacity.setTxBytes(0L);
         capacity.setUsedTrafficBytes(0L);
         capacity.setQuotaResetPolicy(ResourceServerQuotaResetPolicyEnum.MONTHLY.getState());
+        capacity.setResetDay(1); // 默认每月 1 号重置, admin 可改
         capacity.setThrottleState(ResourceServerThrottleStateEnum.NORMAL.getState());
         capacity.setCreatedAt(now);
         capacity.setUpdatedAt(now);

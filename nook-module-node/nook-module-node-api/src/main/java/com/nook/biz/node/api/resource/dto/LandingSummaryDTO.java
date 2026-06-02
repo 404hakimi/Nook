@@ -15,7 +15,7 @@ public class LandingSummaryDTO {
     /** 主表装机生命周期 INSTALLING/READY/LIVE/RETIRED. */
     private String lifecycleState;
 
-    /** landing 子表占用状态 AVAILABLE/RESERVED/OCCUPIED/COOLING; null=非 landing 或无子表. */
+    /** 落地机占用状态 (可分配 / 已占用 / 预留); null=非落地机或无子表. */
     private String status;
 
     /** landing 子表 ip_type_id. */

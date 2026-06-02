@@ -29,13 +29,10 @@ public class ResourceServerLandingDO {
     /** 当前占用的会员 id; 空闲时为 null. */
     private String occupiedByMemberId;
 
-    /** 进入 OCCUPIED 的时刻. */
+    /** 被客户开通占用的时刻; 空闲时为 null. */
     private LocalDateTime occupiedAt;
 
-    /** COOLING 到期时刻; 此前不可再分配, 到点由 job 回收为 AVAILABLE. */
-    private LocalDateTime coolingUntil;
-
-    /** 预占到期时刻 (RESERVED 用); 当前未启用预占, 暂为占位字段. */
+    /** 预留到期时刻; 预留功能暂未启用, 占位字段. */
     private LocalDateTime reservedExpiresAt;
 
     /** 历史累计被分配次数. */

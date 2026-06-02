@@ -1,6 +1,7 @@
 package com.nook.biz.node.controller.resource.vo;
 
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -26,4 +27,9 @@ public class ServerLandingCapacityUpdateReqVO {
     /** 周期重置策略 {@link ResourceServerQuotaResetPolicyEnum} */
     @Size(max = 32)
     private String quotaResetPolicy;
+
+    /** 按月流量重置日 1-28; MONTHLY 必填, FIXED 忽略. */
+    @Min(value = 1)
+    @Max(value = 28)
+    private Integer resetDay;
 }

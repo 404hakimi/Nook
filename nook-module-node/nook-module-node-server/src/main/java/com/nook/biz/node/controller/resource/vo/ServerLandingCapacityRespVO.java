@@ -33,6 +33,9 @@ public class ServerLandingCapacityRespVO {
     /** 周期重置策略 {@link ResourceServerQuotaResetPolicyEnum} */
     private String quotaResetPolicy;
 
+    /** 按月流量重置日 1-28; FIXED 时为空. */
+    private Integer resetDay;
+
     /** 限流状态 {@link ResourceServerThrottleStateEnum} */
     private String throttleState;
 }

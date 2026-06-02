@@ -25,8 +25,8 @@ public class ResourceServerCapacityApiImpl implements ResourceServerCapacityApi 
     private final ResourceServerTrafficService trafficService;
 
     @Override
-    public void applyNicTraffic(String serverId, long rxBytes, long txBytes) {
-        trafficService.applyNicTraffic(serverId, rxBytes, txBytes);
+    public void applyNicTraffic(String serverId, long rxBytes, long txBytes, Long bizUsedBytes) {
+        trafficService.applyNicTraffic(serverId, rxBytes, txBytes, bizUsedBytes);
     }
 
     @Override

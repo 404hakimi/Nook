@@ -24,7 +24,4 @@ public class SystemIpTypeDO extends BaseEntity {
     private String description;
 
     private Integer sortOrder;
-
-    /** 该类型 IP 退订后冷却分钟数 (家宽 IP 一般需要更长冷却以避免被识别为同一用户). */
-    private Integer coolingMinutes;
 }

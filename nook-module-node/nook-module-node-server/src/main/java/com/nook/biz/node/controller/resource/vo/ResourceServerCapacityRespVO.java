@@ -15,7 +15,7 @@ public class ResourceServerCapacityRespVO {
     /** 机房 NIC 月配额 GB; 0/null = 不限. 同时是 throttle_state 90% 触发的基数 (业务阈值). */
     private Integer monthlyTrafficGb;
 
-    /** 线路机出站接口实际限速 Mbps; 0=不限. agent 跑 tc qdisc 真实 enforce (业务阈值). */
+    /** 线路机出站带宽容量 Mbps; 供套餐分配不超卖(预留~10%), 0/空=不参与分配; 不做 tc 整形. */
     private Integer bandwidthLimitMbps;
 
     /** 当周期下行字节 (vnstat rx 累计). */
@@ -29,6 +29,9 @@ public class ResourceServerCapacityRespVO {
 
     /** 周期重置策略: MONTHLY / FIXED. */
     private String quotaResetPolicy;
+
+    /** 按月流量重置日 1-28; FIXED 时为空. */
+    private Integer resetDay;
 
     /** NORMAL / THROTTLED. */
     private String throttleState;

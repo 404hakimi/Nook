@@ -12,8 +12,11 @@ import lombok.Data;
 @Data
 public class XrayReconcileClientDTO {
 
-    /** inbound user 身份 (按 email diff). */
+    /** inbound user 邮箱 (身份键; reconcile 按 email 比对存在性). */
     private String clientEmail;
+
+    /** inbound user 的 UUID; reconcile 比对远端 account.id, 不一致(rotate)则摘旧装新. */
+    private String clientUuid;
 
     /** 共享 inbound tag (rmu 用). */
     private String inboundTag;

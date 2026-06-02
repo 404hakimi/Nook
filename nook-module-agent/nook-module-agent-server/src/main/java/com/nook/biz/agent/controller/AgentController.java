@@ -85,4 +85,15 @@ public class AgentController {
     public Result<Integer> landingDesiredBandwidth(@AuthenticatedAgent String serverId) {
         return Result.ok(agentReportService.getLandingDesiredBandwidthMbps(serverId));
     }
+
+    /**
+     * 落地机拉 socks5 端口 (建 nft 业务流量计数器用)
+     *
+     * @param serverId 已认证 server id (落地机)
+     * @return socks5 端口; 0 = 未配置
+     */
+    @GetMapping("/landing/socks5-port")
+    public Result<Integer> landingSocks5Port(@AuthenticatedAgent String serverId) {
+        return Result.ok(agentReportService.getLandingSocks5Port(serverId));
+    }
 }

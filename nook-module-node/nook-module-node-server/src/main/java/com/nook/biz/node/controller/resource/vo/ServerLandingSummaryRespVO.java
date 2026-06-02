@@ -22,6 +22,5 @@ public class ServerLandingSummaryRespVO {
     // ===== 占用状态维度 =====
     private long available;
     private long occupied;
-    private long cooling;
     private long reserved;
 }

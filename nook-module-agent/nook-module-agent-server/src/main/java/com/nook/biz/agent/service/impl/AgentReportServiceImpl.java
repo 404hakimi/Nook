@@ -5,6 +5,7 @@ import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
 import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
+import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
 import com.nook.biz.node.api.xray.XrayClientReconcileApi;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
@@ -35,6 +36,8 @@ public class AgentReportServiceImpl implements AgentReportService {
     private XrayClientReconcileApi xrayClientReconcileApi;
     @Resource
     private TradeBandwidthApi tradeBandwidthApi;
+    @Resource
+    private ResourceServerLandingApi resourceServerLandingApi;
 
     @Override
     public void receiveHeartbeat(String serverId, AgentHeartbeatReqVO req, String clientIp) {
@@ -49,7 +52,7 @@ public class AgentReportServiceImpl implements AgentReportService {
 
     @Override
     public void receiveNicTraffic(String serverId, AgentNicTrafficReqVO req) {
-        resourceServerCapacityApi.applyNicTraffic(serverId, req.getRxBytes(), req.getTxBytes());
+        resourceServerCapacityApi.applyNicTraffic(serverId, req.getRxBytes(), req.getTxBytes(), req.getBizUsedBytes());
         log.info("[receiveNicTraffic] serverId={} rx={} tx={} period={}",
                 serverId,
                 String.format("%.2fGB", req.getRxBytes() / GB_BYTES),
@@ -65,5 +68,10 @@ public class AgentReportServiceImpl implements AgentReportService {
     @Override
     public int getLandingDesiredBandwidthMbps(String serverId) {
         return tradeBandwidthApi.getLandingDesiredBandwidthMbps(serverId);
+    }
+
+    @Override
+    public int getLandingSocks5Port(String serverId) {
+        return resourceServerLandingApi.getSocks5Port(serverId);
     }
 }

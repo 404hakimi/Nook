@@ -36,6 +36,14 @@ public interface TradeSubscriptionMapper extends BaseMapper<TradeSubscriptionDO>
                 .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState()));
     }
 
+    /** 生效中 + 停服 订阅; 计量 job 扫描用 (停服订阅到重置点要恢复). */
+    default List<TradeSubscriptionDO> selectActiveOrSuspended() {
+        return selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()
+                .in(TradeSubscriptionDO::getStatus,
+                        TradeSubscriptionStatusEnum.ACTIVE.getState(),
+                        TradeSubscriptionStatusEnum.SUSPENDED.getState()));
+    }
+
     /** 某客户端当前生效订阅 (client 1:1 订阅; 无返 null). */
     default TradeSubscriptionDO selectActiveByClientId(String clientId) {
         return selectOne(Wrappers.<TradeSubscriptionDO>lambdaQuery()
@@ -100,10 +108,12 @@ public interface TradeSubscriptionMapper extends BaseMapper<TradeSubscriptionDO>
 
     default IPage<TradeSubscriptionDO> selectPageByQuery(IPage<TradeSubscriptionDO> page,
                                                          String memberUserId, String planId, String status) {
+        // 生效中靠前, 同状态内按开通时间倒序
         return selectPage(page, Wrappers.<TradeSubscriptionDO>lambdaQuery()
                 .eq(StrUtil.isNotBlank(memberUserId), TradeSubscriptionDO::getMemberUserId, memberUserId)
                 .eq(StrUtil.isNotBlank(planId), TradeSubscriptionDO::getPlanId, planId)
                 .eq(StrUtil.isNotBlank(status), TradeSubscriptionDO::getStatus, status)
-                .orderByDesc(TradeSubscriptionDO::getCreatedAt));
+                .last("ORDER BY status = '" + TradeSubscriptionStatusEnum.ACTIVE.getState()
+                        + "' DESC, started_at DESC"));
     }
 }

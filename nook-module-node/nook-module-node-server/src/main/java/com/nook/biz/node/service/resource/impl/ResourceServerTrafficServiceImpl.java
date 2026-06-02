@@ -2,10 +2,8 @@ package com.nook.biz.node.service.resource.impl;
 
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerBillingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
 import com.nook.biz.node.service.resource.ResourceServerTrafficService;
@@ -36,8 +34,6 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     @Resource
     private ResourceServerCapacityMapper capacityMapper;
     @Resource
-    private ResourceServerBillingMapper billingMapper;
-    @Resource
     private ResourceServerTrafficMapper trafficMapper;
 
     /** 全平台流量重置时区; 显式配置, 不依赖 OS 默认. */
@@ -46,7 +42,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void applyNicTraffic(String serverId, long cumRxBytes, long cumTxBytes) {
+    public void applyNicTraffic(String serverId, long cumRxBytes, long cumTxBytes, Long bizUsedBytes) {
         ResourceServerCapacityDO cap = capacityMapper.selectById(serverId);
         if (cap == null) {
             return; // 容量行装机时已建; 缺失则跳过(理论不发生)
@@ -56,6 +52,9 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
         this.rolloverIfNeeded(cap, today);
         this.accumulate(cap, cumRxBytes, cumTxBytes);
         this.markQuotaReached(cap);
+        if (bizUsedBytes != null) {
+            cap.setBizUsedBytes(bizUsedBytes); // socks5 业务流量累计(绝对值); 增量计量在 TradeLifecycleJob, 此处只覆盖, 不随周期清零
+        }
 
         cap.setUpdatedAt(LocalDateTime.now());
         capacityMapper.updateById(cap);
@@ -69,7 +68,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
             }
             return;
         }
-        LocalDate periodStart = this.currentPeriodStart(cap.getServerId(), today);
+        LocalDate periodStart = this.currentPeriodStart(cap, today);
         if (cap.getPeriodStart() == null) {
             cap.setPeriodStart(periodStart); // 首次建周期, 不归档
         } else if (cap.getPeriodStart().isBefore(periodStart)) {
@@ -107,18 +106,17 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
         }
     }
 
-    /** 当前"按月"周期起点 = ≤today 的最近一个重置日 (复用账单日, clamp 1..28). */
-    private LocalDate currentPeriodStart(String serverId, LocalDate today) {
-        int resetDay = this.resolveResetDay(serverId);
+    /** 当前"按月"周期起点 = ≤today 的最近一个重置日 (clamp 1..28). */
+    private LocalDate currentPeriodStart(ResourceServerCapacityDO cap, LocalDate today) {
+        int resetDay = this.resolveResetDay(cap);
         return today.getDayOfMonth() >= resetDay
                 ? today.withDayOfMonth(resetDay)
                 : today.minusMonths(1).withDayOfMonth(resetDay);
     }
 
-    /** 我方重置日 = 账单日(clamp 1..28); 取不到用缺省. */
-    private int resolveResetDay(String serverId) {
-        ResourceServerBillingDO bill = billingMapper.selectById(serverId);
-        Integer day = bill == null ? null : bill.getBillingCycleDay();
+    /** 我方重置日 = capacity.reset_day(clamp 1..28); 取不到用缺省. */
+    private int resolveResetDay(ResourceServerCapacityDO cap) {
+        Integer day = cap.getResetDay();
         return (day == null || day < 1 || day > 28) ? DEFAULT_RESET_DAY : day;
     }
 

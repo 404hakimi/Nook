@@ -124,7 +124,7 @@ public interface ResourceServerLandingService {
     /**
      * 获得落地节点总览统计
      *
-     * @return key → count (total, lifecycle_INSTALLING/READY/LIVE/RETIRED, status_AVAILABLE/RESERVED/OCCUPIED/COOLING)
+     * @return key → count (total, lifecycle_INSTALLING/READY/LIVE/RETIRED, status_AVAILABLE/OCCUPIED/RESERVED)
      */
     Map<String, Long> getSummary();
 
@@ -138,11 +138,11 @@ public interface ResourceServerLandingService {
     ResourceServerDO occupyById(String serverId, String memberUserId);
 
     /**
-     * 退订落地节点至冷却
+     * 退订释放落地节点 (直接转 AVAILABLE, 立即可再分配; 无冷却)
      *
      * @param serverId 落地节点编号
      */
-    void releaseToCoolingForRevoke(String serverId);
+    void releaseForRevoke(String serverId);
 
     /**
      * 批量获得落地节点子表

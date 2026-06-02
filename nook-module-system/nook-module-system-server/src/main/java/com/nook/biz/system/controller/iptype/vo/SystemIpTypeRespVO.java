@@ -15,6 +15,4 @@ public class SystemIpTypeRespVO {
     private String name;
     private String description;
     private Integer sortOrder;
-    /** IP 退订后冷却分钟数 */
-    private Integer coolingMinutes;
 }

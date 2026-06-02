@@ -42,4 +42,12 @@ public interface ResourceServerLandingApi {
      * @return Map<String, PlanCapacityDTO>
      */
     Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs);
+
+    /**
+     * 查落地机 socks5 端口 (agent 拉取建 nft 业务流量计数器用)
+     *
+     * @param serverId 落地机 server id
+     * @return socks5 端口; 0 = 未配置 / 落地机不存在
+     */
+    int getSocks5Port(String serverId);
 }

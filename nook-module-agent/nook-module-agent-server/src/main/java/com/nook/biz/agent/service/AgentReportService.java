@@ -45,4 +45,12 @@ public interface AgentReportService {
      * @return 限速 Mbps (0 = 不限)
      */
     int getLandingDesiredBandwidthMbps(String serverId);
+
+    /**
+     * 落地机 socks5 端口 (agent 建 nft 业务流量计数器用)
+     *
+     * @param serverId 落地机 server 编号
+     * @return socks5 端口; 0 = 未配置
+     */
+    int getLandingSocks5Port(String serverId);
 }

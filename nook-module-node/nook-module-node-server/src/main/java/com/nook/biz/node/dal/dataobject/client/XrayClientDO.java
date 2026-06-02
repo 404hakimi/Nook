@@ -36,7 +36,7 @@ public class XrayClientDO extends BaseEntity {
     /** 协议级密钥 (vless/vmess UUID, trojan password) */
     private String clientUuid;
 
-    /** 人类可读标识; 推荐格式 member_{memberId}_{ipId}, server 内全局唯一 */
+    /** 人类可读标识; 格式 member_{memberId}_{clientId}, server 内全局唯一; clientId 创建后不变, 跨轮换/换机稳定 */
     private String clientEmail;
 
     /** 客户端状态 {@link XrayClientStatusEnum} */

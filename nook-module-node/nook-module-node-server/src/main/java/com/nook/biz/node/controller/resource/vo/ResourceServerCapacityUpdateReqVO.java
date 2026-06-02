@@ -21,12 +21,17 @@ public class ResourceServerCapacityUpdateReqVO {
     @Max(value = 1000000)
     private Integer monthlyTrafficGb;
 
-    /** 业务限定带宽 Mbps; 0=不限. agent 跑 tc qdisc 真实 enforce. */
+    /** 线路机出站带宽容量 Mbps; 供套餐分配不超卖(预留~10%), 0/空=不参与分配; 线路机不做 tc 整形. */
     @Min(value = 0)
     @Max(value = 100000)
     private Integer bandwidthLimitMbps;
 
-    /** 周期重置策略 {@link ResourceServerQuotaResetPolicyEnum}; 后续做"重置流量"业务时按该策略派计算. */
+    /** 周期重置策略 {@link ResourceServerQuotaResetPolicyEnum}. */
     @Size(max = 32)
     private String quotaResetPolicy;
+
+    /** 按月流量重置日 1-28; MONTHLY 必填, FIXED 忽略. */
+    @Min(value = 1)
+    @Max(value = 28)
+    private Integer resetDay;
 }

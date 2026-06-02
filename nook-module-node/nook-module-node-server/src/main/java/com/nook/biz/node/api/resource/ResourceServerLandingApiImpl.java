@@ -3,6 +3,7 @@ package com.nook.biz.node.api.resource;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,5 +37,12 @@ public class ResourceServerLandingApiImpl implements ResourceServerLandingApi {
     @Override
     public Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs) {
         return landingService.countCapacityForPlans(specs);
+    }
+
+    @Override
+    public int getSocks5Port(String serverId) {
+        ResourceServerLandingDO landing = landingService.getLanding(serverId);
+        Integer port = landing == null ? null : landing.getSocks5Port();
+        return port == null ? 0 : port;
     }
 }

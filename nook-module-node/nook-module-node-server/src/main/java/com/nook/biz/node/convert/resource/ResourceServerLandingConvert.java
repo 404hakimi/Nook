@@ -95,7 +95,6 @@ public interface ResourceServerLandingConvert {
         vo.setStatus(landing.getStatus());
         vo.setOccupiedByMemberId(landing.getOccupiedByMemberId());
         vo.setOccupiedAt(landing.getOccupiedAt());
-        vo.setCoolingUntil(landing.getCoolingUntil());
         vo.setReservedExpiresAt(landing.getReservedExpiresAt());
         vo.setAssignCount(landing.getAssignCount());
         vo.setProvisionMode(landing.getProvisionMode());

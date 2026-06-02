@@ -18,7 +18,7 @@ public interface XrayClientProvisionApi {
     String provision(XrayClientProvisionDTO req);
 
     /**
-     * 吊销客户端 (远端清理 + 落地机归还 COOLING).
+     * 吊销客户端 (远端清理 + 落地机归还为可分配).
      *
      * @param clientId xray_client.id
      */
@@ -31,6 +31,13 @@ public interface XrayClientProvisionApi {
      * @param clientId xray_client.id
      */
     void stop(String clientId);
+
+    /**
+     * 复活停服客户端 (置 status=RUNNING); 落地机未释放, 远端由 reconcile 自动装回. 流量周期重置后调.
+     *
+     * @param clientId xray_client.id
+     */
+    void resume(String clientId);
 
     /**
      * 改客户端所在线路机 (故障切换); 只改 server_id, 落地(ip_id)/uuid 不变, 远端由 reconcile 两端收敛.

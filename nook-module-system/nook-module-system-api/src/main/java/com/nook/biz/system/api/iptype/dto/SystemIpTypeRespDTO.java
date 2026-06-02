@@ -18,7 +18,4 @@ public class SystemIpTypeRespDTO {
     private String name;
 
     private Integer sortOrder;
-
-    /** 该类型 IP 退订后冷却分钟数 */
-    private Integer coolingMinutes;
 }

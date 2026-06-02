@@ -27,7 +27,7 @@ public class ResourceServerBillingDO {
     /** 月成本 CNY. */
     private BigDecimal costMonthly;
 
-    /** 账单日 1-28; NIC 流量按此日重置. */
+    /** 账单日 1-28; 仅记账, 不参与流量重置. */
     private Integer billingCycleDay;
 
     /** 服务器租约到期日. */

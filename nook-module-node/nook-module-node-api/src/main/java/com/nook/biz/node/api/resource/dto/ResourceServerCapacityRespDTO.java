@@ -28,6 +28,9 @@ public class ResourceServerCapacityRespDTO {
     /** 当周期已用流量字节 = rx + tx. */
     private Long usedTrafficBytes;
 
+    /** socks5 业务流量累计字节 (双向之和; 落地机用户套餐计量用; null=老 agent 未上报). */
+    private Long bizUsedBytes;
+
     /** 限流状态 NORMAL / THROTTLED. */
     private String throttleState;
 }

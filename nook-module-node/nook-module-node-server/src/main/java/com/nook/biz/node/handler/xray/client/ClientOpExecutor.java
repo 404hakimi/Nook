@@ -87,7 +87,8 @@ public class ClientOpExecutor {
         sink.report("生成客户端 + 入库", 85);
         String clientId = UUID.randomUUID().toString().replace("-", "");
         String clientUuid = UUID.randomUUID().toString();
-        String clientEmail = "member_" + reqVO.getMemberUserId() + "_" + reqVO.getIpId();
+        // email 绑 clientId(创建后不变): 跨轮换/换线路机/换落地机都稳定, 与 out_/rule_ 标识同源; 不绑 ipId 避免换落地机失效或退订重订撞车
+        String clientEmail = "member_" + reqVO.getMemberUserId() + "_" + clientId;
         XrayClientDO entity = XrayClientDO.builder()
                 .id(clientId)
                 .serverId(reqVO.getServerId())
@@ -126,7 +127,7 @@ public class ClientOpExecutor {
         sink.report("清理 DB + 释放落地机", 80);
         transactionTemplate.executeWithoutResult(txStatus -> {
             xrayClientMapper.deleteById(e.getId());
-            landingService.releaseToCoolingForRevoke(e.getIpId());
+            landingService.releaseForRevoke(e.getIpId());
         });
 
         sink.report("已删, 远端由 agent reconcile 清理", 100);

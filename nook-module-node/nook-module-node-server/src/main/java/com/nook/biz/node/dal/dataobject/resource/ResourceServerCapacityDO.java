@@ -35,6 +35,9 @@ public class ResourceServerCapacityDO {
     /** 当周期已用流量 = rx + tx (增量累加; 重置日清零). UI 换算 GB/MB. */
     private Long usedTrafficBytes;
 
+    /** socks5 业务流量累计字节 (双向之和; 仅落地机, agent 读 nft 计数器上报; 已排除 agent/系统流量). 用户套餐计量用, 累计值不随周期清零. */
+    private Long bizUsedBytes;
+
     /** 上次上报的网卡累计入站字节(增量计算游标); null=尚未建游标. */
     private Long lastCumRxBytes;
 
@@ -47,10 +50,13 @@ public class ResourceServerCapacityDO {
     /** 周期重置策略 {@link ResourceServerQuotaResetPolicyEnum} */
     private String quotaResetPolicy;
 
+    /** 按月流量重置日 1-28; 仅 MONTHLY 生效, FIXED 忽略; 取不到时按 1 号. */
+    private Integer resetDay;
+
     /** 限流状态 {@link ResourceServerThrottleStateEnum} */
     private String throttleState;
 
-    /** 线路机出站接口实际限速 Mbps; 0=不限; agent 跑 tc qdisc 落实. */
+    /** 出站带宽 Mbps. 落地机: agent tc 在出口网卡真实限速(取 min(套餐,本值), 0=不限); 线路机: 出站带宽容量, 供套餐分配不超卖(预留~10%), 0/空=不参与分配, 不整形. */
     private Integer bandwidthLimitMbps;
 
     /** 创建时间. */

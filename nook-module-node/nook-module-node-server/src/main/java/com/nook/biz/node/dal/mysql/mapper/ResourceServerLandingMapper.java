@@ -29,13 +29,6 @@ public interface ResourceServerLandingMapper extends BaseMapper<ResourceServerLa
         return selectBatchIds(serverIds);
     }
 
-    /** 找冷却到期可回 AVAILABLE 的行. */
-    default List<ResourceServerLandingDO> selectCoolingExpired(LocalDateTime now) {
-        return selectList(Wrappers.<ResourceServerLandingDO>lambdaQuery()
-                .eq(ResourceServerLandingDO::getStatus, ResourceServerLandingStatusEnum.COOLING.getState())
-                .le(ResourceServerLandingDO::getCoolingUntil, now));
-    }
-
     /** 占用 CAS: AVAILABLE → OCCUPIED; 防并发双卖. */
     default int markOccupied(String serverId, String memberUserId, LocalDateTime at) {
         return update(null, Wrappers.<ResourceServerLandingDO>lambdaUpdate()
@@ -48,22 +41,12 @@ public interface ResourceServerLandingMapper extends BaseMapper<ResourceServerLa
                 .eq(ResourceServerLandingDO::getStatus, ResourceServerLandingStatusEnum.AVAILABLE.getState()));
     }
 
-    /** 退订: OCCUPIED → COOLING, 写 cooling 到期. */
-    default int markCooling(String serverId, LocalDateTime coolingUntil) {
-        return update(null, Wrappers.<ResourceServerLandingDO>lambdaUpdate()
-                .set(ResourceServerLandingDO::getStatus, ResourceServerLandingStatusEnum.COOLING.getState())
-                .set(ResourceServerLandingDO::getCoolingUntil, coolingUntil)
-                .set(ResourceServerLandingDO::getOccupiedByMemberId, null)
-                .set(ResourceServerLandingDO::getOccupiedAt, null)
-                .set(ResourceServerLandingDO::getUpdatedAt, LocalDateTime.now())
-                .eq(ResourceServerLandingDO::getServerId, serverId));
-    }
-
-    /** 冷却到期 → AVAILABLE. */
+    /** 退订释放: → AVAILABLE, 立即可再分配 (清 cooling/占用字段). */
     default int markAvailable(String serverId) {
         return update(null, Wrappers.<ResourceServerLandingDO>lambdaUpdate()
                 .set(ResourceServerLandingDO::getStatus, ResourceServerLandingStatusEnum.AVAILABLE.getState())
-                .set(ResourceServerLandingDO::getCoolingUntil, null)
+                .set(ResourceServerLandingDO::getOccupiedByMemberId, null)
+                .set(ResourceServerLandingDO::getOccupiedAt, null)
                 .set(ResourceServerLandingDO::getUpdatedAt, LocalDateTime.now())
                 .eq(ResourceServerLandingDO::getServerId, serverId));
     }
