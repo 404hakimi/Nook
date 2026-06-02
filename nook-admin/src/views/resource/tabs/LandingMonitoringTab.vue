@@ -114,11 +114,11 @@ const trafficStatus = computed<'default' | 'success' | 'warning' | 'error'>(() =
 const throttled = computed(() => capacity.value?.throttleState === 'THROTTLED')
 
 const RESET_POLICY_LABELS: Record<string, string> = {
-  BILLING_CYCLE: '按账单日',
+  MONTHLY: '按月重置',
   FIXED: '永不重置'
 }
 const RESET_POLICY_TYPE: Record<string, 'info' | 'success' | 'default'> = {
-  BILLING_CYCLE: 'success',
+  MONTHLY: 'success',
   FIXED: 'default'
 }
 const THROTTLE_LABELS: Record<string, string> = {

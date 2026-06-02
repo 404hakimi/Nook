@@ -43,7 +43,8 @@ const loading = ref(false)
 const form = reactive({
   monthlyTrafficGb: null as number | null,
   bandwidthLimitMbps: null as number | null,
-  quotaResetPolicy: 'FIXED'
+  quotaResetPolicy: 'MONTHLY',
+  resetDay: 1 as number | null
 })
 
 // 远端 agent 上报的累计字段 + 状态机字段 (只读, 后期业务流转写)
@@ -57,7 +58,8 @@ const runtime = reactive({
 function fill(c: ServerCapacity | null) {
   form.monthlyTrafficGb = c?.monthlyTrafficGb ?? null
   form.bandwidthLimitMbps = c?.bandwidthLimitMbps ?? null
-  form.quotaResetPolicy = c?.quotaResetPolicy ?? 'FIXED'
+  form.quotaResetPolicy = c?.quotaResetPolicy ?? 'MONTHLY'
+  form.resetDay = c?.resetDay ?? 1
   runtime.usedTrafficBytes = c?.usedTrafficBytes ?? 0
   runtime.rxBytes = c?.rxBytes ?? 0
   runtime.txBytes = c?.txBytes ?? 0
@@ -96,7 +98,8 @@ async function onSubmit() {
     await updateServerCapacity(props.serverId, {
       monthlyTrafficGb: form.monthlyTrafficGb ?? 0,
       bandwidthLimitMbps: form.bandwidthLimitMbps ?? 0,
-      quotaResetPolicy: form.quotaResetPolicy
+      quotaResetPolicy: form.quotaResetPolicy,
+      resetDay: form.quotaResetPolicy === 'MONTHLY' ? (form.resetDay ?? undefined) : undefined
     })
     message.success('已保存')
     emit('saved')
@@ -132,11 +135,11 @@ async function onSubmit() {
         </NTag>
       </div>
       <NAlert type="info" :show-icon="false" size="small" class="mb-3">
-        <strong>限定带宽</strong>: 远端带宽限速值; <strong>月流量阈值</strong>: 月用量达到 90% 触发限流的基数. 0 = 不限.
+        <strong>带宽容量</strong>: 线路机出站带宽, 供套餐分配不超卖 (预留 ~10%), 不做真实限速 (限速在落地机 egress); <strong>月流量阈值</strong>: 月用量达 90% 触发限流的基数. 0 = 不限.
       </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-          <NFormItem label="限定带宽 Mbps (0=不限)">
+          <NFormItem label="带宽容量 Mbps (供分配, 须 >0)">
             <NInputNumber v-model:value="form.bandwidthLimitMbps" :min="0" :max="100000" class="w-full" />
           </NFormItem>
           <NFormItem label="月流量阈值 GB (0=不限)">
@@ -144,6 +147,9 @@ async function onSubmit() {
           </NFormItem>
           <NFormItem label="周期重置策略">
             <NSelect v-model:value="form.quotaResetPolicy" :options="SERVER_QUOTA_RESET_POLICY_OPTIONS as any" />
+          </NFormItem>
+          <NFormItem v-if="form.quotaResetPolicy === 'MONTHLY'" label="每月重置日 (1-28)">
+            <NInputNumber v-model:value="form.resetDay" :min="1" :max="28" class="w-full" />
           </NFormItem>
         </div>
 

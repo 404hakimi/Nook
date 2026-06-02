@@ -165,7 +165,6 @@ function statusTagType(status?: string) {
   switch (status) {
     case 'OCCUPIED': return 'warning'
     case 'AVAILABLE': return 'success'
-    case 'COOLING': return 'info'
     default: return 'default'
   }
 }
@@ -207,12 +206,7 @@ async function loadServer() {
     return
   }
   // landing: 主表 + landing 子表 + install + runtime 聚合 (供 Agent tab 复用 frontline AgentTab) + credential (供 canManage 判断)
-  landingInfo.value = null
-  installInfo.value = null
-  frontlineInfo.value = null
-  landingCredential.value = null
-  statusData.value = null
-  statusError.value = ''
+  // 与 frontline 分支对称: 加载期间保留旧值, await 完整体替换; 不预清空 — 清 landingInfo 会让落地机详情整块 (v-else-if) 卸载, 丢子组件状态 (如装机中的 Agent 部署弹窗)
   try {
     const [d, inst, runtime, cred] = await Promise.all([
       getServerLandingDetail(serverId.value),
@@ -224,6 +218,7 @@ async function loadServer() {
     installInfo.value = inst
     frontlineInfo.value = runtime
     landingCredential.value = cred
+    statusError.value = ''
     // monitor 是默认 tab, watch(activeTab) 不在首次挂载触发; 凭据加载完按需补一次 SOCKS5/dante 探测
     if (activeTab.value === 'monitor') void loadStatus()
   } catch (e) {

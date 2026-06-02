@@ -7,7 +7,6 @@ export function statusTagType(status?: string): 'default' | 'success' | 'warning
   switch (status) {
     case 'OCCUPIED': return 'warning'
     case 'AVAILABLE': return 'success'
-    case 'COOLING': return 'info'
     default: return 'default'
   }
 }

@@ -414,7 +414,7 @@ const columns = computed<DataTableColumns<TradeSubscription>>(() => [
     </NCard>
 
     <PlanEditDialog v-model="editOpen" :plan="plan" @saved="loadPlan" />
-    <AdminCreateSubDialog v-model="createSubOpen" :preset-plan-id="planId" @created="onSubCreated" />
+    <AdminCreateSubDialog v-model="createSubOpen" :preset-plan="plan" @created="onSubCreated" />
     <SubscriptionChangeLogDialog
       v-model="changeLogOpen"
       :subscription-id="changeLogSub?.id"

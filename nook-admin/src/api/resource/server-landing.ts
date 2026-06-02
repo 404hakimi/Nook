@@ -6,7 +6,7 @@ import type { AgentOnlineState } from '@/api/resource/server'
  * 落地机 (SOCKS5 落地节点): server_type='landing' 的 resource_server 行 + resource_server_landing 子表.
  *
  * - lifecycleState (装机): INSTALLING/READY/LIVE/RETIRED
- * - status (占用): AVAILABLE/RESERVED/OCCUPIED/COOLING
+ * - status (占用): AVAILABLE/RESERVED/OCCUPIED
  * - region 为字典码 (FK → resource_region.code)
  */
 export interface ServerLanding {
@@ -23,11 +23,10 @@ export interface ServerLanding {
   socks5Username?: string
   /** 明文 SOCKS5 密码; DB 明文存储, 编辑时 fill 进 type=password. */
   socks5Password?: string
-  /** 占用状态: AVAILABLE / RESERVED / OCCUPIED / COOLING. */
+  /** 占用状态: AVAILABLE / RESERVED / OCCUPIED. */
   status: string
   occupiedByMemberId?: string
   occupiedAt?: string
-  coolingUntil?: string
   reservedExpiresAt?: string
   lastHeartbeatAt?: string
   /** agent 上报版本 (形如 landing-0.8.2); null = 未上报. */
@@ -153,8 +152,10 @@ export interface ServerLandingCapacity {
   usedTrafficBytes?: number
   rxBytes?: number
   txBytes?: number
-  /** BILLING_CYCLE / FIXED. */
+  /** MONTHLY / FIXED. */
   quotaResetPolicy?: string
+  /** 按月流量重置日 1-28; FIXED 时为空. */
+  resetDay?: number
   /** NORMAL / THROTTLED. */
   throttleState?: string
 }
@@ -224,16 +225,14 @@ export const SERVER_LANDING_LIFECYCLE_OPTIONS = [
 export const SERVER_LANDING_STATUS_LABELS: Record<string, string> = {
   AVAILABLE: '可分配',
   RESERVED: '预占中',
-  OCCUPIED: '已占用',
-  COOLING: '冷却中'
+  OCCUPIED: '已占用'
 }
 
 export const SERVER_LANDING_STATUS_OPTIONS = [
   { label: '全部', value: undefined as string | undefined },
   { label: '可分配', value: 'AVAILABLE' },
   { label: '预占中', value: 'RESERVED' },
-  { label: '已占用', value: 'OCCUPIED' },
-  { label: '冷却中', value: 'COOLING' }
+  { label: '已占用', value: 'OCCUPIED' }
 ]
 
 export function pageServerLanding(params: ServerLandingQuery) {
@@ -315,8 +314,8 @@ export function updateServerLandingCapacity(id: string, dto: ServerLandingCapaci
 
 /** 周期重置策略选项. */
 export const QUOTA_RESET_POLICY_OPTIONS = [
-  { label: '按账单日重置', value: 'BILLING_CYCLE' },
-  { label: '永不重置 (默认)', value: 'FIXED' }
+  { label: '按月重置 (MONTHLY, 默认)', value: 'MONTHLY' },
+  { label: '永不重置 (FIXED)', value: 'FIXED' }
 ] as const
 
 export const THROTTLE_STATE_LABELS: Record<string, string> = {

@@ -34,8 +34,8 @@ const emit = defineEmits<{
 }>()
 
 const QUOTA_RESET_OPTIONS = [
-  { label: 'BILLING_CYCLE (按账单日重置)', value: 'BILLING_CYCLE' },
-  { label: 'FIXED (永不重置, 默认)', value: 'FIXED' }
+  { label: '按月重置 (MONTHLY, 默认)', value: 'MONTHLY' },
+  { label: '永不重置 (FIXED)', value: 'FIXED' }
 ]
 
 const message = useMessage()
@@ -46,7 +46,8 @@ const errors = reactive<Record<string, string>>({})
 const form = reactive({
   bandwidthLimitMbps: 0,
   monthlyTrafficGb: null as number | null,
-  quotaResetPolicy: 'FIXED'
+  quotaResetPolicy: 'MONTHLY',
+  resetDay: 1 as number | null
 })
 // 远端 agent 上报的累计字段 (只读)
 const runtime = reactive({
@@ -59,7 +60,8 @@ const runtime = reactive({
 function fill(c: ServerLandingCapacity | null) {
   form.bandwidthLimitMbps = c?.bandwidthLimitMbps ?? 0
   form.monthlyTrafficGb = c?.monthlyTrafficGb ?? null
-  form.quotaResetPolicy = c?.quotaResetPolicy ?? 'FIXED'
+  form.quotaResetPolicy = c?.quotaResetPolicy ?? 'MONTHLY'
+  form.resetDay = c?.resetDay ?? 1
   runtime.usedTrafficBytes = c?.usedTrafficBytes ?? 0
   runtime.rxBytes = c?.rxBytes ?? 0
   runtime.txBytes = c?.txBytes ?? 0
@@ -111,7 +113,8 @@ async function onSubmit() {
     await updateServerLandingCapacity(props.serverId, {
       bandwidthLimitMbps: form.bandwidthLimitMbps,
       monthlyTrafficGb: form.monthlyTrafficGb ?? undefined,
-      quotaResetPolicy: form.quotaResetPolicy
+      quotaResetPolicy: form.quotaResetPolicy,
+      resetDay: form.quotaResetPolicy === 'MONTHLY' ? (form.resetDay ?? undefined) : undefined
     })
     message.success('已保存')
     emit('saved')
@@ -165,8 +168,11 @@ async function onSubmit() {
           >
             <NInputNumber v-model:value="form.monthlyTrafficGb" :min="0" :max="10000000" class="w-full" />
           </NFormItem>
-          <NFormItem label="周期重置策略" :span="2">
+          <NFormItem label="周期重置策略">
             <NSelect v-model:value="form.quotaResetPolicy" :options="QUOTA_RESET_OPTIONS" />
+          </NFormItem>
+          <NFormItem v-if="form.quotaResetPolicy === 'MONTHLY'" label="每月重置日 (1-28)">
+            <NInputNumber v-model:value="form.resetDay" :min="1" :max="28" class="w-full" />
           </NFormItem>
         </div>
 

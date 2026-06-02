@@ -100,11 +100,11 @@ const throttled = computed(() => capacity.value?.throttleState === 'THROTTLED')
 
 // ===== 标签化映射 (避免 NORMAL / FIXED 这种 raw value 暴露给运营) =====
 const RESET_POLICY_LABELS: Record<string, string> = {
-  BILLING_CYCLE: '按账单日',
+  MONTHLY: '按月重置',
   FIXED: '永不重置'
 }
 const RESET_POLICY_TYPE: Record<string, 'info' | 'success' | 'default'> = {
-  BILLING_CYCLE: 'success',
+  MONTHLY: 'success',
   FIXED: 'default'
 }
 const THROTTLE_LABELS: Record<string, string> = {

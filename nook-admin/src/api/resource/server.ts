@@ -176,12 +176,14 @@ export interface ServerCapacity {
   serverId: string
   /** 业务月流量阈值 GB; 0/null = 不限. throttle 状态机 90% 触发基数. */
   monthlyTrafficGb?: number
-  /** 业务限定带宽 Mbps; 0 = 不限. agent tc qdisc 真实 enforce. */
+  /** 线路机出站带宽容量 Mbps; 供套餐分配不超卖, 0/空=不参与分配; 不做 tc 整形 (真实限速在落地机). */
   bandwidthLimitMbps?: number
   rxBytes?: number
   txBytes?: number
   usedTrafficBytes?: number
   quotaResetPolicy?: string
+  /** 按月流量重置日 1-28; FIXED 时为空. */
+  resetDay?: number
   throttleState?: string
 }
 
@@ -189,14 +191,16 @@ export interface ServerCapacity {
 export interface ServerCapacityUpdateDTO {
   monthlyTrafficGb?: number
   bandwidthLimitMbps?: number
-  /** 周期重置策略: BILLING_CYCLE / FIXED; 后期"重置流量"业务按该策略派计算. */
+  /** 周期重置策略: MONTHLY / FIXED. */
   quotaResetPolicy?: string
+  /** 按月流量重置日 1-28; MONTHLY 必填, FIXED 忽略. */
+  resetDay?: number
 }
 
 /** 周期重置策略选项. */
 export const SERVER_QUOTA_RESET_POLICY_OPTIONS = [
-  { label: '按账单日重置 (BILLING_CYCLE)', value: 'BILLING_CYCLE' },
-  { label: '永不重置 (FIXED, 默认)', value: 'FIXED' }
+  { label: '按月重置 (MONTHLY, 默认)', value: 'MONTHLY' },
+  { label: '永不重置 (FIXED)', value: 'FIXED' }
 ] as const
 
 /** 限流状态 → 中文标签 (read-only, 由 throttle 状态机维护). */

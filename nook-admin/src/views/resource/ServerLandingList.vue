@@ -185,7 +185,6 @@ function statusTagType(status: string): 'success' | 'info' | 'warning' | 'defaul
     case 'AVAILABLE': return 'success'
     case 'RESERVED': return 'warning'
     case 'OCCUPIED': return 'info'
-    case 'COOLING': return 'default'
     default: return 'default'
   }
 }

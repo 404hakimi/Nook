@@ -58,7 +58,7 @@ function renderRegionLabel(o: any) {
 
 const ipTypeOptions = computed(() =>
   ipTypes.value.map((t) => ({
-    label: `${IP_TYPE_CODE_LABELS[t.code] || t.name} (冷却 ${t.coolingMinutes}min)`,
+    label: IP_TYPE_CODE_LABELS[t.code] || t.name,
     value: t.id
   }))
 )

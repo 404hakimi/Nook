@@ -209,10 +209,6 @@ const trafficUsagePercent = computed(() => {
           <span v-if="detail.occupiedAt">{{ formatDateTime(detail.occupiedAt) }}</span>
           <span v-else class="muted">—</span>
         </NDescriptionsItem>
-        <NDescriptionsItem label="冷却到期">
-          <span v-if="detail.coolingUntil">{{ formatDateTime(detail.coolingUntil) }}</span>
-          <span v-else class="muted">—</span>
-        </NDescriptionsItem>
       </NDescriptions>
     </NCard>
 
