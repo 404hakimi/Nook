@@ -10,6 +10,7 @@ import (
 	"nook-agent/internal/agentcore"
 	"nook-agent/internal/client"
 	"nook-agent/internal/config"
+	"nook-agent/internal/meter"
 	"nook-agent/internal/tc"
 )
 
@@ -21,15 +22,21 @@ func main() {
 
 // 落地机角色注册器: 挂 tc 限速 reconcile (按后端期望带宽整形出口网卡); socks5 接管仍走 backend SSH.
 // 跟 frontline 共用心跳 / NIC.
-func registerLanding(cfg *config.Config, cli *client.Client) []agentcore.Goroutine {
+func registerLanding(cfg *config.Config, cli *client.Client) agentcore.RoleComponents {
 	interval := cfg.LandingBandwidthReconcileInterval()
-	if interval <= 0 {
-		log.Printf("[landing] 启动 (未配 landing.bandwidth_reconcile_interval_seconds, 不挂 tc 限速)")
-		return nil
+	var goroutines []agentcore.Goroutine
+	if interval > 0 {
+		rec := tc.New(cli, cfg.NIC.Interface, interval)
+		goroutines = append(goroutines, func(ctx context.Context) { rec.Run(ctx) })
+		log.Printf("[landing] 启动, tc 限速 reconcile 周期=%v (iface=%s)", interval, cfg.NIC.Interface)
+	} else {
+		log.Printf("[landing] 未配 landing.bandwidth_reconcile_interval_seconds, 不挂 tc 限速")
 	}
-	rec := tc.New(cli, cfg.NIC.Interface, interval)
-	log.Printf("[landing] 启动, tc 限速 reconcile 周期=%v (iface=%s)", interval, cfg.NIC.Interface)
-	return []agentcore.Goroutine{
-		func(ctx context.Context) { rec.Run(ctx) },
+	// socks5 业务流量计量: 周期拉端口 + 维护 nft 计数器, 供 nic 上报采样 (复用 reconcile 周期)
+	m := meter.New(cli, interval)
+	goroutines = append(goroutines, func(ctx context.Context) { m.Run(ctx) })
+	return agentcore.RoleComponents{
+		Goroutines:    goroutines,
+		NicBizSampler: m.Sample,
 	}
 }

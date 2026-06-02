@@ -22,8 +22,14 @@ import (
 // Goroutine 一个长跑函数 (ctx 取消时退出); 角色注册器返一组要 wg.Add(1) + go 起来的.
 type Goroutine func(ctx context.Context)
 
-// RoleRegister: 角色自己挂额外 collector; 返回额外的 goroutine.
-type RoleRegister func(cfg *config.Config, cli *client.Client) []Goroutine
+// RoleComponents: 角色注册器返回的组件 — 额外 goroutine + 可选的 nic 业务流量采样器.
+type RoleComponents struct {
+	Goroutines    []Goroutine
+	NicBizSampler func() *int64 // landing: 采样 nft socks5 业务流量供 nic 上报; nil = nic 不报 biz
+}
+
+// RoleRegister: 角色自己挂额外 collector + 提供可选的业务流量采样器.
+type RoleRegister func(cfg *config.Config, cli *client.Client) RoleComponents
 
 // Run 是 main.go 的等价入口. version 形如 "frontline-0.9.0" / "landing-0.9.0".
 func Run(version string, registerRole RoleRegister) {
@@ -48,11 +54,11 @@ func Run(version string, registerRole RoleRegister) {
 
 	cli := client.New(cfg.Backend.APIURL, cfg.Backend.APIToken, cfg.HTTPTimeout())
 
-	// 角色注册器挂自己的 collector (e.g., frontline 挂 xray reconcile, landing 挂 tc 限速)
-	extraGoroutines := registerRole(cfg, cli)
+	// 角色注册器挂自己的 collector (e.g., frontline 挂 xray reconcile, landing 挂 tc 限速 + 业务流量计量)
+	comp := registerRole(cfg, cli)
 
 	hb := heartbeat.New(cli, cfg.HeartbeatInterval(), version)
-	nicRep := nic.New(cli, cfg.NICInterval(), cfg.NIC.Interface)
+	nicRep := nic.New(cli, cfg.NICInterval(), cfg.NIC.Interface, comp.NicBizSampler)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -61,7 +67,7 @@ func Run(version string, registerRole RoleRegister) {
 	wg.Add(2)
 	go func() { defer wg.Done(); hb.Run(ctx) }()
 	go func() { defer wg.Done(); nicRep.Run(ctx) }()
-	for _, g := range extraGoroutines {
+	for _, g := range comp.Goroutines {
 		wg.Add(1)
 		g := g
 		go func() { defer wg.Done(); g(ctx) }()

@@ -24,6 +24,7 @@ const (
 // DesiredClient 跟后端 XrayReconcileClientDTO 对齐.
 type DesiredClient struct {
 	ClientEmail string `json:"clientEmail"`
+	ClientUUID  string `json:"clientUuid"`
 	InboundTag  string `json:"inboundTag"`
 	OutboundTag string `json:"outboundTag"`
 	RuleTag     string `json:"ruleTag"`
@@ -75,7 +76,7 @@ func (r *Reconciler) once(ctx context.Context) {
 
 func (r *Reconciler) apply(ctx context.Context, desired []DesiredClient) {
 	// 实读本地; 任一失败放弃本轮 (拿空集会误删全部)
-	actualUsers, err := r.xc.ListUsers(ctx, sharedInboundTag)
+	actualUsers, err := r.xc.ListUsers(ctx, sharedInboundTag) // email→uuid
 	if err != nil {
 		log.Printf("[reconcile] 读本地 users 失败, 跳过本轮: %v", err)
 		return
@@ -90,7 +91,6 @@ func (r *Reconciler) apply(ctx context.Context, desired []DesiredClient) {
 		log.Printf("[reconcile] 读本地 rules 失败, 跳过本轮: %v", err)
 		return
 	}
-	actualUserSet := toSet(actualUsers)
 	actualOutSet := toSet(actualOutbounds)
 	actualRuleSet := toSet(actualRules)
 
@@ -98,16 +98,26 @@ func (r *Reconciler) apply(ctx context.Context, desired []DesiredClient) {
 	desiredOutbounds := make(map[string]bool, len(desired))
 	desiredRules := make(map[string]bool, len(desired))
 
-	// 缺则补
+	// 缺则补; email 在但 UUID 变了(rotate) 则摘旧装新 (email 不变, 流量统计不断档)
 	for _, d := range desired {
 		desiredEmails[d.ClientEmail] = true
 		desiredOutbounds[d.OutboundTag] = true
 		desiredRules[d.RuleTag] = true
-		if !actualUserSet[d.ClientEmail] {
+		curUUID, exists := actualUsers[d.ClientEmail]
+		switch {
+		case !exists:
 			if err := r.xc.AddUser(ctx, d.AduJSON); err != nil {
 				log.Printf("[reconcile] +user %s 失败: %v", d.ClientEmail, err)
 			} else {
 				log.Printf("[reconcile] +user %s", d.ClientEmail)
+			}
+		case curUUID != d.ClientUUID:
+			if err := r.xc.RemoveUser(ctx, sharedInboundTag, d.ClientEmail); err != nil {
+				log.Printf("[reconcile] ~user %s 摘旧失败: %v", d.ClientEmail, err)
+			} else if err := r.xc.AddUser(ctx, d.AduJSON); err != nil {
+				log.Printf("[reconcile] ~user %s 装新失败: %v", d.ClientEmail, err)
+			} else {
+				log.Printf("[reconcile] ~user %s UUID 轮换", d.ClientEmail)
 			}
 		}
 		if !actualOutSet[d.OutboundTag] {
@@ -127,7 +137,7 @@ func (r *Reconciler) apply(ctx context.Context, desired []DesiredClient) {
 	}
 
 	// 多则删 (仅业务前缀, 不碰静态出站 / 内置 api 规则)
-	for _, email := range actualUsers {
+	for email := range actualUsers {
 		if !desiredEmails[email] {
 			if err := r.xc.RemoveUser(ctx, sharedInboundTag, email); err != nil {
 				log.Printf("[reconcile] -user %s 失败: %v", email, err)

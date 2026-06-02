@@ -19,19 +19,21 @@ import (
 )
 
 type Reporter struct {
-	cli      *client.Client
-	interval time.Duration
-	iface    string
+	cli        *client.Client
+	interval   time.Duration
+	iface      string
+	bizSampler func() *int64 // landing: 采样 nft socks5 业务流量; nil = 不报 biz (frontline)
 }
 
-func New(cli *client.Client, interval time.Duration, iface string) *Reporter {
-	return &Reporter{cli: cli, interval: interval, iface: iface}
+func New(cli *client.Client, interval time.Duration, iface string, bizSampler func() *int64) *Reporter {
+	return &Reporter{cli: cli, interval: interval, iface: iface, bizSampler: bizSampler}
 }
 
 type req struct {
-	RxBytes     int64  `json:"rxBytes"`
-	TxBytes     int64  `json:"txBytes"`
-	PeriodStart string `json:"periodStart"` // 已弃用: backend 不再依赖, 保留字段兼容
+	RxBytes      int64  `json:"rxBytes"`
+	TxBytes      int64  `json:"txBytes"`
+	BizUsedBytes *int64 `json:"bizUsedBytes,omitempty"` // socks5 业务流量(落地机); nil=不报, 后端回退整机 tx
+	PeriodStart  string `json:"periodStart"`            // 已弃用: backend 不再依赖, 保留字段兼容
 }
 
 func (r *Reporter) Run(ctx context.Context) {
@@ -74,10 +76,17 @@ func (r *Reporter) tick() {
 		return
 	}
 	body := req{RxBytes: rx, TxBytes: tx}
+	if r.bizSampler != nil {
+		body.BizUsedBytes = r.bizSampler()
+	}
 	if err := r.cli.Post("/api/agent/nic-traffic", body, nil); err != nil {
 		log.Printf("[nic] 上报失败: %v", err)
 	} else {
-		log.Printf("[nic] ok 累计 rx=%dGB tx=%dGB", rx/(1024*1024*1024), tx/(1024*1024*1024))
+		bizMB := int64(-1) // -1 = 未采到业务流量(frontline 或 nft 未就绪)
+		if body.BizUsedBytes != nil {
+			bizMB = *body.BizUsedBytes / (1024 * 1024)
+		}
+		log.Printf("[nic] ok 累计 rx=%dGB tx=%dGB biz=%dMB", rx/(1024*1024*1024), tx/(1024*1024*1024), bizMB)
 	}
 }
 

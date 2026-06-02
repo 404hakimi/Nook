@@ -24,7 +24,7 @@ func main() {
 
 // registerFrontline: frontline 角色挂 xray reconcile; yaml 里 xray 段必填.
 // per-user 流量统计已移除 (计量改落地机 NIC, 见 trade member_plan_traffic), 不再采集 xray statsquery.
-func registerFrontline(cfg *config.Config, cli *client.Client) []agentcore.Goroutine {
+func registerFrontline(cfg *config.Config, cli *client.Client) agentcore.RoleComponents {
 	bin := cfg.Xray.Bin
 	apiPort := cfg.Xray.APIPort
 	if bin == "" || apiPort == 0 {
@@ -32,7 +32,7 @@ func registerFrontline(cfg *config.Config, cli *client.Client) []agentcore.Gorou
 	}
 	if _, err := os.Stat(bin); err != nil {
 		log.Printf("[frontline] xray bin %s 文件不存在 (%v), 不挂 reconcile", bin, err)
-		return nil
+		return agentcore.RoleComponents{}
 	}
 	log.Printf("[frontline] xray 已装 (bin=%s apiPort=%d), 挂载 reconcile", bin, apiPort)
 	xrayCli := xray.New(bin, apiPort)
@@ -45,7 +45,9 @@ func registerFrontline(cfg *config.Config, cli *client.Client) []agentcore.Gorou
 	rec := reconcile.New(cli, xrayCli, reconcileInterval)
 	log.Printf("[frontline] reconcile 周期=%v", reconcileInterval)
 
-	return []agentcore.Goroutine{
-		func(ctx context.Context) { rec.Run(ctx) },
+	return agentcore.RoleComponents{
+		Goroutines: []agentcore.Goroutine{
+			func(ctx context.Context) { rec.Run(ctx) },
+		},
 	}
 }

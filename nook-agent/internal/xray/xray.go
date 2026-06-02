@@ -1,4 +1,4 @@
-// Package xray 调本地 xray api: adu/rmu/ado/rmo/statsquery.
+// Package xray 调本地 xray api: adu/rmu/ado/rmo/adrules/rmrules + inbounduser/lso/lsrules (reconcile 对账读本地态).
 //
 // xray 二进制路径 + api server 端口由 config 给; agent 跟 xray 在同台机器, 走 127.0.0.1:apiPort.
 // 命令格式参考 nook-module-node/framework/xray/cli/Xray*Cli.java 现有实现.
@@ -106,8 +106,9 @@ func (c *Client) RemoveRule(ctx context.Context, ruleTag string) error {
 	return nil
 }
 
-// ListUsers: xray api inbounduser -tag=<inboundTag> → 该 inbound 现有 user email 集合 (reconcile 对账).
-func (c *Client) ListUsers(ctx context.Context, inboundTag string) ([]string, error) {
+// ListUsers: xray api inbounduser -tag=<inboundTag> → 该 inbound 现有 user 的 email→uuid 映射 (reconcile 对账).
+// account.id 即 user UUID (vmess/vless), reconcile 用它判断 UUID 是否轮换.
+func (c *Client) ListUsers(ctx context.Context, inboundTag string) (map[string]string, error) {
 	args := append(c.baseArgs("inbounduser"), "-tag="+inboundTag)
 	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
 	out, err := runCapture(cmd)
@@ -116,23 +117,26 @@ func (c *Client) ListUsers(ctx context.Context, inboundTag string) ([]string, er
 	}
 	trimmed := strings.TrimSpace(out)
 	if trimmed == "" {
-		return nil, nil
+		return map[string]string{}, nil
 	}
 	var resp struct {
 		Users []struct {
-			Email string `json:"email"`
+			Email   string `json:"email"`
+			Account struct {
+				ID string `json:"id"`
+			} `json:"account"`
 		} `json:"users"`
 	}
 	if err := json.Unmarshal([]byte(trimmed), &resp); err != nil {
 		return nil, fmt.Errorf("解析 inbounduser 输出: %w (out=%s)", err, trimmed)
 	}
-	emails := make([]string, 0, len(resp.Users))
+	users := make(map[string]string, len(resp.Users))
 	for _, u := range resp.Users {
 		if u.Email != "" {
-			emails = append(emails, u.Email)
+			users[u.Email] = u.Account.ID
 		}
 	}
-	return emails, nil
+	return users, nil
 }
 
 // ListOutboundTags: xray api lso → 所有 outbound tag (含静态; reconcile 按 out_ 前缀过滤业务出站).
