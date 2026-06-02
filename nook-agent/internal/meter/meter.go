@@ -1,11 +1,11 @@
-// Package meter: 落地机业务流量计量.
+// Package meter: 落地机业务流量计量. 期望 socks5 端口由 landing 循环从后端拉来后调 Ensure, 本包不自拉不自循环.
 //
-// 拉 socks5 端口 → 在独立 nft 表 nook_meter 里计数"进出该端口的双向流量"(= 用户经落地机中转的业务量),
-// 天然排除 agent↔后端 / 系统(DNS/NTP/apt) 流量。nic 上报时采样该计数器作为"业务流量"上报, backend 据此精确扣套餐。
+// 在独立 nft 表 nook_meter 里计数"进出 socks5 端口的双向流量"(= 用户经落地机中转的业务量),
+// 天然排除 agent↔后端 / 系统(DNS/NTP/apt) 流量。nic 上报时调 Sample 采样, backend 据此精确扣套餐。
 //
 // 设计要点:
 //   - 独立 inet table nook_meter, 仅 counter 无 accept/drop → 不影响 UFW(在 ip/ip6 filter)。
-//   - 重建判断以"内核里规则的真实端口"为准(不靠内存): 规则在且端口对就不动(保住累计值, agent 重启不误清→不漏算);
+//   - Ensure 以"内核里规则的真实端口"为准: 规则在且端口对就不动(保住累计值, agent 重启不误清→不漏算);
 //     规则被删 / 端口变了才重建(自愈 + 端口切换), 重建 flush 归零由 backend "回退即重置" 兜底。
 //   - agent 是 root, 直接 exec nft。
 package meter
@@ -19,62 +19,27 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
-	"time"
-
-	"nook-agent/internal/client"
 )
-
-const portPath = "/api/agent/landing/socks5-port"
 
 // 从 `nft list table` 文本里提 cnt_in 规则的 dport.
 var dportRe = regexp.MustCompile(`dport (\d+)`)
 
-// Meter 周期维护 nft 计数器(端口对账), 并提供 Sample 供 nic 上报采样. 无内存状态, 一切以内核为准.
-type Meter struct {
-	cli      *client.Client
-	interval time.Duration
+// Meter 维护 nft 业务流量计数器, 并提供 Sample 供 nic 上报采样. 无内存状态, 一切以内核为准.
+type Meter struct{}
+
+func New() *Meter {
+	return &Meter{}
 }
 
-func New(cli *client.Client, interval time.Duration) *Meter {
-	return &Meter{cli: cli, interval: interval}
-}
-
-// Run: 周期拉端口并确保 nft 计数器在位; ctx 取消退出.
-func (m *Meter) Run(ctx context.Context) {
-	if m.interval <= 0 {
-		log.Printf("[meter] interval<=0, 不启动业务流量计量")
-		return
-	}
-	log.Printf("[meter] 启动, interval=%v", m.interval)
-	t := time.NewTicker(m.interval)
-	defer t.Stop()
-	m.refresh(ctx)
-	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("[meter] 退出")
-			return
-		case <-t.C:
-			m.refresh(ctx)
-		}
-	}
-}
-
-// refresh: 拉端口, 对照"内核里规则的真实端口"决定是否(重)建.
-// 规则在且端口对 → 不动(保住累计值); 规则没了 / 端口不对 → 才重建(rebuild flush 归零, backend 回退兜底).
-func (m *Meter) refresh(ctx context.Context) {
-	var port int
-	if err := m.cli.Get(portPath, &port); err != nil {
-		log.Printf("[meter] 拉 socks5 端口失败, 跳过本轮: %v", err)
-		return
-	}
+// Ensure: 确保 nft 计数器在位且端口为 port (0=落地机未配 socks5, 跳过).
+// 以内核实际规则为准: 规则在且端口对 → 不动(保住累计值); 规则没了 / 端口不对 → 才重建(flush 归零, backend 回退兜底).
+func (m *Meter) Ensure(ctx context.Context, port int) {
 	if port <= 0 {
-		log.Printf("[meter] 后端返回端口=%d (落地机未配 socks5?), 跳过", port)
 		return
 	}
 	curPort, exists := m.currentRulePort()
 	if exists && curPort == port {
-		return // 规则在位且端口对, 不动(保住累计值; agent 重启走这条→不误清)
+		return // 规则在位且端口对, 不动(agent 重启走这条→不误清)
 	}
 	if err := m.rebuild(ctx, port); err != nil {
 		log.Printf("[meter] 建 nft 计数器失败 port=%d: %v", port, err)
@@ -125,7 +90,7 @@ table inet nook_meter {
 	return nil
 }
 
-// Sample: 读 nft 计数器(biz_in + biz_out 字节之和); table 不存在/读失败返 nil → nic 不报 biz, 后端回退整机 tx(refresh 会自愈).
+// Sample: 读 nft 计数器(biz_in + biz_out 字节之和); table 不存在/读失败返 nil → nic 不报 biz, 后端回退整机 tx.
 func (m *Meter) Sample() *int64 {
 	total, err := m.readCounters()
 	if err != nil {

@@ -1,11 +1,15 @@
-// nook-landing-agent: 落地机 agent. 跑 tc 限速 reconcile (socks5 仍由 backend SSH 装).
+// nook-landing-agent: 落地机 agent.
 //
-// 编译: go build -ldflags '-X main.Version=landing-0.9.0 -s -w' -o nook-landing-0.9.0-linux-amd64 ./cmd/landing
+// 一个 reconcile 循环拉后端"落地机期望配置"(出口限速 + socks5 端口) → 应用 tc 限速 + 维护 nft 业务流量计数器;
+// 计数器读数作为 nic 上报的业务流量采样源。心跳 / NIC 在 agentcore 共用。
+//
+// 编译: go build -ldflags '-X main.Version=landing-0.x.y -s -w' -o nook-landing-...-linux-amd64 ./cmd/landing
 package main
 
 import (
 	"context"
 	"log"
+	"time"
 
 	"nook-agent/internal/agentcore"
 	"nook-agent/internal/client"
@@ -14,29 +18,57 @@ import (
 	"nook-agent/internal/tc"
 )
 
+// Version 编译时 ldflags 注入; 命名约定 "landing-X.Y.Z".
 var Version = "landing-dev"
 
 func main() {
 	agentcore.Run(Version, registerLanding)
 }
 
-// 落地机角色注册器: 挂 tc 限速 reconcile (按后端期望带宽整形出口网卡); socks5 接管仍走 backend SSH.
-// 跟 frontline 共用心跳 / NIC.
+// landingDesired 跟后端 LandingDesiredRespVO 对齐.
+type landingDesired struct {
+	BandwidthMbps int `json:"bandwidthMbps"`
+	Socks5Port    int `json:"socks5Port"`
+}
+
+// registerLanding: 落地机角色挂一个 reconcile 循环 —— 一次拉取"期望配置"(限速 + socks5 端口),
+// 分发给 tc 整形和 nft 计数器维护; 计数器 Sample 作为 nic 业务流量采样源.
 func registerLanding(cfg *config.Config, cli *client.Client) agentcore.RoleComponents {
 	interval := cfg.LandingBandwidthReconcileInterval()
-	var goroutines []agentcore.Goroutine
-	if interval > 0 {
-		rec := tc.New(cli, cfg.NIC.Interface, interval)
-		goroutines = append(goroutines, func(ctx context.Context) { rec.Run(ctx) })
-		log.Printf("[landing] 启动, tc 限速 reconcile 周期=%v (iface=%s)", interval, cfg.NIC.Interface)
-	} else {
-		log.Printf("[landing] 未配 landing.bandwidth_reconcile_interval_seconds, 不挂 tc 限速")
+	limiter := tc.New(cfg.NIC.Interface)
+	m := meter.New()
+	loop := func(ctx context.Context) {
+		if interval <= 0 {
+			log.Printf("[landing] 未配 landing.bandwidth_reconcile_interval_seconds, 不挂限速/计量")
+			return
+		}
+		log.Printf("[landing] 启动, reconcile 周期=%v (iface=%s)", interval, cfg.NIC.Interface)
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		reconcileOnce(ctx, cli, limiter, m)
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("[landing] 退出")
+				return
+			case <-t.C:
+				reconcileOnce(ctx, cli, limiter, m)
+			}
+		}
 	}
-	// socks5 业务流量计量: 周期拉端口 + 维护 nft 计数器, 供 nic 上报采样 (复用 reconcile 周期)
-	m := meter.New(cli, interval)
-	goroutines = append(goroutines, func(ctx context.Context) { m.Run(ctx) })
 	return agentcore.RoleComponents{
-		Goroutines:    goroutines,
+		Goroutines:    []agentcore.Goroutine{loop},
 		NicBizSampler: m.Sample,
 	}
+}
+
+// reconcileOnce: 拉一次落地机期望配置, 分发给出口限速 + nft 计数器维护.
+func reconcileOnce(ctx context.Context, cli *client.Client, limiter *tc.Limiter, m *meter.Meter) {
+	var d landingDesired
+	if err := cli.Get("/api/agent/landing/desired", &d); err != nil {
+		log.Printf("[landing] 拉期望配置失败, 跳过本轮: %v", err)
+		return
+	}
+	limiter.Apply(ctx, d.BandwidthMbps)
+	m.Ensure(ctx, d.Socks5Port)
 }

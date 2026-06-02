@@ -2,6 +2,7 @@ package com.nook.biz.agent.controller;
 
 import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
+import com.nook.biz.agent.controller.vo.LandingDesiredRespVO;
 import com.nook.biz.agent.framework.auth.AuthenticatedAgent;
 import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
@@ -75,25 +76,17 @@ public class AgentController {
     }
 
     /**
-     * 落地 agent 拉本机应施加的 tc 限速 (Mbps); 取占用它的订阅套餐带宽与本机带宽上限的较小值.
-     * agent 跟本地 tc qdisc 比对 → 幂等重放 / rate 变更 / 清除。
+     * 落地机拉期望配置 (出口限速 Mbps + socks5 端口); agent 一轮 reconcile 拉一次,
+     * 分发给 tc 整形(取套餐带宽与本机上限较小值)和 nft 业务流量计数器维护.
      *
      * @param serverId 已认证 server id (落地机)
-     * @return 限速 Mbps; 0 = 不限 (无客户占用)
+     * @return 期望配置 (bandwidthMbps 0=不限; socks5Port 0=未配)
      */
-    @GetMapping("/landing/desired-bandwidth")
-    public Result<Integer> landingDesiredBandwidth(@AuthenticatedAgent String serverId) {
-        return Result.ok(agentReportService.getLandingDesiredBandwidthMbps(serverId));
-    }
-
-    /**
-     * 落地机拉 socks5 端口 (建 nft 业务流量计数器用)
-     *
-     * @param serverId 已认证 server id (落地机)
-     * @return socks5 端口; 0 = 未配置
-     */
-    @GetMapping("/landing/socks5-port")
-    public Result<Integer> landingSocks5Port(@AuthenticatedAgent String serverId) {
-        return Result.ok(agentReportService.getLandingSocks5Port(serverId));
+    @GetMapping("/landing/desired")
+    public Result<LandingDesiredRespVO> landingDesired(@AuthenticatedAgent String serverId) {
+        LandingDesiredRespVO vo = new LandingDesiredRespVO();
+        vo.setBandwidthMbps(agentReportService.getLandingDesiredBandwidthMbps(serverId));
+        vo.setSocks5Port(agentReportService.getLandingSocks5Port(serverId));
+        return Result.ok(vo);
     }
 }

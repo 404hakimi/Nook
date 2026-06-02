@@ -1,8 +1,6 @@
-// Package tc: 落地 agent 周期拉后端期望限速 (Mbps), 用 tc htb 在出口网卡整形.
+// Package tc: 落地机出口限速 (tc htb). 期望限速值由 landing 循环从后端拉来后调 Apply, 本包不自拉不自循环.
 //
-// 落地机 1:1 独占一个客户, 整形 egress 即可兜住中转双向: 每个被中转的字节 (下载 internet→landing→frontline,
-// 上传 frontline→landing→internet) 都要从本机 egress 一次, egress 速率即吞吐瓶颈.
-// 期望速率由后端按"占用本落地机的 RUNNING client 的套餐带宽"算出, 0 = 不限.
+// 落地机 1:1 独占一个客户, 整形 egress 即可兜住中转双向: 上下行都从本机 egress 过一次, egress 速率即吞吐瓶颈.
 package tc
 
 import (
@@ -13,91 +11,58 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
-	"nook-agent/internal/client"
 	"nook-agent/internal/nic"
 )
-
-const desiredPath = "/api/agent/landing/desired-bandwidth"
 
 // rateRe 匹配 tc class 输出里的 "rate 50Mbit" / "rate 50000Kbit" / "rate 1Gbit".
 var rateRe = regexp.MustCompile(`rate\s+(\d+(?:\.\d+)?)([KMG]?)bit`)
 
-// Reconciler 周期把本机 tc 限速拉平到后端期望.
-type Reconciler struct {
-	cli      *client.Client
-	iface    string // 配置网卡; "auto"/"" 时探测默认路由
-	interval time.Duration
+// Limiter 把出口网卡限速拉平到期望值; 无状态, 由 landing 循环周期调 Apply.
+type Limiter struct {
+	iface string // 配置网卡; "auto"/"" 时探测默认路由
 }
 
-func New(cli *client.Client, iface string, interval time.Duration) *Reconciler {
-	return &Reconciler{cli: cli, iface: iface, interval: interval}
+func New(iface string) *Limiter {
+	return &Limiter{iface: iface}
 }
 
-// Run: 启动先收敛一次, 之后每 interval 一次; ctx 取消退出.
-func (r *Reconciler) Run(ctx context.Context) {
-	if r.interval <= 0 {
-		log.Printf("[tc] interval<=0, 不启动")
-		return
-	}
-	log.Printf("[tc] 启动, interval=%v", r.interval)
-	t := time.NewTicker(r.interval)
-	defer t.Stop()
-	r.once(ctx)
-	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("[tc] 退出")
-			return
-		case <-t.C:
-			r.once(ctx)
-		}
-	}
-}
-
-func (r *Reconciler) once(ctx context.Context) {
-	var rateMbps int
-	if err := r.cli.Get(desiredPath, &rateMbps); err != nil {
-		log.Printf("[tc] 拉期望限速失败, 跳过本轮: %v", err)
-		return
-	}
-	iface, err := r.resolveIface()
+// Apply: 将出口限速收敛到 mbps (0=不限); 仅当前与期望不一致时改 (避免每轮重建 qdisc 抖动 active 连接).
+func (l *Limiter) Apply(ctx context.Context, mbps int) {
+	iface, err := l.resolveIface()
 	if err != nil {
 		log.Printf("[tc] 解析网卡失败, 跳过本轮: %v", err)
 		return
 	}
-	if err := r.apply(ctx, iface, rateMbps); err != nil {
-		log.Printf("[tc] 应用失败 iface=%s rate=%dMbps: %v", iface, rateMbps, err)
+	cur := l.currentRateMbps(ctx, iface)
+	if mbps <= 0 {
+		if cur == 0 {
+			return // 本来就无限速
+		}
+		log.Printf("[tc] 清除限速 iface=%s (原 %dMbps)", iface, cur)
+		if err := l.clear(ctx, iface); err != nil {
+			log.Printf("[tc] 清除限速失败 iface=%s: %v", iface, err)
+		}
+		return
+	}
+	if cur == mbps {
+		return // 已是目标速率
+	}
+	log.Printf("[tc] 设限速 iface=%s %dMbps (原 %dMbps)", iface, mbps, cur)
+	if err := l.setRate(ctx, iface, mbps); err != nil {
+		log.Printf("[tc] 设限速失败 iface=%s %dMbps: %v", iface, mbps, err)
 	}
 }
 
-func (r *Reconciler) resolveIface() (string, error) {
-	if r.iface != "" && r.iface != "auto" {
-		return r.iface, nil
+func (l *Limiter) resolveIface() (string, error) {
+	if l.iface != "" && l.iface != "auto" {
+		return l.iface, nil
 	}
 	return nic.DetectDefaultIface()
 }
 
-// apply 比对当前与期望, 仅在不一致时改 (避免每轮重建 qdisc 抖动 active 连接).
-func (r *Reconciler) apply(ctx context.Context, iface string, want int) error {
-	cur := r.currentRateMbps(ctx, iface)
-	if want <= 0 {
-		if cur == 0 {
-			return nil // 本来就无限速
-		}
-		log.Printf("[tc] 清除限速 iface=%s (原 %dMbps)", iface, cur)
-		return r.clear(ctx, iface)
-	}
-	if cur == want {
-		return nil // 已是目标速率
-	}
-	log.Printf("[tc] 设限速 iface=%s %dMbps (原 %dMbps)", iface, want, cur)
-	return r.setRate(ctx, iface, want)
-}
-
-// currentRateMbps 读本机 htb class 速率 (Mbps); 无我们的 htb / 读失败都按 0 (无限速) 处理, apply 会重建.
-func (r *Reconciler) currentRateMbps(ctx context.Context, iface string) int {
+// currentRateMbps 读本机 htb class 速率 (Mbps); 无我们的 htb / 读失败都按 0 (无限速) 处理.
+func (l *Limiter) currentRateMbps(ctx context.Context, iface string) int {
 	out, err := exec.CommandContext(ctx, "tc", "class", "show", "dev", iface).CombinedOutput()
 	if err != nil {
 		return 0
@@ -120,8 +85,8 @@ func (r *Reconciler) currentRateMbps(ctx context.Context, iface string) int {
 }
 
 // setRate 用 htb root + 单 default class 整形 egress; root 建一次, 速率改动落 class.
-func (r *Reconciler) setRate(ctx context.Context, iface string, mbps int) error {
-	if err := r.ensureRootQdisc(ctx, iface); err != nil {
+func (l *Limiter) setRate(ctx context.Context, iface string, mbps int) error {
+	if err := l.ensureRootQdisc(ctx, iface); err != nil {
 		return err
 	}
 	rate := strconv.Itoa(mbps) + "mbit"
@@ -132,9 +97,8 @@ func (r *Reconciler) setRate(ctx context.Context, iface string, mbps int) error 
 	return nil
 }
 
-// ensureRootQdisc 确保 htb root 存在: 已是我们的 htb 就不动 (对同类 htb 跑 replace 会退化成 change, htb 不支持 → "Change operation not supported");
-// 否则把默认 root (noqueue/fq_codel 等) replace 成 htb (异类 replace = 删+建, 正常).
-func (r *Reconciler) ensureRootQdisc(ctx context.Context, iface string) error {
+// ensureRootQdisc 确保 htb root 存在: 已是我们的 htb 就不动; 否则把默认 root replace 成 htb.
+func (l *Limiter) ensureRootQdisc(ctx context.Context, iface string) error {
 	out, err := exec.CommandContext(ctx, "tc", "qdisc", "show", "dev", iface).CombinedOutput()
 	if err == nil && strings.Contains(string(out), "qdisc htb 1:") {
 		return nil
@@ -147,7 +111,7 @@ func (r *Reconciler) ensureRootQdisc(ctx context.Context, iface string) error {
 }
 
 // clear 删 root qdisc; 本来就没有视为幂等通过.
-func (r *Reconciler) clear(ctx context.Context, iface string) error {
+func (l *Limiter) clear(ctx context.Context, iface string) error {
 	out, err := exec.CommandContext(ctx, "tc", "qdisc", "del", "dev", iface, "root").CombinedOutput()
 	if err != nil {
 		low := strings.ToLower(string(out))
