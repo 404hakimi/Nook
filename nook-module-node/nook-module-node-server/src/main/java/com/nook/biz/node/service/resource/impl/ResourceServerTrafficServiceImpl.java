@@ -7,6 +7,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
 import com.nook.biz.node.service.resource.ResourceServerTrafficService;
+import com.nook.common.utils.unit.TrafficUnitUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +28,6 @@ import java.time.ZoneId;
 @Service
 public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficService {
 
-    private static final long GIB = 1024L * 1024 * 1024;
     /** 重置日缺省值; 取不到账单日时用 1 号. */
     private static final int DEFAULT_RESET_DAY = 1;
 
@@ -101,7 +101,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     /** 配额到顶置 THROTTLED (停止分新用户 + 触发同地区切换, 由上层消费); 不限额则不动. */
     private void markQuotaReached(ResourceServerCapacityDO cap) {
         Integer quotaGb = cap.getMonthlyTrafficGb();
-        if (quotaGb != null && quotaGb > 0 && nz(cap.getUsedTrafficBytes()) >= (long) quotaGb * GIB) {
+        if (quotaGb != null && quotaGb > 0 && nz(cap.getUsedTrafficBytes()) >= TrafficUnitUtils.gbToBytes(quotaGb)) {
             cap.setThrottleState(ResourceServerThrottleStateEnum.THROTTLED.getState());
         }
     }

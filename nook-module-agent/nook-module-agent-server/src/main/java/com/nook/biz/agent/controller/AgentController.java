@@ -76,17 +76,13 @@ public class AgentController {
     }
 
     /**
-     * 落地机拉期望配置 (出口限速 Mbps + socks5 端口); agent 一轮 reconcile 拉一次,
-     * 分发给 tc 整形(取套餐带宽与本机上限较小值)和 nft 业务流量计数器维护.
+     * 落地机Agent获取 (出口限速 Mbps + socks5 端口)
      *
      * @param serverId 已认证 server id (落地机)
-     * @return 期望配置 (bandwidthMbps 0=不限; socks5Port 0=未配)
+     * @return Result<LandingDesiredRespVO>
      */
     @GetMapping("/landing/desired")
     public Result<LandingDesiredRespVO> landingDesired(@AuthenticatedAgent String serverId) {
-        LandingDesiredRespVO vo = new LandingDesiredRespVO();
-        vo.setBandwidthMbps(agentReportService.getLandingDesiredBandwidthMbps(serverId));
-        vo.setSocks5Port(agentReportService.getLandingSocks5Port(serverId));
-        return Result.ok(vo);
+        return Result.ok(agentReportService.getLandingDesired(serverId));
     }
 }

@@ -1,5 +1,6 @@
 package com.nook.biz.agent.controller.vo;
 
+import lombok.Builder;
 import lombok.Data;
 
 /**
@@ -8,6 +9,7 @@ import lombok.Data;
  * @author nook
  */
 @Data
+@Builder
 public class LandingDesiredRespVO {
 
     /** 出口期望限速 Mbps; 0 = 不限 (无客户占用). */

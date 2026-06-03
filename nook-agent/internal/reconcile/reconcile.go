@@ -47,17 +47,17 @@ func New(cli *client.Client, xc *xray.Client, interval time.Duration) *Reconcile
 // Run: 启动先收敛一次, 之后每 interval 一次; ctx 取消退出.
 func (r *Reconciler) Run(ctx context.Context) {
 	if r.interval <= 0 {
-		log.Printf("[reconcile] interval<=0, 不启动")
+		log.Printf("[对账] 拉取周期<=0, 不启动")
 		return
 	}
-	log.Printf("[reconcile] 启动, interval=%v", r.interval)
+	log.Printf("[对账] 启动, 拉取周期=%d秒", int(r.interval.Seconds()))
 	t := time.NewTicker(r.interval)
 	defer t.Stop()
 	r.once(ctx)
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[reconcile] 退出")
+			log.Printf("[对账] 退出")
 			return
 		case <-t.C:
 			r.once(ctx)
@@ -68,7 +68,7 @@ func (r *Reconciler) Run(ctx context.Context) {
 func (r *Reconciler) once(ctx context.Context) {
 	var desired []DesiredClient
 	if err := r.cli.Get(desiredPath, &desired); err != nil {
-		log.Printf("[reconcile] 拉期望态失败, 跳过本轮: %v", err)
+		log.Printf("[对账] 拉期望态失败, 跳过本轮: %v", err)
 		return
 	}
 	r.apply(ctx, desired)
@@ -78,17 +78,17 @@ func (r *Reconciler) apply(ctx context.Context, desired []DesiredClient) {
 	// 实读本地; 任一失败放弃本轮 (拿空集会误删全部)
 	actualUsers, err := r.xc.ListUsers(ctx, sharedInboundTag) // email→uuid
 	if err != nil {
-		log.Printf("[reconcile] 读本地 users 失败, 跳过本轮: %v", err)
+		log.Printf("[对账] 读本地 users 失败, 跳过本轮: %v", err)
 		return
 	}
 	actualOutbounds, err := r.xc.ListOutboundTags(ctx)
 	if err != nil {
-		log.Printf("[reconcile] 读本地 outbounds 失败, 跳过本轮: %v", err)
+		log.Printf("[对账] 读本地 outbounds 失败, 跳过本轮: %v", err)
 		return
 	}
 	actualRules, err := r.xc.ListRuleTags(ctx)
 	if err != nil {
-		log.Printf("[reconcile] 读本地 rules 失败, 跳过本轮: %v", err)
+		log.Printf("[对账] 读本地 rules 失败, 跳过本轮: %v", err)
 		return
 	}
 	actualOutSet := toSet(actualOutbounds)
@@ -107,31 +107,31 @@ func (r *Reconciler) apply(ctx context.Context, desired []DesiredClient) {
 		switch {
 		case !exists:
 			if err := r.xc.AddUser(ctx, d.AduJSON); err != nil {
-				log.Printf("[reconcile] +user %s 失败: %v", d.ClientEmail, err)
+				log.Printf("[对账] +user %s 失败: %v", d.ClientEmail, err)
 			} else {
-				log.Printf("[reconcile] +user %s", d.ClientEmail)
+				log.Printf("[对账] +user %s", d.ClientEmail)
 			}
 		case curUUID != d.ClientUUID:
 			if err := r.xc.RemoveUser(ctx, sharedInboundTag, d.ClientEmail); err != nil {
-				log.Printf("[reconcile] ~user %s 摘旧失败: %v", d.ClientEmail, err)
+				log.Printf("[对账] ~user %s 摘旧失败: %v", d.ClientEmail, err)
 			} else if err := r.xc.AddUser(ctx, d.AduJSON); err != nil {
-				log.Printf("[reconcile] ~user %s 装新失败: %v", d.ClientEmail, err)
+				log.Printf("[对账] ~user %s 装新失败: %v", d.ClientEmail, err)
 			} else {
-				log.Printf("[reconcile] ~user %s UUID 轮换", d.ClientEmail)
+				log.Printf("[对账] ~user %s UUID 轮换", d.ClientEmail)
 			}
 		}
 		if !actualOutSet[d.OutboundTag] {
 			if err := r.xc.AddOutbound(ctx, d.AdoJSON); err != nil {
-				log.Printf("[reconcile] +outbound %s 失败: %v", d.OutboundTag, err)
+				log.Printf("[对账] +outbound %s 失败: %v", d.OutboundTag, err)
 			} else {
-				log.Printf("[reconcile] +outbound %s", d.OutboundTag)
+				log.Printf("[对账] +outbound %s", d.OutboundTag)
 			}
 		}
 		if !actualRuleSet[d.RuleTag] {
 			if err := r.xc.AddRules(ctx, d.AdrulesJSON); err != nil {
-				log.Printf("[reconcile] +rule %s 失败: %v", d.RuleTag, err)
+				log.Printf("[对账] +rule %s 失败: %v", d.RuleTag, err)
 			} else {
-				log.Printf("[reconcile] +rule %s", d.RuleTag)
+				log.Printf("[对账] +rule %s", d.RuleTag)
 			}
 		}
 	}
@@ -140,27 +140,27 @@ func (r *Reconciler) apply(ctx context.Context, desired []DesiredClient) {
 	for email := range actualUsers {
 		if !desiredEmails[email] {
 			if err := r.xc.RemoveUser(ctx, sharedInboundTag, email); err != nil {
-				log.Printf("[reconcile] -user %s 失败: %v", email, err)
+				log.Printf("[对账] -user %s 失败: %v", email, err)
 			} else {
-				log.Printf("[reconcile] -user %s", email)
+				log.Printf("[对账] -user %s", email)
 			}
 		}
 	}
 	for _, tag := range actualOutbounds {
 		if strings.HasPrefix(tag, outboundTagPrefix) && !desiredOutbounds[tag] {
 			if err := r.xc.RemoveOutbound(ctx, tag); err != nil {
-				log.Printf("[reconcile] -outbound %s 失败: %v", tag, err)
+				log.Printf("[对账] -outbound %s 失败: %v", tag, err)
 			} else {
-				log.Printf("[reconcile] -outbound %s", tag)
+				log.Printf("[对账] -outbound %s", tag)
 			}
 		}
 	}
 	for _, tag := range actualRules {
 		if strings.HasPrefix(tag, ruleTagPrefix) && !desiredRules[tag] {
 			if err := r.xc.RemoveRule(ctx, tag); err != nil {
-				log.Printf("[reconcile] -rule %s 失败: %v", tag, err)
+				log.Printf("[对账] -rule %s 失败: %v", tag, err)
 			} else {
-				log.Printf("[reconcile] -rule %s", tag)
+				log.Printf("[对账] -rule %s", tag)
 			}
 		}
 	}

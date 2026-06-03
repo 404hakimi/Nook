@@ -28,13 +28,13 @@ func registerFrontline(cfg *config.Config, cli *client.Client) agentcore.RoleCom
 	bin := cfg.Xray.Bin
 	apiPort := cfg.Xray.APIPort
 	if bin == "" || apiPort == 0 {
-		log.Fatalf("[frontline] yaml xray 段不完整: bin=%q api_port=%d; backend 装机时应已填", bin, apiPort)
+		log.Fatalf("[线路机] 配置 xray 段不完整: 程序路径=%q 接口端口=%d; 装机时应已填好", bin, apiPort)
 	}
 	if _, err := os.Stat(bin); err != nil {
-		log.Printf("[frontline] xray bin %s 文件不存在 (%v), 不挂 reconcile", bin, err)
+		log.Printf("[线路机] xray 程序 %s 不存在 (%v), 不启动对账", bin, err)
 		return agentcore.RoleComponents{}
 	}
-	log.Printf("[frontline] xray 已装 (bin=%s apiPort=%d), 挂载 reconcile", bin, apiPort)
+	log.Printf("[线路机] xray 已就绪 (程序=%s 接口端口=%d), 启动对账", bin, apiPort)
 	xrayCli := xray.New(bin, apiPort)
 
 	// reconcile 周期: yaml 未配则回退 stats_interval (历史字段, 都 ~5min)
@@ -43,7 +43,7 @@ func registerFrontline(cfg *config.Config, cli *client.Client) agentcore.RoleCom
 		reconcileInterval = cfg.XrayStatsInterval()
 	}
 	rec := reconcile.New(cli, xrayCli, reconcileInterval)
-	log.Printf("[frontline] reconcile 周期=%v", reconcileInterval)
+	log.Printf("[线路机] 对账周期=%d秒", int(reconcileInterval.Seconds()))
 
 	return agentcore.RoleComponents{
 		Goroutines: []agentcore.Goroutine{

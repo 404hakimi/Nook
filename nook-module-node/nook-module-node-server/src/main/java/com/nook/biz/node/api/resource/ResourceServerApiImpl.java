@@ -41,6 +41,12 @@ public class ResourceServerApiImpl implements ResourceServerApi {
     }
 
     @Override
+    public ResourceServerRespDTO getServer(String serverId) {
+        ResourceServerDO srv = resourceServerMapper.selectById(serverId);
+        return srv == null ? null : BeanUtils.toBean(srv, ResourceServerRespDTO.class);
+    }
+
+    @Override
     public ResourceServerRespDTO getByAgentToken(String agentToken) {
         ResourceServerDO srv = resourceServerMapper.selectByAgentToken(agentToken);
         return srv == null ? null : BeanUtils.toBean(srv, ResourceServerRespDTO.class);

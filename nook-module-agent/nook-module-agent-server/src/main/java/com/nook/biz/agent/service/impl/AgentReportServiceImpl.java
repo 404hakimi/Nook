@@ -1,15 +1,21 @@
 package com.nook.biz.agent.service.impl;
 
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
+import com.nook.biz.agent.controller.vo.LandingDesiredRespVO;
 import com.nook.biz.agent.service.AgentReportService;
+import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
+import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
+import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.xray.XrayClientReconcileApi;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 import com.nook.biz.trade.api.TradeBandwidthApi;
+import com.nook.common.utils.unit.TrafficUnitUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,12 +32,12 @@ import java.util.List;
 @Service
 public class AgentReportServiceImpl implements AgentReportService {
 
-    private static final double GB_BYTES = 1024.0 * 1024 * 1024;
-
     @Resource
     private ResourceServerRuntimeApi resourceServerRuntimeApi;
     @Resource
     private ResourceServerCapacityApi resourceServerCapacityApi;
+    @Resource
+    private ResourceServerApi resourceServerApi;
     @Resource
     private XrayClientReconcileApi xrayClientReconcileApi;
     @Resource
@@ -52,12 +58,24 @@ public class AgentReportServiceImpl implements AgentReportService {
 
     @Override
     public void receiveNicTraffic(String serverId, AgentNicTrafficReqVO req) {
+        // 获取服务器信息
+        ResourceServerRespDTO server = resourceServerApi.getServer(serverId);
+        if (ObjectUtil.isNull(server)) {
+            log.warn("[Agent流量上报] 服务器信息不存在 serverId={}", serverId);
+            return;
+        }
+        ResourceServerTypeEnum typeEnum = ResourceServerTypeEnum.fromState(server.getServerType());
+        String type = ObjectUtil.isNull(typeEnum) ? "未知类型" : typeEnum.getLabel();
+        String ip = StrUtil.isBlank(server.getIpAddress()) ? "-" : server.getIpAddress();
+        // 覆盖写入网卡周期累计字节
         resourceServerCapacityApi.applyNicTraffic(serverId, req.getRxBytes(), req.getTxBytes(), req.getBizUsedBytes());
-        log.info("[receiveNicTraffic] serverId={} rx={} tx={} period={}",
-                serverId,
-                String.format("%.2fGB", req.getRxBytes() / GB_BYTES),
-                String.format("%.2fGB", req.getTxBytes() / GB_BYTES),
-                req.getPeriodStart());
+        Long biz = req.getBizUsedBytes();
+        String bizText = ObjectUtil.isNull(biz) ? "-" : TrafficUnitUtils.toMb(biz) + "MB";
+        log.info("[Agent流量上报] {} {}({}) 入站={}GB 出站={}GB 业务流量={}",
+                type, server.getName(), ip,
+                TrafficUnitUtils.toGb(req.getRxBytes()),
+                TrafficUnitUtils.toGb(req.getTxBytes()),
+                bizText);
     }
 
     @Override
@@ -66,12 +84,14 @@ public class AgentReportServiceImpl implements AgentReportService {
     }
 
     @Override
-    public int getLandingDesiredBandwidthMbps(String serverId) {
-        return tradeBandwidthApi.getLandingDesiredBandwidthMbps(serverId);
-    }
-
-    @Override
-    public int getLandingSocks5Port(String serverId) {
-        return resourceServerLandingApi.getSocks5Port(serverId);
+    public LandingDesiredRespVO getLandingDesired(String serverId) {
+        // 出口限速: 取占用订阅的套餐带宽与落地机带宽上限的较小值
+        int bandwidthMbps = tradeBandwidthApi.getLandingDesiredBandwidthMbps(serverId);
+        // socks5 端口: agent 建 nft 业务流量计数器用
+        int socks5Port = resourceServerLandingApi.getSocks5Port(serverId);
+        return LandingDesiredRespVO.builder()
+                .bandwidthMbps(bandwidthMbps)
+                .socks5Port(socks5Port)
+                .build();
     }
 }

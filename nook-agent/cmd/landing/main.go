@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"log"
+	"strconv"
 	"time"
 
 	"nook-agent/internal/agentcore"
@@ -39,17 +40,17 @@ func registerLanding(cfg *config.Config, cli *client.Client) agentcore.RoleCompo
 	m := meter.New()
 	loop := func(ctx context.Context) {
 		if interval <= 0 {
-			log.Printf("[landing] 未配 landing.bandwidth_reconcile_interval_seconds, 不挂限速/计量")
+			log.Printf("[落地机] 未配 landing.bandwidth_reconcile_interval_seconds, 不挂限速/计量")
 			return
 		}
-		log.Printf("[landing] 启动, reconcile 周期=%v (iface=%s)", interval, cfg.NIC.Interface)
+		log.Printf("[落地机] 启动, 拉取周期=%d秒 (网卡=%s)", int(interval.Seconds()), cfg.NIC.Interface)
 		t := time.NewTicker(interval)
 		defer t.Stop()
 		reconcileOnce(ctx, cli, limiter, m)
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("[landing] 退出")
+				log.Printf("[落地机] 退出")
 				return
 			case <-t.C:
 				reconcileOnce(ctx, cli, limiter, m)
@@ -66,9 +67,18 @@ func registerLanding(cfg *config.Config, cli *client.Client) agentcore.RoleCompo
 func reconcileOnce(ctx context.Context, cli *client.Client, limiter *tc.Limiter, m *meter.Meter) {
 	var d landingDesired
 	if err := cli.Get("/api/agent/landing/desired", &d); err != nil {
-		log.Printf("[landing] 拉期望配置失败, 跳过本轮: %v", err)
+		log.Printf("[落地机] 拉期望配置失败, 跳过本轮: %v", err)
 		return
 	}
+	band := "不限"
+	if d.BandwidthMbps > 0 {
+		band = strconv.Itoa(d.BandwidthMbps) + "Mbps"
+	}
+	port := "未配置"
+	if d.Socks5Port > 0 {
+		port = strconv.Itoa(d.Socks5Port)
+	}
+	log.Printf("[落地机] 拉到期望配置 出口限速=%s socks5端口=%s", band, port)
 	limiter.Apply(ctx, d.BandwidthMbps)
 	m.Ensure(ctx, d.Socks5Port)
 }

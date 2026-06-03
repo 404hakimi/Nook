@@ -33,12 +33,11 @@ type req struct {
 	RxBytes      int64  `json:"rxBytes"`
 	TxBytes      int64  `json:"txBytes"`
 	BizUsedBytes *int64 `json:"bizUsedBytes,omitempty"` // socks5 业务流量(落地机); nil=不报, 后端回退整机 tx
-	PeriodStart  string `json:"periodStart"`            // 已弃用: backend 不再依赖, 保留字段兼容
 }
 
 func (r *Reporter) Run(ctx context.Context) {
 	if r.interval <= 0 {
-		log.Printf("[nic] 间隔 ≤ 0, 不启动 NIC 上报")
+		log.Printf("[流量] 上报间隔 ≤ 0, 不启动流量上报")
 		return
 	}
 	// vnstat 装机后初始几秒可能拿不到数据; 启动时先延 5s 再首次跑
@@ -47,7 +46,7 @@ func (r *Reporter) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[nic] 退出")
+			log.Printf("[流量] 退出")
 			return
 		case <-timer.C:
 			r.tick()
@@ -72,7 +71,7 @@ type vnstatOutput struct {
 func (r *Reporter) tick() {
 	rx, tx, err := r.sampleCumulative()
 	if err != nil {
-		log.Printf("[nic] vnstat 采样失败: %v", err)
+		log.Printf("[流量] 网卡采样失败: %v", err)
 		return
 	}
 	body := req{RxBytes: rx, TxBytes: tx}
@@ -80,14 +79,40 @@ func (r *Reporter) tick() {
 		body.BizUsedBytes = r.bizSampler()
 	}
 	if err := r.cli.Post("/api/agent/nic-traffic", body, nil); err != nil {
-		log.Printf("[nic] 上报失败: %v", err)
-	} else {
-		bizMB := int64(-1) // -1 = 未采到业务流量(frontline 或 nft 未就绪)
-		if body.BizUsedBytes != nil {
-			bizMB = *body.BizUsedBytes / (1024 * 1024)
-		}
-		log.Printf("[nic] ok 累计 rx=%dGB tx=%dGB biz=%dMB", rx/(1024*1024*1024), tx/(1024*1024*1024), bizMB)
+		log.Printf("[流量] 上报失败: %v", err)
+		return
 	}
+	biz := "未采集" // 线路机不计业务流量, 落地机计数器未就绪时也为此值
+	if body.BizUsedBytes != nil {
+		biz = megaBytes(*body.BizUsedBytes)
+	}
+	log.Printf("[流量] 上报成功 累计 入站=%s 出站=%s 业务=%s", humanBytes(rx), humanBytes(tx), biz)
+}
+
+// megaBytes 固定以 MB 为单位格式化 (业务流量统一看 MB, 便于跨行比对);
+// 不足 0.01MB 的极小流量多给 2 位小数, 避免又显示成 0.00MB.
+func megaBytes(n int64) string {
+	mb := float64(n) / (1024 * 1024)
+	if mb > 0 && mb < 0.01 {
+		return fmt.Sprintf("%.4fMB", mb)
+	}
+	return fmt.Sprintf("%.2fMB", mb)
+}
+
+// humanBytes 把字节数格式化成带 2 位小数的友好单位 (B/KB/MB/GB/TB), 保留精度, 不把小流量截成 0.
+func humanBytes(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%dB", n)
+	}
+	units := []string{"KB", "MB", "GB", "TB", "PB"}
+	v := float64(n) / unit
+	i := 0
+	for v >= unit && i < len(units)-1 {
+		v /= unit
+		i++
+	}
+	return fmt.Sprintf("%.2f%s", v, units[i])
 }
 
 // sampleCumulative 取 vnstat traffic.total (自监控以来累计, 跨重启持久; 仅 vnstat 库被清才归零).
@@ -97,7 +122,7 @@ func (r *Reporter) sampleCumulative() (rx, tx int64, err error) {
 		// 自动探测默认路由网卡 (Linux /proc/net/route); 探测失败回 eth0 兜底
 		detected, derr := DetectDefaultIface()
 		if derr != nil {
-			log.Printf("[nic] 自动探测网卡失败, 回退 eth0: %v", derr)
+			log.Printf("[流量] 自动探测网卡失败, 回退 eth0: %v", derr)
 			iface = "eth0"
 		} else {
 			iface = detected

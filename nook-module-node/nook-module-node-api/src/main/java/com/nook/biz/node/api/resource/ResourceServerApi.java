@@ -25,6 +25,14 @@ public interface ResourceServerApi {
     ResourceServerRespDTO validateExists(String serverId);
 
     /**
+     * 按 id 查 server; 不存在返 null. 用于日志增强等可选查询; 需"不存在即报错"用 {@link #validateExists}.
+     *
+     * @param serverId server 主键
+     * @return server 视图; 不存在返 null
+     */
+    ResourceServerRespDTO getServer(String serverId);
+
+    /**
      * 按 agent_token 查 server; 不存在返 null (调用方自己抛 UNAUTHORIZED).
      *
      * @param agentToken X-Agent-Token header 值

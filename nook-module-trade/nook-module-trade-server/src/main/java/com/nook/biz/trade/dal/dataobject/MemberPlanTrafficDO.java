@@ -29,7 +29,7 @@ public class MemberPlanTrafficDO {
     /** 本周期累计已用字节 (DB 权威, 机器侧事故不动). */
     private Long usedBytes;
 
-    /** 上次采样落地机 tx 计数 (增量游标; 落地机 NIC 当周期 tx, 月度会归零, 由"回退即重置"兜). */
+    /** 上次采样到的落地机累计流量 (增量计量游标; 优先业务流量, 老机回退整机出站; 计数回退视为重置, 重新打基线). */
     private Long lastCounterTx;
 
     /** 周期重置时间; null = 窗口为订阅生命周期, 不中途重置 (续费=新订阅=新行). */

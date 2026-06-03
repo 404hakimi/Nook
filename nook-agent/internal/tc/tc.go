@@ -31,7 +31,7 @@ func New(iface string) *Limiter {
 func (l *Limiter) Apply(ctx context.Context, mbps int) {
 	iface, err := l.resolveIface()
 	if err != nil {
-		log.Printf("[tc] 解析网卡失败, 跳过本轮: %v", err)
+		log.Printf("[限速] 解析网卡失败, 跳过本轮: %v", err)
 		return
 	}
 	cur := l.currentRateMbps(ctx, iface)
@@ -39,18 +39,18 @@ func (l *Limiter) Apply(ctx context.Context, mbps int) {
 		if cur == 0 {
 			return // 本来就无限速
 		}
-		log.Printf("[tc] 清除限速 iface=%s (原 %dMbps)", iface, cur)
+		log.Printf("[限速] 清除限速 网卡=%s (原 %dMbps)", iface, cur)
 		if err := l.clear(ctx, iface); err != nil {
-			log.Printf("[tc] 清除限速失败 iface=%s: %v", iface, err)
+			log.Printf("[限速] 清除限速失败 网卡=%s: %v", iface, err)
 		}
 		return
 	}
 	if cur == mbps {
 		return // 已是目标速率
 	}
-	log.Printf("[tc] 设限速 iface=%s %dMbps (原 %dMbps)", iface, mbps, cur)
+	log.Printf("[限速] 设限速 网卡=%s %dMbps (原 %dMbps)", iface, mbps, cur)
 	if err := l.setRate(ctx, iface, mbps); err != nil {
-		log.Printf("[tc] 设限速失败 iface=%s %dMbps: %v", iface, mbps, err)
+		log.Printf("[限速] 设限速失败 网卡=%s %dMbps: %v", iface, mbps, err)
 	}
 }
 

@@ -43,14 +43,14 @@ func Run(version string, registerRole RoleRegister) {
 	}
 
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-	log.Printf("[main] nook-agent %s 启动, configPath=%s", version, *configPath)
+	log.Printf("[主程序] nook-agent %s 启动, 配置文件=%s", version, *configPath)
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Fatalf("[main] 配置加载失败: %v", err)
+		log.Fatalf("[主程序] 配置加载失败: %v", err)
 	}
-	log.Printf("[main] 配置 OK: apiURL=%s hb=%v nic=%v(iface=%s)",
-		cfg.Backend.APIURL, cfg.HeartbeatInterval(), cfg.NICInterval(), cfg.NIC.Interface)
+	log.Printf("[主程序] 配置就绪: 后端=%s 心跳间隔=%d秒 流量上报间隔=%d秒(网卡=%s)",
+		cfg.Backend.APIURL, int(cfg.HeartbeatInterval().Seconds()), int(cfg.NICInterval().Seconds()), cfg.NIC.Interface)
 
 	cli := client.New(cfg.Backend.APIURL, cfg.Backend.APIToken, cfg.HTTPTimeout())
 
@@ -76,8 +76,8 @@ func Run(version string, registerRole RoleRegister) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	<-sig
-	log.Printf("[main] 收到退出信号, 关闭中...")
+	log.Printf("[主程序] 收到退出信号, 关闭中...")
 	cancel()
 	wg.Wait()
-	log.Printf("[main] 退出完成")
+	log.Printf("[主程序] 退出完成")
 }

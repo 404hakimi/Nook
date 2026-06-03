@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 /**
@@ -16,7 +17,7 @@ public class DateUtils {
     private DateUtils() {}
 
     /**
-     * 解析含时区偏移的时间字符串到 LocalDateTime, 失败返回 fallback.
+     * 解析含时区偏移的时间字符串, 按同一时刻归一到本机时区后返回 LocalDateTime, 失败返回 fallback.
      *
      * <p>典型用法: 远端 shell `date -d` 重格式化为 "yyyy-MM-dd HH:mm:ss Z" 后, backend 解析回 LocalDateTime 落库.
      *
@@ -28,7 +29,10 @@ public class DateUtils {
     public static LocalDateTime parseOffsetOrFallback(String raw, DateTimeFormatter formatter, LocalDateTime fallback) {
         if (StrUtil.isBlank(raw)) return fallback;
         try {
-            return OffsetDateTime.parse(raw.trim(), formatter).toLocalDateTime();
+            // 按同一时刻归一到本机时区(Asia/Shanghai)再取墙上时间, 远端机器非东八区也不偏移
+            return OffsetDateTime.parse(raw.trim(), formatter)
+                    .atZoneSameInstant(ZoneId.systemDefault())
+                    .toLocalDateTime();
         } catch (Exception e) {
             return fallback;
         }

@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 
 /**
- * {@link XrayClientProvisionApi} 实现; 包装 {@link XrayClientService} (op 框架同步执行).
+ * {@link XrayClientProvisionApi} 实现; 全部 DB-only 写 (改库即期望态), 远端 xray 由 agent reconcile 收敛, 不走 op 队列.
  *
  * @author nook
  */

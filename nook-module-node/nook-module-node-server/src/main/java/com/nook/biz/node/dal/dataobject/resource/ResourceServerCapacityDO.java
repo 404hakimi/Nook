@@ -26,13 +26,13 @@ public class ResourceServerCapacityDO {
     /** 机房 NIC 月配额 GB; 0/null=不限. 同时是 throttle_state 90% 触发的基数 (业务阈值). */
     private Integer monthlyTrafficGb;
 
-    /** 当周期下行字节 (vnstat rx 累计; Agent push). */
+    /** 当周期入站字节 (agent 读网卡累计上报). */
     private Long rxBytes;
 
-    /** 当周期上行字节 (vnstat tx 累计; Agent push). */
+    /** 当周期出站字节 (agent 读网卡累计上报). */
     private Long txBytes;
 
-    /** 当周期已用流量 = rx + tx (增量累加; 重置日清零). UI 换算 GB/MB. */
+    /** 当周期已用流量 = 入站 + 出站 (增量累加; 重置日清零). UI 换算 GB/MB. */
     private Long usedTrafficBytes;
 
     /** socks5 业务流量累计字节 (双向之和; 仅落地机, agent 读 nft 计数器上报; 已排除 agent/系统流量). 用户套餐计量用, 累计值不随周期清零. */

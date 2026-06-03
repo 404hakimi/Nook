@@ -42,10 +42,10 @@ func (m *Meter) Ensure(ctx context.Context, port int) {
 		return // 规则在位且端口对, 不动(agent 重启走这条→不误清)
 	}
 	if err := m.rebuild(ctx, port); err != nil {
-		log.Printf("[meter] 建 nft 计数器失败 port=%d: %v", port, err)
+		log.Printf("[计量] 业务流量计数器创建失败 端口=%d: %v", port, err)
 		return
 	}
-	log.Printf("[meter] nft 计数器(重)建就绪 port=%d (重建前 exists=%v port=%d)", port, exists, curPort)
+	log.Printf("[计量] 业务流量计数器已就绪 端口=%d (重建前: 存在=%v 端口=%d)", port, exists, curPort)
 }
 
 // currentRulePort: 读内核 nook_meter 表里规则的实际端口; table 不存在 / 无规则返 (0,false) → 触发重建.

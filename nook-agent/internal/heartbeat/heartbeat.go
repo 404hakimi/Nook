@@ -32,7 +32,7 @@ func (r *Reporter) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[heartbeat] 退出")
+			log.Printf("[心跳] 退出")
 			return
 		case <-ticker.C:
 			r.tick()
@@ -42,8 +42,8 @@ func (r *Reporter) Run(ctx context.Context) {
 
 func (r *Reporter) tick() {
 	if err := r.cli.Post("/api/agent/heartbeat", req{AgentVersion: r.version}, nil); err != nil {
-		log.Printf("[heartbeat] 上报失败: %v", err)
+		log.Printf("[心跳] 上报失败: %v", err)
 	} else {
-		log.Printf("[heartbeat] ok")
+		log.Printf("[心跳] 上报成功")
 	}
 }

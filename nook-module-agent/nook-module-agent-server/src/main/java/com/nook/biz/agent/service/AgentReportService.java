@@ -2,6 +2,7 @@ package com.nook.biz.agent.service;
 
 import com.nook.biz.agent.controller.vo.AgentHeartbeatReqVO;
 import com.nook.biz.agent.controller.vo.AgentNicTrafficReqVO;
+import com.nook.biz.agent.controller.vo.LandingDesiredRespVO;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 
 import java.util.List;
@@ -39,18 +40,10 @@ public interface AgentReportService {
     List<XrayReconcileClientDTO> getDesiredClients(String serverId);
 
     /**
-     * 获得落地机应施加的限速
+     * 获得落地机期望配置 (出口限速 + socks5 端口)
      *
      * @param serverId 落地机 server 编号
-     * @return 限速 Mbps (0 = 不限)
+     * @return 落地机期望配置
      */
-    int getLandingDesiredBandwidthMbps(String serverId);
-
-    /**
-     * 落地机 socks5 端口 (agent 建 nft 业务流量计数器用)
-     *
-     * @param serverId 落地机 server 编号
-     * @return socks5 端口; 0 = 未配置
-     */
-    int getLandingSocks5Port(String serverId);
+    LandingDesiredRespVO getLandingDesired(String serverId);
 }
