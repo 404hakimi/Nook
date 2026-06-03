@@ -8,7 +8,7 @@ import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
-import com.nook.biz.node.api.xray.XrayClientNodeApi;
+import com.nook.biz.node.api.xray.XrayClientApi;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
@@ -40,7 +40,7 @@ public class TradeAllocator {
     @Resource
     private ResourceServerCapacityApi capacityApi;
     @Resource
-    private XrayClientNodeApi clientNodeApi;
+    private XrayClientApi xrayClientApi;
     @Resource
     private TradeSubscriptionMapper subMapper;
     @Resource
@@ -110,7 +110,7 @@ public class TradeAllocator {
     /** 各线路机当前已挂带宽 = Σ(经过它的 ACTIVE 订阅的套餐带宽). */
     private Map<String, Integer> committedBandwidthByFrontline(Set<String> frontlineIds) {
         // 只捞这批线路机上的 client (不全量扫订阅), 再回查这些 client 的生效订阅
-        Map<String, String> clientToServer = clientNodeApi.getClientServerMapByServerIds(frontlineIds);
+        Map<String, String> clientToServer = xrayClientApi.getClientServerMapByServerIds(frontlineIds);
         if (clientToServer.isEmpty()) {
             return Map.of();
         }

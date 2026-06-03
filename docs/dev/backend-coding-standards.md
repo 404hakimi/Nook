@@ -65,6 +65,8 @@ Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查
 
 参考: `nook-module-agent` 的 `-api` / `-server` 拆分.
 
+**Api 接口命名**: 名字对齐它主要操作的表 (`XrayClientApi`↔`xray_client`、`ResourceServerCapacityApi`↔`resource_server_capacity`、`ResourceServerLandingApi`↔`resource_server_landing`); 无单一表对应的**业务聚合 / 操作类**才用描述性后缀 (`XrayClientProvisionApi` 开通运维、`XrayClientReconcileApi` 对账、`TradeBandwidthApi` 带宽聚合). **禁止**含糊后缀 (如 `XrayClientNodeApi` 的 "Node").
+
 ### 关联数据拼接 (跨模块 / 聚合视图: Service 经 Convert 直接返 VO)
 
 跨模块 Api 调用 / 多源聚合属**业务编排, 放 Service**: Service 查主数据 → Convert 转入参 → 调跨模块 Api → Convert 把结果拼成 **VO** 返回; Controller 纯转发. **禁止**用 carrier record (如 `record PlanPage(page, capMap)`) 把 DO + 数据塞回 Controller —— 视图就是 VO, Service 直接返 VO.
@@ -417,6 +419,7 @@ public class SomeController {
 ### 依赖注入与返回
 
 - 用 `@Resource` 字段注入 (`@Resource private SomeService someService`). **禁止** `@Autowired` / `@RequiredArgsConstructor` 构造注入.
+- **字段名 = 类型名的全驼峰, 禁止简称**: `XrayClientProvisionApi xrayClientProvisionApi`(不是 `provisionApi`)、`MemberPlanTrafficMapper memberPlanTrafficMapper`(不是 `trafficMapper`). 旧代码的简称属历史遗留, 重构时一并改全名.
 - 字段声明用 import 后的短名, **禁止**全限定名.
 - 返回 `Result.ok(SomeConvert.INSTANCE.convertList(list))`, **禁止**手动 `new RespVO(...)` 逐字段赋值.
 

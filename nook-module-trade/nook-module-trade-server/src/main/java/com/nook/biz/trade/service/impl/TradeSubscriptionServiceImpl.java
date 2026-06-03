@@ -11,7 +11,7 @@ import com.nook.biz.member.api.MemberUserApi;
 import com.nook.biz.member.api.dto.MemberSubscriberDTO;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
-import com.nook.biz.node.api.xray.XrayClientNodeApi;
+import com.nook.biz.node.api.xray.XrayClientApi;
 import com.nook.biz.node.api.xray.XrayClientProvisionApi;
 import com.nook.biz.node.api.xray.dto.XrayClientNodeDTO;
 import com.nook.biz.node.api.xray.dto.XrayClientProvisionDTO;
@@ -84,7 +84,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Resource
     private XrayClientProvisionApi provisionApi;
     @Resource
-    private XrayClientNodeApi clientNodeApi;
+    private XrayClientApi xrayClientApi;
     @Resource
     private ResourceServerLandingApi landingApi;
     @Resource
@@ -178,8 +178,8 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
                 MemberPlanTrafficDO::getSubscriptionId);
         // 客户端 → 所在线路机 / 占用落地机
         Set<String> clientIds = CollectionUtils.convertSet(records, TradeSubscriptionDO::getXrayClientId);
-        Map<String, String> clientFrontlineMap = clientNodeApi.getServerIdByClientIds(clientIds);
-        Map<String, String> clientLandingMap = clientNodeApi.getLandingIdByClientIds(clientIds);
+        Map<String, String> clientFrontlineMap = xrayClientApi.getServerIdByClientIds(clientIds);
+        Map<String, String> clientLandingMap = xrayClientApi.getLandingIdByClientIds(clientIds);
         // 线路机 + 落地机出网 IP 合并一次查回
         Set<String> serverIds = new HashSet<>(clientFrontlineMap.values());
         serverIds.addAll(clientLandingMap.values());
@@ -226,8 +226,8 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         }
         // 吊销前先取占用的线路机/落地机, 退订后这些绑定会被释放
         Set<String> clientIds = Collections.singleton(sub.getXrayClientId());
-        String frontlineId = clientNodeApi.getServerIdByClientIds(clientIds).get(sub.getXrayClientId());
-        String landingId = clientNodeApi.getLandingIdByClientIds(clientIds).get(sub.getXrayClientId());
+        String frontlineId = xrayClientApi.getServerIdByClientIds(clientIds).get(sub.getXrayClientId());
+        String landingId = xrayClientApi.getLandingIdByClientIds(clientIds).get(sub.getXrayClientId());
         provisionApi.revoke(sub.getXrayClientId());
         sub.setStatus(TradeSubscriptionStatusEnum.CANCELLED.getState());
         subMapper.updateById(sub);
@@ -262,7 +262,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         Map<String, TradeSubscriptionDO> subByClient = CollectionUtils.convertMap(
                 subs, TradeSubscriptionDO::getXrayClientId, Function.identity(), (a, b) -> a);
         // 节点按"运行中"且能拼出 host 过滤后返回; 全不可用 (如刚下单还没对账) 返空串
-        List<XrayClientNodeDTO> nodes = clientNodeApi.getNodeInfos(subByClient.keySet());
+        List<XrayClientNodeDTO> nodes = xrayClientApi.getNodeInfos(subByClient.keySet());
         if (CollUtil.isEmpty(nodes)) {
             return Base64.encode("");
         }

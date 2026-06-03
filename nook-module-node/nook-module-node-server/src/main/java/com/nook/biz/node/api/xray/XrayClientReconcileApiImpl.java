@@ -1,5 +1,7 @@
 package com.nook.biz.node.api.xray;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.enums.XrayClientStatusEnum;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
@@ -15,7 +17,8 @@ import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayRoutingCli;
 import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
-import lombok.RequiredArgsConstructor;
+import com.nook.common.utils.collection.CollectionUtils;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -23,9 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -35,45 +36,49 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class XrayClientReconcileApiImpl implements XrayClientReconcileApi {
 
-    private final XrayClientMapper clientMapper;
-    private final XrayConfigMapper configMapper;
-    private final ResourceServerMapper serverMapper;
-    private final ResourceServerLandingMapper landingMapper;
-    private final XrayInboundCli inboundCli;
-    private final XrayOutboundCli outboundCli;
-    private final XrayRoutingCli routingCli;
+    @Resource
+    private XrayClientMapper xrayClientMapper;
+    @Resource
+    private XrayConfigMapper xrayConfigMapper;
+    @Resource
+    private ResourceServerMapper resourceServerMapper;
+    @Resource
+    private ResourceServerLandingMapper resourceServerLandingMapper;
+    @Resource
+    private XrayInboundCli xrayInboundCli;
+    @Resource
+    private XrayOutboundCli xrayOutboundCli;
+    @Resource
+    private XrayRoutingCli xrayRoutingCli;
 
     @Override
     public List<XrayReconcileClientDTO> getDesiredClients(String serverId) {
-        XrayConfigDO cfg = configMapper.selectById(serverId);
-        if (cfg == null) {
-            return Collections.emptyList();
+        XrayConfigDO cfg = xrayConfigMapper.selectById(serverId);
+        if (ObjectUtil.isNull(cfg)) {
+            return List.of();
         }
-        List<XrayClientDO> running = clientMapper.selectByServerId(serverId).stream()
+        List<XrayClientDO> running = xrayClientMapper.selectByServerId(serverId).stream()
                 .filter(c -> XrayClientStatusEnum.RUNNING.matches(c.getStatus()))
                 .collect(Collectors.toList());
-        if (running.isEmpty()) {
-            return Collections.emptyList();
+        if (CollUtil.isEmpty(running)) {
+            return List.of();
         }
         // 落地机主表 + 落地子表: 按 ip_id 集合各批量查一次, 避免逐 client 查 (N+1)
-        Set<String> ipIds = running.stream().map(XrayClientDO::getIpId)
-                .filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<String, ResourceServerDO> landingSrvMap = ipIds.isEmpty() ? Map.of()
-                : serverMapper.selectBatchIds(ipIds).stream()
-                        .collect(Collectors.toMap(ResourceServerDO::getId, Function.identity()));
-        Map<String, ResourceServerLandingDO> landingMap = ipIds.isEmpty() ? Map.of()
-                : landingMapper.selectByServerIds(ipIds).stream()
-                        .collect(Collectors.toMap(ResourceServerLandingDO::getServerId, Function.identity()));
+        Set<String> ipIds = CollectionUtils.convertSet(running, XrayClientDO::getIpId);
+        Map<String, ResourceServerDO> landingSrvMap = CollUtil.isEmpty(ipIds) ? Map.of()
+                : CollectionUtils.convertMap(resourceServerMapper.selectBatchIds(ipIds), ResourceServerDO::getId);
+        Map<String, ResourceServerLandingDO> landingMap = CollUtil.isEmpty(ipIds) ? Map.of()
+                : CollectionUtils.convertMap(resourceServerLandingMapper.selectByServerIds(ipIds),
+                        ResourceServerLandingDO::getServerId);
 
         List<XrayReconcileClientDTO> out = new ArrayList<>(running.size());
         for (XrayClientDO c : running) {
             ResourceServerDO landingSrv = landingSrvMap.get(c.getIpId());
             ResourceServerLandingDO landing = landingMap.get(c.getIpId());
-            if (landingSrv == null || landing == null
-                    || landing.getSocks5Port() == null || landingSrv.getIpAddress() == null) {
+            if (ObjectUtil.isNull(landingSrv) || ObjectUtil.isNull(landing)
+                    || ObjectUtil.isNull(landing.getSocks5Port()) || ObjectUtil.isNull(landingSrv.getIpAddress())) {
                 log.warn("[reconcile-desired] 跳过 client={} 落地机信息缺失 ip_id={}", c.getId(), c.getIpId());
                 continue;
             }
@@ -92,10 +97,10 @@ public class XrayClientReconcileApiImpl implements XrayClientReconcileApi {
             dto.setInboundTag(XrayConstants.SHARED_INBOUND_TAG);
             dto.setOutboundTag(outboundTag);
             dto.setRuleTag(ruleTag);
-            dto.setAduJson(inboundCli.buildUserOnlyInboundJson(XrayConstants.SHARED_INBOUND_TAG, spec));
-            dto.setAdoJson(outboundCli.buildSocksOutboundJson(outboundTag, landingSrv.getIpAddress(),
+            dto.setAduJson(xrayInboundCli.buildUserOnlyInboundJson(XrayConstants.SHARED_INBOUND_TAG, spec));
+            dto.setAdoJson(xrayOutboundCli.buildSocksOutboundJson(outboundTag, landingSrv.getIpAddress(),
                     landing.getSocks5Port(), landing.getSocks5Username(), landing.getSocks5Password()));
-            dto.setAdrulesJson(routingCli.buildAddRuleJson(ruleTag,
+            dto.setAdrulesJson(xrayRoutingCli.buildAddRuleJson(ruleTag,
                     Collections.singletonList(c.getClientEmail()), outboundTag));
             out.add(dto);
         }

@@ -6,7 +6,7 @@ import com.nook.biz.node.controller.xray.vo.XrayClientProvisionReqVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.service.xray.client.XrayClientService;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -17,11 +17,12 @@ import java.time.LocalDateTime;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class XrayClientProvisionApiImpl implements XrayClientProvisionApi {
 
-    private final XrayClientService xrayClientService;
-    private final XrayClientMapper xrayClientMapper;
+    @Resource
+    private XrayClientService xrayClientService;
+    @Resource
+    private XrayClientMapper xrayClientMapper;
 
     @Override
     public String provision(XrayClientProvisionDTO req) {
@@ -57,5 +58,4 @@ public class XrayClientProvisionApiImpl implements XrayClientProvisionApi {
         // 只改 server_id; 旧线路机 reconcile 摘除该 client, 新线路机 reconcile 装上 (uuid/落地不变)
         xrayClientMapper.updateServerId(clientId, newServerId);
     }
-
 }

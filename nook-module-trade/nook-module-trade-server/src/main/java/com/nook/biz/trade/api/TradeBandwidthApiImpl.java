@@ -3,7 +3,7 @@ package com.nook.biz.trade.api;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
-import com.nook.biz.node.api.xray.XrayClientNodeApi;
+import com.nook.biz.node.api.xray.XrayClientApi;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
@@ -26,7 +26,7 @@ public class TradeBandwidthApiImpl implements TradeBandwidthApi {
     @Resource
     private TradePlanMapper planMapper;
     @Resource
-    private XrayClientNodeApi clientNodeApi;
+    private XrayClientApi xrayClientApi;
     @Resource
     private ResourceServerCapacityApi capacityApi;
 
@@ -36,7 +36,7 @@ public class TradeBandwidthApiImpl implements TradeBandwidthApi {
             return 0;
         }
         // 落地机 1:1: 直查绑定客户端 → 其生效订阅 → 套餐带宽 (不再全量扫订阅)
-        String clientId = clientNodeApi.getClientIdByLandingId(landingServerId);
+        String clientId = xrayClientApi.getClientIdByLandingId(landingServerId);
         if (clientId == null) {
             return 0;
         }

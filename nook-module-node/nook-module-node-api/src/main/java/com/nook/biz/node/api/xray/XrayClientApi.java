@@ -11,7 +11,7 @@ import java.util.Map;
  *
  * @author nook
  */
-public interface XrayClientNodeApi {
+public interface XrayClientApi {
 
     /**
      * 批量查客户端节点连接信息. 只返存在且 RUNNING、且能拼出 host 的客户端;

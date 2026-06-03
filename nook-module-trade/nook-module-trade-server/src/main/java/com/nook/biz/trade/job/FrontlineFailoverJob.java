@@ -3,7 +3,7 @@ package com.nook.biz.trade.job;
 import cn.hutool.core.collection.CollUtil;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.api.resource.ResourceServerApi;
-import com.nook.biz.node.api.xray.XrayClientNodeApi;
+import com.nook.biz.node.api.xray.XrayClientApi;
 import com.nook.biz.node.api.xray.XrayClientProvisionApi;
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeReasonEnum;
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeTypeEnum;
@@ -38,7 +38,7 @@ public class FrontlineFailoverJob {
     @Resource
     private ResourceServerApi serverApi;
     @Resource
-    private XrayClientNodeApi clientNodeApi;
+    private XrayClientApi xrayClientApi;
     @Resource
     private XrayClientProvisionApi provisionApi;
     @Resource
@@ -71,7 +71,7 @@ public class FrontlineFailoverJob {
     /** 把故障线路机上的活跃订阅逐个迁到同区域健康线路机; 无目标则留原机 + 告警. */
     private void evacuate(String faultedServer, String reason) {
         // 该线路机上的 client → 其活跃订阅 (复用现有反查; 故障源后续被准入网关自动排除)
-        Set<String> clientIds = clientNodeApi.getClientServerMapByServerIds(Set.of(faultedServer)).keySet();
+        Set<String> clientIds = xrayClientApi.getClientServerMapByServerIds(Set.of(faultedServer)).keySet();
         if (CollUtil.isEmpty(clientIds)) {
             return;
         }

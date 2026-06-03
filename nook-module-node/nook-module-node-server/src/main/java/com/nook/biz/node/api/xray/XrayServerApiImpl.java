@@ -1,16 +1,16 @@
 package com.nook.biz.node.api.xray;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.xray.dto.XrayServerRespDTO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayServerMapper;
-import lombok.RequiredArgsConstructor;
+import com.nook.common.utils.collection.CollectionUtils;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Xray 实例 Api 实现类
@@ -18,23 +18,24 @@ import java.util.stream.Collectors;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class XrayServerApiImpl implements XrayServerApi {
 
-    private final XrayServerMapper xrayServerMapper;
+    @Resource
+    private XrayServerMapper xrayServerMapper;
 
     @Override
     public XrayServerRespDTO getByServerId(String serverId) {
         XrayServerDO row = xrayServerMapper.selectById(serverId);
-        if (row == null) return null;
-        return toDto(row);
+        return ObjectUtil.isNull(row) ? null : toDto(row);
     }
 
     @Override
     public Map<String, XrayServerRespDTO> listByServerIds(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) return Collections.emptyMap();
-        return xrayServerMapper.selectBatchIds(serverIds).stream()
-                .collect(Collectors.toMap(XrayServerDO::getServerId, XrayServerApiImpl::toDto, (a, b) -> a));
+        if (CollUtil.isEmpty(serverIds)) {
+            return Map.of();
+        }
+        return CollectionUtils.convertMap(
+                xrayServerMapper.selectBatchIds(serverIds), XrayServerDO::getServerId, XrayServerApiImpl::toDto);
     }
 
     /** Api 仅暴露 binary / apiPort / version (跨模块刚需); inbound 配置等模块私有, 不外发 */

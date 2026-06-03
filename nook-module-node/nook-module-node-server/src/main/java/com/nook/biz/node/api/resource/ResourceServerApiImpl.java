@@ -1,5 +1,7 @@
 package com.nook.biz.node.api.resource;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.resource.dto.ResourceServerPageReqDTO;
@@ -12,11 +14,10 @@ import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,29 +28,32 @@ import java.util.Set;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class ResourceServerApiImpl implements ResourceServerApi {
 
-    private final ResourceServerValidator serverValidator;
-    private final ResourceServerService resourceServerService;
-    private final ResourceServerMapper resourceServerMapper;
-    private final ResourceServerAdmission resourceServerAdmission;
+    @Resource
+    private ResourceServerValidator resourceServerValidator;
+    @Resource
+    private ResourceServerService resourceServerService;
+    @Resource
+    private ResourceServerMapper resourceServerMapper;
+    @Resource
+    private ResourceServerAdmission resourceServerAdmission;
 
     @Override
     public ResourceServerRespDTO validateExists(String serverId) {
-        return BeanUtils.toBean(serverValidator.validateExists(serverId), ResourceServerRespDTO.class);
+        return BeanUtils.toBean(resourceServerValidator.validateExists(serverId), ResourceServerRespDTO.class);
     }
 
     @Override
     public ResourceServerRespDTO getServer(String serverId) {
         ResourceServerDO srv = resourceServerMapper.selectById(serverId);
-        return srv == null ? null : BeanUtils.toBean(srv, ResourceServerRespDTO.class);
+        return ObjectUtil.isNull(srv) ? null : BeanUtils.toBean(srv, ResourceServerRespDTO.class);
     }
 
     @Override
     public ResourceServerRespDTO getByAgentToken(String agentToken) {
         ResourceServerDO srv = resourceServerMapper.selectByAgentToken(agentToken);
-        return srv == null ? null : BeanUtils.toBean(srv, ResourceServerRespDTO.class);
+        return ObjectUtil.isNull(srv) ? null : BeanUtils.toBean(srv, ResourceServerRespDTO.class);
     }
 
     @Override
@@ -67,8 +71,8 @@ public class ResourceServerApiImpl implements ResourceServerApi {
 
     @Override
     public List<ResourceServerRespDTO> listByServerIds(Collection<String> serverIds) {
-        if (serverIds == null || serverIds.isEmpty()) {
-            return Collections.emptyList();
+        if (CollUtil.isEmpty(serverIds)) {
+            return List.of();
         }
         return BeanUtils.toBean(resourceServerMapper.selectBatchIds(serverIds), ResourceServerRespDTO.class);
     }
@@ -76,7 +80,7 @@ public class ResourceServerApiImpl implements ResourceServerApi {
     @Override
     public List<ResourceServerRespDTO> findLiveFrontlinesByRegion(String region) {
         if (StrUtil.isBlank(region)) {
-            return Collections.emptyList();
+            return List.of();
         }
         return BeanUtils.toBean(resourceServerMapper.selectLiveFrontlinesByRegion(region),
                 ResourceServerRespDTO.class);

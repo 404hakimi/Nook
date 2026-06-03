@@ -1,12 +1,13 @@
 package com.nook.biz.node.api.resource;
 
-import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -19,20 +20,22 @@ import java.util.Map;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class ResourceServerRuntimeApiImpl implements ResourceServerRuntimeApi {
 
-    private final ResourceServerRuntimeMapper resourceServerRuntimeMapper;
+    @Resource
+    private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
 
     @Override
     public ResourceServerRuntimeRespDTO getByServerId(String serverId) {
         ResourceServerRuntimeDO row = resourceServerRuntimeMapper.selectById(serverId);
-        return row == null ? null : BeanUtils.toBean(row, ResourceServerRuntimeRespDTO.class);
+        return ObjectUtil.isNull(row) ? null : BeanUtils.toBean(row, ResourceServerRuntimeRespDTO.class);
     }
 
     @Override
     public Map<String, ResourceServerRuntimeRespDTO> listByServerIds(Collection<String> serverIds) {
-        if (serverIds == null || serverIds.isEmpty()) return Map.of();
+        if (CollUtil.isEmpty(serverIds)) {
+            return Map.of();
+        }
         return CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(serverIds),
                 ResourceServerRuntimeDO::getServerId,

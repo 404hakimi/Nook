@@ -64,18 +64,19 @@ public class AgentReportServiceImpl implements AgentReportService {
             log.warn("[Agent流量上报] 服务器信息不存在 serverId={}", serverId);
             return;
         }
-        ResourceServerTypeEnum typeEnum = ResourceServerTypeEnum.fromState(server.getServerType());
-        String type = ObjectUtil.isNull(typeEnum) ? "未知类型" : typeEnum.getLabel();
-        String ip = StrUtil.isBlank(server.getIpAddress()) ? "-" : server.getIpAddress();
+        String ipAddress = StrUtil.isBlank(server.getIpAddress()) ? "-" : server.getIpAddress();
         // 覆盖写入网卡周期累计字节
         resourceServerCapacityApi.applyNicTraffic(serverId, req.getRxBytes(), req.getTxBytes(), req.getBizUsedBytes());
-        Long biz = req.getBizUsedBytes();
-        String bizText = ObjectUtil.isNull(biz) ? "-" : TrafficUnitUtils.toMb(biz) + "MB";
-        log.info("[Agent流量上报] {} {}({}) 入站={}GB 出站={}GB 业务流量={}",
-                type, server.getName(), ip,
-                TrafficUnitUtils.toGb(req.getRxBytes()),
-                TrafficUnitUtils.toGb(req.getTxBytes()),
-                bizText);
+        // 根据服务器类型进行输出对应的日志
+        if (ResourceServerTypeEnum.FRONTLINE.getState().equals(server.getServerType())) {
+            log.info("[Agent流量上报] {}>>>[{}]({}) 入站={}GB 出站={}GB", ResourceServerTypeEnum.FRONTLINE.getState(), server.getName(), ipAddress,
+                    TrafficUnitUtils.toGb(req.getRxBytes()), TrafficUnitUtils.toGb(req.getTxBytes()));
+        } else {
+            Long biz = req.getBizUsedBytes();
+            String bizText = ObjectUtil.isNull(biz) ? "0MB" : TrafficUnitUtils.toMb(biz) + "MB";
+            log.info("[Agent流量上报] {}>>>[{}]({}) 入站={}GB 出站={}GB 业务流量={}", ResourceServerTypeEnum.LANDING.getState(), server.getName(), ipAddress,
+                    TrafficUnitUtils.toGb(req.getRxBytes()), TrafficUnitUtils.toGb(req.getTxBytes()), bizText);
+        }
     }
 
     @Override
