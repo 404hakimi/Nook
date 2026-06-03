@@ -32,11 +32,11 @@ import java.util.Set;
 public class ResourceServerAdmission {
 
     @Resource
-    private ResourceServerMapper serverMapper;
+    private ResourceServerMapper resourceServerMapper;
     @Resource
-    private ResourceServerCapacityMapper capacityMapper;
+    private ResourceServerCapacityMapper resourceServerCapacityMapper;
     @Resource
-    private ResourceServerRuntimeMapper runtimeMapper;
+    private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
 
     /**
      * 从候选 server 里筛出健康可分配的子集; 排除 非 LIVE / 配额到顶 / 心跳不健康 (TEMP_UNHEALTHY / OFFLINE / 从未上报).
@@ -49,11 +49,11 @@ public class ResourceServerAdmission {
             return Set.of();
         }
         Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(
-                serverMapper.selectBatchIds(serverIds), ResourceServerDO::getId);
+                resourceServerMapper.selectBatchIds(serverIds), ResourceServerDO::getId);
         Map<String, ResourceServerCapacityDO> capMap = CollectionUtils.convertMap(
-                capacityMapper.selectBatchIds(serverIds), ResourceServerCapacityDO::getServerId);
+                resourceServerCapacityMapper.selectBatchIds(serverIds), ResourceServerCapacityDO::getServerId);
         Map<String, ResourceServerRuntimeDO> rtMap = CollectionUtils.convertMap(
-                runtimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
+                resourceServerRuntimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
         LocalDateTime now = LocalDateTime.now();
         Set<String> allocatable = new HashSet<>(serverIds.size());
         for (String id : serverIds) {
@@ -86,15 +86,15 @@ public class ResourceServerAdmission {
      * @return serverId → 原因 (THROTTLED / OFFLINE)
      */
     public Map<String, String> findFrontlinesNeedingFailover() {
-        List<ResourceServerDO> frontlines = serverMapper.selectLiveFrontlines();
+        List<ResourceServerDO> frontlines = resourceServerMapper.selectLiveFrontlines();
         if (CollUtil.isEmpty(frontlines)) {
             return Map.of();
         }
         Set<String> ids = CollectionUtils.convertSet(frontlines, ResourceServerDO::getId);
         Map<String, ResourceServerCapacityDO> capMap = CollectionUtils.convertMap(
-                capacityMapper.selectBatchIds(ids), ResourceServerCapacityDO::getServerId);
+                resourceServerCapacityMapper.selectBatchIds(ids), ResourceServerCapacityDO::getServerId);
         Map<String, ResourceServerRuntimeDO> rtMap = CollectionUtils.convertMap(
-                runtimeMapper.selectBatchIds(ids), ResourceServerRuntimeDO::getServerId);
+                resourceServerRuntimeMapper.selectBatchIds(ids), ResourceServerRuntimeDO::getServerId);
         LocalDateTime now = LocalDateTime.now();
         Map<String, String> result = new HashMap<>();
         for (ResourceServerDO srv : frontlines) {

@@ -4,7 +4,7 @@ import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityUpdateReqV
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
 import com.nook.biz.node.service.resource.ResourceServerCapacityService;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,20 +14,20 @@ import org.springframework.transaction.annotation.Transactional;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class ResourceServerCapacityServiceImpl implements ResourceServerCapacityService {
 
-    private final ResourceServerCapacityMapper capacityMapper;
+    @Resource
+    private ResourceServerCapacityMapper resourceServerCapacityMapper;
 
     @Override
     public ResourceServerCapacityDO get(String serverId) {
-        return capacityMapper.selectById(serverId);
+        return resourceServerCapacityMapper.selectById(serverId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateQuota(String serverId, ResourceServerCapacityUpdateReqVO reqVO) {
-        capacityMapper.updateQuota(serverId, reqVO.getMonthlyTrafficGb(), reqVO.getBandwidthLimitMbps(),
+        resourceServerCapacityMapper.updateQuota(serverId, reqVO.getMonthlyTrafficGb(), reqVO.getBandwidthLimitMbps(),
                 reqVO.getQuotaResetPolicy(), reqVO.getResetDay());
     }
 }

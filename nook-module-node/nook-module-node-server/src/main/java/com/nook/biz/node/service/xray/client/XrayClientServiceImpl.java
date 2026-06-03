@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.xray.client;
 
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -14,16 +15,15 @@ import com.nook.biz.node.handler.xray.client.ClientOpExecutor;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.config.XrayConfigService;
 import com.nook.biz.node.validator.ResourceServerValidator;
-import com.nook.biz.node.validator.XrayServerValidator;
 import com.nook.biz.node.validator.XrayClientValidator;
+import com.nook.biz.node.validator.XrayServerValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -35,20 +35,26 @@ import java.util.Set;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class XrayClientServiceImpl implements XrayClientService {
 
-    private final XrayClientMapper xrayClientMapper;
-    private final XrayConfigService xrayConfigService;
-    private final XrayServerValidator xrayServerValidator;
-    private final ResourceServerValidator serverValidator;
-    private final ResourceServerService resourceServerService;
-    private final XrayClientValidator clientValidator;
-    private final ClientOpExecutor clientOpExecutor;
+    @Resource
+    private XrayClientMapper xrayClientMapper;
+    @Resource
+    private XrayConfigService xrayConfigService;
+    @Resource
+    private XrayServerValidator xrayServerValidator;
+    @Resource
+    private ResourceServerValidator resourceServerValidator;
+    @Resource
+    private ResourceServerService resourceServerService;
+    @Resource
+    private XrayClientValidator xrayClientValidator;
+    @Resource
+    private ClientOpExecutor clientOpExecutor;
 
     @Override
     public XrayClientDO getXrayClient(String id) {
-        return clientValidator.validateExists(id);
+        return xrayClientValidator.validateExists(id);
     }
 
     @Override
@@ -86,13 +92,15 @@ public class XrayClientServiceImpl implements XrayClientService {
         vo.setId(e.getId());
         vo.setClientUuid(e.getClientUuid());
         vo.setClientEmail(e.getClientEmail());
-        if (cfg == null) return vo;
+        if (ObjectUtil.isNull(cfg)) {
+            return vo;
+        }
         vo.setProtocol(cfg.getProtocol());
         // host: 有 domain 优先 (CDN / TLS), 否则回退 server 公网 IP
         if (StrUtil.isNotBlank(cfg.getDomain())) {
             vo.setServerHost(cfg.getDomain());
         } else {
-            vo.setServerHost(serverValidator.validateExists(e.getServerId()).getIpAddress());
+            vo.setServerHost(resourceServerValidator.validateExists(e.getServerId()).getIpAddress());
         }
         vo.setListenPort(cfg.getSharedInboundPort());
         vo.setTransport(cfg.getTransport());
@@ -105,40 +113,43 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     @Override
     public Map<String, String> getEmailMap(Collection<String> clientIds) {
-        if (CollectionUtils.isAnyEmpty(clientIds)) return Collections.emptyMap();
+        if (CollectionUtils.isAnyEmpty(clientIds)) {
+            return Map.of();
+        }
         return CollectionUtils.convertMap(
                 xrayClientMapper.selectBatchIds(clientIds),
                 XrayClientDO::getId,
-                c -> c.getClientEmail() != null ? c.getClientEmail() : c.getId());
+                c -> StrUtil.isNotBlank(c.getClientEmail()) ? c.getClientEmail() : c.getId());
     }
 
     @Override
     public Map<String, XrayClientDO> getXrayClientMap(Collection<String> clientIds) {
-        if (CollectionUtils.isAnyEmpty(clientIds)) return Collections.emptyMap();
+        if (CollectionUtils.isAnyEmpty(clientIds)) {
+            return Map.of();
+        }
         return CollectionUtils.convertMap(
                 xrayClientMapper.selectBatchIds(clientIds), XrayClientDO::getId);
     }
 
     @Override
     public EnrichBundle loadEnrichBundle(Set<String> serverIds, Set<String> ipIds) {
-        Map<String, ResourceServerDO> serverMap =
-                CollectionUtils.isAnyEmpty(serverIds)
-                        ? Collections.emptyMap() : resourceServerService.getServerMap(serverIds);
+        Map<String, ResourceServerDO> serverMap = CollectionUtils.isAnyEmpty(serverIds)
+                ? Map.of() : resourceServerService.getServerMap(serverIds);
         Map<String, String> hostMap = CollectionUtils.isAnyEmpty(serverIds)
-                ? Collections.emptyMap() : resourceServerService.getIpAddressMap(serverIds);
-        Map<String, XrayConfigDO> configMap =
-                CollectionUtils.isAnyEmpty(serverIds)
-                        ? Collections.emptyMap() : xrayConfigService.listByServerIds(serverIds);
+                ? Map.of() : resourceServerService.getIpAddressMap(serverIds);
+        Map<String, XrayConfigDO> configMap = CollectionUtils.isAnyEmpty(serverIds)
+                ? Map.of() : xrayConfigService.listByServerIds(serverIds);
 
         Map<String, String> ipMap;
         if (CollectionUtils.isAnyEmpty(ipIds)) {
-            ipMap = Collections.emptyMap();
+            ipMap = Map.of();
         } else {
-            Map<String, ResourceServerDO> landingSrvMap =
-                    resourceServerService.getServerMap(ipIds);
+            Map<String, ResourceServerDO> landingSrvMap = resourceServerService.getServerMap(ipIds);
             ipMap = new HashMap<>(landingSrvMap.size());
             landingSrvMap.forEach((k, v) -> {
-                if (v.getIpAddress() != null) ipMap.put(k, v.getIpAddress());
+                if (StrUtil.isNotBlank(v.getIpAddress())) {
+                    ipMap.put(k, v.getIpAddress());
+                }
             });
         }
         return new EnrichBundle(ipMap, serverMap, hostMap, configMap);

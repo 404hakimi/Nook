@@ -8,7 +8,7 @@ import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.validator.ResourceServerCredentialValidator;
 import com.nook.common.utils.object.BeanUtils;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,21 +21,23 @@ import java.time.LocalDateTime;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class ResourceServerCredentialServiceImpl implements ResourceServerCredentialService {
 
-    private final ResourceServerCredentialMapper credentialMapper;
-    private final ResourceServerCredentialValidator credentialValidator;
-    private final ApplicationEventPublisher applicationEventPublisher;
+    @Resource
+    private ResourceServerCredentialMapper resourceServerCredentialMapper;
+    @Resource
+    private ResourceServerCredentialValidator resourceServerCredentialValidator;
+    @Resource
+    private ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     public ResourceServerCredentialDO getServerCredential(String serverId) {
-        return credentialMapper.selectById(serverId);
+        return resourceServerCredentialMapper.selectById(serverId);
     }
 
     @Override
     public ResourceServerCredentialDO requireByServerId(String serverId) {
-        return credentialValidator.validateExists(serverId);
+        return resourceServerCredentialValidator.validateExists(serverId);
     }
 
     @Override
@@ -46,21 +48,21 @@ public class ResourceServerCredentialServiceImpl implements ResourceServerCreden
         LocalDateTime now = LocalDateTime.now();
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
-        credentialMapper.insert(entity);
+        resourceServerCredentialMapper.insert(entity);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void update(String serverId, ResourceServerCredentialUpdateReqVO reqVO) {
-        ResourceServerCredentialDO current = credentialValidator.validateExists(serverId);
-        credentialValidator.validateUpdate(serverId, current, reqVO);
+        ResourceServerCredentialDO current = resourceServerCredentialValidator.validateExists(serverId);
+        resourceServerCredentialValidator.validateUpdate(serverId, current, reqVO);
         ResourceServerCredentialDO patch = BeanUtils.toBean(reqVO, ResourceServerCredentialDO.class);
         patch.setServerId(serverId);
         // 密码留空 = 保留原值 (前端 update form 不显示密码, 改密码才填)
         if (StrUtil.isBlank(patch.getSshPassword())) {
             patch.setSshPassword(null);
         }
-        credentialMapper.updateBySelective(patch);
+        resourceServerCredentialMapper.updateBySelective(patch);
         applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(serverId));
     }
 }

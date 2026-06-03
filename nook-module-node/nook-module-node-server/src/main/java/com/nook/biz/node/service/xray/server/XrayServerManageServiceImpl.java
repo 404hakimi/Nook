@@ -34,7 +34,7 @@ import com.nook.framework.ssh.core.SshSessions;
 import com.nook.framework.ssh.script.RemoteScriptRunner;
 import com.nook.framework.ssh.script.ScriptCatalog;
 import com.nook.framework.ssh.script.ScriptModule;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -57,26 +57,41 @@ import java.util.function.Consumer;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class XrayServerManageServiceImpl implements XrayServerManageService {
 
-    private final RemoteScriptRunner scriptRunner;
-    private final ScriptCatalog scriptCatalog;
-    private final ServerProbe serverProbe;
-    private final XrayDaemonProbe xrayDaemonProbe;
-    private final XrayServerService xrayServerService;
-    private final XrayConfigService xrayConfigService;
-    private final XrayServerValidator xrayServerValidator;
-    private final OpOrchestrator opOrchestrator;
-    private final OpConfigResolver opConfigResolver;
-    private final CloudflareApiClient cloudflareApiClient;
-    private final ResourceServerValidator resourceServerValidator;
-    private final ResourceServerCredentialService credentialService;
-    private final ResourceServerService resourceServerService;
-    private final StreamingEndpointSupport streamingSupport;
-    private final WebStreamingProperties webStreamingProperties;
+    @Resource
+    private RemoteScriptRunner remoteScriptRunner;
+    @Resource
+    private ScriptCatalog scriptCatalog;
+    @Resource
+    private ServerProbe serverProbe;
+    @Resource
+    private XrayDaemonProbe xrayDaemonProbe;
+    @Resource
+    private XrayServerService xrayServerService;
+    @Resource
+    private XrayConfigService xrayConfigService;
+    @Resource
+    private XrayServerValidator xrayServerValidator;
+    @Resource
+    private OpOrchestrator opOrchestrator;
+    @Resource
+    private OpConfigResolver opConfigResolver;
+    @Resource
+    private CloudflareApiClient cloudflareApiClient;
+    @Resource
+    private ResourceServerValidator resourceServerValidator;
+    @Resource
+    private ResourceServerCredentialService resourceServerCredentialService;
+    @Resource
+    private ResourceServerService resourceServerService;
+    @Resource
+    private StreamingEndpointSupport streamingEndpointSupport;
+    @Resource
+    private WebStreamingProperties webStreamingProperties;
     /** 装机 SSH 调用拆事务外, DB 两表写入由 TransactionTemplate 包同事务 (self-invocation @Transactional 不生效) */
-    private final TransactionTemplate transactionTemplate;
+    @Resource
+    private TransactionTemplate transactionTemplate;
 
     @Override
     public void installStreaming(String serverId, XrayServerInstallReqVO reqVO, Consumer<String> lineSink) {
@@ -104,7 +119,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         Map<String, String> vars = buildInstallVars(serverId, reqVO);
         String script = assembleInstallScript(reqVO, vars);
         Duration installTimeout = Duration.ofSeconds(session.cred().getInstallTimeoutSeconds());
-        scriptRunner.runScriptStreaming(
+        remoteScriptRunner.runScriptStreaming(
                 session,
                 script,
                 NookScripts.INSTALL_XRAY_TMP_PREFIX,
@@ -277,10 +292,10 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     @Override
     public ResponseBodyEmitter installXrayStream(String serverId, XrayServerInstallReqVO reqVO) {
         resourceServerValidator.validateExists(serverId);
-        int installTimeout = credentialService.requireByServerId(serverId).getInstallTimeoutSeconds();
+        int installTimeout = resourceServerCredentialService.requireByServerId(serverId).getInstallTimeoutSeconds();
         Duration emitterTimeout = Duration.ofSeconds(installTimeout)
                 .plus(webStreamingProperties.getEmitterBuffer());
-        return streamingSupport.stream("install:" + serverId, emitterTimeout,
+        return streamingEndpointSupport.stream("install:" + serverId, emitterTimeout,
                 lineSink -> installStreaming(serverId, reqVO, lineSink));
     }
 }

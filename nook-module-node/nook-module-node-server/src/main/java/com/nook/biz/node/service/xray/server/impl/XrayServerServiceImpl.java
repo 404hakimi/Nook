@@ -5,14 +5,13 @@ import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayServerMapper;
 import com.nook.biz.node.service.xray.server.XrayServerService;
 import com.nook.common.utils.collection.CollectionUtils;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -22,10 +21,10 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class XrayServerServiceImpl implements XrayServerService {
 
-    private final XrayServerMapper xrayServerMapper;
+    @Resource
+    private XrayServerMapper xrayServerMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -51,7 +50,9 @@ public class XrayServerServiceImpl implements XrayServerService {
 
     @Override
     public Map<String, XrayServerDO> listByServerIds(Collection<String> serverIds) {
-        if (CollectionUtils.isAnyEmpty(serverIds)) return Collections.emptyMap();
+        if (CollectionUtils.isAnyEmpty(serverIds)) {
+            return Map.of();
+        }
         return CollectionUtils.convertMap(
                 xrayServerMapper.selectBatchIds(serverIds), XrayServerDO::getServerId);
     }

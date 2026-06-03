@@ -32,9 +32,9 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     private static final int DEFAULT_RESET_DAY = 1;
 
     @Resource
-    private ResourceServerCapacityMapper capacityMapper;
+    private ResourceServerCapacityMapper resourceServerCapacityMapper;
     @Resource
-    private ResourceServerTrafficMapper trafficMapper;
+    private ResourceServerTrafficMapper resourceServerTrafficMapper;
 
     /** 全平台流量重置时区; 显式配置, 不依赖 OS 默认. */
     @Value("${nook.traffic.reset-zone}")
@@ -43,7 +43,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void applyNicTraffic(String serverId, long cumRxBytes, long cumTxBytes, Long bizUsedBytes) {
-        ResourceServerCapacityDO cap = capacityMapper.selectById(serverId);
+        ResourceServerCapacityDO cap = resourceServerCapacityMapper.selectById(serverId);
         if (cap == null) {
             return; // 容量行装机时已建; 缺失则跳过(理论不发生)
         }
@@ -57,7 +57,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
         }
 
         cap.setUpdatedAt(LocalDateTime.now());
-        capacityMapper.updateById(cap);
+        resourceServerCapacityMapper.updateById(cap);
     }
 
     /** 周期翻篇: 跨过我方重置日则归档旧周期并清零 (FIXED 永不翻篇). */
@@ -130,7 +130,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
         row.setTxBytes(nz(cap.getTxBytes()));
         row.setUsedBytes(nz(cap.getUsedTrafficBytes()));
         try {
-            trafficMapper.insert(row);
+            resourceServerTrafficMapper.insert(row);
         } catch (DuplicateKeyException e) {
             log.warn("[archive] 周期已归档, 跳过: serverId={} periodStart={}", cap.getServerId(), cap.getPeriodStart());
         }

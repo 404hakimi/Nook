@@ -21,7 +21,7 @@ import com.nook.framework.ssh.script.RemoteScriptRunner;
 import com.nook.framework.ssh.script.ScriptCatalog;
 import com.nook.framework.web.StreamingEndpointSupport;
 import com.nook.framework.web.WebStreamingProperties;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
@@ -40,20 +40,26 @@ import java.util.function.Consumer;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ResourceServerOpsServiceImpl implements ResourceServerOpsService {
 
-    private final RemoteScriptRunner scriptRunner;
-    private final ScriptCatalog scriptCatalog;
-    private final ServerProbe serverProbe;
-    private final ResourceServerValidator serverValidator;
-    private final ResourceServerCredentialService credentialService;
-    private final StreamingEndpointSupport streamingSupport;
-    private final WebStreamingProperties webStreamingProperties;
+    @Resource
+    private RemoteScriptRunner remoteScriptRunner;
+    @Resource
+    private ScriptCatalog scriptCatalog;
+    @Resource
+    private ServerProbe serverProbe;
+    @Resource
+    private ResourceServerValidator resourceServerValidator;
+    @Resource
+    private ResourceServerCredentialService resourceServerCredentialService;
+    @Resource
+    private StreamingEndpointSupport streamingEndpointSupport;
+    @Resource
+    private WebStreamingProperties webStreamingProperties;
 
     @Override
     public ResponseBodyEmitter enableSwapStream(String serverId, EnableSwapReqVO reqVO) {
-        return streamingSupport.stream("ops-swap:" + serverId, opsEmitterTimeout(serverId),
+        return streamingEndpointSupport.stream("ops-swap:" + serverId, opsEmitterTimeout(serverId),
                 lineSink -> {
                     Map<String, String> vars = new LinkedHashMap<>();
                     vars.put("SWAP_SIZE_MB", String.valueOf(reqVO.getSizeMb()));
@@ -63,7 +69,7 @@ public class ResourceServerOpsServiceImpl implements ResourceServerOpsService {
 
     @Override
     public ResponseBodyEmitter enableBbrStream(String serverId) {
-        return streamingSupport.stream("ops-bbr:" + serverId, opsEmitterTimeout(serverId),
+        return streamingEndpointSupport.stream("ops-bbr:" + serverId, opsEmitterTimeout(serverId),
                 lineSink -> runOsOp(serverId, ServerOsOp.BBR, Map.of(), lineSink));
     }
 
@@ -127,8 +133,8 @@ public class ResourceServerOpsServiceImpl implements ResourceServerOpsService {
 
     /** emitter 整体窗口 = 业务超时 (credential.installTimeoutSeconds) + framework buffer. */
     private Duration opsEmitterTimeout(String serverId) {
-        serverValidator.validateExists(serverId);
-        int installTimeout = credentialService.requireByServerId(serverId).getInstallTimeoutSeconds();
+        resourceServerValidator.validateExists(serverId);
+        int installTimeout = resourceServerCredentialService.requireByServerId(serverId).getInstallTimeoutSeconds();
         return Duration.ofSeconds(installTimeout).plus(webStreamingProperties.getEmitterBuffer());
     }
 
@@ -140,7 +146,7 @@ public class ResourceServerOpsServiceImpl implements ResourceServerOpsService {
         String body = scriptCatalog.render(op.module(), vars);
         String script = helpers + "\n" + body + "\n";
         log.info("[runOsOp] op={} serverId={} bytes={}", op.key(), serverId, script.length());
-        scriptRunner.runScriptStreaming(
+        remoteScriptRunner.runScriptStreaming(
                 session, script,
                 NookScripts.OPS_TMP_PREFIX + "-" + op.key(),
                 Duration.ofSeconds(session.cred().getInstallTimeoutSeconds()),

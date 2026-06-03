@@ -1,11 +1,12 @@
 package com.nook.biz.node.service.resource.impl;
 
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.controller.resource.vo.ResourceServerBillingUpdateReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerBillingMapper;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
 import com.nook.common.utils.object.BeanUtils;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,27 +18,27 @@ import java.time.LocalDateTime;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class ResourceServerBillingServiceImpl implements ResourceServerBillingService {
 
-    private final ResourceServerBillingMapper billingMapper;
+    @Resource
+    private ResourceServerBillingMapper resourceServerBillingMapper;
 
     @Override
     public ResourceServerBillingDO get(String serverId) {
-        return billingMapper.selectById(serverId);
+        return resourceServerBillingMapper.selectById(serverId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void create(String serverId, ResourceServerBillingUpdateReqVO reqVO) {
-        ResourceServerBillingDO entity = reqVO == null
+        ResourceServerBillingDO entity = ObjectUtil.isNull(reqVO)
                 ? new ResourceServerBillingDO()
                 : BeanUtils.toBean(reqVO, ResourceServerBillingDO.class);
         entity.setServerId(serverId);
         LocalDateTime now = LocalDateTime.now();
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
-        billingMapper.insert(entity);
+        resourceServerBillingMapper.insert(entity);
     }
 
     @Override
@@ -45,6 +46,6 @@ public class ResourceServerBillingServiceImpl implements ResourceServerBillingSe
     public void update(String serverId, ResourceServerBillingUpdateReqVO reqVO) {
         ResourceServerBillingDO patch = BeanUtils.toBean(reqVO, ResourceServerBillingDO.class);
         patch.setServerId(serverId);
-        billingMapper.updateBySelective(patch);
+        resourceServerBillingMapper.updateBySelective(patch);
     }
 }

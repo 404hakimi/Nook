@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.resource.impl;
 
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.controller.resource.vo.ServerLandingDeployReqVO;
@@ -27,7 +28,7 @@ import com.nook.framework.ssh.core.SshSessions;
 import com.nook.framework.ssh.script.ScriptCatalog;
 import com.nook.framework.web.StreamingEndpointSupport;
 import com.nook.framework.web.WebStreamingProperties;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
@@ -45,7 +46,6 @@ import java.util.function.Consumer;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerLandingSocksOpsService {
 
     /** dante 的 systemd unit 名 (apt 包默认). */
@@ -54,40 +54,50 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
     /** ServerProbe 返回的 uptime 格式 (date -d 重格式化为 ISO-like + 数字时区). */
     private static final DateTimeFormatter UPTIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss Z");
 
-    private final ScriptCatalog scriptCatalog;
-    private final Socks5Prober socks5Prober;
-    private final ServerProbe serverProbe;
-    private final ResourceServerValidator serverValidator;
-    private final ResourceServerLandingValidator landingValidator;
-    private final ResourceServerMapper serverMapper;
-    private final ResourceServerLandingMapper landingMapper;
-    private final ResourceServerCredentialMapper credentialMapper;
-    private final StreamingEndpointSupport streamingSupport;
-    private final WebStreamingProperties webStreamingProperties;
+    @Resource
+    private ScriptCatalog scriptCatalog;
+    @Resource
+    private Socks5Prober socks5Prober;
+    @Resource
+    private ServerProbe serverProbe;
+    @Resource
+    private ResourceServerValidator resourceServerValidator;
+    @Resource
+    private ResourceServerLandingValidator resourceServerLandingValidator;
+    @Resource
+    private ResourceServerMapper serverMapper;
+    @Resource
+    private ResourceServerLandingMapper landingMapper;
+    @Resource
+    private ResourceServerCredentialMapper resourceServerCredentialMapper;
+    @Resource
+    private StreamingEndpointSupport streamingEndpointSupport;
+    @Resource
+    private WebStreamingProperties webStreamingProperties;
 
     @Override
     public ResponseBodyEmitter installSocks5Stream(String serverId, ServerLandingDeployReqVO reqVO) {
-        ResourceServerDO server = serverValidator.validateExists(serverId);
-        landingValidator.validateExists(serverId);
-        ResourceServerCredentialDO cred = credentialMapper.selectById(serverId);
-        landingValidator.validateSshCredentialReady(server, cred);
+        ResourceServerDO server = resourceServerValidator.validateExists(serverId);
+        resourceServerLandingValidator.validateExists(serverId);
+        ResourceServerCredentialDO cred = resourceServerCredentialMapper.selectById(serverId);
+        resourceServerLandingValidator.validateSshCredentialReady(server, cred);
 
         // 装机配置写回 landing 子表; 重读 DO 保证 buildInstallVars 拿到最新值
         applyDeployConfig(serverId, reqVO);
         ResourceServerLandingDO landing = landingMapper.selectByServerId(serverId);
-        landingValidator.validateSocks5ConfigReady(landing);
+        resourceServerLandingValidator.validateSocks5ConfigReady(landing);
 
         Duration emitterTimeout = Duration.ofSeconds(cred.getInstallTimeoutSeconds())
                 .plus(webStreamingProperties.getEmitterBuffer());
-        return streamingSupport.stream("socks5:" + serverId, emitterTimeout,
+        return streamingEndpointSupport.stream("socks5:" + serverId, emitterTimeout,
                 lineSink -> doInstallSocks5(server, landing, cred, lineSink));
     }
 
     @Override
     public Socks5ProbeSnapshot testSocks5(String serverId, String echoUrl, int connectTimeoutMs, int readTimeoutMs) {
-        ResourceServerDO server = serverValidator.validateExists(serverId);
-        ResourceServerLandingDO landing = landingValidator.validateExists(serverId);
-        if (StrUtil.isBlank(server.getIpAddress()) || landing.getSocks5Port() == null) {
+        ResourceServerDO server = resourceServerValidator.validateExists(serverId);
+        ResourceServerLandingDO landing = resourceServerLandingValidator.validateExists(serverId);
+        if (StrUtil.isBlank(server.getIpAddress()) || ObjectUtil.isNull(landing.getSocks5Port())) {
             return new Socks5ProbeSnapshot(false, 0L, echoUrl, connectTimeoutMs, readTimeoutMs,
                     0, null, "SOCKS5 IP 或端口未配置");
         }
@@ -99,8 +109,8 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
 
     @Override
     public void setAutostart(String serverId, boolean enabled) {
-        ResourceServerDO server = serverValidator.validateExists(serverId);
-        landingValidator.validateExists(serverId);
+        ResourceServerDO server = resourceServerValidator.validateExists(serverId);
+        resourceServerLandingValidator.validateExists(serverId);
         SessionCredential cred = buildOpsSshCred(server);
         SshSessions.runAdHocVoid(cred, session -> {
             String cmd = (enabled ? "systemctl enable " : "systemctl disable ") + DANTE_UNIT + " 2>&1 || true";
@@ -116,8 +126,8 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
 
     @Override
     public ServiceLogRespVO getJournalLog(String serverId, Integer lines, String level, String keyword) {
-        ResourceServerDO server = serverValidator.validateExists(serverId);
-        landingValidator.validateExists(serverId);
+        ResourceServerDO server = resourceServerValidator.validateExists(serverId);
+        resourceServerLandingValidator.validateExists(serverId);
         SessionCredential cred = buildOpsSshCred(server);
         JournalLogSnapshot snap = SshSessions.runAdHoc(cred, session ->
                 serverProbe.readJournalLog(session, DANTE_UNIT, lines, level, keyword));
@@ -126,8 +136,8 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
 
     @Override
     public ServiceLogRespVO getFileLog(String serverId, Integer lines, String keyword) {
-        ResourceServerDO server = serverValidator.validateExists(serverId);
-        ResourceServerLandingDO landing = landingValidator.validateExists(serverId);
+        ResourceServerDO server = resourceServerValidator.validateExists(serverId);
+        ResourceServerLandingDO landing = resourceServerLandingValidator.validateExists(serverId);
         SessionCredential cred = buildOpsSshCred(server);
         JournalLogSnapshot snap = SshSessions.runAdHoc(cred, session ->
                 serverProbe.readFileLog(session, landing.getLogPath(), lines, keyword));
@@ -223,8 +233,8 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
      * @return ops 路径用 SessionCredential
      */
     private SessionCredential buildOpsSshCred(ResourceServerDO server) {
-        ResourceServerCredentialDO cred = credentialMapper.selectById(server.getId());
-        landingValidator.validateSshCredentialReady(server, cred);
+        ResourceServerCredentialDO cred = resourceServerCredentialMapper.selectById(server.getId());
+        resourceServerLandingValidator.validateSshCredentialReady(server, cred);
         return buildSshCred(server, cred, "ops");
     }
 
@@ -280,7 +290,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
     private String readDanteVersion(SshSession session) {
         String out = session.ssh().exec(
                 "dpkg-query -W -f='${Version}' dante-server 2>/dev/null || true").getStdout();
-        return out == null ? "" : out.trim();
+        return ObjectUtil.isNull(out) ? "" : out.trim();
     }
 
 }

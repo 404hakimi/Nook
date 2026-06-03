@@ -28,7 +28,7 @@ import com.nook.biz.node.validator.ServerLifecycleValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -36,7 +36,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -46,33 +45,43 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ResourceServerServiceImpl implements ResourceServerService {
 
-
-    private final ResourceServerMapper resourceServerMapper;
-    private final ResourceServerCapacityMapper resourceServerCapacityMapper;
-    private final ResourceServerRuntimeMapper resourceServerRuntimeMapper;
-    private final ApplicationEventPublisher applicationEventPublisher;
-    private final ResourceServerValidator serverValidator;
-    private final ResourceServerLandingValidator landingValidator;
-    private final ServerLifecycleValidator lifecycleValidator;
-    private final ResourceServerCredentialService credentialService;
-    private final ResourceServerBillingService billingService;
-    private final ResourceServerFrontlineService frontlineService;
-    private final ResourceServerLandingService landingService;
-    private final AgentTokenApi agentTokenApi;
+    @Resource
+    private ResourceServerMapper resourceServerMapper;
+    @Resource
+    private ResourceServerCapacityMapper resourceServerCapacityMapper;
+    @Resource
+    private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
+    @Resource
+    private ApplicationEventPublisher applicationEventPublisher;
+    @Resource
+    private ResourceServerValidator resourceServerValidator;
+    @Resource
+    private ResourceServerLandingValidator resourceServerLandingValidator;
+    @Resource
+    private ServerLifecycleValidator serverLifecycleValidator;
+    @Resource
+    private ResourceServerCredentialService resourceServerCredentialService;
+    @Resource
+    private ResourceServerBillingService resourceServerBillingService;
+    @Resource
+    private ResourceServerFrontlineService resourceServerFrontlineService;
+    @Resource
+    private ResourceServerLandingService resourceServerLandingService;
+    @Resource
+    private AgentTokenApi agentTokenApi;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String createServer(ResourceServerCreateReqVO createReqVO) {
-        serverValidator.validateServerType(createReqVO.getServerType());
-        serverValidator.validateLifecycleState(createReqVO.getLifecycleState());
-        serverValidator.validateNameUnique(null, createReqVO.getName());
+        resourceServerValidator.validateServerType(createReqVO.getServerType());
+        resourceServerValidator.validateLifecycleState(createReqVO.getLifecycleState());
+        resourceServerValidator.validateNameUnique(null, createReqVO.getName());
 
         boolean isLanding = ResourceServerTypeEnum.LANDING.matches(createReqVO.getServerType());
         if (isLanding) {
-            landingValidator.validateForCreate(createReqVO.getIpTypeId(), createReqVO.getIpAddress());
+            resourceServerLandingValidator.validateForCreate(createReqVO.getIpTypeId(), createReqVO.getIpAddress());
         }
 
         // 主表 (id + agentToken; ipAddress 是 canonical SSH 主机)
@@ -87,15 +96,15 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         resourceServerMapper.insert(entity);
 
         // 共用子表
-        credentialService.create(entity.getId(), createReqVO.getCredential());
+        resourceServerCredentialService.create(entity.getId(), createReqVO.getCredential());
         initCapacityAndRuntime(entity.getId());
 
         // 类型分支子表
         if (isLanding) {
-            landingService.initSubtables(entity.getId(), createReqVO.getIpTypeId());
+            resourceServerLandingService.initSubtables(entity.getId(), createReqVO.getIpTypeId());
         } else {
-            billingService.create(entity.getId(), null);
-            frontlineService.create(entity.getId(), null);
+            resourceServerBillingService.create(entity.getId(), null);
+            resourceServerFrontlineService.create(entity.getId(), null);
         }
         return entity.getId();
     }
@@ -125,8 +134,8 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateCore(String id, ResourceServerCoreUpdateReqVO reqVO) {
-        serverValidator.validateExists(id);
-        serverValidator.validateNameUnique(id, reqVO.getName());
+        resourceServerValidator.validateExists(id);
+        resourceServerValidator.validateNameUnique(id, reqVO.getName());
 
         ResourceServerDO updateObj = BeanUtils.toBean(reqVO, ResourceServerDO.class);
         updateObj.setId(id);
@@ -136,7 +145,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteServer(String id) {
-        serverValidator.validateExists(id);
+        resourceServerValidator.validateExists(id);
         resourceServerMapper.deleteById(id);
         applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(id));
     }
@@ -148,7 +157,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public ResourceServerDO requireServer(String id) {
-        return serverValidator.validateExists(id);
+        return resourceServerValidator.validateExists(id);
     }
 
     @Override
@@ -163,14 +172,14 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public Map<String, ResourceServerDO> getServerMap(Collection<String> ids) {
-        if (CollectionUtils.isAnyEmpty(ids)) return Collections.emptyMap();
+        if (CollectionUtils.isAnyEmpty(ids)) return Map.of();
         return CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(ids), ResourceServerDO::getId);
     }
 
     @Override
     public Map<String, String> getServerNameMap(Collection<String> ids) {
-        if (CollectionUtils.isAnyEmpty(ids)) return Collections.emptyMap();
+        if (CollectionUtils.isAnyEmpty(ids)) return Map.of();
         return CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(ids),
                 ResourceServerDO::getId,
@@ -179,7 +188,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public Map<String, String> getIpAddressMap(Collection<String> ids) {
-        if (CollectionUtils.isAnyEmpty(ids)) return Collections.emptyMap();
+        if (CollectionUtils.isAnyEmpty(ids)) return Map.of();
         return CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(ids),
                 ResourceServerDO::getId,
@@ -189,12 +198,12 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void transitionLifecycle(String id, String newState) {
-        ResourceServerDO srv = serverValidator.validateExists(id);
+        ResourceServerDO srv = resourceServerValidator.validateExists(id);
         if (StrUtil.equals(srv.getLifecycleState(), newState)) {
             return;
         }
         // 转移表 + 各前置守卫 (域名必填 / 占用不可停 / 绑定客户端不可停) 统一收口到生命周期校验器
-        lifecycleValidator.validateTransition(srv, newState);
+        serverLifecycleValidator.validateTransition(srv, newState);
         resourceServerMapper.updateLifecycleState(id, newState);
         log.info("[server] LIFECYCLE id={} {} → {}", id, srv.getLifecycleState(), newState);
     }

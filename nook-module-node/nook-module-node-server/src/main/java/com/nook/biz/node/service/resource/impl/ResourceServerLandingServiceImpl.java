@@ -34,7 +34,7 @@ import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,7 +44,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,18 +58,24 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ResourceServerLandingServiceImpl implements ResourceServerLandingService {
 
-
-    private final ResourceServerMapper resourceServerMapper;
-    private final ResourceServerLandingMapper landingMapper;
-    private final ResourceServerBillingMapper billingMapper;
-    private final ResourceServerCapacityMapper capacityMapper;
-    private final ResourceServerRuntimeMapper runtimeMapper;
-    private final ResourceServerValidator serverValidator;
-    private final ResourceServerLandingValidator landingValidator;
-    private final ResourceServerAdmission admission;
+    @Resource
+    private ResourceServerMapper resourceServerMapper;
+    @Resource
+    private ResourceServerLandingMapper resourceServerLandingMapper;
+    @Resource
+    private ResourceServerBillingMapper resourceServerBillingMapper;
+    @Resource
+    private ResourceServerCapacityMapper resourceServerCapacityMapper;
+    @Resource
+    private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
+    @Resource
+    private ResourceServerValidator resourceServerValidator;
+    @Resource
+    private ResourceServerLandingValidator resourceServerLandingValidator;
+    @Resource
+    private ResourceServerAdmission resourceServerAdmission;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -85,14 +90,14 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         lan.setAssignCount(0);
         lan.setCreatedAt(now);
         lan.setUpdatedAt(now);
-        landingMapper.insert(lan);
+        resourceServerLandingMapper.insert(lan);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(String id) {
-        ResourceServerDO srv = serverValidator.validateExists(id);
-        landingValidator.validateNoBoundClient(id, srv.getIpAddress());
+        ResourceServerDO srv = resourceServerValidator.validateExists(id);
+        resourceServerLandingValidator.validateNoBoundClient(id, srv.getIpAddress());
         resourceServerMapper.deleteById(id);
         log.info("[landing] DELETE id={} ip={}", id, srv.getIpAddress());
     }
@@ -100,10 +105,10 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateCore(String id, ServerLandingCoreUpdateReqVO reqVO) {
-        serverValidator.validateExists(id);
-        landingValidator.validateExists(id);
-        landingValidator.validateIpTypeExists(reqVO.getIpTypeId());
-        landingValidator.validateIpAddressUnique(id, reqVO.getIpAddress());
+        resourceServerValidator.validateExists(id);
+        resourceServerLandingValidator.validateExists(id);
+        resourceServerLandingValidator.validateIpTypeExists(reqVO.getIpTypeId());
+        resourceServerLandingValidator.validateIpAddressUnique(id, reqVO.getIpAddress());
 
         ResourceServerDO srvPatch = new ResourceServerDO();
         srvPatch.setId(id);
@@ -116,14 +121,14 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         lanPatch.setServerId(id);
         lanPatch.setIpTypeId(reqVO.getIpTypeId());
         lanPatch.setProvisionMode(reqVO.getProvisionMode());
-        landingMapper.updateBySelective(lanPatch);
+        resourceServerLandingMapper.updateBySelective(lanPatch);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateSocks5(String id, ServerLandingSocks5UpdateReqVO reqVO) {
-        serverValidator.validateExists(id);
-        landingValidator.validateExists(id);
+        resourceServerValidator.validateExists(id);
+        resourceServerLandingValidator.validateExists(id);
 
         ResourceServerLandingDO patch = BeanUtils.toBean(reqVO, ResourceServerLandingDO.class);
         patch.setServerId(id);
@@ -131,61 +136,61 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         if (StrUtil.isBlank(patch.getSocks5Password())) {
             patch.setSocks5Password(null);
         }
-        landingMapper.updateBySelective(patch);
+        resourceServerLandingMapper.updateBySelective(patch);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateBilling(String id, ServerLandingBillingUpdateReqVO reqVO) {
-        serverValidator.validateExists(id);
+        resourceServerValidator.validateExists(id);
         LocalDateTime now = LocalDateTime.now();
 
-        ResourceServerBillingDO old = billingMapper.selectById(id);
+        ResourceServerBillingDO old = resourceServerBillingMapper.selectById(id);
         if (old == null) {
             ResourceServerBillingDO bill = BeanUtils.toBean(reqVO, ResourceServerBillingDO.class);
             bill.setServerId(id);
             bill.setCreatedAt(now);
             bill.setUpdatedAt(now);
-            billingMapper.insert(bill);
+            resourceServerBillingMapper.insert(bill);
             return;
         }
         ResourceServerBillingDO patch = BeanUtils.toBean(reqVO, ResourceServerBillingDO.class);
         patch.setServerId(id);
-        billingMapper.updateBySelective(patch);
+        resourceServerBillingMapper.updateBySelective(patch);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateCapacity(String id, ServerLandingCapacityUpdateReqVO reqVO) {
-        serverValidator.validateExists(id);
+        resourceServerValidator.validateExists(id);
         // capacity 在 create 时已 insert 占位, 这里只走 update 业务阈值
-        capacityMapper.updateQuota(id, reqVO.getMonthlyTrafficGb(), reqVO.getBandwidthLimitMbps(),
+        resourceServerCapacityMapper.updateQuota(id, reqVO.getMonthlyTrafficGb(), reqVO.getBandwidthLimitMbps(),
                 reqVO.getQuotaResetPolicy(), reqVO.getResetDay());
     }
 
     @Override
     public ResourceServerDO getServer(String id) {
-        return serverValidator.validateExists(id);
+        return resourceServerValidator.validateExists(id);
     }
 
     @Override
     public ResourceServerLandingDO getLanding(String id) {
-        return landingValidator.validateExists(id);
+        return resourceServerLandingValidator.validateExists(id);
     }
 
     @Override
     public ResourceServerBillingDO getBilling(String id) {
-        return billingMapper.selectById(id);
+        return resourceServerBillingMapper.selectById(id);
     }
 
     @Override
     public ResourceServerCapacityDO getCapacity(String id) {
-        return capacityMapper.selectById(id);
+        return resourceServerCapacityMapper.selectById(id);
     }
 
     @Override
     public ResourceServerRuntimeDO getRuntime(String id) {
-        return runtimeMapper.selectById(id);
+        return resourceServerRuntimeMapper.selectById(id);
     }
 
     @Override
@@ -193,7 +198,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         // 子表 (status / ipTypeId) 过滤先拿候选 serverIds
         Set<String> statusFilterIds = null;
         if (StrUtil.isNotBlank(reqVO.getStatus()) || StrUtil.isNotBlank(reqVO.getIpTypeId())) {
-            List<ResourceServerLandingDO> rows = landingMapper.selectByFilter(reqVO.getStatus(), reqVO.getIpTypeId());
+            List<ResourceServerLandingDO> rows = resourceServerLandingMapper.selectByFilter(reqVO.getStatus(), reqVO.getIpTypeId());
             statusFilterIds = CollectionUtils.convertSet(rows, ResourceServerLandingDO::getServerId);
             if (statusFilterIds.isEmpty()) {
                 return PageResult.empty();
@@ -220,7 +225,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     private Map<String, LocalDate> loadExpiryMap(List<ResourceServerDO> servers) {
         Set<String> ids = CollectionUtils.convertSet(servers, ResourceServerDO::getId);
         Map<String, LocalDate> map = new HashMap<>();
-        for (ResourceServerBillingDO bill : billingMapper.selectBatchIds(ids)) {
+        for (ResourceServerBillingDO bill : resourceServerBillingMapper.selectBatchIds(ids)) {
             if (bill.getExpiresAt() != null) {
                 map.put(bill.getServerId(), bill.getExpiresAt());
             }
@@ -246,7 +251,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         }
         if (!servers.isEmpty()) {
             List<String> ids = CollectionUtils.convertList(servers, ResourceServerDO::getId);
-            List<ResourceServerLandingDO> landings = landingMapper.selectBatchIds(ids);
+            List<ResourceServerLandingDO> landings = resourceServerLandingMapper.selectBatchIds(ids);
             for (ResourceServerLandingDO l : landings) {
                 ResourceServerLandingStatusEnum st = ResourceServerLandingStatusEnum.fromState(l.getStatus());
                 if (st == null) continue;
@@ -271,8 +276,8 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResourceServerDO occupyById(String serverId, String memberUserId) {
-        ResourceServerDO srv = serverValidator.validateExists(serverId);
-        int rows = landingMapper.markOccupied(serverId, memberUserId, LocalDateTime.now());
+        ResourceServerDO srv = resourceServerValidator.validateExists(serverId);
+        int rows = resourceServerLandingMapper.markOccupied(serverId, memberUserId, LocalDateTime.now());
         if (rows != 1) {
             throw new BusinessException(CommonErrorCode.PARAM_INVALID,
                     "landing " + serverId + " 占用失败 (并发被抢或状态不是 AVAILABLE)");
@@ -284,7 +289,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Transactional(rollbackFor = Exception.class)
     public void releaseForRevoke(String serverId) {
         // 退订直接转 "可分配"
-        int rows = landingMapper.markAvailable(serverId);
+        int rows = resourceServerLandingMapper.markAvailable(serverId);
         if (rows == 0) {
             log.warn("[landing-release] markAvailable rows=0 serverId={}", serverId);
         }
@@ -292,40 +297,40 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
 
     @Override
     public Map<String, ResourceServerLandingDO> getLandingMap(Collection<String> serverIds) {
-        if (serverIds == null || serverIds.isEmpty()) return Collections.emptyMap();
-        List<ResourceServerLandingDO> rows = landingMapper.selectBatchIds(serverIds);
+        if (serverIds == null || serverIds.isEmpty()) return Map.of();
+        List<ResourceServerLandingDO> rows = resourceServerLandingMapper.selectBatchIds(serverIds);
         return CollectionUtils.convertMap(rows, ResourceServerLandingDO::getServerId);
     }
 
     @Override
     public SubtablesBundle batchLoadSubtables(Collection<String> serverIds) {
         if (serverIds == null || serverIds.isEmpty()) {
-            Map<String, ResourceServerLandingDO> emptyLanding = Collections.emptyMap();
-            Map<String, ResourceServerBillingDO> emptyBill = Collections.emptyMap();
-            Map<String, ResourceServerCapacityDO> emptyCap = Collections.emptyMap();
-            Map<String, ResourceServerRuntimeDO> emptyRt = Collections.emptyMap();
+            Map<String, ResourceServerLandingDO> emptyLanding = Map.of();
+            Map<String, ResourceServerBillingDO> emptyBill = Map.of();
+            Map<String, ResourceServerCapacityDO> emptyCap = Map.of();
+            Map<String, ResourceServerRuntimeDO> emptyRt = Map.of();
             return new SubtablesBundle(emptyLanding, emptyBill, emptyCap, emptyRt);
         }
         Map<String, ResourceServerLandingDO> landings = CollectionUtils.convertMap(
-                landingMapper.selectBatchIds(serverIds), ResourceServerLandingDO::getServerId);
+                resourceServerLandingMapper.selectBatchIds(serverIds), ResourceServerLandingDO::getServerId);
         Map<String, ResourceServerBillingDO> bills = CollectionUtils.convertMap(
-                billingMapper.selectBatchIds(serverIds), ResourceServerBillingDO::getServerId);
+                resourceServerBillingMapper.selectBatchIds(serverIds), ResourceServerBillingDO::getServerId);
         Map<String, ResourceServerCapacityDO> caps = CollectionUtils.convertMap(
-                capacityMapper.selectBatchIds(serverIds), ResourceServerCapacityDO::getServerId);
+                resourceServerCapacityMapper.selectBatchIds(serverIds), ResourceServerCapacityDO::getServerId);
         Map<String, ResourceServerRuntimeDO> runtimes = CollectionUtils.convertMap(
-                runtimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
+                resourceServerRuntimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
         return new SubtablesBundle(landings, bills, caps, runtimes);
     }
 
     @Override
     public List<LandingSummaryDTO> listSummaryByServerIds(Collection<String> serverIds) {
         if (CollUtil.isEmpty(serverIds)) {
-            return Collections.emptyList();
+            return List.of();
         }
         Map<String, ResourceServerDO> srvMap = CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(serverIds), ResourceServerDO::getId);
         Map<String, ResourceServerLandingDO> landingMap = CollectionUtils.convertMap(
-                landingMapper.selectBatchIds(serverIds), ResourceServerLandingDO::getServerId);
+                resourceServerLandingMapper.selectBatchIds(serverIds), ResourceServerLandingDO::getServerId);
         return serverIds.stream()
                 .map(id -> {
                     ResourceServerDO s = srvMap.get(id);
@@ -340,25 +345,25 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     public List<LandingSummaryDTO> findMatchingForPlan(String region, String ipTypeId,
                                                        int minTrafficGb, int minBandwidthMbps) {
         if (StrUtil.isBlank(region) || StrUtil.isBlank(ipTypeId)) {
-            return Collections.emptyList();
+            return List.of();
         }
         // ① 区域 + LIVE + landing 角色: 主表先筛, 把范围缩到本机房在线落地机 (区域选择性最强, deleted 自动滤)
         List<ResourceServerDO> liveServers = resourceServerMapper.selectLiveLandingsByRegion(region);
         if (liveServers.isEmpty()) {
-            return Collections.emptyList();
+            return List.of();
         }
         Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(liveServers, ResourceServerDO::getId);
         // ② IP 类型: 只在上面这批机器里筛对应 IP 类型的落地子表
         List<ResourceServerLandingDO> landings =
-                landingMapper.selectByServerIdsAndIpType(serverMap.keySet(), ipTypeId);
+                resourceServerLandingMapper.selectByServerIdsAndIpType(serverMap.keySet(), ipTypeId);
         if (landings.isEmpty()) {
-            return Collections.emptyList();
+            return List.of();
         }
         // ③ 容量: 批量取容量子表, 逐台按套餐流量 / 带宽阈值过滤后转概要
         Map<String, ResourceServerCapacityDO> capMap = CollectionUtils.convertMap(
-                capacityMapper.selectBatchIds(CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
+                resourceServerCapacityMapper.selectBatchIds(CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
                 ResourceServerCapacityDO::getServerId);
-        Set<String> allocatable = admission.filterAllocatable(serverMap.keySet());
+        Set<String> allocatable = resourceServerAdmission.filterAllocatable(serverMap.keySet());
         List<LandingSummaryDTO> matched = new ArrayList<>();
         for (ResourceServerLandingDO landing : landings) {
             // 健康准入(非LIVE / 到顶 / 心跳不健康) + 规格达标 才进候选
@@ -384,7 +389,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Override
     public Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs) {
         if (CollUtil.isEmpty(specs)) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         // ① 批量捞 (固定 3 查询, 不随套餐数增长): 涉及区域的 LIVE 落地机 → 这批机器里涉及 IP 类型的落地子表 → 容量子表
         Set<String> regions = CollectionUtils.convertSet(specs, PlanSpecDTO::getRegionCode);
@@ -392,12 +397,12 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(
                 resourceServerMapper.selectLiveLandingsByRegions(regions), ResourceServerDO::getId);
         List<ResourceServerLandingDO> landings = serverMap.isEmpty() ? List.of()
-                : landingMapper.selectByServerIdsAndIpTypes(serverMap.keySet(), ipTypeIds);
+                : resourceServerLandingMapper.selectByServerIdsAndIpTypes(serverMap.keySet(), ipTypeIds);
         Map<String, ResourceServerCapacityDO> capMap = landings.isEmpty() ? Map.of()
-                : CollectionUtils.convertMap(capacityMapper.selectBatchIds(
+                : CollectionUtils.convertMap(resourceServerCapacityMapper.selectBatchIds(
                         CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
                         ResourceServerCapacityDO::getServerId);
-        Set<String> allocatable = admission.filterAllocatable(serverMap.keySet());
+        Set<String> allocatable = resourceServerAdmission.filterAllocatable(serverMap.keySet());
         // ② 落地机按 (区域 + IP 类型) 分桶, 让每个套餐 O(1) 命中自己的候选
         Map<String, List<ResourceServerLandingDO>> bucket = new HashMap<>();
         for (ResourceServerLandingDO landing : landings) {
