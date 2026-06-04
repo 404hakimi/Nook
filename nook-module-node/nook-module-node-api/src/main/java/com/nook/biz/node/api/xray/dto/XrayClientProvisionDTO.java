@@ -16,5 +16,6 @@ public class XrayClientProvisionDTO {
     /** 落地机 server id. */
     private String ipId;
 
+    /** 所属会员. */
     private String memberUserId;
 }

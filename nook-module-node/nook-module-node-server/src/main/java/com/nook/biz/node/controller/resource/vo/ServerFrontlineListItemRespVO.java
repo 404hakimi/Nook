@@ -16,7 +16,9 @@ import java.time.LocalDateTime;
 @Data
 public class ServerFrontlineListItemRespVO {
 
+    /** 服务器编号. */
     private String id;
+    /** 别名. */
     private String name;
 
     /** SSH 主机 (credential 子表). */
@@ -34,6 +36,7 @@ public class ServerFrontlineListItemRespVO {
     /** xray 安装版本 (e.g., v26.3.27); null = 未装 xray. */
     private String xrayVersion;
 
+    /** 最近心跳时刻. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastHeartbeatAt;
 

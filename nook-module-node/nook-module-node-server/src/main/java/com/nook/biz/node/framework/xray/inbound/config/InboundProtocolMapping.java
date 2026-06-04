@@ -6,19 +6,17 @@ import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
 import com.nook.common.web.exception.BusinessException;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.util.Arrays;
 
 /**
  * Xray 协议映射 (vless / vmess / trojan); 屏蔽各协议在 xray.json clients[] 字段上的差异; shadowsocks 暂不支持.
  *
- * <p>原 gRPC TypedMessage 渲染 (buildAccountTypedMessage) 已删, 走 SSH+CLI 后只用 JSON 渲染.
- *
  * @author nook
  */
 @Getter
-@RequiredArgsConstructor
+@AllArgsConstructor
 public enum InboundProtocolMapping {
 
     VMESS("vmess") {
@@ -55,7 +53,7 @@ public enum InboundProtocolMapping {
         }
     };
 
-    /** xray_inbound.protocol / spec.protocol 的字符串值, 全小写. */
+    /** 协议字符串值, 全小写. */
     private final String code;
 
     /**

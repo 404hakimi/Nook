@@ -4,7 +4,7 @@ import com.nook.framework.ssh.script.ScriptCatalog;
 import com.nook.framework.ssh.script.ScriptCategory;
 import com.nook.framework.ssh.script.ScriptModule;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +18,6 @@ import java.util.Set;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class NookScripts {
 
     public static final ScriptModule SOCKS5_INSTALL = new ScriptModule(
@@ -65,7 +64,8 @@ public class NookScripts {
             MODULE_UFW, MODULE_ACME_TLS, MODULE_LOGROTATE, MODULE_JOURNALD_CAP,
             MODULE_XRAY, MODULE_FINALIZE);
 
-    private final ScriptCatalog scriptCatalog;
+    @Resource
+    private ScriptCatalog scriptCatalog;
 
     @PostConstruct
     void register() {

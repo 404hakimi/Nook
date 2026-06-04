@@ -1,5 +1,6 @@
 package com.nook.biz.node.validator;
 
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
@@ -25,11 +26,11 @@ import java.util.Set;
 public class ServerLifecycleValidator {
 
     @Resource
-    private ResourceServerFrontlineMapper frontlineMapper;
+    private ResourceServerFrontlineMapper resourceServerFrontlineMapper;
     @Resource
-    private ResourceServerLandingMapper landingMapper;
+    private ResourceServerLandingMapper resourceServerLandingMapper;
     @Resource
-    private ResourceServerLandingValidator landingValidator;
+    private ResourceServerLandingValidator resourceServerLandingValidator;
 
     /** 允许的生命周期流转 (from→to); 未列出的组合一律拒. */
     private static final Set<String> ALLOWED_TRANSITIONS = Set.of(
@@ -46,7 +47,7 @@ public class ServerLifecycleValidator {
      */
     public void validateTransition(ResourceServerDO server, String newState) {
         String from = server.getLifecycleState();
-        if (ResourceServerLifecycleEnum.fromState(newState) == null
+        if (ObjectUtil.isNull(ResourceServerLifecycleEnum.fromState(newState))
                 || !ALLOWED_TRANSITIONS.contains(from + "→" + newState)) {
             throw new BusinessException(ResourceErrorCode.SERVER_LIFECYCLE_INVALID_TRANSITION, from, newState);
         }
@@ -64,19 +65,19 @@ public class ServerLifecycleValidator {
 
     /** 线路机上线前必须先填域名. */
     private void validateFrontlineDomainReady(String serverId) {
-        ResourceServerFrontlineDO frontline = frontlineMapper.selectById(serverId);
-        if (frontline == null || StrUtil.isBlank(frontline.getDomain())) {
+        ResourceServerFrontlineDO frontline = resourceServerFrontlineMapper.selectById(serverId);
+        if (ObjectUtil.isNull(frontline) || StrUtil.isBlank(frontline.getDomain())) {
             throw new BusinessException(ResourceErrorCode.SERVER_LIVE_DOMAIN_REQUIRED);
         }
     }
 
     /** 落地机停用前: 占用中(已占用/预占中)或仍有客户端绑定则拒 (订阅占用与客户端绑定一般同步, 但客户端可手工管理, 故两个信号都查). */
     private void validateLandingNotInUse(String serverId) {
-        ResourceServerLandingDO landing = landingMapper.selectById(serverId);
-        String status = landing == null ? null : landing.getStatus();
+        ResourceServerLandingDO landing = resourceServerLandingMapper.selectById(serverId);
+        String status = ObjectUtil.isNull(landing) ? null : landing.getStatus();
         boolean inUse = ResourceServerLandingStatusEnum.OCCUPIED.matches(status)
                 || ResourceServerLandingStatusEnum.RESERVED.matches(status)
-                || landingValidator.hasBoundClient(serverId);
+                || resourceServerLandingValidator.hasBoundClient(serverId);
         if (inUse) {
             throw new BusinessException(ResourceErrorCode.LANDING_IN_USE_CANNOT_RETIRE);
         }

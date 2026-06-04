@@ -3,7 +3,7 @@ package com.nook.biz.node.handler.xray.server;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OpContext;
 import com.nook.biz.operation.api.spi.OpHandler;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,10 +12,10 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class RestartXrayHandler implements OpHandler {
 
-    private final ServerOpExecutor executor;
+    @Resource
+    private ServerOpExecutor serverOpExecutor;
 
     @Override
     public String type() {
@@ -26,6 +26,6 @@ public class RestartXrayHandler implements OpHandler {
     public Object execute(OpContext ctx) {
         ctx.report("连接服务器", 15);
         // executor 内部会用 sink 报 systemctl 状态
-        return executor.doRestart(ctx.serverId(), ctx);
+        return serverOpExecutor.doRestart(ctx.serverId(), ctx);
     }
 }

@@ -10,9 +10,10 @@ import lombok.Data;
 @Data
 public class LandingSummaryDTO {
 
+    /** 落地节点编号. */
     private String serverId;
 
-    /** 主表装机生命周期 INSTALLING/READY/LIVE/RETIRED. */
+    /** 装机生命周期: 装机中 / 待上线 / 运行中 / 已退役. */
     private String lifecycleState;
 
     /** 落地机占用状态 (可分配 / 已占用 / 预留); null=非落地机或无子表. */

@@ -60,7 +60,7 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .eq(ResourceServerDO::getServerType, serverType));
     }
 
-    /** 区域内 LIVE 落地机主表 (选址第一步, 区域过滤把范围缩到一个机房). */
+    /** 区域内运行中落地机 (选址第一步, 区域过滤把范围缩到一个机房). */
     default List<ResourceServerDO> selectLiveLandingsByRegion(String region) {
         return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
                 .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.LANDING.getState())
@@ -68,7 +68,7 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .eq(ResourceServerDO::getRegion, region));
     }
 
-    /** 多区域内 LIVE 落地机主表 (批量算容量用; 一次覆盖一批套餐涉及的所有区域). */
+    /** 多区域内运行中落地机 (批量算容量用; 一次覆盖一批套餐涉及的所有区域). */
     default List<ResourceServerDO> selectLiveLandingsByRegions(Collection<String> regions) {
         return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
                 .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.LANDING.getState())
@@ -76,14 +76,14 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .in(ResourceServerDO::getRegion, regions));
     }
 
-    /** 全部 LIVE 线路机主表 (故障切换巡检用). */
+    /** 全部运行中线路机 (故障切换巡检用). */
     default List<ResourceServerDO> selectLiveFrontlines() {
         return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
                 .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.FRONTLINE.getState())
                 .eq(ResourceServerDO::getLifecycleState, ResourceServerLifecycleEnum.LIVE.getState()));
     }
 
-    /** 区域内 LIVE 线路机主表 (allocator 选线路机用). */
+    /** 区域内运行中线路机 (选线路机用). */
     default List<ResourceServerDO> selectLiveFrontlinesByRegion(String region) {
         return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
                 .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.FRONTLINE.getState())

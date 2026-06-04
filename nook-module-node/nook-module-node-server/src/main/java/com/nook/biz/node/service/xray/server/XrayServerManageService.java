@@ -52,7 +52,7 @@ public interface XrayServerManageService {
     ServiceLogRespVO getXrayLogFile(String serverId, String variant, Integer lines, String keyword);
 
     /**
-     * 获得 xray 实例详情 (主表 + credential.host enrich)
+     * 获得 xray 实例详情 (含主机地址回填)
      *
      * @param serverId 服务器编号
      * @return xray 实例详情 VO

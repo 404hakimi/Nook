@@ -12,7 +12,7 @@ import lombok.Data;
 @Data
 public class ServerLandingCapacityRespVO {
 
-    /** 落地节点编号 (== resource_server.id). */
+    /** 落地节点编号. */
     private String serverId;
 
     /** dante 实际限速 Mbps; 0=不限. */

@@ -66,19 +66,19 @@ public class XrayClientServiceImpl implements XrayClientService {
 
     @Override
     public XrayClientDO provisionXrayClient(XrayClientProvisionReqVO reqVO) {
-        // DB-only 开通, 直接走 executor; 远端由 agent reconcile 收敛, 不再经 op 队列
+        // 仅写库开通, 直接走执行器; 远端由 agent 对账同步, 不再经操作队列
         return clientOpExecutor.doProvision(reqVO, null);
     }
 
     @Override
     public void revokeXrayClient(String inboundEntityId) {
-        // DB-only 吊销, 直接走 executor; 远端由 agent reconcile 清理
+        // 仅写库吊销, 直接走执行器; 远端由 agent 对账清理
         clientOpExecutor.doRevoke(inboundEntityId, null);
     }
 
     @Override
     public XrayClientDO rotateXrayClient(String inboundEntityId) {
-        // DB-only 轮换 UUID, 直接走 executor; 远端由 agent reconcile 收敛
+        // 仅写库轮换 UUID, 直接走执行器; 远端由 agent 对账同步
         return clientOpExecutor.doRotate(inboundEntityId, null);
     }
 

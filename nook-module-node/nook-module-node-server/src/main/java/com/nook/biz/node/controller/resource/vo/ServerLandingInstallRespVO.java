@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @Data
 public class ServerLandingInstallRespVO {
 
+    /** 服务器编号. */
     private String serverId;
 
     /** sockd -v 探测到的 dante 版本. */

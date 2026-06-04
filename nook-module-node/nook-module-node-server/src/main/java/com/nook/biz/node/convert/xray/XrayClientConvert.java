@@ -1,5 +1,6 @@
 package com.nook.biz.node.convert.xray;
 
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.controller.xray.vo.XrayClientRespVO;
 import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
@@ -16,10 +17,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * ClientDO ↔ VO 转换 + ipAddress / server / 共享 inbound 字段 enrich.
+ * 客户端 DO ↔ VO 转换 + IP 地址 / 服务器 / 共享 inbound 字段回填.
  *
- * <p>inbound 维度字段 (protocol / transport / listenIp / listenPort) 是 server 级共享配置, 存 xray_config;
- * controller 预拉 config map 在 convert 层 enrich, 跟 ipAddress / serverName 同套路.
+ * <p>inbound 维度字段 (协议 / 传输 / 监听 IP / 监听端口) 是服务器级共享配置, 由 controller 提前批量查 config map 后在此回填.
  *
  * @author nook
  */
@@ -28,7 +28,7 @@ public interface XrayClientConvert {
 
     XrayClientConvert INSTANCE = Mappers.getMapper(XrayClientConvert.class);
 
-    /** enrich 字段不在 DO 上, 由带 map 的重载补; 单独调本方法时这些字段留 null. */
+    /** 回填字段不在 DO 上, 由带 map 的重载补; 单独调本方法时这些字段留 null. */
     @Mapping(target = "ipAddress", ignore = true)
     @Mapping(target = "serverName", ignore = true)
     @Mapping(target = "serverHost", ignore = true)
@@ -77,31 +77,31 @@ public interface XrayClientConvert {
     }
 
     private static void fillIpAddress(XrayClientRespVO vo, Map<String, String> ipAddressMap) {
-        if (vo == null || ipAddressMap == null) return;
+        if (ObjectUtil.isNull(vo) || ObjectUtil.isNull(ipAddressMap)) return;
         String addr = ipAddressMap.get(vo.getIpId());
-        if (addr != null) vo.setIpAddress(addr);
+        if (ObjectUtil.isNotNull(addr)) vo.setIpAddress(addr);
     }
 
-    /** host 来自 resource_server_credential, 跟 name 分两 map 注入. */
+    /** host 与 name 分两 map 注入. */
     private static void fillServer(XrayClientRespVO vo,
                                    Map<String, ResourceServerDO> serverMap,
                                    Map<String, String> hostMap) {
-        if (vo == null) return;
-        if (serverMap != null) {
+        if (ObjectUtil.isNull(vo)) return;
+        if (ObjectUtil.isNotNull(serverMap)) {
             ResourceServerDO s = serverMap.get(vo.getServerId());
-            if (s != null) vo.setServerName(s.getName());
+            if (ObjectUtil.isNotNull(s)) vo.setServerName(s.getName());
         }
-        if (hostMap != null) {
+        if (ObjectUtil.isNotNull(hostMap)) {
             String h = hostMap.get(vo.getServerId());
-            if (h != null) vo.setServerHost(h);
+            if (ObjectUtil.isNotNull(h)) vo.setServerHost(h);
         }
     }
 
-    /** 共享 inbound 是 server 级配置: 协议 / 传输 / 监听 IP / 监听端口 全部来自 xray_config. server 还没装 xray 时各字段留 null. */
+    /** 共享 inbound 是服务器级配置: 协议 / 传输 / 监听 IP / 监听端口 全部来自服务器级共享配置; 未装 xray 时各字段留 null. */
     private static void fillInbound(XrayClientRespVO vo, Map<String, XrayConfigDO> configMap) {
-        if (vo == null || configMap == null) return;
+        if (ObjectUtil.isNull(vo) || ObjectUtil.isNull(configMap)) return;
         XrayConfigDO cfg = configMap.get(vo.getServerId());
-        if (cfg == null) return;
+        if (ObjectUtil.isNull(cfg)) return;
         vo.setProtocol(cfg.getProtocol());
         vo.setTransport(cfg.getTransport());
         vo.setListenIp(cfg.getListenIp());

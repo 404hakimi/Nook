@@ -5,7 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.operation.api.OpType;
 import com.nook.biz.operation.api.spi.OpContext;
 import com.nook.biz.operation.api.spi.OpHandler;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,10 +14,10 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class SetAutostartHandler implements OpHandler {
 
-    private final ServerOpExecutor executor;
+    @Resource
+    private ServerOpExecutor serverOpExecutor;
 
     @Override
     public String type() {
@@ -29,6 +29,6 @@ public class SetAutostartHandler implements OpHandler {
         JSONObject params = JSON.parseObject(ctx.paramsJson());
         boolean enabled = params.getBooleanValue("enabled");
         ctx.report(enabled ? "开启开机自启" : "关闭开机自启", 30);
-        return executor.doSetAutostart(ctx.serverId(), enabled, ctx);
+        return serverOpExecutor.doSetAutostart(ctx.serverId(), enabled, ctx);
     }
 }

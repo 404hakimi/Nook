@@ -9,7 +9,7 @@ import com.nook.biz.node.convert.server.ServerInspectorConvert;
 import com.nook.biz.node.service.resource.ResourceServerOpsService;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,10 +30,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/resource/server")
 @Validated
-@RequiredArgsConstructor
 public class ResourceServerOpsController {
 
-    private final ResourceServerOpsService opsService;
+    @Resource
+    private ResourceServerOpsService resourceServerOpsService;
 
     /**
      * 启用 swap 分区 (流式)
@@ -45,7 +45,7 @@ public class ResourceServerOpsController {
     @PostMapping(value = "/enable-swap", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter enableSwap(@RequestParam("id") String id,
                                           @Valid @RequestBody EnableSwapReqVO reqVO) {
-        return opsService.enableSwapStream(id, reqVO);
+        return resourceServerOpsService.enableSwapStream(id, reqVO);
     }
 
     /**
@@ -56,7 +56,7 @@ public class ResourceServerOpsController {
      */
     @PostMapping(value = "/enable-bbr", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter enableBbr(@RequestParam("id") String id) {
-        return opsService.enableBbrStream(id);
+        return resourceServerOpsService.enableBbrStream(id);
     }
 
     /**
@@ -67,7 +67,7 @@ public class ResourceServerOpsController {
      */
     @PostMapping("/test-connectivity")
     public Result<ConnectivityTestRespVO> testConnectivity(@RequestParam("id") String id) {
-        return Result.ok(ServerInspectorConvert.INSTANCE.convert(opsService.testConnectivity(id)));
+        return Result.ok(ServerInspectorConvert.INSTANCE.convert(resourceServerOpsService.testConnectivity(id)));
     }
 
     /**
@@ -78,7 +78,7 @@ public class ResourceServerOpsController {
      */
     @GetMapping("/get-system-info")
     public Result<ServerSystemInfoRespVO> getSystemInfo(@RequestParam("id") String id) {
-        return Result.ok(ServerInspectorConvert.INSTANCE.convert(opsService.getSystemInfo(id)));
+        return Result.ok(ServerInspectorConvert.INSTANCE.convert(resourceServerOpsService.getSystemInfo(id)));
     }
 
     /**
@@ -89,7 +89,7 @@ public class ResourceServerOpsController {
      */
     @GetMapping("/get-ufw-status")
     public Result<String> getUfwStatus(@RequestParam("id") String id) {
-        return Result.ok(opsService.getUfwStatus(id));
+        return Result.ok(resourceServerOpsService.getUfwStatus(id));
     }
 
     /**
@@ -102,7 +102,7 @@ public class ResourceServerOpsController {
     @GetMapping("/get-systemd-status")
     public Result<SystemdStatusRespVO> getSystemdStatus(@RequestParam("id") String id,
                                                         @RequestParam("unit") String unit) {
-        return Result.ok(ServerInspectorConvert.INSTANCE.convert(opsService.getSystemdStatus(id, unit)));
+        return Result.ok(ServerInspectorConvert.INSTANCE.convert(resourceServerOpsService.getSystemdStatus(id, unit)));
     }
 
     /**
@@ -122,7 +122,7 @@ public class ResourceServerOpsController {
                                                   @RequestParam(value = "level", required = false) String level,
                                                   @RequestParam(value = "keyword", required = false) String keyword) {
         return Result.ok(ServerInspectorConvert.INSTANCE.convert(
-                opsService.getServiceLog(id, unit, lines, level, keyword)));
+                resourceServerOpsService.getServiceLog(id, unit, lines, level, keyword)));
     }
 
     /**
@@ -133,6 +133,6 @@ public class ResourceServerOpsController {
      */
     @GetMapping("/list-network-interface")
     public Result<List<String>> listNetworkInterfaces(@RequestParam("id") String id) {
-        return Result.ok(opsService.listNetworkInterfaces(id));
+        return Result.ok(resourceServerOpsService.listNetworkInterfaces(id));
     }
 }

@@ -10,10 +10,12 @@ import lombok.Data;
 @Data
 public class ServerLandingSocks5RespVO {
 
-    /** 落地节点编号 (== resource_server.id). */
+    /** 落地节点编号. */
     private String serverId;
 
+    /** SOCKS5 端口. */
     private Integer socks5Port;
+    /** SOCKS5 用户名. */
     private String socks5Username;
 
     /** 明文密码 (后台受信网络场景下发). */

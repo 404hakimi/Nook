@@ -54,7 +54,7 @@ public class XrayServerDO implements Serializable {
     /** 最近一次部署完成时间; 重装时也会覆写, 不是单纯的"首次"语义. */
     private LocalDateTime installedAt;
 
-    /** 上次探测到的 xray 启动时间; reconciler 探测填, 重装时清零后重新探测. */
+    /** 上次探测到的 xray 启动时间; 由对账任务探测回填, 重装时清零后重新探测. */
     private LocalDateTime lastXrayUptime;
 
     /** 创建时间. */

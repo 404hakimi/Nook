@@ -17,8 +17,10 @@ public class PlanSpecDTO {
     /** 业务侧 key (planId), 容量结果按此回填. */
     private String planId;
 
+    /** 区域码. */
     private String regionCode;
 
+    /** IP 类型编号. */
     private String ipTypeId;
 
     /** 套餐月流量 GB. */

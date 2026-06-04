@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * Xray 客户端状态; DB 字段 xray_client.status
+ * Xray 客户端状态
  *
  * @author nook
  */

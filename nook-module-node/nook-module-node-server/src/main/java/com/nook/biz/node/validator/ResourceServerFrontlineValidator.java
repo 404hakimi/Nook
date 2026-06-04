@@ -6,7 +6,7 @@ import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
@@ -15,19 +15,19 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class ResourceServerFrontlineValidator {
 
-    private final ResourceServerFrontlineMapper frontlineMapper;
+    @Resource
+    private ResourceServerFrontlineMapper resourceServerFrontlineMapper;
 
     /**
      * 校验线路机扩展存在
      *
-     * @param serverId 服务器编号
-     * @return 线路机扩展 DO
+     * @param serverId 服务器ID
+     * @return ResourceServerFrontlineDO
      */
     public ResourceServerFrontlineDO validateExists(String serverId) {
-        ResourceServerFrontlineDO row = frontlineMapper.selectById(serverId);
+        ResourceServerFrontlineDO row = resourceServerFrontlineMapper.selectById(serverId);
         if (ObjectUtil.isNull(row)) {
             throw new BusinessException(ResourceErrorCode.SERVER_NOT_FOUND, serverId);
         }
@@ -35,16 +35,16 @@ public class ResourceServerFrontlineValidator {
     }
 
     /**
-     * 校验 domain 唯一
+     * 校验域名唯一
      *
-     * @param serverId 当前 server 编号; null 表示 Create 路径
-     * @param domain   待校验 domain; 空跳过
+     * @param serverId 当前服务器ID (新增传 null 表示不排除自身)
+     * @param domain   待校验域名; 空跳过
      */
     public void validateDomainUnique(String serverId, String domain) {
         if (StrUtil.isBlank(domain)) return;
-        boolean dup = serverId == null
-                ? frontlineMapper.existsByDomain(domain)
-                : frontlineMapper.existsByDomainExcludingId(domain, serverId);
+        boolean dup = ObjectUtil.isNull(serverId)
+                ? resourceServerFrontlineMapper.existsByDomain(domain)
+                : resourceServerFrontlineMapper.existsByDomainExcludingId(domain, serverId);
         if (dup) {
             throw new BusinessException(ResourceErrorCode.SERVER_DOMAIN_DUPLICATE, domain);
         }

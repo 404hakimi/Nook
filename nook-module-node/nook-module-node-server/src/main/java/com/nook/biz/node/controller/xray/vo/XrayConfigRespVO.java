@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @Data
 public class XrayConfigRespVO {
 
+    /** 服务器编号. */
     private String serverId;
 
     /** 共享 inbound 协议 (vmess/trojan/...) */
@@ -39,9 +40,11 @@ public class XrayConfigRespVO {
     /** TLS 私钥路径. */
     private String tlsKeyPath;
 
+    /** 创建时间. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 }

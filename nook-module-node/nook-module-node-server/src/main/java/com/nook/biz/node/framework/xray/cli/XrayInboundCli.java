@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -62,7 +61,7 @@ public class XrayInboundCli {
     }
 
     /**
-     * 列远端所有 inbound tag (走 xray api lsi); 用于 reconciler 跟 DB 对账.
+     * 列远端所有 inbound tag (走 xray api lsi); 用于对账任务跟数据库对账.
      *
      * <p><b>失败必抛</b>: SSH 抖动 / xray 没起 / jq 缺失 → 上层 (replayInternal) 必须放弃本轮,
      * 不能拿空集继续 — 空集会被误判成"远端啥都没有", 触发 needSync=全部, 全 server 客户断连重建.
@@ -70,7 +69,7 @@ public class XrayInboundCli {
      * @param session caller 已 acquire 的 SSH 会话
      * @param apiPort xray 内置 api server 端口
      * @return tag 列表 (含静态预置如 api, 调用方按需过滤)
-     * @throws BusinessException SSH/xray 不可用; 调用方应放弃本轮 reconcile
+     * @throws BusinessException SSH/xray 不可用; 调用方应放弃本轮对账
      */
     public List<String> listInbounds(SshSession session, String xrayBin, int apiPort) {
         // 不再用 "|| true" 兜底; xray lsi 失败 (非 0 exit) 必须传上去
@@ -83,7 +82,7 @@ public class XrayInboundCli {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, e,
                     session.serverId(), "listInbounds: " + StrUtil.maxLength(e.getMessage(), 200));
         }
-        if (StrUtil.isBlank(stdout)) return Collections.emptyList();
+        if (StrUtil.isBlank(stdout)) return List.of();
         return Arrays.stream(stdout.split("\\R"))
                 .map(String::trim)
                 .filter(StrUtil::isNotBlank)
@@ -115,7 +114,7 @@ public class XrayInboundCli {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, e,
                     session.serverId(), "listUsers: " + StrUtil.maxLength(e.getMessage(), 200));
         }
-        if (StrUtil.isBlank(stdout)) return Collections.emptySet();
+        if (StrUtil.isBlank(stdout)) return Set.of();
         return Arrays.stream(stdout.split("\\R"))
                 .map(String::trim)
                 .filter(StrUtil::isNotBlank)
@@ -247,8 +246,8 @@ public class XrayInboundCli {
     /**
      * 渲染 adi 命令; 用 xray-core 文档化的 {@code stdin:} 语法显式声明输入源.
      *
-     * <p>v26.3.27 源码里 adi/ado/adrules 在 unnamedArgs 为空时会自动补 {@code "stdin:"}, 但这是隐式
-     * fallback (未在 README 说明), 跨版本不可靠. 跟 adu (无此 fallback) 走同样的显式语法, 避免再踩雷.
+     * <p>adi/ado/adrules 在参数为空时会自动补 {@code "stdin:"}, 但这是未文档化的隐式补全, 跨版本不可靠;
+     * 故跟 adu 一样走显式语法, 保证跨版本稳定.
      */
     private String buildAdiCmd(String xrayBin, int apiPort, String json) {
         return buildApiFromStdinCmd(xrayBin, apiPort, "adi", json, null);
@@ -317,7 +316,7 @@ public class XrayInboundCli {
      * 把 CLI add 的 BusinessException 翻译成业务错误码 (识别 "already exists" 等关键词归入 CLIENT_DUPLICATE).
      *
      * @param be       原始异常
-     * @param serverId resource_server.id
+     * @param serverId 服务器ID
      * @param tag      inbound tag
      * @return 翻译后的 BusinessException
      */
@@ -339,7 +338,7 @@ public class XrayInboundCli {
      * 视为 inbound 已不在, 让 sync/revoke/rotate 的幂等路径继续, 避免误报失败.
      *
      * @param be       原始异常
-     * @param serverId resource_server.id
+     * @param serverId 服务器ID
      * @param tag      inbound tag
      * @return 翻译后的 BusinessException
      */

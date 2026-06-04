@@ -14,7 +14,7 @@ import java.time.LocalDate;
 @Data
 public class ServerLandingBillingRespVO {
 
-    /** 落地节点编号 (== resource_server.id). */
+    /** 落地节点编号. */
     private String serverId;
 
     /** 月成本 CNY. */

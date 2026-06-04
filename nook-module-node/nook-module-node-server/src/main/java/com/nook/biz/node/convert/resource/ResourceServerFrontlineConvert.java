@@ -1,5 +1,6 @@
 package com.nook.biz.node.convert.resource;
 
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.agent.api.enums.AgentOnlineState;
 import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
@@ -38,7 +39,7 @@ public interface ResourceServerFrontlineConvert {
         return CollectionUtils.convertSet(records, ResourceServerDO::getId);
     }
 
-    /** 单条 detail 拼装: server 主表 + 5 个 enrich (单条收敛, 不分页). */
+    /** 单条详情拼装: 服务器主表 + 5 张关联表回填 (单条, 不分页). */
     default ServerFrontlineListItemRespVO convertSingleWithRuntime(ResourceServerDO server,
                                                                    ResourceServerCredentialDO cred,
                                                                    ResourceServerRuntimeDO runtime,
@@ -48,7 +49,7 @@ public interface ResourceServerFrontlineConvert {
         return toListItem(server, cred, runtime, capacity, xray, now);
     }
 
-    /** 列表批量拼装: server 主表 + 5 个 enrich map → 列表项 VO 分页. */
+    /** 列表批量拼装: 服务器主表 + 5 张关联表回填 → 列表项 VO 分页. */
     default PageResult<ServerFrontlineListItemRespVO> convertPageWithRuntime(
             PageResult<ResourceServerDO> page,
             Map<String, ResourceServerCredentialDO> credMap,
@@ -60,10 +61,10 @@ public interface ResourceServerFrontlineConvert {
         List<ServerFrontlineListItemRespVO> list = new ArrayList<>(records.size());
         for (ResourceServerDO s : records) {
             list.add(toListItem(s,
-                    credMap == null ? null : credMap.get(s.getId()),
-                    runtimeMap == null ? null : runtimeMap.get(s.getId()),
-                    capacityMap == null ? null : capacityMap.get(s.getId()),
-                    xrayMap == null ? null : xrayMap.get(s.getId()),
+                    ObjectUtil.isNull(credMap) ? null : credMap.get(s.getId()),
+                    ObjectUtil.isNull(runtimeMap) ? null : runtimeMap.get(s.getId()),
+                    ObjectUtil.isNull(capacityMap) ? null : capacityMap.get(s.getId()),
+                    ObjectUtil.isNull(xrayMap) ? null : xrayMap.get(s.getId()),
                     now));
         }
         return PageResult.of(page.getTotal(), list);
@@ -79,28 +80,28 @@ public interface ResourceServerFrontlineConvert {
         ServerFrontlineListItemRespVO vo = new ServerFrontlineListItemRespVO();
         vo.setId(s.getId());
         vo.setName(s.getName());
-        // host = server.ipAddress (canonical); credential 不再持有 host
+        // host 取服务器主表 IP, 凭据不再持有 host
         vo.setHost(s.getIpAddress());
         vo.setRegion(s.getRegion());
         vo.setLifecycleState(s.getLifecycleState());
         Long elapsedSec = null;
-        if (rt != null) {
+        if (ObjectUtil.isNotNull(rt)) {
             vo.setAgentVersion(rt.getAgentVersion());
             vo.setLastHeartbeatAt(rt.getLastHeartbeatAt());
-            if (rt.getLastHeartbeatAt() != null) {
+            if (ObjectUtil.isNotNull(rt.getLastHeartbeatAt())) {
                 elapsedSec = Duration.between(rt.getLastHeartbeatAt(), now).getSeconds();
                 vo.setElapsedSec(elapsedSec);
             }
         }
         vo.setOnlineState(AgentOnlineState.classify(elapsedSec).name());
-        if (cap != null) {
+        if (ObjectUtil.isNotNull(cap)) {
             vo.setMonthlyTrafficGb(cap.getMonthlyTrafficGb());
             vo.setRxBytes(cap.getRxBytes());
             vo.setTxBytes(cap.getTxBytes());
             vo.setUsedTrafficBytes(cap.getUsedTrafficBytes());
             vo.setThrottleState(cap.getThrottleState());
         }
-        if (xray != null) {
+        if (ObjectUtil.isNotNull(xray)) {
             vo.setXrayVersion(xray.getXrayVersion());
         }
         return vo;

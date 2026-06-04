@@ -5,8 +5,8 @@ import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
 import com.nook.biz.node.service.xray.server.XrayServerManageService;
 import com.nook.common.web.response.Result;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,10 +25,10 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 @RestController
 @RequestMapping("/admin/xray/server")
 @Validated
-@RequiredArgsConstructor
 public class XrayServerManageController {
 
-    private final XrayServerManageService xrayServerManageService;
+    @Resource
+    private XrayServerManageService xrayServerManageService;
 
     /**
      * 获得 xray 实例详情

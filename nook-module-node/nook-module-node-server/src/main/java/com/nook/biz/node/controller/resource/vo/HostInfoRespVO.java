@@ -11,6 +11,7 @@ import lombok.Data;
 @Data
 public class HostInfoRespVO {
 
+    /** 主机名. */
     private String hostname;
 
     /** uname -srm */

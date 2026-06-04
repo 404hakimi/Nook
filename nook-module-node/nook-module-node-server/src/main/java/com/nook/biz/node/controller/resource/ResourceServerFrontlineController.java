@@ -11,7 +11,7 @@ import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -32,11 +32,12 @@ import java.util.Set;
 @RestController
 @RequestMapping("/admin/resource/server-frontline")
 @Validated
-@RequiredArgsConstructor
 public class ResourceServerFrontlineController {
 
-    private final ResourceServerService resourceServerService;
-    private final ResourceServerFrontlineService frontlineService;
+    @Resource
+    private ResourceServerService resourceServerService;
+    @Resource
+    private ResourceServerFrontlineService resourceServerFrontlineService;
 
     /**
      * 获得线路机分页 (主表 + agent 运行时聚合: online state / agentVersion / xrayVersion / 流量 / throttle).
@@ -50,7 +51,7 @@ public class ResourceServerFrontlineController {
     public Result<PageResult<ServerFrontlineListItemRespVO>> getPage(@ModelAttribute ResourceServerPageReqVO reqVO) {
         PageResult<ResourceServerDO> page = resourceServerService.getServerPage(reqVO);
         Set<String> ids = ResourceServerFrontlineConvert.INSTANCE.extractServerIds(page.getRecords());
-        ResourceServerFrontlineService.RuntimeBundle bundle = frontlineService.batchLoadRuntimeBundle(ids);
+        ResourceServerFrontlineService.RuntimeBundle bundle = resourceServerFrontlineService.batchLoadRuntimeBundle(ids);
         return Result.ok(ResourceServerFrontlineConvert.INSTANCE.convertPageWithRuntime(
                 page, bundle.credentialMap(), bundle.runtimeMap(), bundle.capacityMap(),
                 bundle.xrayMap(), LocalDateTime.now()));
@@ -65,7 +66,7 @@ public class ResourceServerFrontlineController {
     @GetMapping("/get-frontline")
     public Result<ResourceServerFrontlineRespVO> getFrontline(@RequestParam("id") String id) {
         resourceServerService.requireServer(id);
-        return Result.ok(ResourceServerFrontlineConvert.INSTANCE.convert(frontlineService.get(id)));
+        return Result.ok(ResourceServerFrontlineConvert.INSTANCE.convert(resourceServerFrontlineService.get(id)));
     }
 
     /**
@@ -78,7 +79,7 @@ public class ResourceServerFrontlineController {
     @PutMapping("/update-frontline")
     public Result<Boolean> updateFrontline(@RequestParam("id") String id,
                                            @Valid @RequestBody ResourceServerFrontlineUpdateReqVO reqVO) {
-        frontlineService.update(id, reqVO);
+        resourceServerFrontlineService.update(id, reqVO);
         return Result.ok(true);
     }
 }

@@ -8,7 +8,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * 区域码更正监听: 把线路机 / 落地机 (resource_server.region) 的旧码迁到新码.
+ * 区域码更正监听: 把线路机 / 落地机的区域码从旧码迁到新码.
  *
  * <p>同步监听, 与 system 发布方同一事务; 抛异常即整体回滚.
  *

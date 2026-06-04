@@ -28,7 +28,7 @@ public interface XrayClientMapper extends BaseMapper<XrayClientDO> {
                 .last("LIMIT 1"));
     }
 
-    /** 列指定 server 下所有 client (reconciler 全量重写 xray.json 用). */
+    /** 列指定线路机下所有客户端 (对账时全量重写 xray.json 用). */
     default List<XrayClientDO> selectByServerId(String serverId) {
         return selectList(Wrappers.<XrayClientDO>lambdaQuery()
                 .eq(XrayClientDO::getServerId, serverId));
@@ -40,7 +40,7 @@ public interface XrayClientMapper extends BaseMapper<XrayClientDO> {
                 .in(XrayClientDO::getServerId, serverIds));
     }
 
-    /** 更新 status + last_synced_at; 显式 set updated_at 因 wrapper 更新不走 MetaObjectHandler 自动 fill. */
+    /** 更新状态 + 同步时刻; 显式 set updated_at, 因 Wrapper 更新不触发自动填充. */
     default int updateStatus(String id, Integer status, LocalDateTime syncedAt) {
         return update(null, Wrappers.<XrayClientDO>lambdaUpdate()
                 .set(XrayClientDO::getStatus, status)
@@ -57,7 +57,7 @@ public interface XrayClientMapper extends BaseMapper<XrayClientDO> {
                 .eq(XrayClientDO::getId, id));
     }
 
-    /** 改 client 所在线路机 (故障切换重绑 server_id); 远端由 reconcile 两端收敛. Wrapper 更新须显式 set updated_at. */
+    /** 改客户端所在线路机 (故障切换重绑); 远端由两端对账同步. Wrapper 更新须显式 set updated_at. */
     default int updateServerId(String id, String serverId) {
         return update(null, Wrappers.<XrayClientDO>lambdaUpdate()
                 .set(XrayClientDO::getServerId, serverId)

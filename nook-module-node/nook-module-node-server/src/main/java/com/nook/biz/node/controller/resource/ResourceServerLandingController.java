@@ -24,7 +24,7 @@ import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -49,11 +49,12 @@ import java.util.Set;
 @RestController
 @RequestMapping("/admin/resource/server-landing")
 @Validated
-@RequiredArgsConstructor
 public class ResourceServerLandingController {
 
-    private final ResourceServerLandingService landingService;
-    private final ResourceServerLandingSocksOpsService socksOpsService;
+    @Resource
+    private ResourceServerLandingService resourceServerLandingService;
+    @Resource
+    private ResourceServerLandingSocksOpsService resourceServerLandingSocksOpsService;
 
     /**
      * 获得落地节点分页
@@ -63,9 +64,9 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/page-landing")
     public Result<PageResult<ServerLandingRespVO>> getPage(@ModelAttribute ServerLandingPageReqVO reqVO) {
-        PageResult<ResourceServerDO> page = landingService.getPage(reqVO);
+        PageResult<ResourceServerDO> page = resourceServerLandingService.getPage(reqVO);
         Set<String> ids = CollectionUtils.convertSet(page.getRecords(), ResourceServerDO::getId);
-        ResourceServerLandingService.SubtablesBundle bundle = landingService.batchLoadSubtables(ids);
+        ResourceServerLandingService.SubtablesBundle bundle = resourceServerLandingService.batchLoadSubtables(ids);
         return Result.ok(ResourceServerLandingConvert.INSTANCE.convertPageWithSubtables(
                 page, bundle.landings(), bundle.billings(),
                 bundle.capacities(), bundle.runtimes()));
@@ -78,7 +79,7 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-summary")
     public Result<ServerLandingSummaryRespVO> getSummary() {
-        Map<String, Long> raw = landingService.getSummary();
+        Map<String, Long> raw = resourceServerLandingService.getSummary();
         ServerLandingSummaryRespVO vo = new ServerLandingSummaryRespVO();
         vo.setTotal(raw.getOrDefault("total", 0L));
         vo.setInstalling(raw.getOrDefault("lifecycle_INSTALLING", 0L));
@@ -100,11 +101,11 @@ public class ResourceServerLandingController {
     @GetMapping("/get-landing")
     public Result<ServerLandingRespVO> getDetail(@RequestParam("id") String id) {
         return Result.ok(ResourceServerLandingConvert.INSTANCE.convertWithSubtables(
-                landingService.getServer(id),
-                landingService.getLanding(id),
-                landingService.getBilling(id),
-                landingService.getCapacity(id),
-                landingService.getRuntime(id)));
+                resourceServerLandingService.getServer(id),
+                resourceServerLandingService.getLanding(id),
+                resourceServerLandingService.getBilling(id),
+                resourceServerLandingService.getCapacity(id),
+                resourceServerLandingService.getRuntime(id)));
     }
 
     /**
@@ -115,7 +116,7 @@ public class ResourceServerLandingController {
      */
     @DeleteMapping("/delete-landing")
     public Result<Boolean> delete(@RequestParam("id") String id) {
-        landingService.delete(id);
+        resourceServerLandingService.delete(id);
         return Result.ok(true);
     }
 
@@ -129,7 +130,7 @@ public class ResourceServerLandingController {
     @PutMapping("/update-core")
     public Result<Boolean> updateCore(@RequestParam("id") String id,
                                       @Valid @RequestBody ServerLandingCoreUpdateReqVO reqVO) {
-        landingService.updateCore(id, reqVO);
+        resourceServerLandingService.updateCore(id, reqVO);
         return Result.ok(true);
     }
 
@@ -141,7 +142,7 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-socks5")
     public Result<ServerLandingSocks5RespVO> getSocks5(@RequestParam("id") String id) {
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.toSocks5RespVO(landingService.getLanding(id)));
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.toSocks5RespVO(resourceServerLandingService.getLanding(id)));
     }
 
     /**
@@ -154,7 +155,7 @@ public class ResourceServerLandingController {
     @PutMapping("/update-socks5")
     public Result<Boolean> updateSocks5(@RequestParam("id") String id,
                                         @Valid @RequestBody ServerLandingSocks5UpdateReqVO reqVO) {
-        landingService.updateSocks5(id, reqVO);
+        resourceServerLandingService.updateSocks5(id, reqVO);
         return Result.ok(true);
     }
 
@@ -166,7 +167,7 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-install")
     public Result<ServerLandingInstallRespVO> getInstall(@RequestParam("id") String id) {
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.toInstallRespVO(landingService.getLanding(id)));
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.toInstallRespVO(resourceServerLandingService.getLanding(id)));
     }
 
     /**
@@ -177,7 +178,7 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-billing")
     public Result<ServerLandingBillingRespVO> getBilling(@RequestParam("id") String id) {
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.toBillingRespVO(landingService.getBilling(id)));
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.toBillingRespVO(resourceServerLandingService.getBilling(id)));
     }
 
     /**
@@ -190,7 +191,7 @@ public class ResourceServerLandingController {
     @PutMapping("/update-billing")
     public Result<Boolean> updateBilling(@RequestParam("id") String id,
                                          @Valid @RequestBody ServerLandingBillingUpdateReqVO reqVO) {
-        landingService.updateBilling(id, reqVO);
+        resourceServerLandingService.updateBilling(id, reqVO);
         return Result.ok(true);
     }
 
@@ -202,7 +203,7 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-capacity")
     public Result<ServerLandingCapacityRespVO> getCapacity(@RequestParam("id") String id) {
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.toCapacityRespVO(landingService.getCapacity(id)));
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.toCapacityRespVO(resourceServerLandingService.getCapacity(id)));
     }
 
     /**
@@ -215,7 +216,7 @@ public class ResourceServerLandingController {
     @PutMapping("/update-capacity")
     public Result<Boolean> updateCapacity(@RequestParam("id") String id,
                                           @Valid @RequestBody ServerLandingCapacityUpdateReqVO reqVO) {
-        landingService.updateCapacity(id, reqVO);
+        resourceServerLandingService.updateCapacity(id, reqVO);
         return Result.ok(true);
     }
 
@@ -229,7 +230,7 @@ public class ResourceServerLandingController {
     @PostMapping("/set-socks5-autostart")
     public Result<Boolean> setSocks5Autostart(@RequestParam("id") String id,
                                               @RequestParam("enabled") boolean enabled) {
-        socksOpsService.setAutostart(id, enabled);
+        resourceServerLandingSocksOpsService.setAutostart(id, enabled);
         return Result.ok(true);
     }
 
@@ -247,7 +248,7 @@ public class ResourceServerLandingController {
                                                  @RequestParam(value = "lines", required = false) Integer lines,
                                                  @RequestParam(value = "level", required = false) String level,
                                                  @RequestParam(value = "keyword", required = false) String keyword) {
-        return Result.ok(socksOpsService.getJournalLog(id, lines, level, keyword));
+        return Result.ok(resourceServerLandingSocksOpsService.getJournalLog(id, lines, level, keyword));
     }
 
     /**
@@ -262,7 +263,7 @@ public class ResourceServerLandingController {
     public Result<ServiceLogRespVO> getSocks5LogFile(@RequestParam("id") String id,
                                                      @RequestParam(value = "lines", required = false) Integer lines,
                                                      @RequestParam(value = "keyword", required = false) String keyword) {
-        return Result.ok(socksOpsService.getFileLog(id, lines, keyword));
+        return Result.ok(resourceServerLandingSocksOpsService.getFileLog(id, lines, keyword));
     }
 
     /**
@@ -275,7 +276,7 @@ public class ResourceServerLandingController {
     @PostMapping("/test-socks5-dial")
     public Result<Socks5TestRespVO> testSocks5(@RequestParam("id") String id,
                                                @Valid @RequestBody Socks5TestReqVO reqVO) {
-        Socks5ProbeSnapshot snap = socksOpsService.testSocks5(id, reqVO.getEchoUrl(),
+        Socks5ProbeSnapshot snap = resourceServerLandingSocksOpsService.testSocks5(id, reqVO.getEchoUrl(),
                 reqVO.getConnectTimeoutMs(), reqVO.getReadTimeoutMs());
         Socks5TestRespVO vo = new Socks5TestRespVO();
         vo.setSuccess(snap.isSuccess());
@@ -299,7 +300,7 @@ public class ResourceServerLandingController {
     @PostMapping(value = "/install-socks5", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter installSocks5(@RequestParam("id") String id,
                                              @Valid @RequestBody ServerLandingDeployReqVO reqVO) {
-        return socksOpsService.installSocks5Stream(id, reqVO);
+        return resourceServerLandingSocksOpsService.installSocks5Stream(id, reqVO);
     }
 
 }

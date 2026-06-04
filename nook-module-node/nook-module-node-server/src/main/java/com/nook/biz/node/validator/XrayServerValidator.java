@@ -1,5 +1,6 @@
 package com.nook.biz.node.validator;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -12,12 +13,11 @@ import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.service.xray.config.XrayConfigService;
 import com.nook.biz.node.service.xray.server.XrayServerService;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Xray 实例 + 配置业务校验
@@ -25,17 +25,19 @@ import java.util.Objects;
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class XrayServerValidator {
 
-    private final XrayServerService xrayServerService;
-    private final XrayConfigService xrayConfigService;
-    private final XrayClientMapper xrayClientMapper;
+    @Resource
+    private XrayServerService xrayServerService;
+    @Resource
+    private XrayConfigService xrayConfigService;
+    @Resource
+    private XrayClientMapper xrayClientMapper;
 
     /**
-     * 校验 xray 实例存在; 不存在抛 SERVER_STATE_NOT_FOUND.
+     * 校验 xray 实例存在并返回
      *
-     * @param serverId resource_server.id
+     * @param serverId 服务器ID
      * @return XrayServerDO
      */
     public XrayServerDO validateExists(String serverId) {
@@ -62,11 +64,11 @@ public class XrayServerValidator {
     }
 
     /**
-     * 重装前置校验: 跟现有活客户冲突的参数变更直接拒绝.
-     * 有活客户且客户面参数 (sharedInboundPort / wsPath / domain 等) 变了抛 NODE_PARAM_CHANGE_BLOCKED;
-     * 首次部署或活客户数为 0 都跳过.
+     * 校验装机入参不与现有客户端的客户面参数冲突
      *
-     * @param serverId 服务器编号
+     * <p>存在客户端且共享端口 / ws 路径 / 域名等客户面参数变更时拒绝; 首次部署或无客户端则跳过.
+     *
+     * @param serverId 服务器ID
      * @param reqVO    装机入参
      */
     public void validateAgainstActiveClients(String serverId, XrayServerInstallReqVO reqVO) {
@@ -74,34 +76,34 @@ public class XrayServerValidator {
                 .eq(XrayClientDO::getServerId, serverId));
 
         XrayServerDO existingServer = xrayServerService.get(serverId);
-        if (existingServer == null || activeCount == 0) return;
+        if (ObjectUtil.isNull(existingServer) || activeCount == 0) return;
 
         XrayConfigDO existingConfig = xrayConfigService.get(serverId);
-        if (existingConfig == null) return;
+        if (ObjectUtil.isNull(existingConfig)) return;
 
         List<String> mismatches = new ArrayList<>();
-        if (!Objects.equals(existingConfig.getSharedInboundPort(), reqVO.getSharedInboundPort())) {
+        if (!ObjectUtil.equal(existingConfig.getSharedInboundPort(), reqVO.getSharedInboundPort())) {
             mismatches.add("sharedInboundPort: " + existingConfig.getSharedInboundPort()
                     + " → " + reqVO.getSharedInboundPort());
         }
-        if (!Objects.equals(existingConfig.getProtocol(), reqVO.getProtocol())) {
+        if (!ObjectUtil.equal(existingConfig.getProtocol(), reqVO.getProtocol())) {
             mismatches.add("protocol: " + existingConfig.getProtocol() + " → " + reqVO.getProtocol());
         }
-        if (!Objects.equals(existingConfig.getTransport(), reqVO.getTransport())) {
+        if (!ObjectUtil.equal(existingConfig.getTransport(), reqVO.getTransport())) {
             mismatches.add("transport: " + existingConfig.getTransport() + " → " + reqVO.getTransport());
         }
-        if (!Objects.equals(existingConfig.getListenIp(), reqVO.getListenIp())) {
+        if (!ObjectUtil.equal(existingConfig.getListenIp(), reqVO.getListenIp())) {
             mismatches.add("listenIp: " + existingConfig.getListenIp() + " → " + reqVO.getListenIp());
         }
-        if (!Objects.equals(existingConfig.getWsPath(), reqVO.getWsPath())) {
+        if (!ObjectUtil.equal(existingConfig.getWsPath(), reqVO.getWsPath())) {
             mismatches.add("wsPath: " + existingConfig.getWsPath() + " → " + reqVO.getWsPath());
         }
         // useTls=false 时 domain 应落库为 null; useTls=true 时落 reqVO.domain
         String newDomain = Boolean.TRUE.equals(reqVO.getUseTls()) ? reqVO.getDomain() : null;
-        if (!Objects.equals(existingConfig.getDomain(), newDomain)) {
+        if (!ObjectUtil.equal(existingConfig.getDomain(), newDomain)) {
             mismatches.add("domain: " + existingConfig.getDomain() + " → " + newDomain);
         }
-        if (!mismatches.isEmpty()) {
+        if (CollUtil.isNotEmpty(mismatches)) {
             throw new BusinessException(XrayErrorCode.NODE_PARAM_CHANGE_BLOCKED,
                     serverId, activeCount, String.join("; ", mismatches));
         }

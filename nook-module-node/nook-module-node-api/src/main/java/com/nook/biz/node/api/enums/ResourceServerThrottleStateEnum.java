@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 服务器限流状态; DB 字段 resource_server_capacity.throttle_state
+ * 服务器限流状态
  *
  * @author nook
  */

@@ -1,5 +1,6 @@
 package com.nook.biz.node.convert.xray;
 
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
@@ -20,18 +21,18 @@ public interface XrayServerConvert {
 
     XrayServerRespVO convert(XrayServerDO entity);
 
-    /** host 来自 resource_server_credential, 跟 name 分两 map 注入 */
+    /** host 与 name 分两 map 注入 */
     static void fillServer(XrayServerRespVO vo,
                            Map<String, ResourceServerDO> serverMap,
                            Map<String, String> hostMap) {
-        if (vo == null) return;
-        if (serverMap != null) {
+        if (ObjectUtil.isNull(vo)) return;
+        if (ObjectUtil.isNotNull(serverMap)) {
             ResourceServerDO s = serverMap.get(vo.getServerId());
-            if (s != null) vo.setServerName(s.getName());
+            if (ObjectUtil.isNotNull(s)) vo.setServerName(s.getName());
         }
-        if (hostMap != null) {
+        if (ObjectUtil.isNotNull(hostMap)) {
             String h = hostMap.get(vo.getServerId());
-            if (h != null) vo.setServerHost(h);
+            if (ObjectUtil.isNotNull(h)) vo.setServerHost(h);
         }
     }
 }

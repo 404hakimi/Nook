@@ -43,7 +43,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -127,7 +126,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                 lineSink);
 
         // 装完后把字面 "latest" 解析成具体 tag (如 "v26.3.27"), 让 DB 反映远端真实版本;
-        // 解析失败 fallback 原值, 不阻断主流程.
+        // 解析失败则回退原值, 不阻断主流程.
         String resolvedVersion = xrayDaemonProbe.resolveActualVersion(session, reqVO.getXrayBinaryPath(), reqVO.getXrayVersion());
         if (!resolvedVersion.equals(reqVO.getXrayVersion())) {
             lineSink.accept("[nook] xray 实际版本: " + resolvedVersion + " (前端选 "
@@ -282,7 +281,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     public XrayServerRespVO getXrayServerDetail(String serverId) {
         XrayServerDO entity = xrayServerValidator.validateExists(serverId);
         XrayServerRespVO vo = XrayServerConvert.INSTANCE.convert(entity);
-        Set<String> ids = Collections.singleton(serverId);
+        Set<String> ids = Set.of(serverId);
         Map<String, ResourceServerDO> serverMap = resourceServerService.getServerMap(ids);
         Map<String, String> hostMap = resourceServerService.getIpAddressMap(ids);
         XrayServerConvert.fillServer(vo, serverMap, hostMap);

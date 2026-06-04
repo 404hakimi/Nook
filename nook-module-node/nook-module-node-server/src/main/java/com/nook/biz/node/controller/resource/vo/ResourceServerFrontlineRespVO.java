@@ -10,8 +10,12 @@ import lombok.Data;
 @Data
 public class ResourceServerFrontlineRespVO {
 
+    /** 服务器编号. */
     private String serverId;
+    /** 绑定域名. */
     private String domain;
+    /** Cloudflare Zone 编号. */
     private String cfZoneId;
+    /** Cloudflare DNS 记录编号. */
     private String cfRecordId;
 }

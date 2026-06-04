@@ -14,13 +14,17 @@ import java.time.LocalDate;
 @Data
 public class ResourceServerBillingRespVO {
 
+    /** 服务器编号. */
     private String serverId;
+    /** IDC 服务商. */
     private String idcProvider;
 
     /** 月成本 CNY. */
     private BigDecimal costMonthly;
+    /** 账单日. */
     private Integer billingCycleDay;
 
+    /** 到期时间. */
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate expiresAt;
 }

@@ -83,15 +83,15 @@ public interface XrayClientService {
     Map<String, XrayClientDO> getXrayClientMap(Collection<String> clientIds);
 
     /**
-     * 批量预拉 enrich 所需的 4 张子表/主表 map
+     * 批量提前查回填所需的 4 张关联表 map
      *
-     * @param serverIds 线路机 server id 集合
-     * @param ipIds     落地 server id 集合
+     * @param serverIds 线路机ID集合
+     * @param ipIds     落地机ID集合
      * @return 4 张 map 的批量返回包
      */
     EnrichBundle loadEnrichBundle(Set<String> serverIds, Set<String> ipIds);
 
-    /** Enrich 用 4 张 map 的批量返回包. */
+    /** 回填用 4 张 map 的批量返回包. */
     record EnrichBundle(
             Map<String, String> ipMap,
             Map<String, ResourceServerDO> serverMap,

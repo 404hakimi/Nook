@@ -10,6 +10,7 @@ import lombok.Data;
 @Data
 public class ConnectivityTestRespVO {
 
+    /** 是否连通成功. */
     private boolean success;
 
     /** 探活耗时毫秒，仅 success=true 时有意义 */

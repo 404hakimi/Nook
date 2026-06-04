@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 落地机部署模式; DB 字段 resource_server_landing.provision_mode
+ * 落地机部署模式
  *
  * @author nook
  */

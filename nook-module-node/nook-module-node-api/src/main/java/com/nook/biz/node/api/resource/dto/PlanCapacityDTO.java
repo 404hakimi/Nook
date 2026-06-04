@@ -17,9 +17,9 @@ public class PlanCapacityDTO {
     /** 匹配的落地机总数. */
     private int total;
 
-    /** 其中 AVAILABLE 可分配数. */
+    /** 其中可分配数. */
     private int available;
 
-    /** 其中 OCCUPIED 已占用数. */
+    /** 其中已占用数. */
     private int occupied;
 }

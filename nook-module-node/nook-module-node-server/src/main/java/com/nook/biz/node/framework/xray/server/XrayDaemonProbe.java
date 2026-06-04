@@ -97,7 +97,7 @@ import java.util.regex.Pattern;
     }
 
     /**
-     * 探 xray.service 当前 Active 启动时刻 (epoch 秒); 用于 reconciler 检测 xray 是否被重启过.
+     * 探 xray.service 当前 Active 启动时刻 (Unix 时间戳秒); 用于对账任务检测 xray 是否被重启过.
      * systemctl 拿不到 (服务停 / unit 不存在) 时返 empty, 调用方按"不可探测"处理跳过本轮.
      *
      * @param session caller 已 acquire 的 SSH 会话

@@ -10,13 +10,17 @@ import lombok.Data;
 @Data
 public class Socks5TestRespVO {
 
+    /** 拨号是否成功. */
     private boolean success;
 
     /** 拨号 + HTTP 往返耗时毫秒. */
     private long elapsedMs;
 
+    /** 回显探测目标地址. */
     private String echoUrl;
+    /** 连接超时毫秒. */
     private Integer connectTimeoutMs;
+    /** 读取超时毫秒. */
     private Integer readTimeoutMs;
 
     /** HTTP 响应状态码; success=true 时有值, 拨号失败时 0. */

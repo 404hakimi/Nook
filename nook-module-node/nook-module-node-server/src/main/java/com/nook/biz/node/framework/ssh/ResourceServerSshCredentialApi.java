@@ -6,7 +6,7 @@ import com.nook.biz.node.validator.ResourceServerCredentialValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshCredentialApi;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
@@ -15,16 +15,17 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class ResourceServerSshCredentialApi implements SshCredentialApi {
 
-    private final ResourceServerCredentialValidator credentialValidator;
-    private final ResourceServerValidator serverValidator;
+    @Resource
+    private ResourceServerCredentialValidator resourceServerCredentialValidator;
+    @Resource
+    private ResourceServerValidator resourceServerValidator;
 
     @Override
     public SessionCredential load(String serverId) {
-        ResourceServerDO server = serverValidator.validateExists(serverId);
-        ResourceServerCredentialDO cred = credentialValidator.validateExists(serverId);
+        ResourceServerDO server = resourceServerValidator.validateExists(serverId);
+        ResourceServerCredentialDO cred = resourceServerCredentialValidator.validateExists(serverId);
         return SessionCredential.builder()
                 .serverId(cred.getServerId())
                 .sshHost(server.getIpAddress())

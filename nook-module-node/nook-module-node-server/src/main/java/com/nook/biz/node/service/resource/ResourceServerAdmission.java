@@ -1,6 +1,7 @@
 package com.nook.biz.node.service.resource;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.agent.api.enums.AgentOnlineState;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
@@ -39,10 +40,12 @@ public class ResourceServerAdmission {
     private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
 
     /**
-     * 从候选 server 里筛出健康可分配的子集; 排除 非 LIVE / 配额到顶 / 心跳不健康 (TEMP_UNHEALTHY / OFFLINE / 从未上报).
+     * 从候选服务器中筛出健康可分配的子集
      *
-     * @param serverIds 候选 server 编号
-     * @return 可分配的 server 编号子集
+     * <p>排除未上线、流量配额到顶、心跳不健康的服务器.
+     *
+     * @param serverIds 候选服务器ID集合
+     * @return 可分配的服务器ID子集
      */
     public Set<String> filterAllocatable(Collection<String> serverIds) {
         if (CollUtil.isEmpty(serverIds)) {
@@ -64,26 +67,27 @@ public class ResourceServerAdmission {
         return allocatable;
     }
 
-    /** 单台准入判定: LIVE + 未到顶(throttle≠THROTTLED) + 心跳健康(ONLINE / WARN). */
+    /** 单台服务器准入判定: 运行中 + 未触发限流 + 心跳健康. */
     public boolean isAllocatable(ResourceServerDO srv, ResourceServerCapacityDO cap,
                                  ResourceServerRuntimeDO rt, LocalDateTime now) {
-        if (srv == null || !ResourceServerLifecycleEnum.LIVE.matches(srv.getLifecycleState())) {
+        if (ObjectUtil.isNull(srv) || !ResourceServerLifecycleEnum.LIVE.matches(srv.getLifecycleState())) {
             return false;
         }
-        if (cap != null && ResourceServerThrottleStateEnum.THROTTLED.matches(cap.getThrottleState())) {
+        if (ObjectUtil.isNotNull(cap) && ResourceServerThrottleStateEnum.THROTTLED.matches(cap.getThrottleState())) {
             return false;
         }
-        Long elapsedSec = (rt == null || rt.getLastHeartbeatAt() == null) ? null
+        Long elapsedSec = (ObjectUtil.isNull(rt) || ObjectUtil.isNull(rt.getLastHeartbeatAt())) ? null
                 : Duration.between(rt.getLastHeartbeatAt(), now).getSeconds();
         AgentOnlineState state = AgentOnlineState.classify(elapsedSec);
         return state == AgentOnlineState.ONLINE || state == AgentOnlineState.WARN;
     }
 
     /**
-     * 查 LIVE 线路机里需要故障切换的: 到顶(THROTTLED) 或 掉线(OFFLINE); 返 serverId → 原因.
-     * (TEMP_UNHEALTHY 是 3-5min 抖动, 不触发迁移, 只暂停分新.)
+     * 查运行中线路机里需要故障切换的 (已触发限流或掉线)
      *
-     * @return serverId → 原因 (THROTTLED / OFFLINE)
+     * <p>短时心跳抖动不触发迁移, 只暂停分配新客户.
+     *
+     * @return 服务器ID → 切换原因 (已触发限流 / 掉线)
      */
     public Map<String, String> findFrontlinesNeedingFailover() {
         List<ResourceServerDO> frontlines = resourceServerMapper.selectLiveFrontlines();
@@ -99,12 +103,12 @@ public class ResourceServerAdmission {
         Map<String, String> result = new HashMap<>();
         for (ResourceServerDO srv : frontlines) {
             ResourceServerCapacityDO cap = capMap.get(srv.getId());
-            if (cap != null && ResourceServerThrottleStateEnum.THROTTLED.matches(cap.getThrottleState())) {
+            if (ObjectUtil.isNotNull(cap) && ResourceServerThrottleStateEnum.THROTTLED.matches(cap.getThrottleState())) {
                 result.put(srv.getId(), ResourceServerThrottleStateEnum.THROTTLED.getState());
                 continue;
             }
             ResourceServerRuntimeDO rt = rtMap.get(srv.getId());
-            Long elapsedSec = (rt == null || rt.getLastHeartbeatAt() == null) ? null
+            Long elapsedSec = (ObjectUtil.isNull(rt) || ObjectUtil.isNull(rt.getLastHeartbeatAt())) ? null
                     : Duration.between(rt.getLastHeartbeatAt(), now).getSeconds();
             if (AgentOnlineState.classify(elapsedSec) == AgentOnlineState.OFFLINE) {
                 result.put(srv.getId(), AgentOnlineState.OFFLINE.name());

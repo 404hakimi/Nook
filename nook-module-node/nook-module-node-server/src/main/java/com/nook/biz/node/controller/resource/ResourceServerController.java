@@ -24,7 +24,7 @@ import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,14 +47,18 @@ import java.util.Set;
 @RestController
 @RequestMapping("/admin/resource/server")
 @Validated
-@RequiredArgsConstructor
 public class ResourceServerController {
 
-    private final ResourceServerService resourceServerService;
-    private final ResourceServerCredentialService credentialService;
-    private final ResourceServerBillingService billingService;
-    private final ResourceServerCapacityService capacityService;
-    private final ResourceServerFrontlineService frontlineService;
+    @Resource
+    private ResourceServerService resourceServerService;
+    @Resource
+    private ResourceServerCredentialService resourceServerCredentialService;
+    @Resource
+    private ResourceServerBillingService resourceServerBillingService;
+    @Resource
+    private ResourceServerCapacityService resourceServerCapacityService;
+    @Resource
+    private ResourceServerFrontlineService resourceServerFrontlineService;
 
     /**
      * 创建服务器 (frontline / landing 共用; 按 serverType 分发)
@@ -70,7 +74,7 @@ public class ResourceServerController {
     }
 
     /**
-     * 按区域统计机器数 (线路机 + 落地机; 区域管理页引用数用)
+     * 按区域统计机器数 (线路机 + 落地机)
      *
      * @return 区域码 → 机器数
      */
@@ -91,15 +95,15 @@ public class ResourceServerController {
     }
 
     /**
-     * 获得 server 详情 + agent 运行时聚合 (frontline / landing 共用; 详情页 header + Agent tab 用)
+     * 获得服务器详情 + agent 运行时聚合 (线路机 / 落地机共用)
      *
      * @param id server 编号
-     * @return 主表 + credential / runtime / capacity / xray 拼装结果
+     * @return 服务器详情 + 运行时聚合
      */
     @GetMapping("/get-detail-with-runtime")
     public Result<ServerFrontlineListItemRespVO> getDetailWithRuntime(@RequestParam("id") String id) {
         ResourceServerDO server = resourceServerService.requireServer(id);
-        ResourceServerFrontlineService.RuntimeBundle bundle = frontlineService.loadRuntimeBundleSingle(id);
+        ResourceServerFrontlineService.RuntimeBundle bundle = resourceServerFrontlineService.loadRuntimeBundleSingle(id);
         return Result.ok(ResourceServerFrontlineConvert.INSTANCE.convertSingleWithRuntime(
                 server,
                 bundle.credentialMap().get(id),
@@ -160,7 +164,7 @@ public class ResourceServerController {
         // 校验服务器是否存在
         resourceServerService.requireServer(id);
         // 获取服务器凭证
-        ResourceServerCredentialDO serverCredential = credentialService.getServerCredential(id);
+        ResourceServerCredentialDO serverCredential = resourceServerCredentialService.getServerCredential(id);
         // 视图转换返回凭证
         return Result.ok(ResourceServerCredentialConvert.INSTANCE.convert(serverCredential));
     }
@@ -175,7 +179,7 @@ public class ResourceServerController {
     @PutMapping("/update-credential")
     public Result<Boolean> updateCredential(@RequestParam("id") String id,
                                             @Valid @RequestBody ResourceServerCredentialUpdateReqVO reqVO) {
-        credentialService.update(id, reqVO);
+        resourceServerCredentialService.update(id, reqVO);
         return Result.ok(true);
     }
 
@@ -190,7 +194,7 @@ public class ResourceServerController {
         // 校验服务器是否存在
         resourceServerService.requireServer(id);
         // 取账面并转换返回
-        return Result.ok(ResourceServerBillingConvert.INSTANCE.convert(billingService.get(id)));
+        return Result.ok(ResourceServerBillingConvert.INSTANCE.convert(resourceServerBillingService.get(id)));
     }
 
     /**
@@ -203,7 +207,7 @@ public class ResourceServerController {
     @PutMapping("/update-billing")
     public Result<Boolean> updateBilling(@RequestParam("id") String id,
                                          @Valid @RequestBody ResourceServerBillingUpdateReqVO reqVO) {
-        billingService.update(id, reqVO);
+        resourceServerBillingService.update(id, reqVO);
         return Result.ok(true);
     }
 
@@ -216,7 +220,7 @@ public class ResourceServerController {
     @GetMapping("/get-capacity")
     public Result<ResourceServerCapacityRespVO> getCapacity(@RequestParam("id") String id) {
         resourceServerService.requireServer(id);
-        return Result.ok(ResourceServerCapacityConvert.INSTANCE.convert(capacityService.get(id)));
+        return Result.ok(ResourceServerCapacityConvert.INSTANCE.convert(resourceServerCapacityService.get(id)));
     }
 
     /**
@@ -230,7 +234,7 @@ public class ResourceServerController {
     public Result<Boolean> updateCapacity(@RequestParam("id") String id,
                                           @RequestBody @Valid ResourceServerCapacityUpdateReqVO reqVO) {
         resourceServerService.requireServer(id);
-        capacityService.updateQuota(id, reqVO);
+        resourceServerCapacityService.updateQuota(id, reqVO);
         return Result.ok(true);
     }
 }

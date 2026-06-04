@@ -84,7 +84,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
             resourceServerLandingValidator.validateForCreate(createReqVO.getIpTypeId(), createReqVO.getIpAddress());
         }
 
-        // 主表 (id + agentToken; ipAddress 是 canonical SSH 主机)
+        // 主表 (id + agentToken; ipAddress 作为 SSH 主机地址)
         ResourceServerDO entity = new ResourceServerDO();
         entity.setServerType(createReqVO.getServerType());
         entity.setName(createReqVO.getName());
@@ -97,7 +97,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
         // 共用子表
         resourceServerCredentialService.create(entity.getId(), createReqVO.getCredential());
-        initCapacityAndRuntime(entity.getId());
+        this.initCapacityAndRuntime(entity.getId());
 
         // 类型分支子表
         if (isLanding) {

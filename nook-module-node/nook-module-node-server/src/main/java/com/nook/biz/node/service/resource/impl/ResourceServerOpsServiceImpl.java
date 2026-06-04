@@ -1,6 +1,7 @@
 package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.io.resource.ResourceUtil;
+import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.controller.resource.vo.EnableSwapReqVO;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
@@ -63,7 +64,7 @@ public class ResourceServerOpsServiceImpl implements ResourceServerOpsService {
                 lineSink -> {
                     Map<String, String> vars = new LinkedHashMap<>();
                     vars.put("SWAP_SIZE_MB", String.valueOf(reqVO.getSizeMb()));
-                    runOsOp(serverId, ServerOsOp.SWAP, vars, lineSink);
+                    this.runOsOp(serverId, ServerOsOp.SWAP, vars, lineSink);
                 });
     }
 
@@ -123,7 +124,7 @@ public class ResourceServerOpsServiceImpl implements ResourceServerOpsService {
             }
             return Arrays.stream(result.getStdout().split("\\R"))
                     .map(String::trim)
-                    .filter(s -> !s.isEmpty())
+                    .filter(StrUtil::isNotEmpty)
                     .toList();
         } catch (BusinessException be) {
             log.warn("[listNetworkInterfaces] serverId={} SSH 失败: {}", serverId, be.getMessage());

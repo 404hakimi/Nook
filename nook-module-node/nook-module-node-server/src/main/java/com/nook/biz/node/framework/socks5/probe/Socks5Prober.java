@@ -1,5 +1,6 @@
 package com.nook.biz.node.framework.socks5.probe;
 
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -92,7 +93,7 @@ public class Socks5Prober {
             conn.setRequestProperty("User-Agent", "nook-socks5-prober");
             int status = conn.getResponseCode();
             InputStream stream = status >= 200 && status < 300 ? conn.getInputStream() : conn.getErrorStream();
-            String body = stream == null ? "" : readCapped(stream);
+            String body = ObjectUtil.isNull(stream) ? "" : readCapped(stream);
             return new HttpResult(status, body);
         } finally {
             CURRENT_AUTH.remove();

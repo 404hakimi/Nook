@@ -5,7 +5,7 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,29 +14,29 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class XrayClientValidator {
 
-    private final XrayClientMapper xrayClientMapper;
+    @Resource
+    private XrayClientMapper xrayClientMapper;
 
     /**
-     * 校验客户端存在.
+     * 校验客户端存在
      *
-     * @param id xray_client.id
+     * @param id 客户端ID
      * @return XrayClientDO
      */
     public XrayClientDO validateExists(String id) {
-        XrayClientDO e = xrayClientMapper.selectById(id);
-        if (ObjectUtil.isNull(e)) {
+        XrayClientDO client = xrayClientMapper.selectById(id);
+        if (ObjectUtil.isNull(client)) {
             throw new BusinessException(XrayErrorCode.CLIENT_ENTITY_NOT_FOUND, id);
         }
-        return e;
+        return client;
     }
 
     /**
-     * 校验该 IP 当前未被任何 client 占用; 跟 xray_client.uk_ip_id UNIQUE 约束对齐
+     * 校验该 IP 当前未被任何客户端占用
      *
-     * @param ipId IP 池条目 id
+     * @param ipId IP 池条目ID
      */
     public void validateIpNotInUse(String ipId) {
         XrayClientDO dup = xrayClientMapper.selectByIpId(ipId);

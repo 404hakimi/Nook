@@ -7,10 +7,10 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-// 注: host 已搬到 resource_server.ip_address (canonical), 不在凭据里
+// 注: 主机地址在服务器主表, 不在凭据里
 
 /**
- * 管理后台 - 服务器 SSH 凭据 Update Request VO (Create 流程嵌套在 ResourceServerCreateReqVO.credential 内复用)
+ * 管理后台 - 服务器 SSH 凭据 Update Request VO
  *
  * @author nook
  */

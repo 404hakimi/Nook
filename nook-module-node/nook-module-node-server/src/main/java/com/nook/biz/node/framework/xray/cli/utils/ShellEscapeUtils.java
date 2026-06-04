@@ -1,5 +1,7 @@
 package com.nook.biz.node.framework.xray.cli.utils;
 
+import cn.hutool.core.util.ObjectUtil;
+
 /**
  * Shell 字符串转义工具; 用单引号方案 ($ / ` / \ / " 都不展开, 安全边界小).
  *
@@ -17,7 +19,7 @@ public final class ShellEscapeUtils {
      * @return 转义后内容
      */
     public static String singleQuoteContent(String s) {
-        if (s == null) return "";
+        if (ObjectUtil.isNull(s)) return "";
         return s.replace("'", "'\\''");
     }
 

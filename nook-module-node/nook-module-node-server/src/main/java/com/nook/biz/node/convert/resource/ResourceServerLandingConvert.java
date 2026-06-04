@@ -1,5 +1,6 @@
 package com.nook.biz.node.convert.resource;
 
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingInstallRespVO;
@@ -37,7 +38,7 @@ public interface ResourceServerLandingConvert {
     @Mapping(target = "serverId", source = "server.id")
     LandingSummaryDTO toSummary(ResourceServerDO server, ResourceServerLandingDO landing);
 
-    /** 主表 → RespVO (仅主表字段; 子表字段需走 enrich) */
+    /** 主表 → RespVO (仅主表字段; 子表字段需另行回填) */
     ServerLandingRespVO convert(ResourceServerDO bean);
 
     /** landing 子表 → SOCKS5 配置 VO */
@@ -77,17 +78,17 @@ public interface ResourceServerLandingConvert {
         List<ServerLandingRespVO> list = new ArrayList<>(records.size());
         for (ResourceServerDO srv : records) {
             ServerLandingRespVO vo = convert(srv);
-            enrichLanding(vo, landingMap == null ? null : landingMap.get(srv.getId()));
-            enrichBilling(vo, billMap == null ? null : billMap.get(srv.getId()));
-            enrichCapacity(vo, capMap == null ? null : capMap.get(srv.getId()));
-            enrichRuntime(vo, runtimeMap == null ? null : runtimeMap.get(srv.getId()));
+            enrichLanding(vo, ObjectUtil.isNull(landingMap) ? null : landingMap.get(srv.getId()));
+            enrichBilling(vo, ObjectUtil.isNull(billMap) ? null : billMap.get(srv.getId()));
+            enrichCapacity(vo, ObjectUtil.isNull(capMap) ? null : capMap.get(srv.getId()));
+            enrichRuntime(vo, ObjectUtil.isNull(runtimeMap) ? null : runtimeMap.get(srv.getId()));
             list.add(vo);
         }
         return PageResult.of(page.getTotal(), list);
     }
 
     static void enrichLanding(ServerLandingRespVO vo, ResourceServerLandingDO landing) {
-        if (vo == null || landing == null) return;
+        if (ObjectUtil.isNull(vo) || ObjectUtil.isNull(landing)) return;
         vo.setIpTypeId(landing.getIpTypeId());
         vo.setSocks5Port(landing.getSocks5Port());
         vo.setSocks5Username(landing.getSocks5Username());
@@ -108,14 +109,14 @@ public interface ResourceServerLandingConvert {
     }
 
     static void enrichBilling(ServerLandingRespVO vo, ResourceServerBillingDO bill) {
-        if (vo == null || bill == null) return;
+        if (ObjectUtil.isNull(vo) || ObjectUtil.isNull(bill)) return;
         vo.setCostMonthly(bill.getCostMonthly());
         vo.setBillingCycleDay(bill.getBillingCycleDay());
         vo.setExpiresAt(bill.getExpiresAt());
     }
 
     static void enrichCapacity(ServerLandingRespVO vo, ResourceServerCapacityDO cap) {
-        if (vo == null || cap == null) return;
+        if (ObjectUtil.isNull(vo) || ObjectUtil.isNull(cap)) return;
         vo.setBandwidthLimitMbps(cap.getBandwidthLimitMbps());
         vo.setMonthlyTrafficGb(cap.getMonthlyTrafficGb());
         vo.setUsedTrafficBytes(cap.getUsedTrafficBytes());
@@ -126,13 +127,13 @@ public interface ResourceServerLandingConvert {
     }
 
     static void enrichRuntime(ServerLandingRespVO vo, ResourceServerRuntimeDO runtime) {
-        if (vo == null) return;
-        LocalDateTime lastHeartbeatAt = runtime == null ? null : runtime.getLastHeartbeatAt();
+        if (ObjectUtil.isNull(vo)) return;
+        LocalDateTime lastHeartbeatAt = ObjectUtil.isNull(runtime) ? null : runtime.getLastHeartbeatAt();
         vo.setLastHeartbeatAt(lastHeartbeatAt);
-        if (runtime != null) {
+        if (ObjectUtil.isNotNull(runtime)) {
             vo.setAgentVersion(runtime.getAgentVersion());
         }
-        Long elapsedSec = lastHeartbeatAt == null ? null
+        Long elapsedSec = ObjectUtil.isNull(lastHeartbeatAt) ? null
                 : Duration.between(lastHeartbeatAt, LocalDateTime.now()).getSeconds();
         vo.setElapsedSec(elapsedSec);
         // 在线状态复用线路机同一套判定 (心跳延迟阈值 60/180/300s)

@@ -16,15 +16,18 @@ import java.time.LocalDate;
 @Data
 public class ResourceServerBillingUpdateReqVO {
 
+    /** IDC 服务商. */
     @Size(max = 64)
     private String idcProvider;
 
     /** 月成本 CNY. */
     private BigDecimal costMonthly;
 
+    /** 账单日. */
     @Min(value = 1, message = "账单日 1-28")
     @Max(value = 28, message = "账单日 1-28")
     private Integer billingCycleDay;
 
+    /** 到期时间. */
     private LocalDate expiresAt;
 }

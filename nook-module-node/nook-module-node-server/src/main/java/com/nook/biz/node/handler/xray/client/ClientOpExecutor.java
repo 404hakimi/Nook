@@ -17,7 +17,7 @@ import com.nook.biz.node.validator.XrayClientValidator;
 import com.nook.biz.node.validator.XrayServerValidator;
 import com.nook.biz.operation.api.OpProgressSink;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,16 +32,22 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ClientOpExecutor {
 
-    private final XrayClientMapper xrayClientMapper;
-    private final XrayConfigService xrayConfigService;
-    private final ResourceServerLandingService landingService;
-    private final ResourceServerLandingMapper landingMapper;
-    private final XrayClientValidator clientValidator;
-    private final XrayServerValidator xrayServerValidator;
-    private final TransactionTemplate transactionTemplate;
+    @Resource
+    private XrayClientMapper xrayClientMapper;
+    @Resource
+    private XrayConfigService xrayConfigService;
+    @Resource
+    private ResourceServerLandingService resourceServerLandingService;
+    @Resource
+    private ResourceServerLandingMapper resourceServerLandingMapper;
+    @Resource
+    private XrayClientValidator xrayClientValidator;
+    @Resource
+    private XrayServerValidator xrayServerValidator;
+    @Resource
+    private TransactionTemplate transactionTemplate;
 
     /** xray 部署聚合视图: 实例元数据 + inbound 配置; 单方法多处用时复用一次查询 */
     private record XrayDeployment(XrayServerDO server, XrayConfigDO config) { }
@@ -62,25 +68,25 @@ public class ClientOpExecutor {
      */
     @Transactional(rollbackFor = Exception.class)
     public XrayClientDO doProvision(XrayClientProvisionReqVO reqVO, OpProgressSink progress) {
-        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
+        OpProgressSink sink = ObjectUtil.isNull(progress) ? OpProgressSink.noop() : progress;
         sink.report("校验入参", 15);
-        clientValidator.validateIpNotInUse(reqVO.getIpId());
+        xrayClientValidator.validateIpNotInUse(reqVO.getIpId());
 
         sink.report("加载服务器信息", 25);
         XrayDeployment dep = loadDeployment(reqVO.getServerId());
 
-        // 同事务回滚时 landing 自动归还 (CAS 失败则抛 BusinessException)
+        // 同事务回滚时落地机自动归还 (占用冲突则抛 BusinessException)
         sink.report("占用落地节点", 35);
-        ResourceServerDO landingSrv = landingService.occupyById(reqVO.getIpId(), reqVO.getMemberUserId());
-        ResourceServerLandingDO landingSocks = landingMapper.selectByServerId(reqVO.getIpId());
-        if (StrUtil.isBlank(landingSrv.getIpAddress()) || landingSocks == null
+        ResourceServerDO landingSrv = resourceServerLandingService.occupyById(reqVO.getIpId(), reqVO.getMemberUserId());
+        ResourceServerLandingDO landingSocks = resourceServerLandingMapper.selectByServerId(reqVO.getIpId());
+        if (StrUtil.isBlank(landingSrv.getIpAddress()) || ObjectUtil.isNull(landingSocks)
                 || ObjectUtil.isNull(landingSocks.getSocks5Port())) {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
                     reqVO.getIpId(), "落地节点的 SOCKS5 凭据未配置");
         }
 
-        // 校验服务器已装 xray (config 存在), 才允许下单; 远端三段由 agent reconcile 下发
-        if (dep.config() == null) {
+        // 校验服务器已装 xray (配置存在), 才允许下单; 远端三段由 agent 对账下发
+        if (ObjectUtil.isNull(dep.config())) {
             throw new BusinessException(XrayErrorCode.SERVER_STATE_NOT_FOUND, reqVO.getServerId());
         }
 
@@ -104,8 +110,8 @@ public class ClientOpExecutor {
             throw new BusinessException(XrayErrorCode.CLIENT_IP_ALREADY_USED, reqVO.getIpId());
         }
 
-        // 远端不在此同步下发: agent reconcile 拉 DB 期望态后本地 adu/ado/adrules 收敛
-        sink.report("已入库, 远端由 agent reconcile 下发", 100);
+        // 远端不在此同步下发: agent 对账拉取期望态后在本地加用户 / 加出站 / 加路由
+        sink.report("已入库, 远端由 agent 对账下发", 100);
         log.info("[provision] DB-only OK server={} client={} email={} ip={}; 远端交 reconcile",
                 reqVO.getServerId(), clientId, clientEmail, landingSrv.getIpAddress());
         return entity;
@@ -114,20 +120,20 @@ public class ClientOpExecutor {
     /**
      * 吊销客户端
      *
-     * @param inboundEntityId xray_client.id
+     * @param inboundEntityId 客户端ID
      * @param progress        进度 sink, 允许为 null
      */
     public void doRevoke(String inboundEntityId, OpProgressSink progress) {
-        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
+        OpProgressSink sink = ObjectUtil.isNull(progress) ? OpProgressSink.noop() : progress;
 
         sink.report("加载客户端", 30);
-        XrayClientDO e = clientValidator.validateExists(inboundEntityId);
+        XrayClientDO e = xrayClientValidator.validateExists(inboundEntityId);
 
-        // 只写 DB: 删 client + 释放落地机 同事务原子 (释放失败一起回滚, 避免 client 没了落地机仍占用的泄漏); 远端由 agent reconcile 清掉
+        // 只写库: 删客户端 + 释放落地机 同事务原子 (释放失败一起回滚, 避免客户端没了落地机仍占用的泄漏); 远端由 agent 对账清掉
         sink.report("清理 DB + 释放落地机", 80);
         transactionTemplate.executeWithoutResult(txStatus -> {
             xrayClientMapper.deleteById(e.getId());
-            landingService.releaseForRevoke(e.getIpId());
+            resourceServerLandingService.releaseForRevoke(e.getIpId());
         });
 
         sink.report("已删, 远端由 agent reconcile 清理", 100);
@@ -136,16 +142,16 @@ public class ClientOpExecutor {
     }
 
     /**
-     * 轮换客户端 UUID (DB-only): 改库即期望态, 远端由 agent reconcile 收敛 (摘旧 UUID 用户 + 装新).
+     * 轮换客户端 UUID
      *
-     * @param inboundEntityId xray_client.id
+     * @param inboundEntityId 客户端ID
      * @param progress        进度 sink, 允许为 null
      * @return 改库后的客户端 (含新 UUID)
      */
     public XrayClientDO doRotate(String inboundEntityId, OpProgressSink progress) {
-        OpProgressSink sink = progress == null ? OpProgressSink.noop() : progress;
+        OpProgressSink sink = ObjectUtil.isNull(progress) ? OpProgressSink.noop() : progress;
         sink.report("加载客户端", 30);
-        XrayClientDO e = clientValidator.validateExists(inboundEntityId);
+        XrayClientDO e = xrayClientValidator.validateExists(inboundEntityId);
         String newUuid = UUID.randomUUID().toString();
         sink.report("更新 UUID 入库", 80);
         xrayClientMapper.updateClientUuid(e.getId(), newUuid);

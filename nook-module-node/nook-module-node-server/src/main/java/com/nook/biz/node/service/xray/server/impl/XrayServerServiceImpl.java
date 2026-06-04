@@ -35,7 +35,7 @@ public class XrayServerServiceImpl implements XrayServerService {
             log.info("[xray-server] insert server={} version={} apiPort={}",
                     entity.getServerId(), entity.getXrayVersion(), entity.getXrayApiPort());
         } else {
-            // 重装时 lastXrayUptime 清零, reconciler 后续重新探测
+            // 重装时清零上次启动时间, 由对账任务后续重新探测
             entity.setLastXrayUptime(null);
             xrayServerMapper.updateById(entity);
             log.info("[xray-server] update server={} version={} apiPort={}",

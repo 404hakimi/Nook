@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 public interface ResourceServerCapacityMapper extends BaseMapper<ResourceServerCapacityDO> {
 
     /**
-     * 业务阈值 partial update; null 字段不动 (Wrapper.set 显式 null 会写入, 故 if-set 跳过).
+     * 业务阈值增量更新; null 字段不动 (Wrapper.set 显式写 null 会落库, 故按条件跳过).
      */
     default int updateQuota(String serverId, Integer monthlyTrafficGb, Integer bandwidthLimitMbps,
                             String quotaResetPolicy, Integer resetDay) {

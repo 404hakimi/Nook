@@ -14,29 +14,29 @@ import java.util.Map;
 public interface ResourceServerRuntimeApi {
 
     /**
-     * 取单 server 运行时行.
+     * 取单台服务器运行时
      *
-     * @param serverId server 主键
-     * @return 运行时 DTO; 装机流程未跑完时 null
+     * @param serverId 服务器ID
+     * @return 运行时 DTO; 装机未完成时返 null
      */
     ResourceServerRuntimeRespDTO getByServerId(String serverId);
 
     /**
-     * 批量取运行时 (admin agent 列表用); 缺失 server 不在 map 里.
+     * 批量取服务器运行时
      *
-     * @param serverIds server 主键集
-     * @return key=serverId 的 map
+     * @param serverIds 服务器ID集合
+     * @return 服务器ID → 运行时 DTO (缺失的不在 map 内)
      */
     Map<String, ResourceServerRuntimeRespDTO> listByServerIds(Collection<String> serverIds);
 
     /**
-     * 心跳: UPSERT runtime, 更新 last_heartbeat_at + agent_version + last_agent_seen_ip + 清 consecutive_miss.
+     * 记录服务器心跳: 刷新最近心跳时刻、agent 版本与来源 IP, 并清零连续失联计数
      *
-     * @param serverId     server 主键
+     * @param serverId     服务器ID
      * @param at           心跳时刻
-     * @param agentVersion agent 自报版本; 可空表示不更新
-     * @param clientIp     HTTP 直连 IP
-     * @return 受影响行数; 0 表示装机时 runtime 行还没建, 调用方需告警
+     * @param agentVersion agent 自报版本; 空表示不更新
+     * @param clientIp     直连来源 IP
+     * @return 受影响行数; 0 表示运行时行尚未建立, 调用方需告警
      */
     int onHeartbeat(String serverId, LocalDateTime at, String agentVersion, String clientIp);
 }

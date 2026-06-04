@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.resource.impl;
 
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
@@ -44,7 +45,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     @Transactional(rollbackFor = Exception.class)
     public void applyNicTraffic(String serverId, long cumRxBytes, long cumTxBytes, Long bizUsedBytes) {
         ResourceServerCapacityDO cap = resourceServerCapacityMapper.selectById(serverId);
-        if (cap == null) {
+        if (ObjectUtil.isNull(cap)) {
             return; // 容量行装机时已建; 缺失则跳过(理论不发生)
         }
         LocalDate today = LocalDate.now(ZoneId.of(resetZone));
@@ -52,7 +53,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
         this.rolloverIfNeeded(cap, today);
         this.accumulate(cap, cumRxBytes, cumTxBytes);
         this.markQuotaReached(cap);
-        if (bizUsedBytes != null) {
+        if (ObjectUtil.isNotNull(bizUsedBytes)) {
             cap.setBizUsedBytes(bizUsedBytes); // socks5 业务流量累计(绝对值); 增量计量在 TradeLifecycleJob, 此处只覆盖, 不随周期清零
         }
 
@@ -63,13 +64,13 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     /** 周期翻篇: 跨过我方重置日则归档旧周期并清零 (FIXED 永不翻篇). */
     private void rolloverIfNeeded(ResourceServerCapacityDO cap, LocalDate today) {
         if (ResourceServerQuotaResetPolicyEnum.FIXED.matches(cap.getQuotaResetPolicy())) {
-            if (cap.getPeriodStart() == null) {
+            if (ObjectUtil.isNull(cap.getPeriodStart())) {
                 cap.setPeriodStart(today); // 仅记起点, 之后不再推进
             }
             return;
         }
         LocalDate periodStart = this.currentPeriodStart(cap, today);
-        if (cap.getPeriodStart() == null) {
+        if (ObjectUtil.isNull(cap.getPeriodStart())) {
             cap.setPeriodStart(periodStart); // 首次建周期, 不归档
         } else if (cap.getPeriodStart().isBefore(periodStart)) {
             this.archive(cap, periodStart);
@@ -83,8 +84,8 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
 
     /** 增量累加 (抗计数器归零 / 整机重置 / 首次上报). */
     private void accumulate(ResourceServerCapacityDO cap, long cumRx, long cumTx) {
-        if (cap.getLastCumRxBytes() == null) {
-            // 首次仅建游标, 不把历史全量计入
+        if (ObjectUtil.isNull(cap.getLastCumRxBytes())) {
+            // 首次仅建基准, 不把历史全量计入
             cap.setLastCumRxBytes(cumRx);
             cap.setLastCumTxBytes(cumTx);
             return;
@@ -98,10 +99,10 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
         cap.setLastCumTxBytes(cumTx);
     }
 
-    /** 配额到顶置 THROTTLED (停止分新用户 + 触发同地区切换, 由上层消费); 不限额则不动. */
+    /** 配额到顶置为已触发限流 (停止分新用户 + 触发同地区切换, 由上层消费); 不限额则不动. */
     private void markQuotaReached(ResourceServerCapacityDO cap) {
         Integer quotaGb = cap.getMonthlyTrafficGb();
-        if (quotaGb != null && quotaGb > 0 && nz(cap.getUsedTrafficBytes()) >= TrafficUnitUtils.gbToBytes(quotaGb)) {
+        if (ObjectUtil.isNotNull(quotaGb) && quotaGb > 0 && nz(cap.getUsedTrafficBytes()) >= TrafficUnitUtils.gbToBytes(quotaGb)) {
             cap.setThrottleState(ResourceServerThrottleStateEnum.THROTTLED.getState());
         }
     }
@@ -117,7 +118,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     /** 我方重置日 = capacity.reset_day(clamp 1..28); 取不到用缺省. */
     private int resolveResetDay(ResourceServerCapacityDO cap) {
         Integer day = cap.getResetDay();
-        return (day == null || day < 1 || day > 28) ? DEFAULT_RESET_DAY : day;
+        return (ObjectUtil.isNull(day) || day < 1 || day > 28) ? DEFAULT_RESET_DAY : day;
     }
 
     /** 把结束的周期写入历史表; (server_id, period_start) 唯一, 重复归档忽略. */
@@ -137,6 +138,6 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     }
 
     private static long nz(Long v) {
-        return v == null ? 0L : v;
+        return ObjectUtil.isNull(v) ? 0L : v;
     }
 }

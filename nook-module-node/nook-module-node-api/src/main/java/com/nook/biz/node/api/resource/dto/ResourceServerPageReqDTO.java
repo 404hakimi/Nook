@@ -16,10 +16,10 @@ public class ResourceServerPageReqDTO extends PageParam {
     /** 名称模糊匹. */
     private String name;
 
-    /** IP / host 模糊匹 (后端走 credential 子表过滤再 join 主表). */
+    /** IP / 主机模糊匹配. */
     private String host;
 
-    /** 装机生命周期 INSTALLING / READY / LIVE / RETIRED. */
+    /** 装机生命周期: 装机中 / 待上线 / 运行中 / 已退役. */
     private String lifecycleState;
 
     /** 区域码. */

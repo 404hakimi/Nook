@@ -65,9 +65,9 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
     @Resource
-    private ResourceServerMapper serverMapper;
+    private ResourceServerMapper resourceServerMapper;
     @Resource
-    private ResourceServerLandingMapper landingMapper;
+    private ResourceServerLandingMapper resourceServerLandingMapper;
     @Resource
     private ResourceServerCredentialMapper resourceServerCredentialMapper;
     @Resource
@@ -83,8 +83,8 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
         resourceServerLandingValidator.validateSshCredentialReady(server, cred);
 
         // 装机配置写回 landing 子表; 重读 DO 保证 buildInstallVars 拿到最新值
-        applyDeployConfig(serverId, reqVO);
-        ResourceServerLandingDO landing = landingMapper.selectByServerId(serverId);
+        this.applyDeployConfig(serverId, reqVO);
+        ResourceServerLandingDO landing = resourceServerLandingMapper.selectByServerId(serverId);
         resourceServerLandingValidator.validateSocks5ConfigReady(landing);
 
         Duration emitterTimeout = Duration.ofSeconds(cred.getInstallTimeoutSeconds())
@@ -120,7 +120,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
         ResourceServerLandingDO patch = new ResourceServerLandingDO();
         patch.setServerId(serverId);
         patch.setAutostartEnabled(enabled ? 1 : 0);
-        landingMapper.updateBySelective(patch);
+        resourceServerLandingMapper.updateBySelective(patch);
         log.info("[setAutostart] serverId={} ip={} enabled={}", serverId, server.getIpAddress(), enabled);
     }
 
@@ -166,7 +166,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
         patch.setAutostartEnabled(reqVO.getAutostartEnabled());
         patch.setFirewallEnabled(reqVO.getFirewallEnabled());
         patch.setLogRotateEnabled(reqVO.getLogRotateEnabled());
-        landingMapper.updateBySelective(patch);
+        resourceServerLandingMapper.updateBySelective(patch);
     }
 
     /**
@@ -191,19 +191,19 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
             return new PostInstallFacts(ver, sysd.getUptimeFrom());
         });
 
-        finalizeInstall(server, facts);
+        this.finalizeInstall(server, facts);
         lineSink.accept("[nook] ✔ 装机完成, lifecycle → LIVE, serverId=" + server.getId() + "\n");
         log.info("[doInstallSocks5] OK serverId={} ip={} lifecycle=LIVE version={}",
                 server.getId(), server.getIpAddress(), facts.version());
     }
 
     /**
-     * 装机成功后的 DB 回写: landing 子表 (installedAt/danteVersion/lastDanteUptime) + 主表 lifecycle → LIVE.
+     * 装机成功后回写: 落地节点安装信息 + 生命周期转为运行中
      *
-     * <p>不加事务: 两条 update 是同一事件的两个独立事实记录, 无原子依赖.
-     * <p>极端场景 (landing 写成功但 lifecycle 切失败) 重试装机即可 (dpkg 同版本不会真重装, 幂等).
+     * <p>不加事务: 两条更新是同一事件的两个独立事实记录, 无原子依赖.
+     * <p>极端场景 (安装信息写成功但生命周期切换失败) 重试装机即可 (同版本幂等, 不会真重装).
      *
-     * @param server server 主表 DO
+     * @param server 服务器主表 DO
      * @param facts  装机后远端探测事实
      */
     private void finalizeInstall(ResourceServerDO server, PostInstallFacts facts) {
@@ -213,9 +213,9 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
         landingPatch.setInstalledAt(now);
         landingPatch.setDanteVersion(facts.version());
         landingPatch.setLastDanteUptime(DateUtils.parseOffsetOrFallback(facts.uptimeRaw(), UPTIME_FORMATTER, now));
-        landingMapper.updateBySelective(landingPatch);
+        resourceServerLandingMapper.updateBySelective(landingPatch);
         if (!ResourceServerLifecycleEnum.LIVE.matches(server.getLifecycleState())) {
-            serverMapper.updateLifecycleState(server.getId(), ResourceServerLifecycleEnum.LIVE.getState());
+            resourceServerMapper.updateLifecycleState(server.getId(), ResourceServerLifecycleEnum.LIVE.getState());
         }
     }
 
@@ -235,7 +235,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
     private SessionCredential buildOpsSshCred(ResourceServerDO server) {
         ResourceServerCredentialDO cred = resourceServerCredentialMapper.selectById(server.getId());
         resourceServerLandingValidator.validateSshCredentialReady(server, cred);
-        return buildSshCred(server, cred, "ops");
+        return this.buildSshCred(server, cred, "ops");
     }
 
     /**
@@ -286,7 +286,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
                 Map.entry("LOG_ROTATE_ENABLED", String.valueOf(l.getLogRotateEnabled())));
     }
 
-    /** dpkg-query 拿 dante 包版本. */
+    /** 查询 dante 安装包版本. */
     private String readDanteVersion(SshSession session) {
         String out = session.ssh().exec(
                 "dpkg-query -W -f='${Version}' dante-server 2>/dev/null || true").getStdout();

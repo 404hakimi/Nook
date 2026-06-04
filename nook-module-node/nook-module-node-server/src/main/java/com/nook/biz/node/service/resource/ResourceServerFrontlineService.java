@@ -42,22 +42,22 @@ public interface ResourceServerFrontlineService {
     void update(String serverId, ResourceServerFrontlineUpdateReqVO reqVO);
 
     /**
-     * 批量加载线路机列表的运行时聚合 (credential / runtime / capacity / xray; agent_runtime_config 由 agent 模块跨模块查)
+     * 批量加载线路机列表的运行时聚合 (凭据 / 运行时 / 容量 / xray 实例)
      *
-     * @param serverIds server id 集合
+     * @param serverIds 服务器编号集合
      * @return 运行时聚合包
      */
     RuntimeBundle batchLoadRuntimeBundle(Collection<String> serverIds);
 
     /**
-     * 加载单条线路机的运行时聚合 (detail 页 header 用; 等价 batchLoad 单条收敛)
+     * 加载单条线路机的运行时聚合
      *
      * @param serverId 线路机编号
      * @return 单条运行时聚合
      */
     RuntimeBundle loadRuntimeBundleSingle(String serverId);
 
-    /** 列表运行时聚合 (4 个子表 Map; agent_runtime_config 跨模块查不在此). */
+    /** 线路机运行时聚合 (4 张子表). */
     record RuntimeBundle(
             Map<String, ResourceServerCredentialDO> credentialMap,
             Map<String, ResourceServerRuntimeDO> runtimeMap,

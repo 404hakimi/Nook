@@ -78,7 +78,7 @@ public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontli
 
     @Override
     public RuntimeBundle loadRuntimeBundleSingle(String serverId) {
-        return batchLoadRuntimeBundle(Set.of(serverId));
+        return this.batchLoadRuntimeBundle(Set.of(serverId));
     }
 
     @Override

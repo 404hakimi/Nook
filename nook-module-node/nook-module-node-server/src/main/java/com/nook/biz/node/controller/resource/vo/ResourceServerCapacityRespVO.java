@@ -10,6 +10,7 @@ import lombok.Data;
 @Data
 public class ResourceServerCapacityRespVO {
 
+    /** 服务器编号. */
     private String serverId;
 
     /** 机房 NIC 月配额 GB; 0/null = 不限. 同时是 throttle_state 90% 触发的基数 (业务阈值). */
@@ -33,6 +34,6 @@ public class ResourceServerCapacityRespVO {
     /** 按月流量重置日 1-28; FIXED 时为空. */
     private Integer resetDay;
 
-    /** NORMAL / THROTTLED. */
+    /** 限流状态: 正常 / 已触发限流. */
     private String throttleState;
 }

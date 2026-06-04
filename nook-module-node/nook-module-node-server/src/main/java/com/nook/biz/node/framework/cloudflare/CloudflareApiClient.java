@@ -1,5 +1,7 @@
 package com.nook.biz.node.framework.cloudflare;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
@@ -24,8 +26,8 @@ public class CloudflareApiClient {
     private static final int TIMEOUT_MS = 10_000;
 
     /**
-     * 自动找 zone + upsert A 记录; 业务侧调这一个就够.
-     * 失败抛 BusinessException, 由调用方决定 warn 或终止.
+     * 自动找 zone + 新增或更新 A 记录; 业务侧调这一个就够.
+     * 失败抛 BusinessException, 由调用方决定告警或终止.
      *
      * @param apiToken    Cloudflare API Token
      * @param fullDomain  完整域名 (e.g. server01.example.com); 最后两段当 zone candidate
@@ -43,7 +45,7 @@ public class CloudflareApiClient {
         String url = API_BASE + "/zones?name=" + rootDomain;
         JSONObject body = httpGet(apiToken, url);
         JSONArray result = body.getJSONArray("result");
-        if (result == null || result.isEmpty()) {
+        if (CollUtil.isEmpty(result)) {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, rootDomain,
                     "Cloudflare 未找到 zone (root=" + rootDomain + "); 检查 token 是否覆盖该 zone");
         }
@@ -67,7 +69,7 @@ public class CloudflareApiClient {
         payload.put("ttl", 60);
         payload.put("proxied", proxied);
 
-        if (existing != null && !existing.isEmpty()) {
+        if (CollUtil.isNotEmpty(existing)) {
             String recordId = existing.getJSONObject(0).getString("id");
             String putUrl = API_BASE + "/zones/" + zoneId + "/dns_records/" + recordId;
             httpJson(apiToken, putUrl, "PUT", payload);
@@ -119,7 +121,7 @@ public class CloudflareApiClient {
         }
         JSONObject json = JSONObject.parseObject(body);
         if (!Boolean.TRUE.equals(json.getBoolean("success"))) {
-            String errMsg = json.getJSONArray("errors") != null
+            String errMsg = ObjectUtil.isNotNull(json.getJSONArray("errors"))
                     ? json.getJSONArray("errors").toJSONString()
                     : StrUtil.maxLength(body, 300);
             log.warn("[cf-api] {} success=false errors={}", tag, errMsg);

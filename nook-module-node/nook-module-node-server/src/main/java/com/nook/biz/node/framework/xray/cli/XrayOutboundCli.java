@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -78,7 +77,7 @@ public class XrayOutboundCli {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, e,
                     session.serverId(), "listOutbounds: " + StrUtil.maxLength(e.getMessage(), 200));
         }
-        if (StrUtil.isBlank(stdout)) return Collections.emptyMap();
+        if (StrUtil.isBlank(stdout)) return Map.of();
         Map<String, String> out = new LinkedHashMap<>();
         for (String line : stdout.split("\\R")) {
             if (StrUtil.isBlank(line)) continue;
@@ -116,10 +115,9 @@ public class XrayOutboundCli {
     /**
      * 共用 ado 命令封装; 经 base64 把 config JSON 喂给 xray, 用 xray-core 文档化的 {@code stdin:} 显式语法.
      *
-     * <p>v26.3.27 源码 ado 在 unnamedArgs 为空时会自动补 {@code "stdin:"}, 但这是隐式 fallback,
-     * 显式传 {@code stdin:} 跟 adu 风格一致, 跨版本稳健.
+     * <p>ado 在参数为空时会自动补 {@code "stdin:"}, 但这是隐式补全; 显式传 {@code stdin:} 跟 adu 风格一致, 跨版本稳健.
      *
-     * @return ado stdout (调用方靠 "adding: <tag>" 字样做 sanity-check)
+     * @return ado stdout (调用方靠 "adding: <tag>" 字样做自检)
      */
     private String execAdo(SshSession session, String xrayBin, int apiPort, String tag, String json) {
         String b64 = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
@@ -180,7 +178,7 @@ public class XrayOutboundCli {
      * 把 CLI add 的 BusinessException 翻译成业务错误码 (识别 "already exists" 归入 CLIENT_DUPLICATE).
      *
      * @param be       原始异常
-     * @param serverId resource_server.id
+     * @param serverId 服务器ID
      * @param tag      outbound tag
      * @return 翻译后的 BusinessException
      */
@@ -198,7 +196,7 @@ public class XrayOutboundCli {
      * 把 CLI remove 的 BusinessException 翻译成业务错误码 (识别 "not found" 归入 CLIENT_NOT_FOUND).
      *
      * @param be       原始异常
-     * @param serverId resource_server.id
+     * @param serverId 服务器ID
      * @param tag      outbound tag
      * @return 翻译后的 BusinessException
      */

@@ -24,7 +24,7 @@ public class ResourceServerCreateReqVO {
     @Size(max = 64, message = "name 长度不能超过 64")
     private String name;
 
-    /** 出网真实 IP / 域名 (= SSH 连接目标; canonical). */
+    /** 出网真实 IP / 域名 (即 SSH 连接目标). */
     @NotBlank(message = "IP 地址不能为空")
     @Size(max = 128, message = "IP 地址长度不能超过 128")
     private String ipAddress;
@@ -34,7 +34,7 @@ public class ResourceServerCreateReqVO {
     @Pattern(regexp = "^[A-Z][A-Z0-9\\-]+$", message = "区域码须大写, e.g., JP-TYO / US-LAX / HK")
     private String region;
 
-    /** IP 类型 FK → system_ip_type.id; landing 必填, frontline 不传. */
+    /** IP 类型ID; 落地机必填, 线路机不传. */
     @Size(max = 32, message = "ipTypeId 长度不能超过 32")
     private String ipTypeId;
 

@@ -23,7 +23,7 @@ public enum XrayErrorCode implements ErrorCode {
     SERVER_STATE_NOT_FOUND(6013, "server %s 的 nook 状态记录不存在"),
     /** provision 入参跨字段校验失败 (如 flow 跟 protocol 不匹配 / expiry 已过期 / limitIp 超上限) */
     CLIENT_PROVISION_INVALID(6014, "客户端开通参数非法: %s"),
-    /** IP 已被其他 client 占用; 跟 xray_client.uk_ip_id UNIQUE 约束对齐 */
+    /** IP 已被其他客户端占用 */
     CLIENT_IP_ALREADY_USED(6015, "IP %s 已被其他客户端占用, 不能重复 provision"),
     /** 重装 xray 时改了客户面连接参数 (port / wsPath / domain), 现有客户 URL 会失效, 拒绝变更 */
     NODE_PARAM_CHANGE_BLOCKED(6017, "server %s 有 %s 个活客户, 客户面参数变更被拒: %s; 请先 revoke 全部客户或保持参数不变"),

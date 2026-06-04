@@ -13,33 +13,46 @@ import java.time.LocalDateTime;
 @Data
 public class XrayClientRespVO {
 
+    /** 客户端编号. */
     private String id;
+    /** 服务器编号 (线路机). */
     private String serverId;
-    /** server 别名 (resource_server.name); 由 controller 预拉 + convert 填; server 已删该字段为空, 由前端 fallback 到 serverId. */
+    /** 线路机别名 (服务器删除后为空). */
     private String serverName;
-    /** server 主机地址 (resource_server.host); enrich 来源同 serverName. */
+    /** 线路机主机地址. */
     private String serverHost;
+    /** 落地节点编号. */
     private String ipId;
-    /** 落地节点 IP (resource_server.ip_address); 列表 enrich 后填; 落地缺失时为空. */
+    /** 落地节点 IP (落地缺失时为空). */
     private String ipAddress;
+    /** 所属会员. */
     private String memberUserId;
+    /** 协议. */
     private String protocol;
+    /** 传输方式. */
     private String transport;
+    /** 监听 IP. */
     private String listenIp;
+    /** 监听端口. */
     private Integer listenPort;
     /**
      * 协议密钥
      */
     private String clientUuid;
+    /** 客户端标识 (email). */
     private String clientEmail;
+    /** 客户端状态: 运行 / 已停 / 待同步 / 远端不存在. */
     private Integer status;
 
+    /** 最近同步时刻. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastSyncedAt;
 
+    /** 创建时间. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 }

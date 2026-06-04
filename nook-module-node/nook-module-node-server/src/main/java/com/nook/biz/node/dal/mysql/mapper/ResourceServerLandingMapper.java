@@ -29,7 +29,7 @@ public interface ResourceServerLandingMapper extends BaseMapper<ResourceServerLa
         return selectBatchIds(serverIds);
     }
 
-    /** 占用 CAS: AVAILABLE → OCCUPIED; 防并发双卖. */
+    /** 占用 (条件更新: 可用 → 已占用); 防并发双卖. */
     default int markOccupied(String serverId, String memberUserId, LocalDateTime at) {
         return update(null, Wrappers.<ResourceServerLandingDO>lambdaUpdate()
                 .set(ResourceServerLandingDO::getStatus, ResourceServerLandingStatusEnum.OCCUPIED.getState())
@@ -41,7 +41,7 @@ public interface ResourceServerLandingMapper extends BaseMapper<ResourceServerLa
                 .eq(ResourceServerLandingDO::getStatus, ResourceServerLandingStatusEnum.AVAILABLE.getState()));
     }
 
-    /** 退订释放: → AVAILABLE, 立即可再分配 (清 cooling/占用字段). */
+    /** 退订释放: 转为可用, 立即可再分配 (清占用字段). */
     default int markAvailable(String serverId) {
         return update(null, Wrappers.<ResourceServerLandingDO>lambdaUpdate()
                 .set(ResourceServerLandingDO::getStatus, ResourceServerLandingStatusEnum.AVAILABLE.getState())
@@ -58,7 +58,7 @@ public interface ResourceServerLandingMapper extends BaseMapper<ResourceServerLa
                 .eq(ResourceServerLandingDO::getServerId, patch.getServerId()));
     }
 
-    /** 按 ip_type 找一个 AVAILABLE 的行 (assign_count 升序轮换). */
+    /** 按 IP 类型找一个可用的行 (分配次数升序轮换). */
     default ResourceServerLandingDO selectOneAvailable(String ipTypeId) {
         return selectOne(Wrappers.<ResourceServerLandingDO>lambdaQuery()
                 .eq(ResourceServerLandingDO::getStatus, ResourceServerLandingStatusEnum.AVAILABLE.getState())

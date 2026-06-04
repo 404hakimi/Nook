@@ -8,7 +8,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,16 +17,16 @@ import org.springframework.stereotype.Component;
  * @author nook
  */
 @Component
-@RequiredArgsConstructor
 public class ResourceServerValidator {
 
-    private final ResourceServerMapper resourceServerMapper;
+    @Resource
+    private ResourceServerMapper resourceServerMapper;
 
     /**
      * 校验服务器存在
      *
-     * @param id resource_server.id
-     * @return 服务器主表
+     * @param id 服务器ID
+     * @return ResourceServerDO
      */
     public ResourceServerDO validateExists(String id) {
         ResourceServerDO e = resourceServerMapper.selectById(id);
@@ -39,11 +39,11 @@ public class ResourceServerValidator {
     /**
      * 校验别名全局唯一
      *
-     * @param id   当前行 id (Update 传, Create 传 null 表示不排除自身)
+     * @param id   当前服务器ID (更新时传, 新增传 null 表示不排除自身)
      * @param name 别名
      */
     public void validateNameUnique(String id, String name) {
-        boolean dup = id == null
+        boolean dup = ObjectUtil.isNull(id)
                 ? resourceServerMapper.existsByName(name)
                 : resourceServerMapper.existsByNameExcludingId(name, id);
         if (dup) {
@@ -52,23 +52,23 @@ public class ResourceServerValidator {
     }
 
     /**
-     * 校验 serverType 取值在枚举范围内
+     * 校验服务器角色取值在枚举范围内
      *
-     * @param serverType frontline / landing
+     * @param serverType 服务器角色
      */
     public void validateServerType(String serverType) {
-        if (ResourceServerTypeEnum.fromState(serverType) == null) {
+        if (ObjectUtil.isNull(ResourceServerTypeEnum.fromState(serverType))) {
             throw new BusinessException(CommonErrorCode.PARAM_INVALID, "未知 serverType: " + serverType);
         }
     }
 
     /**
-     * 校验 lifecycleState 取值在枚举范围内
+     * 校验生命周期状态取值在枚举范围内
      *
-     * @param state INSTALLING / READY / LIVE / RETIRED
+     * @param state 生命周期状态
      */
     public void validateLifecycleState(String state) {
-        if (ResourceServerLifecycleEnum.fromState(state) == null) {
+        if (ObjectUtil.isNull(ResourceServerLifecycleEnum.fromState(state))) {
             throw new BusinessException(CommonErrorCode.PARAM_INVALID, "未知 lifecycleState: " + state);
         }
     }

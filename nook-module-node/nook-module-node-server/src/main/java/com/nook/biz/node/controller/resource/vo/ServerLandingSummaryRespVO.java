@@ -14,13 +14,20 @@ public class ServerLandingSummaryRespVO {
     private long total;
 
     // ===== lifecycle 维度 =====
+    /** 装机中数量. */
     private long installing;
+    /** 待上线数量. */
     private long ready;
+    /** 运行中数量. */
     private long live;
+    /** 已退役数量. */
     private long retired;
 
     // ===== 占用状态维度 =====
+    /** 可用数量. */
     private long available;
+    /** 已占用数量. */
     private long occupied;
+    /** 预留数量. */
     private long reserved;
 }

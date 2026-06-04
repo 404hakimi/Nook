@@ -23,14 +23,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * {@link XrayClientReconcileApi} 实现; 从 DB 拼某线路机应存在的全部客户端期望态 (含预拼 adu/ado/adrules JSON).
+ * {@link XrayClientReconcileApi} 实现; 从数据库拼某线路机应存在的全部客户端期望态 (含预先拼好的下发请求 JSON: 加用户 / 加出站 / 加路由).
  *
  * @author nook
  */
@@ -65,7 +64,7 @@ public class XrayClientReconcileApiImpl implements XrayClientReconcileApi {
         if (CollUtil.isEmpty(running)) {
             return List.of();
         }
-        // 落地机主表 + 落地子表: 按 ip_id 集合各批量查一次, 避免逐 client 查 (N+1)
+        // 落地机主表 + 落地子表: 按 ip_id 集合各批量查一次, 避免逐个客户端查询
         Set<String> ipIds = CollectionUtils.convertSet(running, XrayClientDO::getIpId);
         Map<String, ResourceServerDO> landingSrvMap = CollUtil.isEmpty(ipIds) ? Map.of()
                 : CollectionUtils.convertMap(resourceServerMapper.selectBatchIds(ipIds), ResourceServerDO::getId);
@@ -101,7 +100,7 @@ public class XrayClientReconcileApiImpl implements XrayClientReconcileApi {
             dto.setAdoJson(xrayOutboundCli.buildSocksOutboundJson(outboundTag, landingSrv.getIpAddress(),
                     landing.getSocks5Port(), landing.getSocks5Username(), landing.getSocks5Password()));
             dto.setAdrulesJson(xrayRoutingCli.buildAddRuleJson(ruleTag,
-                    Collections.singletonList(c.getClientEmail()), outboundTag));
+                    List.of(c.getClientEmail()), outboundTag));
             out.add(dto);
         }
         return out;

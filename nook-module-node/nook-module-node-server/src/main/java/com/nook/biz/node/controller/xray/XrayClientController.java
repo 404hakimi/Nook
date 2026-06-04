@@ -8,7 +8,7 @@ import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.service.xray.client.XrayClientService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -29,10 +28,10 @@ import java.util.Set;
 @RestController
 @RequestMapping("/admin/xray/client")
 @Validated
-@RequiredArgsConstructor
 public class XrayClientController {
 
-    private final XrayClientService xrayClientService;
+    @Resource
+    private XrayClientService xrayClientService;
 
     /**
      * 获得 xray 客户端分页
@@ -83,9 +82,9 @@ public class XrayClientController {
         return Result.ok(xrayClientService.getXrayClientCredential(id));
     }
 
-    /** 单条 detail / rotate 共用 enrich 路径. */
+    /** 单条详情 / 轮换共用的回填路径. */
     private XrayClientRespVO convertOne(XrayClientDO entity) {
-        List<XrayClientDO> single = Collections.singletonList(entity);
+        List<XrayClientDO> single = List.of(entity);
         Set<String> serverIds = XrayClientConvert.collectServerIds(single);
         Set<String> ipIds = XrayClientConvert.collectIpIds(single);
         XrayClientService.EnrichBundle bundle = xrayClientService.loadEnrichBundle(serverIds, ipIds);

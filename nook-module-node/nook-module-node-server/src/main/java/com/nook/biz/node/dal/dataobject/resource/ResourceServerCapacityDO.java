@@ -35,13 +35,13 @@ public class ResourceServerCapacityDO {
     /** 当周期已用流量 = 入站 + 出站 (增量累加; 重置日清零). UI 换算 GB/MB. */
     private Long usedTrafficBytes;
 
-    /** socks5 业务流量累计字节 (双向之和; 仅落地机, agent 读 nft 计数器上报; 已排除 agent/系统流量). 用户套餐计量用, 累计值不随周期清零. */
+    /** socks5 业务流量累计字节 (双向之和; 仅落地机, agent 读防火墙计数器上报; 已排除 agent/系统流量). 用户套餐计量用, 累计值不随周期清零. */
     private Long bizUsedBytes;
 
-    /** 上次上报的网卡累计入站字节(增量计算游标); null=尚未建游标. */
+    /** 上次上报的网卡累计入站字节(算增量用的基准值); null=尚未建立基准. */
     private Long lastCumRxBytes;
 
-    /** 上次上报的网卡累计出站字节(增量计算游标). */
+    /** 上次上报的网卡累计出站字节(算增量用的基准值). */
     private Long lastCumTxBytes;
 
     /** 当前流量周期起点(我方重置日). */

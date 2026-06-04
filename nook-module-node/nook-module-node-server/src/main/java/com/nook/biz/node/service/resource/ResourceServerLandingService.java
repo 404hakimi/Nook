@@ -27,10 +27,10 @@ import java.util.Map;
 public interface ResourceServerLandingService {
 
     /**
-     * 初始化 landing 子表 + dante install 默认值; 由统一创建 server 流程调用
+     * 初始化落地节点子表与 dante 安装默认值
      *
-     * @param serverId 落地节点编号
-     * @param ipTypeId IP 类型 FK
+     * @param serverId 落地节点ID
+     * @param ipTypeId IP 类型ID
      */
     void initSubtables(String serverId, String ipTypeId);
 
@@ -66,9 +66,11 @@ public interface ResourceServerLandingService {
     void updateBilling(String id, ServerLandingBillingUpdateReqVO reqVO);
 
     /**
-     * 更新容量阈值 (限速 / 月流量上限 / 重置策略; rxBytes/txBytes/throttleState 由 agent / 状态机维护)
+     * 更新容量阈值 (限速 / 月流量上限 / 重置策略)
      *
-     * @param id    落地节点编号
+     * <p>实际用量与限流状态由 agent 与状态机维护, 不在此更新.
+     *
+     * @param id    落地节点ID
      * @param reqVO 容量入参
      */
     void updateCapacity(String id, ServerLandingCapacityUpdateReqVO reqVO);
@@ -138,7 +140,7 @@ public interface ResourceServerLandingService {
     ResourceServerDO occupyById(String serverId, String memberUserId);
 
     /**
-     * 退订释放落地节点 (直接转 AVAILABLE, 立即可再分配; 无冷却)
+     * 退订释放落地节点 (直接转为可用, 立即可再分配)
      *
      * @param serverId 落地节点编号
      */
@@ -153,7 +155,7 @@ public interface ResourceServerLandingService {
     Map<String, ResourceServerLandingDO> getLandingMap(Collection<String> serverIds);
 
     /**
-     * 批量获得 5 张子表
+     * 批量获得 4 张子表
      *
      * @param serverIds 落地节点编号集合
      * @return 子表批量返回包
@@ -161,34 +163,36 @@ public interface ResourceServerLandingService {
     SubtablesBundle batchLoadSubtables(Collection<String> serverIds);
 
     /**
-     * 批量查落地机概要 (主表 lifecycle + landing 子表 status/ipType/ipAddress)
+     * 批量查落地机概要 (含生命周期、占用状态、IP 类型、IP 地址)
      *
      * @param serverIds 落地节点编号集合
-     * @return 概要列表 (不存在的 id 跳过)
+     * @return 概要列表 (不存在的跳过)
      */
     List<LandingSummaryDTO> listSummaryByServerIds(Collection<String> serverIds);
 
     /**
-     * 查匹配套餐的 LIVE 落地机 (同区域 + 同 IP 类型 + 容量达标; 落地机配额/带宽为 0/null 视为不限)
+     * 查匹配套餐的运行中落地机 (同区域 + 同 IP 类型 + 容量达标)
+     *
+     * <p>落地机配额 / 带宽为 0 或空视为不限.
      *
      * @param region           区域码
      * @param ipTypeId         IP 类型编号
      * @param minTrafficGb     套餐月流量 (落地机配额须 ≥)
      * @param minBandwidthMbps 套餐带宽 (落地机带宽须 ≥)
-     * @return 匹配的 LIVE 落地机概要 (含 status, 供算容量 / 挑机)
+     * @return 匹配的运行中落地机概要
      */
     List<LandingSummaryDTO> findMatchingForPlan(String region, String ipTypeId,
                                                 int minTrafficGb, int minBandwidthMbps);
 
     /**
-     * 批量算套餐落地机池容量 (各规格匹配后按 status 分桶)
+     * 批量算套餐落地机池容量 (各规格匹配后按占用状态分桶)
      *
-     * @param specs 套餐规格集合 (planId + 区域 + IP类型 + 流量 + 带宽)
-     * @return planId → 容量 (total/available/occupied)
+     * @param specs 套餐规格集合
+     * @return 套餐ID → 容量 (总数 / 可用 / 占用)
      */
     Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs);
 
-    /** 4 张子表批量返回包 (SSH 凭据走公共 /admin/resource/server/get-credential, 不在此包). */
+    /** 落地节点 4 张子表批量返回包. */
     record SubtablesBundle(
             Map<String, ResourceServerLandingDO> landings,
             Map<String, ResourceServerBillingDO> billings,

@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -42,7 +41,7 @@ public class XrayRoutingCli {
         String json = buildAddRuleJson(ruleTag, userEmails, outboundTag);
         String b64 = Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
         // --append 让 xray 把新规则 append 到现有 routing rules 末尾, 不替换全部;
-        // stdin: 是 xray-core 文档化语法 (跟 adu/adi/ado 一致), 不依赖 adrules 在空 args 时的隐式 fallback.
+        // stdin: 是 xray-core 文档化语法 (跟 adu/adi/ado 一致), 不依赖 adrules 在空参数时的隐式补全.
         String cmd = "echo '" + b64 + "' | base64 -d | " + xrayBin + " api adrules --server=127.0.0.1:" + apiPort
                 + " --append stdin:";
         try {
@@ -84,7 +83,7 @@ public class XrayRoutingCli {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, e,
                     session.serverId(), "listRuleTags: " + StrUtil.maxLength(e.getMessage(), 200));
         }
-        if (StrUtil.isBlank(stdout)) return Collections.emptySet();
+        if (StrUtil.isBlank(stdout)) return Set.of();
         return Arrays.stream(stdout.split("\\R"))
                 .map(String::trim)
                 .filter(StrUtil::isNotBlank)

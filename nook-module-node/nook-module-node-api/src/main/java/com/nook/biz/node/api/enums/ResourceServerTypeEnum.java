@@ -6,7 +6,7 @@ import lombok.Getter;
 import java.util.Arrays;
 
 /**
- * 服务器角色; DB 字段 resource_server.server_type
+ * 服务器角色
  *
  * @author nook
  */

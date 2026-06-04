@@ -1,5 +1,6 @@
 package com.nook.biz.node.framework.server.probe;
 
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.config.ServerOpsProperties;
 import com.nook.biz.node.api.enums.XrayErrorCode;
@@ -9,7 +10,7 @@ import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -24,7 +25,6 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ServerProbe {
 
     /** 日志默认行数 / 上限; 上限 5000 防止前端误传超大值把 journalctl 拖死. */
@@ -40,7 +40,8 @@ public class ServerProbe {
      */
     private static final Pattern LOG_KEYWORD_PATTERN = Pattern.compile("^[\\p{L}\\p{N} ._\\-:/@]{1,128}$");
 
-    private final ServerOpsProperties serverOpsProperties;
+    @Resource
+    private ServerOpsProperties serverOpsProperties;
 
     /**
      * 在已 acquire 的 session 上跑 'true' 验证 shell 通道; 与"无法连"区分由业务侧捕获 acquire 异常.
@@ -156,7 +157,7 @@ public class ServerProbe {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
                     session.serverId(), "非法 systemd unit 名: " + unit);
         }
-        int lines = (logLines == null || logLines <= 0)
+        int lines = (ObjectUtil.isNull(logLines) || logLines <= 0)
                 ? DEFAULT_LOG_LINES
                 : Math.min(logLines, MAX_LOG_LINES);
         String level = normalizeLevel(logLevel);
@@ -168,7 +169,7 @@ public class ServerProbe {
         // keyword: 字符白名单校验 + 单引号包裹; 非法直接拒绝, 不静默忽略以免误以为搜了空字符串
         String normalizedKeyword = StrUtil.isBlank(keyword) ? null : keyword.trim();
         String grepClause = "";
-        if (normalizedKeyword != null) {
+        if (ObjectUtil.isNotNull(normalizedKeyword)) {
             if (!LOG_KEYWORD_PATTERN.matcher(normalizedKeyword).matches()) {
                 throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
                         session.serverId(), "非法搜索关键词 (仅允许字母/数字/中文/空格/._-:/@): " + keyword);
@@ -209,13 +210,13 @@ public class ServerProbe {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
                     session.serverId(), "非法日志文件路径: " + filePath);
         }
-        int lines = (logLines == null || logLines <= 0)
+        int lines = (ObjectUtil.isNull(logLines) || logLines <= 0)
                 ? DEFAULT_LOG_LINES
                 : Math.min(logLines, MAX_LOG_LINES);
 
         String normalizedKeyword = StrUtil.isBlank(keyword) ? null : keyword.trim();
         String grepClause = "";
-        if (normalizedKeyword != null) {
+        if (ObjectUtil.isNotNull(normalizedKeyword)) {
             if (!LOG_KEYWORD_PATTERN.matcher(normalizedKeyword).matches()) {
                 throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED,
                         session.serverId(),
@@ -228,7 +229,7 @@ public class ServerProbe {
                 + grepClause + " 2>/dev/null || true";
         String out = session.ssh().exec(cmd).getStdout();
         return new JournalLogSnapshot(filePath, lines, "file", normalizedKeyword,
-                out == null ? "" : out);
+                ObjectUtil.isNull(out) ? "" : out);
     }
 
     /**
@@ -244,7 +245,7 @@ public class ServerProbe {
                 + "ufw status verbose 2>&1 || true; "
                 + "else echo '(ufw 未安装)'; fi";
         String out = session.ssh().exec(cmd).getStdout();
-        return out == null ? "" : out.trim();
+        return ObjectUtil.isNull(out) ? "" : out.trim();
     }
 
     /**

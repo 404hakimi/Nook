@@ -15,7 +15,9 @@ import java.time.LocalDateTime;
 @Data
 public class ServerLandingRespVO {
 
+    /** 落地节点编号. */
     private String id;
+    /** 别名. */
     private String name;
 
     /** 区域码. */
@@ -24,13 +26,15 @@ public class ServerLandingRespVO {
     /** IP 类型. */
     private String ipTypeId;
 
-    /** 装机生命周期 (INSTALLING/READY/LIVE/RETIRED). */
+    /** 装机生命周期: 装机中 / 待上线 / 运行中 / 已退役. */
     private String lifecycleState;
 
     /** 出网真实 IP. */
     private String ipAddress;
 
+    /** SOCKS5 端口. */
     private Integer socks5Port;
+    /** SOCKS5 用户名. */
     private String socks5Username;
 
     /** 明文密码; admin 后台展示. */
@@ -71,6 +75,7 @@ public class ServerLandingRespVO {
     /** SOCKS5 安装目录. */
     private String installDir;
 
+    /** 装机完成时刻. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime installedAt;
 
@@ -80,27 +85,39 @@ public class ServerLandingRespVO {
     /** agent 鉴权 token; 装机时一次性签发. */
     private String agentToken;
 
+    /** 备注. */
     private String remark;
 
     // SSH 凭据从 /admin/resource/server/get-credential 单独获取, 不在此 VO
 
     // ===== 账面 (billing 子表) =====
+    /** 月成本. */
     private BigDecimal costMonthly;
+    /** 账单日. */
     private Integer billingCycleDay;
 
+    /** 到期时间. */
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate expiresAt;
 
     // ===== capacity 子表 =====
+    /** 带宽上限 (Mbps). */
     private Integer bandwidthLimitMbps;
+    /** 月流量配额 (GB). */
     private Integer monthlyTrafficGb;
+    /** 已用流量字节. */
     private Long usedTrafficBytes;
+    /** 入站累计字节. */
     private Long rxBytes;
+    /** 出站累计字节. */
     private Long txBytes;
+    /** 周期重置策略: 按月 / 固定. */
     private String quotaResetPolicy;
+    /** 限流状态: 正常 / 已限流. */
     private String throttleState;
 
     // ===== runtime 子表 =====
+    /** 最近心跳时刻. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime lastHeartbeatAt;
 
@@ -113,9 +130,11 @@ public class ServerLandingRespVO {
     /** 距上次心跳秒数; null = 从未上报. */
     private Long elapsedSec;
 
+    /** 创建时间. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 }
