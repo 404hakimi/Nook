@@ -3,18 +3,12 @@ package com.nook.biz.node.api.xray.dto;
 import lombok.Data;
 
 /**
- * Xray 客户端节点连接信息.
+ * Xray 接入连接参数 (拼订阅链接用; host 已按"域名优先, 否则出网 IP"解析).
  *
  * @author nook
  */
 @Data
-public class XrayClientNodeDTO {
-
-    /** 客户端ID. */
-    private String clientId;
-
-    /** 协议级 UUID. */
-    private String clientUuid;
+public class XrayInboundDTO {
 
     /** 连接 host: 线路机域名, 无则线路机出网 IP. */
     private String host;

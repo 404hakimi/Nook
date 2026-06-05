@@ -13,9 +13,10 @@ import com.nook.biz.member.api.MemberUserApi;
 import com.nook.biz.member.api.dto.MemberSubscriberDTO;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
-import com.nook.biz.node.api.xray.XrayClientApi;
-import com.nook.biz.node.api.xray.dto.XrayClientNodeDTO;
+import com.nook.biz.node.api.xray.XrayConfigApi;
+import com.nook.biz.node.api.xray.dto.XrayInboundDTO;
 import com.nook.biz.trade.api.enums.TradeCertSourceEnum;
+import com.nook.biz.trade.api.enums.TradeCertStatusEnum;
 import com.nook.biz.trade.api.enums.TradeErrorCode;
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeReasonEnum;
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeTypeEnum;
@@ -50,6 +51,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -90,7 +92,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Resource
     private TransactionTemplate transactionTemplate;
     @Resource
-    private XrayClientApi xrayClientApi;
+    private XrayConfigApi xrayConfigApi;
     @Resource
     private ResourceServerLandingApi landingApi;
     @Resource
@@ -284,61 +286,64 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         if (CollUtil.isEmpty(subs)) {
             return Base64.encode("");
         }
-        // 凭证 id → 订阅: 节点连接信息按凭证 id 回查订阅 (一个订阅当前 1 份凭证)
+        // 订阅 → 应运行凭证 (含连接身份/分配); 一个订阅可多凭证 (多 IP)
         Set<String> subIds = CollectionUtils.convertSet(subs, TradeSubscriptionDO::getId);
         Map<String, TradeSubscriptionDO> subById = CollectionUtils.convertMap(subs, TradeSubscriptionDO::getId);
-        Map<String, TradeSubscriptionDO> subByCert = new HashMap<>();
+        List<TradeSubscriptionCertificateDO> certs = new ArrayList<>();
         for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscriptionIds(subIds)) {
-            TradeSubscriptionDO sub = subById.get(cert.getSubscriptionId());
-            if (ObjectUtil.isNotNull(sub)) {
-                subByCert.put(cert.getId(), sub);
+            // 仅应运行且已分配线路机的凭证能拼连接; 刚下单未对账的(无 server)跳过
+            if (TradeCertStatusEnum.ACTIVE.matches(cert.getCertStatus())
+                    && ObjectUtil.isNotNull(cert.getServerId())
+                    && subById.containsKey(cert.getSubscriptionId())) {
+                certs.add(cert);
             }
         }
-        // 节点按"运行中"且能拼出 host 过滤后返回; 全不可用 (如刚下单还没对账) 返空串
-        List<XrayClientNodeDTO> nodes = xrayClientApi.getNodeInfos(subByCert.keySet());
-        if (CollUtil.isEmpty(nodes)) {
+        if (CollUtil.isEmpty(certs)) {
             return Base64.encode("");
         }
+        // 只缺 node 侧的线路机接入参数 (host/端口/协议/传输/path/tls); 凭证密钥 trade 自己有
+        Set<String> serverIds = CollectionUtils.convertSet(certs, TradeSubscriptionCertificateDO::getServerId);
+        Map<String, XrayInboundDTO> inboundMap = xrayConfigApi.listInboundByServerIds(serverIds);
         // 套餐名只用于节点备注展示, 批量查一次避免逐订阅查库
         Set<String> planIds = CollectionUtils.convertSet(subs, TradeSubscriptionDO::getPlanId);
         Map<String, String> planNameMap = CollectionUtils.convertMap(
                 planMapper.selectBatchIds(planIds), TradePlanDO::getId, TradePlanDO::getName);
 
         StringBuilder lines = new StringBuilder();
-        for (XrayClientNodeDTO node : nodes) {
-            // getNodeInfos 可能比 subByCert 多 (并发场景), 回查不到的节点跳过
-            TradeSubscriptionDO sub = subByCert.get(node.getClientId());
-            if (ObjectUtil.isNull(sub)) {
+        for (TradeSubscriptionCertificateDO cert : certs) {
+            XrayInboundDTO inbound = inboundMap.get(cert.getServerId());
+            if (ObjectUtil.isNull(inbound)) {
+                continue; // 线路机未装 xray / 拼不出 host
+            }
+            // 目前只生成 vmess; 协议明确非 vmess 的跳过 (保留多协议扩展位); 协议空按 vmess 默认
+            if (StrUtil.isNotBlank(inbound.getProtocol()) && !PROTOCOL_VMESS.equalsIgnoreCase(inbound.getProtocol())) {
+                log.warn("[renderSubscription] 跳过非 vmess 线路机: server={} protocol={}",
+                        cert.getServerId(), inbound.getProtocol());
                 continue;
             }
-            // 目前只生成 vmess; 协议明确非 vmess 的节点跳过 (保留多协议扩展位), 不拼错链接; 协议空按 vmess 默认
-            if (StrUtil.isNotBlank(node.getProtocol()) && !PROTOCOL_VMESS.equalsIgnoreCase(node.getProtocol())) {
-                log.warn("[renderSubscription] 跳过非 vmess 节点: client={} protocol={}",
-                        node.getClientId(), node.getProtocol());
-                continue;
-            }
-            lines.append(buildVmessLink(node, sub, planNameMap.get(sub.getPlanId()))).append('\n');
+            TradeSubscriptionDO sub = subById.get(cert.getSubscriptionId());
+            lines.append(buildVmessLink(inbound, cert.getAuthSecret(), sub, planNameMap.get(sub.getPlanId()))).append('\n');
         }
         return Base64.encode(lines.toString().trim());
     }
 
-    /** 拼单个 vmess:// 链接 (host = 线路机固定域名 / 出网 IP). */
-    private String buildVmessLink(XrayClientNodeDTO node, TradeSubscriptionDO sub, String planName) {
+    /** 拼单个 vmess:// 链接 (host = 线路机域名 / 出网 IP; uuid = 凭证密钥). */
+    private String buildVmessLink(XrayInboundDTO inbound, String uuid, TradeSubscriptionDO sub, String planName) {
         Map<String, Object> v = new LinkedHashMap<>();
         v.put("v", "2");
         v.put("ps", buildRemark(sub, planName));
-        v.put("add", node.getHost());
-        v.put("port", String.valueOf(node.getPort() == null ? DEFAULT_PORT : node.getPort()));
-        v.put("id", node.getClientUuid());
+        v.put("add", inbound.getHost());
+        v.put("port", String.valueOf(ObjectUtil.isNull(inbound.getPort()) ? DEFAULT_PORT : inbound.getPort()));
+        v.put("id", uuid);
         v.put("aid", "0");
         v.put("scy", "auto");
-        v.put("net", StrUtil.blankToDefault(node.getTransport(), "ws"));
+        v.put("net", StrUtil.blankToDefault(inbound.getTransport(), "ws"));
         v.put("type", "none");
-        v.put("host", node.getHost());
-        v.put("path", StrUtil.nullToEmpty(node.getWsPath()));
-        v.put("tls", node.isTls() ? "tls" : "");
-        if (node.isTls()) {
-            v.put("sni", node.getHost());
+        v.put("host", inbound.getHost());
+        v.put("path", StrUtil.nullToEmpty(inbound.getWsPath()));
+        v.put("tls", inbound.isTls() ? "tls" : "");
+        if (inbound.isTls()) {
+            v.put("sni", inbound.getHost());
         }
         return "vmess://" + Base64.encode(toJson(v));
     }
