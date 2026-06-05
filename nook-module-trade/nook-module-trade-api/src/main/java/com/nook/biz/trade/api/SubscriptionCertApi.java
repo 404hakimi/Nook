@@ -29,6 +29,14 @@ public interface SubscriptionCertApi {
     SubscriptionCertRespDTO getById(String certId);
 
     /**
+     * 按落地机查凭证 (落地机与凭证 1:1)
+     *
+     * @param ipId 落地机ID
+     * @return 凭证; 无返 null
+     */
+    SubscriptionCertRespDTO getByIp(String ipId);
+
+    /**
      * 批量查凭证
      *
      * @param certIds 凭证ID集合

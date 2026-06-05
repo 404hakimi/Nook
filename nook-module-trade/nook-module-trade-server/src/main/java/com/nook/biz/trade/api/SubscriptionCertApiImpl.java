@@ -34,6 +34,11 @@ public class SubscriptionCertApiImpl implements SubscriptionCertApi {
     }
 
     @Override
+    public SubscriptionCertRespDTO getByIp(String ipId) {
+        return this.toDto(tradeSubscriptionCertificateService.getByIpId(ipId));
+    }
+
+    @Override
     public List<SubscriptionCertRespDTO> listByIds(Collection<String> certIds) {
         return CollectionUtils.convertList(tradeSubscriptionCertificateService.listByIds(certIds), this::toDto);
     }

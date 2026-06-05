@@ -1,14 +1,16 @@
 package com.nook.biz.trade.job;
 
 import cn.hutool.core.collection.CollUtil;
-import com.nook.biz.node.api.enums.XrayErrorCode;
-import com.nook.biz.node.api.xray.XrayClientProvisionApi;
+import cn.hutool.core.util.ObjectUtil;
+import com.nook.biz.node.api.resource.ResourceServerLandingApi;
+import com.nook.biz.trade.api.enums.TradeCertStatusEnum;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
+import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
+import com.nook.biz.trade.service.TradeSubscriptionCertificateService;
 import com.nook.biz.trade.service.TradeTrafficMeteringService;
 import com.nook.biz.trade.service.TradeTrafficMeteringService.MeteringContext;
-import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,7 +21,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 订阅生命周期 Job: 到期释放 + 流量耗尽停服 + 周期重置恢复.
+ * 订阅生命周期定时任务: 到期释放 + 流量耗尽停服 + 周期重置恢复.
  *
  * <p>每轮以订阅为单位、各一个事务; 流量计量委托 {@link TradeTrafficMeteringService}, 本类只管调度与生命周期动作(吊销/停服/复活).
  *
@@ -32,7 +34,9 @@ public class TradeLifecycleJob {
     @Resource
     private TradeSubscriptionMapper tradeSubscriptionMapper;
     @Resource
-    private XrayClientProvisionApi xrayClientProvisionApi;
+    private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
+    @Resource
+    private ResourceServerLandingApi resourceServerLandingApi;
     @Resource
     private TradeTrafficMeteringService tradeTrafficMeteringService;
     @Resource
@@ -63,8 +67,7 @@ public class TradeLifecycleJob {
                     resumed++;
                 }
             } catch (Exception e) {
-                log.error("[lifecycle] sub={} client={} 处理失败: {}",
-                        s.getId(), s.getXrayClientId(), e.getMessage(), e);
+                log.error("[lifecycle] sub={} 处理失败: {}", s.getId(), e.getMessage(), e);
             }
         }
         if (expired + suspended + resumed > 0) {
@@ -75,58 +78,58 @@ public class TradeLifecycleJob {
 
     /** 单订阅处理 (在调用方事务内): 到期释放 / 停服恢复 / 在线计量; 计量数学委托 tradeTrafficMeteringService. */
     private Outcome processOne(TradeSubscriptionDO s, LocalDateTime now, MeteringContext ctx) {
-        // 到期 → 释放 (revoke + 标 EXPIRED 原子)
-        if (s.getExpiresAt() != null && !s.getExpiresAt().isAfter(now)) {
-            doExpire(s);
+        // 到期 → 释放 (吊销凭证 + 标为已过期 原子)
+        if (ObjectUtil.isNotNull(s.getExpiresAt()) && !s.getExpiresAt().isAfter(now)) {
+            this.doExpire(s);
             return Outcome.EXPIRED;
         }
         // 停服订阅: 到重置点则计量清零重打基线后复活
         if (TradeSubscriptionStatusEnum.SUSPENDED.matches(s.getStatus())) {
             if (tradeTrafficMeteringService.tryCycleReset(s, now, ctx)) {
-                doResume(s);
+                this.doResume(s);
                 return Outcome.RESUMED;
             }
             return Outcome.NONE;
         }
-        // ACTIVE: 累加业务流量; 达套餐上限 → 停服保留 IP
+        // 生效中: 累加业务流量; 达套餐上限 → 停服保留落地机
         if (tradeTrafficMeteringService.accumulate(s, now, ctx)) {
-            doSuspend(s);
+            this.doSuspend(s);
             return Outcome.SUSPENDED;
         }
         return Outcome.NONE;
     }
 
     /**
-     * 到期释放: 删 client + 释放落地机 + 标 EXPIRED, 同一事务原子提交.
+     * 到期释放: 名下凭证全部吊销 + 释放落地机 + 标为已过期, 同一事务原子提交
      *
-     * <p>client 已不存在(之前清理过)视为幂等成功, 仍标 EXPIRED; 其它失败抛出 → 整笔回滚下轮重试, 不泄漏.
+     * <p>凭证已吊销 / 落地机已释放重复执行无害(幂等); 任一失败抛出 → 整笔回滚下轮重试, 不泄漏.
      */
     private void doExpire(TradeSubscriptionDO s) {
-        String clientId = s.getXrayClientId();
-        if (clientId != null) {
-            try {
-                xrayClientProvisionApi.revoke(clientId);
-            } catch (BusinessException be) {
-                if (be.getCode() != XrayErrorCode.CLIENT_ENTITY_NOT_FOUND.getCode()) {
-                    throw be; // 真失败 → 抛出回滚, 下轮重试
-                }
-                log.warn("[lifecycle] 到期时 client 已不存在 sub={} client={}, 仍标 EXPIRED", s.getId(), clientId);
+        for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(s.getId())) {
+            // 先释放落地机再置吊销; 远端 xray 由 agent 对账清理
+            if (ObjectUtil.isNotNull(cert.getIpId())) {
+                resourceServerLandingApi.releaseLanding(cert.getIpId());
             }
+            tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.REVOKED.getState());
         }
         s.setStatus(TradeSubscriptionStatusEnum.EXPIRED.getState());
         tradeSubscriptionMapper.updateById(s);
     }
 
-    /** 用满套餐流量: 停 client (保留 IP/落地机, 远端由 reconcile 摘除) + 订阅置 SUSPENDED. */
+    /** 用满套餐流量: 名下凭证置应停(保留落地机占用, 远端由对账摘除) + 订阅置 SUSPENDED. */
     private void doSuspend(TradeSubscriptionDO s) {
-        xrayClientProvisionApi.stop(s.getXrayClientId());
+        for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(s.getId())) {
+            tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.SUSPENDED.getState());
+        }
         s.setStatus(TradeSubscriptionStatusEnum.SUSPENDED.getState());
         tradeSubscriptionMapper.updateById(s);
     }
 
-    /** 周期重置复活: client 置回 RUNNING (落地机未释放, reconcile 自动装回) + 订阅转 ACTIVE. */
+    /** 周期重置复活: 名下凭证置回应运行(落地机未释放, 远端由对账自动装回) + 订阅转 ACTIVE. */
     private void doResume(TradeSubscriptionDO s) {
-        xrayClientProvisionApi.resume(s.getXrayClientId());
+        for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(s.getId())) {
+            tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.ACTIVE.getState());
+        }
         s.setStatus(TradeSubscriptionStatusEnum.ACTIVE.getState());
         tradeSubscriptionMapper.updateById(s);
     }

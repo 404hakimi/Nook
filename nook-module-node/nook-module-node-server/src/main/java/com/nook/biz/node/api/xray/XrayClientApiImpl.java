@@ -3,27 +3,27 @@ package com.nook.biz.node.api.xray;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.node.api.enums.XrayClientStatusEnum;
 import com.nook.biz.node.api.xray.dto.XrayClientNodeDTO;
-import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
-import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayConfigMapper;
+import com.nook.biz.trade.api.SubscriptionCertApi;
+import com.nook.biz.trade.api.dto.SubscriptionCertRespDTO;
+import com.nook.biz.trade.api.enums.TradeCertStatusEnum;
 import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
- * {@link XrayClientApi} 实现; 组合 xray_client + xray_config + resource_server 拼连接信息.
+ * {@link XrayClientApi} 实现; 从订阅凭证 + xray 共享配置 + 服务器拼连接信息.
  *
  * @author nook
  */
@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 public class XrayClientApiImpl implements XrayClientApi {
 
     @Resource
-    private XrayClientMapper xrayClientMapper;
+    private SubscriptionCertApi subscriptionCertApi;
     @Resource
     private XrayConfigMapper xrayConfigMapper;
     @Resource
@@ -42,25 +42,30 @@ public class XrayClientApiImpl implements XrayClientApi {
         if (CollUtil.isEmpty(clientIds)) {
             return List.of();
         }
-        List<XrayClientDO> clients = xrayClientMapper.selectBatchIds(clientIds).stream()
-                .filter(c -> XrayClientStatusEnum.RUNNING.matches(c.getStatus()))
-                .collect(Collectors.toList());
-        if (CollUtil.isEmpty(clients)) {
+        // 仅应运行且已分配线路机的凭证才拼连接信息
+        List<SubscriptionCertRespDTO> certs = new ArrayList<>();
+        for (SubscriptionCertRespDTO cert : subscriptionCertApi.listByIds(clientIds)) {
+            if (TradeCertStatusEnum.ACTIVE.matches(cert.getCertStatus()) && ObjectUtil.isNotNull(cert.getServerId())) {
+                certs.add(cert);
+            }
+        }
+        if (CollUtil.isEmpty(certs)) {
             return List.of();
         }
-        Set<String> serverIds = CollectionUtils.convertSet(clients, XrayClientDO::getServerId);
+        Set<String> serverIds = CollectionUtils.convertSet(certs, SubscriptionCertRespDTO::getServerId);
         Map<String, XrayConfigDO> cfgMap = CollectionUtils.convertMap(
                 xrayConfigMapper.selectBatchIds(serverIds), XrayConfigDO::getServerId);
         Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(serverIds), ResourceServerDO::getId);
 
-        List<XrayClientNodeDTO> out = new ArrayList<>(clients.size());
-        for (XrayClientDO c : clients) {
-            XrayConfigDO cfg = cfgMap.get(c.getServerId());
+        List<XrayClientNodeDTO> out = new ArrayList<>(certs.size());
+        for (SubscriptionCertRespDTO cert : certs) {
+            XrayConfigDO cfg = cfgMap.get(cert.getServerId());
             if (ObjectUtil.isNull(cfg)) {
                 continue;
             }
-            ResourceServerDO srv = serverMap.get(c.getServerId());
+            ResourceServerDO srv = serverMap.get(cert.getServerId());
+            // host 优先用线路机域名, 否则回退出网 IP
             String host = StrUtil.isNotBlank(cfg.getDomain())
                     ? cfg.getDomain()
                     : (ObjectUtil.isNull(srv) ? null : srv.getIpAddress());
@@ -68,8 +73,8 @@ public class XrayClientApiImpl implements XrayClientApi {
                 continue;
             }
             XrayClientNodeDTO dto = new XrayClientNodeDTO();
-            dto.setClientId(c.getId());
-            dto.setClientUuid(c.getClientUuid());
+            dto.setClientId(cert.getId());
+            dto.setClientUuid(cert.getAuthSecret());
             dto.setHost(host);
             dto.setPort(cfg.getSharedInboundPort());
             dto.setProtocol(cfg.getProtocol());
@@ -86,8 +91,14 @@ public class XrayClientApiImpl implements XrayClientApi {
         if (CollUtil.isEmpty(clientIds)) {
             return Map.of();
         }
-        return CollectionUtils.convertMap(
-                xrayClientMapper.selectBatchIds(clientIds), XrayClientDO::getId, XrayClientDO::getServerId);
+        // 未分配线路机(serverId 为空)的跳过, 不入 map
+        Map<String, String> result = new HashMap<>();
+        for (SubscriptionCertRespDTO cert : subscriptionCertApi.listByIds(clientIds)) {
+            if (ObjectUtil.isNotNull(cert.getServerId())) {
+                result.put(cert.getId(), cert.getServerId());
+            }
+        }
+        return result;
     }
 
     @Override
@@ -95,9 +106,13 @@ public class XrayClientApiImpl implements XrayClientApi {
         if (CollUtil.isEmpty(clientIds)) {
             return Map.of();
         }
-        // ip_id 为 NOT NULL, 直接转 clientId → ip_id
-        return CollectionUtils.convertMap(
-                xrayClientMapper.selectBatchIds(clientIds), XrayClientDO::getId, XrayClientDO::getIpId);
+        Map<String, String> result = new HashMap<>();
+        for (SubscriptionCertRespDTO cert : subscriptionCertApi.listByIds(clientIds)) {
+            if (ObjectUtil.isNotNull(cert.getIpId())) {
+                result.put(cert.getId(), cert.getIpId());
+            }
+        }
+        return result;
     }
 
     @Override
@@ -105,8 +120,8 @@ public class XrayClientApiImpl implements XrayClientApi {
         if (StrUtil.isBlank(landingServerId)) {
             return null;
         }
-        XrayClientDO c = xrayClientMapper.selectByIpId(landingServerId);
-        return ObjectUtil.isNull(c) ? null : c.getId();
+        SubscriptionCertRespDTO cert = subscriptionCertApi.getByIp(landingServerId);
+        return ObjectUtil.isNull(cert) ? null : cert.getId();
     }
 
     @Override
@@ -114,7 +129,12 @@ public class XrayClientApiImpl implements XrayClientApi {
         if (CollUtil.isEmpty(serverIds)) {
             return Map.of();
         }
-        return CollectionUtils.convertMap(
-                xrayClientMapper.selectByServerIds(serverIds), XrayClientDO::getId, XrayClientDO::getServerId);
+        Map<String, String> result = new HashMap<>();
+        for (String serverId : serverIds) {
+            for (SubscriptionCertRespDTO cert : subscriptionCertApi.listActiveByServer(serverId)) {
+                result.put(cert.getId(), cert.getServerId());
+            }
+        }
+        return result;
     }
 }

@@ -2,6 +2,8 @@ package com.nook.biz.trade.service.impl;
 
 import cn.hutool.core.codec.Base64;
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -12,9 +14,9 @@ import com.nook.biz.member.api.dto.MemberSubscriberDTO;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.xray.XrayClientApi;
-import com.nook.biz.node.api.xray.XrayClientProvisionApi;
 import com.nook.biz.node.api.xray.dto.XrayClientNodeDTO;
-import com.nook.biz.node.api.xray.dto.XrayClientProvisionDTO;
+import com.nook.biz.trade.api.enums.TradeCertSourceEnum;
+import com.nook.biz.trade.api.enums.TradeCertStatusEnum;
 import com.nook.biz.trade.api.enums.TradeErrorCode;
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeReasonEnum;
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeTypeEnum;
@@ -25,13 +27,16 @@ import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
 import com.nook.biz.trade.convert.TradeSubscriptionConvert;
 import com.nook.biz.trade.dal.dataobject.MemberPlanTrafficDO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
+import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.MemberPlanTrafficMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import com.nook.biz.trade.event.SubscriptionMachineChangeEvent;
 import com.nook.biz.trade.service.TradeAllocator;
+import com.nook.biz.trade.service.TradeSubscriptionCertificateService;
 import com.nook.biz.trade.service.TradeSubscriptionService;
+import com.nook.biz.trade.service.TradeTrafficGrantService;
 import com.nook.biz.trade.validator.TradePlanValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.exception.BusinessException;
@@ -42,13 +47,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -65,7 +68,7 @@ import java.util.function.Function;
 @Service
 public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
-    private static final long DAY_MS = 86_400_000L;
+    private static final long BYTES_PER_GB = 1024L * 1024 * 1024;
     private static final int DEFAULT_PORT = 443;
     private static final DateTimeFormatter EXPIRE_FMT = DateTimeFormatter.ofPattern("MM-dd");
     /** 当前订阅只生成 vmess 链接; 其它协议待协议适配阶段放开 (node 侧已留 InboundProtocolMapping). */
@@ -82,7 +85,11 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Resource
     private TradeAllocator allocator;
     @Resource
-    private XrayClientProvisionApi provisionApi;
+    private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
+    @Resource
+    private TradeTrafficGrantService tradeTrafficGrantService;
+    @Resource
+    private TransactionTemplate transactionTemplate;
     @Resource
     private XrayClientApi xrayClientApi;
     @Resource
@@ -97,63 +104,72 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Override
     public TradeSubscriptionDO adminCreate(SubscriptionCreateReqVO req) {
         TradePlanDO plan = planValidator.validateEnabled(req.getPlanId());
-        int planBw = plan.getBandwidthMbps() == null ? 0 : plan.getBandwidthMbps();
-        int planTraffic = plan.getTrafficGb() == null ? 0 : plan.getTrafficGb();
+        int planBw = ObjectUtil.isNull(plan.getBandwidthMbps()) ? 0 : plan.getBandwidthMbps();
+        int planTraffic = ObjectUtil.isNull(plan.getTrafficGb()) ? 0 : plan.getTrafficGb();
         String frontlineId = allocator.pickFrontline(plan.getRegionCode(), planBw);
-        if (frontlineId == null) {
+        if (ObjectUtil.isNull(frontlineId)) {
             throw new BusinessException(TradeErrorCode.NO_AVAILABLE_FRONTLINE, plan.getRegionCode());
         }
-        long now = System.currentTimeMillis();
-        long expiry = now + (long) plan.getPeriodDays() * DAY_MS;
+        LocalDateTime startedAt = LocalDateTime.now();
+        LocalDateTime expiresAt = startedAt.plusDays(plan.getPeriodDays());
         Set<String> tried = new HashSet<>();
         while (true) {
             String landingId = allocator.pickLanding(
                     plan.getRegionCode(), plan.getIpTypeId(), planTraffic, planBw, tried);
-            if (landingId == null) {
+            if (ObjectUtil.isNull(landingId)) {
                 throw new BusinessException(TradeErrorCode.SKU_OUT_OF_STOCK, plan.getId());
             }
             tried.add(landingId);
-
-            // 仅"开通客户端"失败 (如落地机被并发抢占) 才换下一台落地机重试
-            String clientId;
+            TradeSubscriptionDO sub;
             try {
-                clientId = provisionApi.provision(buildProvisionDTO(req, plan, frontlineId, landingId));
+                // 一次开通的全部库内写入放一个事务; 落地机被并发抢占则整笔回滚, 换下一台重试
+                sub = transactionTemplate.execute(status ->
+                        this.openOne(req, plan, frontlineId, landingId, planTraffic, startedAt, expiresAt));
             } catch (BusinessException e) {
-                log.warn("[adminCreate] provision 失败 landing={}, 试下一个: {}", landingId, e.getMessage());
+                log.warn("[adminCreate] 开通失败 landing={}, 试下一个: {}", landingId, e.getMessage());
                 continue;
             }
-
-            // 开通成功; 订阅落库失败不重试 (留下的孤儿客户端由对账兜底)
-            TradeSubscriptionDO sub = new TradeSubscriptionDO();
-            sub.setMemberUserId(req.getMemberUserId());
-            sub.setPlanId(plan.getId());
-            sub.setXrayClientId(clientId);
-            sub.setStartedAt(toLdt(now));
-            sub.setExpiresAt(toLdt(expiry));
-            sub.setStatus(TradeSubscriptionStatusEnum.ACTIVE.getState());
-            try {
-                subMapper.insert(sub);
-            } catch (Exception e) {
-                // 订阅落库失败 → 立即补偿吊销刚开通的 client (删 client + 释放落地机), 不留孤儿; 补偿再失败才退回对账兜底
-                try {
-                    provisionApi.revoke(clientId);
-                } catch (Exception ce) {
-                    log.error("[adminCreate] 补偿吊销失败, 遗留孤儿 client={} 待对账: {}", clientId, ce.getMessage(), ce);
-                }
-                throw e;
-            }
-            log.info("[adminCreate] OK member={} plan={} frontline={} landing={} client={}",
-                    req.getMemberUserId(), plan.getId(), frontlineId, landingId, clientId);
-            // 发布开通分配事件 (监听器落换机历史日志, 与下单流程解耦)
-            String operator = StpSystemUtil.getLoginIdOrSystem();
-            eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), req.getMemberUserId(),
-                    TradeSubscriptionChangeTypeEnum.FRONTLINE, null, frontlineId,
-                    TradeSubscriptionChangeReasonEnum.OPEN, operator));
-            eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), req.getMemberUserId(),
-                    TradeSubscriptionChangeTypeEnum.LANDING, null, landingId,
-                    TradeSubscriptionChangeReasonEnum.OPEN, operator));
+            this.publishOpenEvents(sub, req.getMemberUserId(), frontlineId, landingId);
+            log.info("[adminCreate] OK member={} plan={} frontline={} landing={} sub={}",
+                    req.getMemberUserId(), plan.getId(), frontlineId, landingId, sub.getId());
             return sub;
         }
+    }
+
+    /** 一次开通的全部库内写入, 由调用方事务包裹: 占落地机 → 签发凭证 → 建订阅 → 发基础额度. */
+    private TradeSubscriptionDO openOne(SubscriptionCreateReqVO req, TradePlanDO plan, String frontlineId,
+                                       String landingId, int planTraffic,
+                                       LocalDateTime startedAt, LocalDateTime expiresAt) {
+        // 占用落地机(条件更新, 被并发抢占抛异常 → 整笔回滚)
+        landingApi.occupyLanding(landingId, req.getMemberUserId());
+        // 先生成订阅 id: 凭证要引用它; 旧 xray_client_id 列过渡期复用凭证 id, 删列前不破坏非空约束
+        String subId = IdUtil.simpleUUID();
+        TradeSubscriptionCertificateDO cert = tradeSubscriptionCertificateService.issue(
+                subId, req.getMemberUserId(), TradeCertSourceEnum.BASE.getSource());
+        tradeSubscriptionCertificateService.setAllocation(cert.getId(), frontlineId, landingId);
+        TradeSubscriptionDO sub = new TradeSubscriptionDO();
+        sub.setId(subId);
+        sub.setMemberUserId(req.getMemberUserId());
+        sub.setPlanId(plan.getId());
+        sub.setXrayClientId(cert.getId());
+        sub.setStartedAt(startedAt);
+        sub.setExpiresAt(expiresAt);
+        sub.setStatus(TradeSubscriptionStatusEnum.ACTIVE.getState());
+        subMapper.insert(sub);
+        // 基础额度作为一条授予; 订阅有效额度 = 名下生效授予之和
+        tradeTrafficGrantService.createBaseGrant(subId, (long) planTraffic * BYTES_PER_GB, startedAt, expiresAt);
+        return sub;
+    }
+
+    /** 发布开通的换机历史事件 (与下单解耦, 事务外发). */
+    private void publishOpenEvents(TradeSubscriptionDO sub, String memberUserId, String frontlineId, String landingId) {
+        String operator = StpSystemUtil.getLoginIdOrSystem();
+        eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), memberUserId,
+                TradeSubscriptionChangeTypeEnum.FRONTLINE, null, frontlineId,
+                TradeSubscriptionChangeReasonEnum.OPEN, operator));
+        eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), memberUserId,
+                TradeSubscriptionChangeTypeEnum.LANDING, null, landingId,
+                TradeSubscriptionChangeReasonEnum.OPEN, operator));
     }
 
     @Override
@@ -163,7 +179,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
                 req.getMemberUserId(), req.getPlanId(), req.getStatus());
         List<TradeSubscriptionDO> records = page.getRecords();
         if (CollUtil.isEmpty(records)) {
-            return PageResult.of(page.getTotal(), Collections.emptyList());
+            return PageResult.of(page.getTotal(), List.of());
         }
         // 套餐(取名 + 总流量配额): 同套餐多订阅, 批量查一次
         Map<String, TradePlanDO> planMap = CollectionUtils.convertMap(
@@ -193,7 +209,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Override
     public Map<String, String> getPlanNameMap(Collection<String> planIds) {
         if (CollectionUtils.isAnyEmpty(planIds)) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         return CollectionUtils.convertMap(
                 planMapper.selectBatchIds(planIds), TradePlanDO::getId, TradePlanDO::getName);
@@ -202,7 +218,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Override
     public Map<String, String> getMemberEmailMap(Collection<String> memberIds) {
         if (CollectionUtils.isAnyEmpty(memberIds)) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         return memberUserApi.getEmailMap(memberIds);
     }
@@ -216,34 +232,38 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Transactional(rollbackFor = Exception.class)
     public void cancel(String id) {
         TradeSubscriptionDO sub = subMapper.selectById(id);
-        if (sub == null) {
+        if (ObjectUtil.isNull(sub)) {
             throw new BusinessException(TradeErrorCode.SUB_NOT_FOUND, id);
         }
-        // 终态订阅 (已退订 / 已过期) 的 client 已删, 拦在前面, 不再走 revoke 抛底层错
+        // 终态订阅 (已退订 / 已过期) 的凭证已吊销, 拦在前面
         if (TradeSubscriptionStatusEnum.CANCELLED.matches(sub.getStatus())
                 || TradeSubscriptionStatusEnum.EXPIRED.matches(sub.getStatus())) {
             throw new BusinessException(TradeErrorCode.SUB_NOT_ACTIVE, id);
         }
-        // 吊销前先取占用的线路机/落地机, 退订后这些绑定会被释放
-        Set<String> clientIds = Collections.singleton(sub.getXrayClientId());
-        String frontlineId = xrayClientApi.getServerIdByClientIds(clientIds).get(sub.getXrayClientId());
-        String landingId = xrayClientApi.getLandingIdByClientIds(clientIds).get(sub.getXrayClientId());
-        provisionApi.revoke(sub.getXrayClientId());
+        String operator = StpSystemUtil.getLoginIdOrSystem();
+        // 名下凭证逐个: 释放落地机 + 置吊销; 远端 xray 由 agent 对账清理
+        for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(id)) {
+            String frontlineId = cert.getServerId();
+            String landingId = cert.getIpId();
+            if (ObjectUtil.isNotNull(landingId)) {
+                landingApi.releaseLanding(landingId);
+            }
+            tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.REVOKED.getState());
+            // 发布释放事件 (监听器落换机历史日志, 与退订解耦)
+            if (ObjectUtil.isNotNull(frontlineId)) {
+                eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), sub.getMemberUserId(),
+                        TradeSubscriptionChangeTypeEnum.FRONTLINE, frontlineId, null,
+                        TradeSubscriptionChangeReasonEnum.RELEASE, operator));
+            }
+            if (ObjectUtil.isNotNull(landingId)) {
+                eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), sub.getMemberUserId(),
+                        TradeSubscriptionChangeTypeEnum.LANDING, landingId, null,
+                        TradeSubscriptionChangeReasonEnum.RELEASE, operator));
+            }
+        }
         sub.setStatus(TradeSubscriptionStatusEnum.CANCELLED.getState());
         subMapper.updateById(sub);
-        log.info("[cancel] sub={} client={} → CANCELLED", id, sub.getXrayClientId());
-        // 发布退订释放事件 (监听器落换机历史日志, 与退订流程解耦)
-        String operator = StpSystemUtil.getLoginIdOrSystem();
-        if (frontlineId != null) {
-            eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), sub.getMemberUserId(),
-                    TradeSubscriptionChangeTypeEnum.FRONTLINE, frontlineId, null,
-                    TradeSubscriptionChangeReasonEnum.RELEASE, operator));
-        }
-        if (landingId != null) {
-            eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), sub.getMemberUserId(),
-                    TradeSubscriptionChangeTypeEnum.LANDING, landingId, null,
-                    TradeSubscriptionChangeReasonEnum.RELEASE, operator));
-        }
+        log.info("[cancel] sub={} → CANCELLED", id);
     }
 
     @Override
@@ -327,16 +347,4 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         }
     }
 
-    private XrayClientProvisionDTO buildProvisionDTO(SubscriptionCreateReqVO req, TradePlanDO plan,
-                                                     String frontlineId, String landingId) {
-        XrayClientProvisionDTO dto = new XrayClientProvisionDTO();
-        dto.setServerId(frontlineId);
-        dto.setIpId(landingId);
-        dto.setMemberUserId(req.getMemberUserId());
-        return dto;
-    }
-
-    private static LocalDateTime toLdt(long epochMs) {
-        return LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMs), ZoneId.systemDefault());
-    }
 }
