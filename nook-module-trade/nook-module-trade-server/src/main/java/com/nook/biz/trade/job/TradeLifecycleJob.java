@@ -106,11 +106,11 @@ public class TradeLifecycleJob {
      */
     private void doExpire(TradeSubscriptionDO s) {
         for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(s.getId())) {
-            // 先释放落地机再置吊销; 远端 xray 由 agent 对账清理
+            // 先释放落地机再吊销凭证(清分配); 远端 xray 由 agent 对账清理
             if (ObjectUtil.isNotNull(cert.getIpId())) {
                 resourceServerLandingApi.releaseLanding(cert.getIpId());
             }
-            tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.REVOKED.getState());
+            tradeSubscriptionCertificateService.revoke(cert.getId());
         }
         s.setStatus(TradeSubscriptionStatusEnum.EXPIRED.getState());
         tradeSubscriptionMapper.updateById(s);

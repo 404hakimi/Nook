@@ -68,6 +68,17 @@ public class TradeSubscriptionCertificateServiceImpl implements TradeSubscriptio
     }
 
     @Override
+    public void revoke(String certId) {
+        // 置应移除 + 清空分配; server/ip 置 null 需显式 set, updated_at 显式写
+        tradeSubscriptionCertificateMapper.update(null, Wrappers.<TradeSubscriptionCertificateDO>lambdaUpdate()
+                .set(TradeSubscriptionCertificateDO::getCertStatus, TradeCertStatusEnum.REVOKED.getState())
+                .set(TradeSubscriptionCertificateDO::getServerId, null)
+                .set(TradeSubscriptionCertificateDO::getIpId, null)
+                .set(TradeSubscriptionCertificateDO::getUpdatedAt, LocalDateTime.now())
+                .eq(TradeSubscriptionCertificateDO::getId, certId));
+    }
+
+    @Override
     public TradeSubscriptionCertificateDO get(String certId) {
         return tradeSubscriptionCertificateMapper.selectById(certId);
     }

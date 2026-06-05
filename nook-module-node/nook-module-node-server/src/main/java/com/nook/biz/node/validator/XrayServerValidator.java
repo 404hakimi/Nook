@@ -3,15 +3,13 @@ package com.nook.biz.node.validator;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
-import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
-import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.node.service.xray.config.XrayConfigService;
 import com.nook.biz.node.service.xray.server.XrayServerService;
+import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
@@ -32,7 +30,7 @@ public class XrayServerValidator {
     @Resource
     private XrayConfigService xrayConfigService;
     @Resource
-    private XrayClientMapper xrayClientMapper;
+    private SubscriptionCertApi subscriptionCertApi;
 
     /**
      * 校验 xray 实例存在并返回
@@ -72,8 +70,7 @@ public class XrayServerValidator {
      * @param reqVO    装机入参
      */
     public void validateAgainstActiveClients(String serverId, XrayServerInstallReqVO reqVO) {
-        long activeCount = xrayClientMapper.selectCount(Wrappers.<XrayClientDO>lambdaQuery()
-                .eq(XrayClientDO::getServerId, serverId));
+        long activeCount = subscriptionCertApi.listActiveByServer(serverId).size();
 
         XrayServerDO existingServer = xrayServerService.get(serverId);
         if (ObjectUtil.isNull(existingServer) || activeCount == 0) return;

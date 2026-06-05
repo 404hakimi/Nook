@@ -4,14 +4,14 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.common.web.error.CommonErrorCode;
-import com.nook.biz.node.dal.dataobject.client.XrayClientDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
-import com.nook.biz.node.dal.mysql.mapper.XrayClientMapper;
 import com.nook.biz.system.api.iptype.SystemIpTypeApi;
+import com.nook.biz.trade.api.SubscriptionCertApi;
+import com.nook.biz.trade.api.dto.SubscriptionCertRespDTO;
 import com.nook.biz.system.api.iptype.dto.SystemIpTypeRespDTO;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
@@ -30,7 +30,7 @@ public class ResourceServerLandingValidator {
     @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
-    private XrayClientMapper xrayClientMapper;
+    private SubscriptionCertApi subscriptionCertApi;
     @Resource
     private SystemIpTypeApi systemIpTypeApi;
 
@@ -122,10 +122,10 @@ public class ResourceServerLandingValidator {
      * @param ipAddress 落地节点 IP
      */
     public void validateNoBoundClient(String serverId, String ipAddress) {
-        XrayClientDO bound = xrayClientMapper.selectByIpId(serverId);
+        SubscriptionCertRespDTO bound = subscriptionCertApi.getByIp(serverId);
         if (ObjectUtil.isNotNull(bound)) {
             throw new BusinessException(ResourceErrorCode.LANDING_HAS_BOUND_CLIENT,
-                    ipAddress, bound.getMemberUserId());
+                    ipAddress, bound.getSubscriptionId());
         }
     }
 
@@ -136,6 +136,6 @@ public class ResourceServerLandingValidator {
      * @return 有客户端绑定返回 true
      */
     public boolean hasBoundClient(String serverId) {
-        return ObjectUtil.isNotNull(xrayClientMapper.selectByIpId(serverId));
+        return ObjectUtil.isNotNull(subscriptionCertApi.getByIp(serverId));
     }
 }

@@ -47,6 +47,13 @@ public interface TradeSubscriptionCertificateService {
     void updateCertStatus(String certId, String certStatus);
 
     /**
+     * 吊销凭证: 置应移除 + 清空分配 (腾出落地机占用记录, 不挡再分配), 一次更新
+     *
+     * @param certId 凭证ID
+     */
+    void revoke(String certId);
+
+    /**
      * 获得凭证
      *
      * @param certId 凭证ID

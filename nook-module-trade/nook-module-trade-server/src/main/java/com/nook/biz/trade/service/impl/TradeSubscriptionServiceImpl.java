@@ -16,7 +16,6 @@ import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.xray.XrayClientApi;
 import com.nook.biz.node.api.xray.dto.XrayClientNodeDTO;
 import com.nook.biz.trade.api.enums.TradeCertSourceEnum;
-import com.nook.biz.trade.api.enums.TradeCertStatusEnum;
 import com.nook.biz.trade.api.enums.TradeErrorCode;
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeReasonEnum;
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeTypeEnum;
@@ -248,7 +247,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
             if (ObjectUtil.isNotNull(landingId)) {
                 landingApi.releaseLanding(landingId);
             }
-            tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.REVOKED.getState());
+            tradeSubscriptionCertificateService.revoke(cert.getId());
             // 发布释放事件 (监听器落换机历史日志, 与退订解耦)
             if (ObjectUtil.isNotNull(frontlineId)) {
                 eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), sub.getMemberUserId(),
