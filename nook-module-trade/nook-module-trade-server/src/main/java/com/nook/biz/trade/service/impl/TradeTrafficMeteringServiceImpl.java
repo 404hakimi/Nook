@@ -82,8 +82,8 @@ public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringServ
         if (ObjectUtil.isNull(cap)) {
             return false;
         }
-        // 优先用 socks5 业务流量(已排除 agent/系统); 老 agent 未上报时回退整机出站累计
-        Long cumSource = ObjectUtil.isNotNull(cap.getBizUsedBytes()) ? cap.getBizUsedBytes() : cap.getTxBytes();
+        // 优先用 socks5 业务流量(双向, 已排除 agent/系统); 老 agent 未上报时回退整机双向累计(rx+tx, 与 biz 同口径)
+        Long cumSource = ObjectUtil.isNotNull(cap.getBizUsedBytes()) ? cap.getBizUsedBytes() : cap.getUsedTrafficBytes();
         if (ObjectUtil.isNull(cumSource)) {
             return false; // 落地机还没上报, 本轮无数据
         }
@@ -174,7 +174,7 @@ public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringServ
     }
 
     /**
-     * 取某接入点当前落地机的业务流量累计 (业务流量优先, 回退整机出站累计); 无数据返 null.
+     * 取某接入点当前落地机的业务流量累计 (业务流量优先, 回退整机双向累计); 无数据返 null.
      */
     private Long currentBiz(String subscriptionId, MeteringContext ctx) {
         String landingId = ctx.landingBySub().get(subscriptionId);
@@ -185,6 +185,6 @@ public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringServ
         if (ObjectUtil.isNull(cap)) {
             return null;
         }
-        return ObjectUtil.isNotNull(cap.getBizUsedBytes()) ? cap.getBizUsedBytes() : cap.getTxBytes();
+        return ObjectUtil.isNotNull(cap.getBizUsedBytes()) ? cap.getBizUsedBytes() : cap.getUsedTrafficBytes();
     }
 }
