@@ -1,6 +1,7 @@
 package com.nook.biz.trade.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.trade.api.enums.TradeTrafficGrantStatusEnum;
 import com.nook.biz.trade.api.enums.TradeTrafficGrantTypeEnum;
 import com.nook.biz.trade.dal.dataobject.TradeTrafficGrantDO;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -41,8 +43,13 @@ public class TradeTrafficGrantServiceImpl implements TradeTrafficGrantService {
 
     @Override
     public long remainingBytes(String subscriptionId) {
+        LocalDateTime now = LocalDateTime.now();
         long remaining = 0L;
         for (TradeTrafficGrantDO grant : tradeTrafficGrantMapper.selectActiveBySubscriptionId(subscriptionId)) {
+            // 跳过到时间的授予; 不计入可用额度
+            if (ObjectUtil.isNull(grant.getExpiresAt()) || !grant.getExpiresAt().isAfter(now)) {
+                continue;
+            }
             long left = grant.getQuotaBytes() - grant.getUsedBytes();
             if (left > 0) {
                 remaining += left;
@@ -57,7 +64,14 @@ public class TradeTrafficGrantServiceImpl implements TradeTrafficGrantService {
         if (deltaBytes <= 0) {
             return;
         }
-        List<TradeTrafficGrantDO> grants = tradeTrafficGrantMapper.selectActiveBySubscriptionId(subscriptionId);
+        LocalDateTime now = LocalDateTime.now();
+        // 只扣生效且未到时间的授予, 按到期升序(先扣早到期的)
+        List<TradeTrafficGrantDO> grants = new ArrayList<>();
+        for (TradeTrafficGrantDO grant : tradeTrafficGrantMapper.selectActiveBySubscriptionId(subscriptionId)) {
+            if (ObjectUtil.isNotNull(grant.getExpiresAt()) && grant.getExpiresAt().isAfter(now)) {
+                grants.add(grant);
+            }
+        }
         if (CollUtil.isEmpty(grants)) {
             return;
         }
