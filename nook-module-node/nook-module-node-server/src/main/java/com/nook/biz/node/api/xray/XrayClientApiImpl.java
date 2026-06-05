@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,57 +83,5 @@ public class XrayClientApiImpl implements XrayClientApi {
             out.add(dto);
         }
         return out;
-    }
-
-    @Override
-    public Map<String, String> getServerIdByClientIds(Collection<String> clientIds) {
-        if (CollUtil.isEmpty(clientIds)) {
-            return Map.of();
-        }
-        // 未分配线路机(serverId 为空)的跳过, 不入 map
-        Map<String, String> result = new HashMap<>();
-        for (SubscriptionCertRespDTO cert : subscriptionCertApi.listByIds(clientIds)) {
-            if (ObjectUtil.isNotNull(cert.getServerId())) {
-                result.put(cert.getId(), cert.getServerId());
-            }
-        }
-        return result;
-    }
-
-    @Override
-    public Map<String, String> getLandingIdByClientIds(Collection<String> clientIds) {
-        if (CollUtil.isEmpty(clientIds)) {
-            return Map.of();
-        }
-        Map<String, String> result = new HashMap<>();
-        for (SubscriptionCertRespDTO cert : subscriptionCertApi.listByIds(clientIds)) {
-            if (ObjectUtil.isNotNull(cert.getIpId())) {
-                result.put(cert.getId(), cert.getIpId());
-            }
-        }
-        return result;
-    }
-
-    @Override
-    public String getClientIdByLandingId(String landingServerId) {
-        if (StrUtil.isBlank(landingServerId)) {
-            return null;
-        }
-        SubscriptionCertRespDTO cert = subscriptionCertApi.getByIp(landingServerId);
-        return ObjectUtil.isNull(cert) ? null : cert.getId();
-    }
-
-    @Override
-    public Map<String, String> getClientServerMapByServerIds(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) {
-            return Map.of();
-        }
-        Map<String, String> result = new HashMap<>();
-        for (String serverId : serverIds) {
-            for (SubscriptionCertRespDTO cert : subscriptionCertApi.listActiveByServer(serverId)) {
-                result.put(cert.getId(), cert.getServerId());
-            }
-        }
-        return result;
     }
 }
