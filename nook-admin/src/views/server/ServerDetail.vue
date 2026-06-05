@@ -9,8 +9,7 @@ import {
   Info,
   KeyRound,
   Server as ServerIcon,
-  ServerCog,
-  Users
+  ServerCog
 } from 'lucide-vue-next'
 import {
   NButton,
@@ -63,7 +62,6 @@ import MonitoringTab from './tabs/MonitoringTab.vue'
 import ServerInfoTab from './tabs/ServerInfoTab.vue'
 import SshTab from './tabs/SshTab.vue'
 import XrayTab from './tabs/XrayTab.vue'
-import ClientsTab from './tabs/ClientsTab.vue'
 import AgentTab from './tabs/AgentTab.vue'
 
 // Landing tabs (server_type=landing 用)
@@ -86,7 +84,7 @@ import ServerLandingSocks5EditDialog from '@/views/resource/dialogs/ServerLandin
  *
  * <p>由路由 meta.serverType 决定渲染模式. Tab 套餐:
  * - 共用: 监控 / 信息 / SSH / Agent
- * - frontline 独有: Xray + Xray 客户端
+ * - frontline 独有: Xray
  * - landing 独有: SOCKS5 服务
  *
  * 数据加载: 共用 getServerDetailWithRuntime 拿 runtime; landing 额外走 getServerLandingDetail + Install.
@@ -114,7 +112,7 @@ watch(serverType, () => {
 function isValidTab(t: string): boolean {
   const shared = ['monitor', 'info', 'ssh', 'agent']
   if (shared.includes(t)) return true
-  if (isFrontline.value) return ['xray', 'clients'].includes(t)
+  if (isFrontline.value) return t === 'xray'
   if (isLanding.value) return t === 'socks5'
   return false
 }
@@ -465,16 +463,6 @@ const landingHeartbeatDotColor = computed(() => {
             </NSpace>
           </template>
           <XrayTab :server-id="serverId" :agent-info="frontlineInfo" />
-        </NTabPane>
-
-        <NTabPane name="clients">
-          <template #tab>
-            <NSpace :size="6" align="center">
-              <NIcon><Users :size="14" /></NIcon>
-              <span>Xray 客户端</span>
-            </NSpace>
-          </template>
-          <ClientsTab :server-id="serverId" />
         </NTabPane>
 
         <NTabPane name="agent">

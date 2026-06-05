@@ -8,7 +8,6 @@ export interface TradeSubscription {
   memberEmail?: string
   planId: string
   planName?: string
-  xrayClientId: string
   /** 套餐总流量配额 (GB); 后端 page-sub 补. */
   trafficGb?: number
   /** 本周期已用流量 (字节); 后端 page-sub 补. */

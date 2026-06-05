@@ -190,7 +190,7 @@ async function onDelete() {
 async function onCancelSub(s: TradeSubscription) {
   const ok = await confirm({
     title: '退订',
-    message: '退订该订阅? 将吊销 xray 客户端 + 释放落地机',
+    message: '退订该订阅? 将吊销凭证 + 释放落地机',
     type: 'warning',
     confirmText: '退订'
   })

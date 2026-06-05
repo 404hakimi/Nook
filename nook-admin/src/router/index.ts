@@ -99,12 +99,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '落地机详情', serverType: 'landing' }
       },
       {
-        path: 'xray/clients',
-        name: 'xray-clients',
-        component: () => import('@/views/xray/ClientList.vue'),
-        meta: { title: 'Xray 客户端' }
-      },
-      {
         path: 'operation/op-log',
         name: 'operation-op-log',
         component: () => import('@/views/operation/OpLogList.vue'),

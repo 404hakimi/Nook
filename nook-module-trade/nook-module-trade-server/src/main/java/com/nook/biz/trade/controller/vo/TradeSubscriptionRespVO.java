@@ -29,9 +29,6 @@ public class TradeSubscriptionRespVO {
     /** 套餐名. */
     private String planName;
 
-    /** 关联 Xray 客户端. */
-    private String xrayClientId;
-
     /** 套餐总流量配额, 单位 GB. */
     private Integer trafficGb;
 

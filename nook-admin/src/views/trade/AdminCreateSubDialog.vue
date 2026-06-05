@@ -191,7 +191,7 @@ function close() {
         />
       </NFormItem>
       <div v-if="noStock" class="text-xs text-red-500">该套餐无可分配落地机 (售罄)</div>
-      <div class="text-xs text-zinc-400">下单将自动选线路机 + 落地机, 开通 xray 客户端并生成订阅.</div>
+      <div class="text-xs text-zinc-400">下单将自动选线路机 + 落地机, 开通凭证并生成订阅.</div>
     </NForm>
     <template #footer>
       <NSpace justify="end">
