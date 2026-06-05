@@ -28,13 +28,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * {@link XrayClientReconcileApi} 实现; 从订阅凭证拼某线路机应运行的全部接入点期望态 (含预先拼好的下发请求 JSON: 加用户 / 加出站 / 加路由).
+ * {@link XrayReconcileApi} 实现; 从订阅凭证拼某线路机应运行的全部接入点期望态 (含预先拼好的下发请求 JSON: 加用户 / 加出站 / 加路由).
  *
  * @author nook
  */
 @Slf4j
 @Service
-public class XrayClientReconcileApiImpl implements XrayClientReconcileApi {
+public class XrayReconcileApiImpl implements XrayReconcileApi {
 
     @Resource
     private XrayConfigMapper xrayConfigMapper;

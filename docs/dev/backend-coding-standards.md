@@ -65,7 +65,7 @@ Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查
 
 参考: `nook-module-agent` 的 `-api` / `-server` 拆分.
 
-**Api 接口命名**: 名字对齐它主要操作的表 (`XrayClientApi`↔`xray_client`、`ResourceServerCapacityApi`↔`resource_server_capacity`、`ResourceServerLandingApi`↔`resource_server_landing`); 无单一表对应的**业务聚合 / 操作类**才用描述性后缀 (`XrayClientProvisionApi` 开通运维、`XrayClientReconcileApi` 对账、`TradeBandwidthApi` 带宽聚合). **禁止**含糊后缀 (如 `XrayClientNodeApi` 的 "Node").
+**Api 接口命名**: 名字对齐它主要操作的表 (`ResourceServerCapacityApi`↔`resource_server_capacity`、`ResourceServerLandingApi`↔`resource_server_landing`); 无单一表对应的**业务聚合 / 操作类**才用描述性后缀 (`XrayReconcileApi` 对账、`TradeBandwidthApi` 带宽聚合). **禁止**含糊无信息量的后缀 (如 "Node" / "Info" / "Data").
 
 ### 关联数据拼接 (跨模块 / 聚合视图: Service 经 Convert 直接返 VO)
 

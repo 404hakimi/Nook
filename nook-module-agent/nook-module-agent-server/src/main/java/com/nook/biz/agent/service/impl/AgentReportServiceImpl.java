@@ -12,7 +12,7 @@ import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
-import com.nook.biz.node.api.xray.XrayClientReconcileApi;
+import com.nook.biz.node.api.xray.XrayReconcileApi;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 import com.nook.biz.trade.api.TradeBandwidthApi;
 import com.nook.common.utils.unit.TrafficUnitUtils;
@@ -39,7 +39,7 @@ public class AgentReportServiceImpl implements AgentReportService {
     @Resource
     private ResourceServerApi resourceServerApi;
     @Resource
-    private XrayClientReconcileApi xrayClientReconcileApi;
+    private XrayReconcileApi xrayReconcileApi;
     @Resource
     private TradeBandwidthApi tradeBandwidthApi;
     @Resource
@@ -81,7 +81,7 @@ public class AgentReportServiceImpl implements AgentReportService {
 
     @Override
     public List<XrayReconcileClientDTO> getDesiredClients(String serverId) {
-        return xrayClientReconcileApi.getDesiredClients(serverId);
+        return xrayReconcileApi.getDesiredClients(serverId);
     }
 
     @Override
