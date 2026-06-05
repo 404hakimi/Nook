@@ -279,8 +279,8 @@ async function onSubmit() {
       wsPath: form.wsPath.trim(),
       // 当前只支持 useTls=true + domain + CF Token; 三者已在 validate 强制必填
       useTls: true,
-      domain: form.domain.trim(),
-      cfApiToken: form.cfApiToken.trim(),
+      domain: form.domain?.trim() ?? '',
+      cfApiToken: form.cfApiToken?.trim() ?? '',
       tlsCertPath: form.tlsCertPath?.trim() || d.tlsCertPath,
       tlsKeyPath: form.tlsKeyPath?.trim() || d.tlsKeyPath
     }
@@ -437,7 +437,7 @@ function close() {
           <NInput
             v-model:value="form.logDir"
             :disabled="installing"
-            :placeholder="derivedLogDir || '/home/xray/logs'"
+            :placeholder="derivedPaths.logDir || '/home/xray/logs'"
             :input-props="{ style: 'font-family: monospace' }"
           />
         </NFormItem>

@@ -52,7 +52,7 @@ import {
 import { transitionServerLifecycle } from '@/api/resource/server'
 import { AGENT_ONLINE_TAG_TYPE } from '@/api/agent/agent'
 import type { SystemRegion } from '@/api/system/region'
-import { IP_TYPE_CODE_LABELS, type SystemIpType } from '@/api/system/ip-type'
+import { IP_TYPE_CODE_LABELS } from '@/api/system/ip-type'
 import { useRegionStore } from '@/stores/region'
 import { useIpTypeStore } from '@/stores/ipType'
 import { storeToRefs } from 'pinia'
@@ -336,11 +336,6 @@ function onDeployInstalled(ipId: string) {
 // ===== 凭据 / 拨测 =====
 function canTest(ip: ServerLanding): boolean {
   return !!ip.ipAddress && !!ip.socks5Port && !!ip.socks5Username && !!ip.socks5Password
-}
-
-function canManage(ip: ServerLanding): boolean {
-  // 详情/日志/切自启都依赖落地机条目里存储的 SSH 凭据
-  return ip.provisionMode === 1 && !!ip.sshPassword
 }
 
 const testOpen = ref(false)

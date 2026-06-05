@@ -15,7 +15,6 @@ import {
 } from 'lucide-vue-next'
 import {
   NButton,
-  NCard,
   NEmpty,
   NIcon,
   NInput,
@@ -108,14 +107,14 @@ function onPageChange(p: number) { pageNo.value = p; load() }
 function onPageSizeChange(s: number) { pageSize.value = s; pageNo.value = 1; load() }
 
 const lifecycleOptions = [
-  { label: '全部生命周期', value: null },
+  { label: '全部生命周期', value: undefined },
   { label: '装机中', value: 'INSTALLING' },
   { label: '待上线', value: 'READY' },
   { label: '运行中', value: 'LIVE' },
   { label: '已退役', value: 'RETIRED' }
 ]
 const onlineOptions = [
-  { label: '全部状态', value: null },
+  { label: '全部状态', value: undefined },
   { label: '在线 (ONLINE/WARN)', value: 'UP' },
   { label: '暂时不健康', value: 'TEMP_UNHEALTHY' },
   { label: '掉线 (≥5min)', value: 'OFFLINE' },

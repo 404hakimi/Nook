@@ -11,7 +11,6 @@ import {
   Trash2
 } from 'lucide-vue-next'
 import {
-  NAlert,
   NButton,
   NCard,
   NDescriptions,
