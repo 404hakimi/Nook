@@ -116,19 +116,25 @@ public class TradeLifecycleJob {
         tradeSubscriptionMapper.updateById(s);
     }
 
-    /** 用满套餐流量: 名下凭证置应停(保留落地机占用, 远端由对账摘除) + 订阅置 SUSPENDED. */
+    /** 用满套餐流量: 名下应运行凭证置应停(保留落地机占用, 远端由对账摘除) + 订阅置 SUSPENDED. */
     private void doSuspend(TradeSubscriptionDO s) {
+        // 只停应运行的凭证; 已吊销的(如加购 IP 已单独退订)不复活
         for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(s.getId())) {
-            tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.SUSPENDED.getState());
+            if (TradeCertStatusEnum.ACTIVE.matches(cert.getCertStatus())) {
+                tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.SUSPENDED.getState());
+            }
         }
         s.setStatus(TradeSubscriptionStatusEnum.SUSPENDED.getState());
         tradeSubscriptionMapper.updateById(s);
     }
 
-    /** 周期重置复活: 名下凭证置回应运行(落地机未释放, 远端由对账自动装回) + 订阅转 ACTIVE. */
+    /** 周期重置复活: 名下停服凭证置回应运行(落地机未释放, 远端由对账自动装回) + 订阅转 ACTIVE. */
     private void doResume(TradeSubscriptionDO s) {
+        // 只复活之前因停服置停的凭证; 已吊销的不动
         for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(s.getId())) {
-            tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.ACTIVE.getState());
+            if (TradeCertStatusEnum.SUSPENDED.matches(cert.getCertStatus())) {
+                tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.ACTIVE.getState());
+            }
         }
         s.setStatus(TradeSubscriptionStatusEnum.ACTIVE.getState());
         tradeSubscriptionMapper.updateById(s);

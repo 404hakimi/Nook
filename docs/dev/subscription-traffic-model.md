@@ -131,7 +131,7 @@ index idx_grant_sub (subscription_id, status, expires_at)
 | 后期加购 IP | 订阅下加 1 条凭证(source=ADDON),共享订阅到期 |
 | 加购流量包 | 插 1 条 grant(type=ADDON,带自己到期) |
 | 活动赠送 / 故障补偿 | 插 1 条 grant(type=PROMO / COMPENSATION),不经支付 |
-| 流量到顶 | 所有生效 grant 余额=0 → 订阅名下所有凭证 `cert_status=SUSPENDED` |
+| 流量到顶 | 所有生效 grant 余额=0 → 订阅名下应运行凭证 `cert_status=SUSPENDED`(已吊销的不动, 保留落地机) |
 | 月度重置 | 账单日:重新发放 BASE grant;加购/赠送 grant 按各自到期独立失效 |
 | 到期 / 退订 | 订阅置过期 → 名下凭证 `cert_status=REVOKED` + 释放落地机 |
 | 线路机故障切换 | 改对应凭证的 `server_id`,其余不动 |
