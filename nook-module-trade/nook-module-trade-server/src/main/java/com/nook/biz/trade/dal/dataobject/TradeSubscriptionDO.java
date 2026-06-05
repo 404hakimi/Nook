@@ -9,7 +9,7 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * 订阅 DO (1 sub = 1 套餐 = 1 xray_client)
+ * 订阅 DO (1 订阅 = 1 套餐; 连接凭证按 subscription_id 反向关联, 1 订阅可多凭证)
  *
  * @author nook
  */
@@ -23,9 +23,6 @@ public class TradeSubscriptionDO extends BaseEntity {
 
     /** 所购套餐. */
     private String planId;
-
-    /** 绑定的 xray 客户端 */
-    private String xrayClientId;
 
     /** 生效时间. */
     private LocalDateTime startedAt;

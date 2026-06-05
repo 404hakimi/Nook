@@ -48,7 +48,7 @@ public interface TradeTrafficMeteringService {
      */
     record MeteringContext(
             Map<String, Integer> planTrafficGb,
-            Map<String, String> landingByClient,
+            Map<String, String> landingBySub,
             Map<String, ResourceServerCapacityRespDTO> capMap,
             Map<String, MemberPlanTrafficDO> trafficBySub) {
     }

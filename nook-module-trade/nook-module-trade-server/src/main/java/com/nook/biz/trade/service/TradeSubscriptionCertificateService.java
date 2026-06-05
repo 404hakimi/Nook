@@ -78,6 +78,14 @@ public interface TradeSubscriptionCertificateService {
     List<TradeSubscriptionCertificateDO> listBySubscription(String subscriptionId);
 
     /**
+     * 批量查多订阅的凭证
+     *
+     * @param subscriptionIds 订阅ID集合
+     * @return 凭证列表
+     */
+    List<TradeSubscriptionCertificateDO> listBySubscriptionIds(Collection<String> subscriptionIds);
+
+    /**
      * 批量查凭证
      *
      * @param certIds 凭证ID集合

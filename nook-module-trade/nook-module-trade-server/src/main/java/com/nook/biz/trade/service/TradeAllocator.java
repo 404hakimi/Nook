@@ -1,6 +1,7 @@
 package com.nook.biz.trade.service;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
@@ -8,8 +9,8 @@ import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
-import com.nook.biz.node.api.xray.XrayClientApi;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
+import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
@@ -17,6 +18,7 @@ import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +42,7 @@ public class TradeAllocator {
     @Resource
     private ResourceServerCapacityApi capacityApi;
     @Resource
-    private XrayClientApi xrayClientApi;
+    private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
     @Resource
     private TradeSubscriptionMapper subMapper;
     @Resource
@@ -107,28 +109,29 @@ public class TradeAllocator {
                 .orElse(null);
     }
 
-    /** 各线路机当前已挂带宽 = Σ(经过它的 ACTIVE 订阅的套餐带宽). */
+    /** 各线路机当前已挂带宽 = Σ(挂在它上面的应运行凭证, 其订阅套餐带宽). */
     private Map<String, Integer> committedBandwidthByFrontline(Set<String> frontlineIds) {
-        // 只捞这批线路机上的 client (不全量扫订阅), 再回查这些 client 的生效订阅
-        Map<String, String> clientToServer = xrayClientApi.getClientServerMapByServerIds(frontlineIds);
-        if (clientToServer.isEmpty()) {
+        // 只捞这批线路机上应运行的凭证 (不全量扫订阅), 再回查其订阅 + 套餐带宽
+        List<TradeSubscriptionCertificateDO> certs = new ArrayList<>();
+        for (String frontlineId : frontlineIds) {
+            certs.addAll(tradeSubscriptionCertificateService.listActiveByServer(frontlineId));
+        }
+        if (CollUtil.isEmpty(certs)) {
             return Map.of();
         }
-        List<TradeSubscriptionDO> active = subMapper.selectActiveByClientIds(clientToServer.keySet());
-        if (CollUtil.isEmpty(active)) {
-            return Map.of();
-        }
-        Set<String> planIds = CollectionUtils.convertSet(active, TradeSubscriptionDO::getPlanId);
+        Map<String, TradeSubscriptionDO> subMap = CollectionUtils.convertMap(
+                subMapper.selectBatchIds(CollectionUtils.convertSet(certs, TradeSubscriptionCertificateDO::getSubscriptionId)),
+                TradeSubscriptionDO::getId);
         Map<String, Integer> planBw = CollectionUtils.convertMap(
-                planMapper.selectBatchIds(planIds), TradePlanDO::getId,
-                p -> p.getBandwidthMbps() == null ? 0 : p.getBandwidthMbps());
+                planMapper.selectBatchIds(CollectionUtils.convertSet(subMap.values(), TradeSubscriptionDO::getPlanId)),
+                TradePlanDO::getId, p -> ObjectUtil.isNull(p.getBandwidthMbps()) ? 0 : p.getBandwidthMbps());
         Map<String, Integer> committed = new HashMap<>();
-        for (TradeSubscriptionDO s : active) {
-            String fId = clientToServer.get(s.getXrayClientId());
-            if (fId == null) {
+        for (TradeSubscriptionCertificateDO cert : certs) {
+            TradeSubscriptionDO sub = subMap.get(cert.getSubscriptionId());
+            if (ObjectUtil.isNull(sub)) {
                 continue;
             }
-            committed.merge(fId, planBw.getOrDefault(s.getPlanId(), 0), Integer::sum);
+            committed.merge(cert.getServerId(), planBw.getOrDefault(sub.getPlanId(), 0), Integer::sum);
         }
         return committed;
     }

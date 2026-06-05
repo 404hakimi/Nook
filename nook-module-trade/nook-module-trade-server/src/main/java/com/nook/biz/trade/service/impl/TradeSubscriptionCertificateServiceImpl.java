@@ -94,6 +94,11 @@ public class TradeSubscriptionCertificateServiceImpl implements TradeSubscriptio
     }
 
     @Override
+    public List<TradeSubscriptionCertificateDO> listBySubscriptionIds(Collection<String> subscriptionIds) {
+        return tradeSubscriptionCertificateMapper.selectBySubscriptionIds(subscriptionIds);
+    }
+
+    @Override
     public List<TradeSubscriptionCertificateDO> listByIds(Collection<String> certIds) {
         return tradeSubscriptionCertificateMapper.selectByIds(certIds);
     }

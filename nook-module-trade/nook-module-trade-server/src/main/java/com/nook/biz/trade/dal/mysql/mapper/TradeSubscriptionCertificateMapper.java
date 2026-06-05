@@ -24,6 +24,15 @@ public interface TradeSubscriptionCertificateMapper extends BaseMapper<TradeSubs
                 .eq(TradeSubscriptionCertificateDO::getSubscriptionId, subscriptionId));
     }
 
+    /** 批量查多订阅的凭证. */
+    default List<TradeSubscriptionCertificateDO> selectBySubscriptionIds(Collection<String> subscriptionIds) {
+        if (CollUtil.isEmpty(subscriptionIds)) {
+            return List.of();
+        }
+        return selectList(Wrappers.<TradeSubscriptionCertificateDO>lambdaQuery()
+                .in(TradeSubscriptionCertificateDO::getSubscriptionId, subscriptionIds));
+    }
+
     /** 某线路机上应运行的凭证 (agent 对账拉取用). */
     default List<TradeSubscriptionCertificateDO> selectActiveByServerId(String serverId) {
         return selectList(Wrappers.<TradeSubscriptionCertificateDO>lambdaQuery()

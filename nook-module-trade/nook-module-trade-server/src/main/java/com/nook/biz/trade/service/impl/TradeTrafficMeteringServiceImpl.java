@@ -2,15 +2,15 @@ package com.nook.biz.trade.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
-import com.nook.biz.node.api.xray.XrayClientApi;
 import com.nook.biz.trade.dal.dataobject.MemberPlanTrafficDO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
+import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.MemberPlanTrafficMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
+import com.nook.biz.trade.service.TradeSubscriptionCertificateService;
 import com.nook.biz.trade.service.TradeTrafficGrantService;
 import com.nook.biz.trade.service.TradeTrafficMeteringService;
 import com.nook.common.utils.collection.CollectionUtils;
@@ -19,6 +19,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,7 @@ public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringServ
     @Resource
     private MemberPlanTrafficMapper memberPlanTrafficMapper;
     @Resource
-    private XrayClientApi xrayClientApi;
+    private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
     @Resource
     private ResourceServerCapacityApi resourceServerCapacityApi;
     @Resource
@@ -55,23 +56,25 @@ public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringServ
         Map<String, Integer> planTrafficGb = CollectionUtils.convertMap(
                 tradePlanMapper.selectBatchIds(planIds), TradePlanDO::getId,
                 p -> ObjectUtil.isNull(p.getTrafficGb()) ? 0 : p.getTrafficGb());
-        // 订阅关联的凭证 → 落地机
-        Set<String> certIds = CollectionUtils.convertSet(subs,
-                TradeSubscriptionDO::getXrayClientId, s -> StrUtil.isNotBlank(s.getXrayClientId()));
-        Map<String, String> landingByClient = xrayClientApi.getLandingIdByClientIds(certIds);
-        Set<String> landingIds = new HashSet<>(landingByClient.values());
+        // 订阅 → 凭证 → 落地机 (订阅维度)
+        Set<String> subIds = CollectionUtils.convertSet(subs, TradeSubscriptionDO::getId);
+        Map<String, String> landingBySub = new HashMap<>();
+        for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscriptionIds(subIds)) {
+            if (ObjectUtil.isNotNull(cert.getIpId())) {
+                landingBySub.put(cert.getSubscriptionId(), cert.getIpId());
+            }
+        }
+        Set<String> landingIds = new HashSet<>(landingBySub.values());
         Map<String, ResourceServerCapacityRespDTO> capMap = CollUtil.isEmpty(landingIds)
                 ? Map.of() : resourceServerCapacityApi.listByServerIds(landingIds);
         Map<String, MemberPlanTrafficDO> trafficBySub = CollectionUtils.convertMap(
-                memberPlanTrafficMapper.selectBatchIds(CollectionUtils.convertSet(subs, TradeSubscriptionDO::getId)),
-                MemberPlanTrafficDO::getSubscriptionId);
-        return new MeteringContext(planTrafficGb, landingByClient, capMap, trafficBySub);
+                memberPlanTrafficMapper.selectBatchIds(subIds), MemberPlanTrafficDO::getSubscriptionId);
+        return new MeteringContext(planTrafficGb, landingBySub, capMap, trafficBySub);
     }
 
     @Override
     public boolean accumulate(TradeSubscriptionDO s, LocalDateTime now, MeteringContext ctx) {
-        String certId = s.getXrayClientId();
-        String landingId = ctx.landingByClient().get(certId);
+        String landingId = ctx.landingBySub().get(s.getId());
         if (ObjectUtil.isNull(landingId)) {
             return false; // 无落地机绑定信息, 跳过本轮
         }
@@ -134,7 +137,7 @@ public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringServ
             return false; // 没到重置点, 继续停服
         }
         // 取不到当前累计值则沿用旧基线
-        Long cur = this.currentBiz(s.getXrayClientId(), ctx);
+        Long cur = this.currentBiz(s.getId(), ctx);
         long cursor = ObjectUtil.isNotNull(cur) ? cur
                 : (ObjectUtil.isNull(row.getLastCounterTx()) ? 0L : row.getLastCounterTx());
         this.rollover(s, row, cursor, ctx);
@@ -173,8 +176,8 @@ public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringServ
     /**
      * 取某接入点当前落地机的业务流量累计 (业务流量优先, 回退整机出站累计); 无数据返 null.
      */
-    private Long currentBiz(String certId, MeteringContext ctx) {
-        String landingId = ctx.landingByClient().get(certId);
+    private Long currentBiz(String subscriptionId, MeteringContext ctx) {
+        String landingId = ctx.landingBySub().get(subscriptionId);
         if (ObjectUtil.isNull(landingId)) {
             return null;
         }

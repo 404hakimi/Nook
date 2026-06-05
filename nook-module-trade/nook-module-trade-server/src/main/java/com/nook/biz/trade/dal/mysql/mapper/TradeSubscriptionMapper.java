@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import org.apache.ibatis.annotations.Mapper;
 
@@ -44,24 +45,6 @@ public interface TradeSubscriptionMapper extends BaseMapper<TradeSubscriptionDO>
                         TradeSubscriptionStatusEnum.SUSPENDED.getState()));
     }
 
-    /** 某客户端当前生效订阅 (client 1:1 订阅; 无返 null). */
-    default TradeSubscriptionDO selectActiveByClientId(String clientId) {
-        return selectOne(Wrappers.<TradeSubscriptionDO>lambdaQuery()
-                .eq(TradeSubscriptionDO::getXrayClientId, clientId)
-                .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState())
-                .last("LIMIT 1"));
-    }
-
-    /** 指定客户端集合的生效订阅. */
-    default List<TradeSubscriptionDO> selectActiveByClientIds(Collection<String> clientIds) {
-        if (CollUtil.isEmpty(clientIds)) {
-            return List.of();
-        }
-        return selectList(Wrappers.<TradeSubscriptionDO>lambdaQuery()
-                .in(TradeSubscriptionDO::getXrayClientId, clientIds)
-                .eq(TradeSubscriptionDO::getStatus, TradeSubscriptionStatusEnum.ACTIVE.getState()));
-    }
-
     /** 各套餐生效订阅数 (GROUP BY 聚合, 不全量加载). */
     default Map<String, Integer> countActiveGroupByPlan() {
         Map<String, Integer> counts = new HashMap<>();
@@ -70,7 +53,7 @@ public interface TradeSubscriptionMapper extends BaseMapper<TradeSubscriptionDO>
                 .eq("status", TradeSubscriptionStatusEnum.ACTIVE.getState())
                 .groupBy("plan_id"))) {
             Object planId = row.get("planId");
-            if (planId != null) {
+            if (ObjectUtil.isNotNull(planId)) {
                 counts.put(planId.toString(), ((Number) row.get("cnt")).intValue());
             }
         }

@@ -51,12 +51,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * 订阅管理 Service 实现.
@@ -141,7 +141,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
                                        LocalDateTime startedAt, LocalDateTime expiresAt) {
         // 占用落地机(条件更新, 被并发抢占抛异常 → 整笔回滚)
         landingApi.occupyLanding(landingId, req.getMemberUserId());
-        // 先生成订阅 id: 凭证要引用它; 旧 xray_client_id 列过渡期复用凭证 id, 删列前不破坏非空约束
+        // 先生成订阅 id: 凭证按 subscription_id 反向关联它
         String subId = IdUtil.simpleUUID();
         TradeSubscriptionCertificateDO cert = tradeSubscriptionCertificateService.issue(
                 subId, req.getMemberUserId(), TradeCertSourceEnum.BASE.getSource());
@@ -150,7 +150,6 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         sub.setId(subId);
         sub.setMemberUserId(req.getMemberUserId());
         sub.setPlanId(plan.getId());
-        sub.setXrayClientId(cert.getId());
         sub.setStartedAt(startedAt);
         sub.setExpiresAt(expiresAt);
         sub.setStatus(TradeSubscriptionStatusEnum.ACTIVE.getState());
@@ -191,18 +190,26 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         Map<String, MemberPlanTrafficDO> trafficMap = CollectionUtils.convertMap(
                 trafficMapper.selectBatchIds(CollectionUtils.convertSet(records, TradeSubscriptionDO::getId)),
                 MemberPlanTrafficDO::getSubscriptionId);
-        // 客户端 → 所在线路机 / 占用落地机
-        Set<String> clientIds = CollectionUtils.convertSet(records, TradeSubscriptionDO::getXrayClientId);
-        Map<String, String> clientFrontlineMap = xrayClientApi.getServerIdByClientIds(clientIds);
-        Map<String, String> clientLandingMap = xrayClientApi.getLandingIdByClientIds(clientIds);
+        // 订阅 → 凭证 → 所在线路机 / 占用落地机 (订阅维度)
+        Set<String> subIds = CollectionUtils.convertSet(records, TradeSubscriptionDO::getId);
+        Map<String, String> subFrontlineMap = new HashMap<>();
+        Map<String, String> subLandingMap = new HashMap<>();
+        for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscriptionIds(subIds)) {
+            if (ObjectUtil.isNotNull(cert.getServerId())) {
+                subFrontlineMap.put(cert.getSubscriptionId(), cert.getServerId());
+            }
+            if (ObjectUtil.isNotNull(cert.getIpId())) {
+                subLandingMap.put(cert.getSubscriptionId(), cert.getIpId());
+            }
+        }
         // 线路机 + 落地机出网 IP 合并一次查回
-        Set<String> serverIds = new HashSet<>(clientFrontlineMap.values());
-        serverIds.addAll(clientLandingMap.values());
+        Set<String> serverIds = new HashSet<>(subFrontlineMap.values());
+        serverIds.addAll(subLandingMap.values());
         Map<String, String> serverIpMap = CollectionUtils.convertMap(
                 landingApi.listSummaryByServerIds(serverIds),
                 LandingSummaryDTO::getServerId, LandingSummaryDTO::getIpAddress);
         return TradeSubscriptionConvert.INSTANCE.convertPage(PageResult.of(page.getTotal(), records),
-                planMap, emailMap, trafficMap, clientFrontlineMap, clientLandingMap, serverIpMap);
+                planMap, emailMap, trafficMap, subFrontlineMap, subLandingMap, serverIpMap);
     }
 
     @Override
@@ -277,11 +284,18 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         if (CollUtil.isEmpty(subs)) {
             return Base64.encode("");
         }
-        // 按 clientId 索引, 后面用节点信息回查订阅 (一个 client 一份订阅, 撞 key 取先到的)
-        Map<String, TradeSubscriptionDO> subByClient = CollectionUtils.convertMap(
-                subs, TradeSubscriptionDO::getXrayClientId, Function.identity(), (a, b) -> a);
+        // 凭证 id → 订阅: 节点连接信息按凭证 id 回查订阅 (一个订阅当前 1 份凭证)
+        Set<String> subIds = CollectionUtils.convertSet(subs, TradeSubscriptionDO::getId);
+        Map<String, TradeSubscriptionDO> subById = CollectionUtils.convertMap(subs, TradeSubscriptionDO::getId);
+        Map<String, TradeSubscriptionDO> subByCert = new HashMap<>();
+        for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscriptionIds(subIds)) {
+            TradeSubscriptionDO sub = subById.get(cert.getSubscriptionId());
+            if (ObjectUtil.isNotNull(sub)) {
+                subByCert.put(cert.getId(), sub);
+            }
+        }
         // 节点按"运行中"且能拼出 host 过滤后返回; 全不可用 (如刚下单还没对账) 返空串
-        List<XrayClientNodeDTO> nodes = xrayClientApi.getNodeInfos(subByClient.keySet());
+        List<XrayClientNodeDTO> nodes = xrayClientApi.getNodeInfos(subByCert.keySet());
         if (CollUtil.isEmpty(nodes)) {
             return Base64.encode("");
         }
@@ -292,9 +306,9 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
         StringBuilder lines = new StringBuilder();
         for (XrayClientNodeDTO node : nodes) {
-            // getNodeInfos 可能比 subByClient 多 (并发场景), 回查不到的节点跳过
-            TradeSubscriptionDO sub = subByClient.get(node.getClientId());
-            if (sub == null) {
+            // getNodeInfos 可能比 subByCert 多 (并发场景), 回查不到的节点跳过
+            TradeSubscriptionDO sub = subByCert.get(node.getClientId());
+            if (ObjectUtil.isNull(sub)) {
                 continue;
             }
             // 目前只生成 vmess; 协议明确非 vmess 的节点跳过 (保留多协议扩展位), 不拼错链接; 协议空按 vmess 默认

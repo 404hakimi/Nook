@@ -1,5 +1,6 @@
 package com.nook.biz.trade.convert;
 
+import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
 import com.nook.biz.trade.dal.dataobject.MemberPlanTrafficDO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
@@ -30,23 +31,23 @@ public interface TradeSubscriptionConvert {
                                                             Map<String, TradePlanDO> planMap,
                                                             Map<String, String> memberEmailMap,
                                                             Map<String, MemberPlanTrafficDO> trafficMap,
-                                                            Map<String, String> clientFrontlineMap,
-                                                            Map<String, String> clientLandingMap,
+                                                            Map<String, String> subFrontlineMap,
+                                                            Map<String, String> subLandingMap,
                                                             Map<String, String> serverIpMap) {
         return PageResult.of(page.getTotal(), CollectionUtils.convertList(page.getRecords(), sub -> {
             TradePlanDO plan = planMap.get(sub.getPlanId());
             TradeSubscriptionRespVO vo = toRespVO(sub,
-                    plan == null ? null : plan.getName(),
+                    ObjectUtil.isNull(plan) ? null : plan.getName(),
                     memberEmailMap.get(sub.getMemberUserId()));
-            vo.setTrafficGb(plan == null ? null : plan.getTrafficGb());
+            vo.setTrafficGb(ObjectUtil.isNull(plan) ? null : plan.getTrafficGb());
             MemberPlanTrafficDO traffic = trafficMap.get(sub.getId());
-            vo.setUsedBytes(traffic == null || traffic.getUsedBytes() == null ? 0L : traffic.getUsedBytes());
-            String frontlineServerId = clientFrontlineMap.get(sub.getXrayClientId());
+            vo.setUsedBytes(ObjectUtil.isNull(traffic) || ObjectUtil.isNull(traffic.getUsedBytes()) ? 0L : traffic.getUsedBytes());
+            String frontlineServerId = subFrontlineMap.get(sub.getId());
             vo.setFrontlineServerId(frontlineServerId);
-            vo.setFrontlineIp(frontlineServerId == null ? null : serverIpMap.get(frontlineServerId));
-            String landingServerId = clientLandingMap.get(sub.getXrayClientId());
+            vo.setFrontlineIp(ObjectUtil.isNull(frontlineServerId) ? null : serverIpMap.get(frontlineServerId));
+            String landingServerId = subLandingMap.get(sub.getId());
             vo.setLandingServerId(landingServerId);
-            vo.setLandingIp(landingServerId == null ? null : serverIpMap.get(landingServerId));
+            vo.setLandingIp(ObjectUtil.isNull(landingServerId) ? null : serverIpMap.get(landingServerId));
             return vo;
         }));
     }
