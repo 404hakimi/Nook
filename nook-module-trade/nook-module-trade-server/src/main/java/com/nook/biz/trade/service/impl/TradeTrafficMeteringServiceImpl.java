@@ -16,6 +16,7 @@ import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.unit.TrafficUnitUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -76,6 +77,7 @@ public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringServ
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean accumulate(TradeSubscriptionDO s, LocalDateTime now, MeteringContext ctx) {
         // 跨周期先翻篇(接入点行封存开新行 + 发新基础额度), 再累加本轮增量
         this.rolloverIfDue(s, now, ctx);
@@ -90,6 +92,7 @@ public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringServ
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean tryCycleReset(TradeSubscriptionDO s, LocalDateTime now, MeteringContext ctx) {
         return this.rolloverIfDue(s, now, ctx);
     }

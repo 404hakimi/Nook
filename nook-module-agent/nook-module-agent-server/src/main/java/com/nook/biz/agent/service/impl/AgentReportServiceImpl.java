@@ -75,7 +75,7 @@ public class AgentReportServiceImpl implements AgentReportService {
         } else {
             String upText = ObjectUtil.isNull(req.getBizUpBytes()) ? "0MB" : TrafficUnitUtils.toMb(req.getBizUpBytes()) + "MB";
             String downText = ObjectUtil.isNull(req.getBizDownBytes()) ? "0MB" : TrafficUnitUtils.toMb(req.getBizDownBytes()) + "MB";
-            log.info("[Agent流量上报] {}>>>[{}]({}) 入站={}GB 出站={}GB 用户上行={} 下行={}", ResourceServerTypeEnum.LANDING.getState(), server.getName(), ipAddress,
+            log.info("[Agent流量上报] {}>>>[{}]({}) 入站={}GB 出站={}GB 用户流量(上行={},下行={})", ResourceServerTypeEnum.LANDING.getState(), server.getName(), ipAddress,
                     TrafficUnitUtils.toGb(req.getRxBytes()), TrafficUnitUtils.toGb(req.getTxBytes()), upText, downText);
         }
     }
