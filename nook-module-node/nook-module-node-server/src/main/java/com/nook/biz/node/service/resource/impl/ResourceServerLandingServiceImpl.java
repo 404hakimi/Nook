@@ -35,8 +35,6 @@ import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
-import com.nook.common.web.error.CommonErrorCode;
-import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -97,15 +95,6 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         lan.setCreatedAt(now);
         lan.setUpdatedAt(now);
         resourceServerLandingMapper.insert(lan);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void delete(String id) {
-        ResourceServerDO srv = resourceServerValidator.validateExists(id);
-        resourceServerLandingValidator.validateNoBoundClient(id, srv.getIpAddress());
-        resourceServerMapper.deleteById(id);
-        log.info("[landing] DELETE id={} ip={}", id, srv.getIpAddress());
     }
 
     @Override
@@ -281,14 +270,10 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public ResourceServerDO occupyById(String serverId, String memberUserId) {
-        ResourceServerDO srv = resourceServerValidator.validateExists(serverId);
-        int rows = resourceServerLandingMapper.markOccupied(serverId, memberUserId, LocalDateTime.now());
-        if (rows != 1) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID,
-                    "landing " + serverId + " 占用失败 (并发被抢或状态不是 AVAILABLE)");
-        }
-        return srv;
+    public boolean occupyById(String serverId, String memberUserId) {
+        resourceServerValidator.validateExists(serverId);
+        // 条件更新(仅 AVAILABLE→OCCUPIED); 影响 0 行 = 被并发抢占, 返 false 由上层换下一台(非异常)
+        return resourceServerLandingMapper.markOccupied(serverId, memberUserId, LocalDateTime.now()) == 1;
     }
 
     @Override
@@ -370,24 +355,14 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         Set<String> allocatable = resourceServerAdmission.filterAllocatable(serverMap.keySet());
         List<LandingSummaryDTO> matched = new ArrayList<>();
         for (ResourceServerLandingDO landing : landings) {
-            // 健康准入 + 规格达标 才进候选
+            // 健康准入 + 规格达标 才进候选 (都归 ResourceServerAdmission)
             if (!allocatable.contains(landing.getServerId())
-                    || this.belowPlanSpec(capMap.get(landing.getServerId()), minTrafficGb, minBandwidthMbps)) {
+                    || !resourceServerAdmission.meetsPlanSpec(capMap.get(landing.getServerId()), minTrafficGb, minBandwidthMbps)) {
                 continue;
             }
             matched.add(ResourceServerLandingConvert.INSTANCE.toSummary(serverMap.get(landing.getServerId()), landing));
         }
         return matched;
-    }
-
-    /** 落地机配额 / 带宽是否达不到套餐要求 (机器侧 0 或空表示不限, 视为达标). */
-    private boolean belowPlanSpec(ResourceServerQuotaDO cap, int minTrafficGb, int minBandwidthMbps) {
-        Integer quotaGb = ObjectUtil.isNull(cap) ? null : cap.getTotalGb();
-        Integer bandwidthMbps = ObjectUtil.isNull(cap) ? null : cap.getBandwidthMbps();
-        if (ObjectUtil.isNotNull(quotaGb) && quotaGb > 0 && quotaGb < minTrafficGb) {
-            return true;
-        }
-        return ObjectUtil.isNotNull(bandwidthMbps) && bandwidthMbps > 0 && bandwidthMbps < minBandwidthMbps;
     }
 
     @Override
@@ -431,7 +406,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
                 }
                 // 空闲机器需健康可分配 + 达标 才算"可售"
                 if (!allocatable.contains(landing.getServerId())
-                        || this.belowPlanSpec(capMap.get(landing.getServerId()), spec.getTrafficGb(), spec.getBandwidthMbps())) {
+                        || !resourceServerAdmission.meetsPlanSpec(capMap.get(landing.getServerId()), spec.getTrafficGb(), spec.getBandwidthMbps())) {
                     continue;
                 }
                 total++;

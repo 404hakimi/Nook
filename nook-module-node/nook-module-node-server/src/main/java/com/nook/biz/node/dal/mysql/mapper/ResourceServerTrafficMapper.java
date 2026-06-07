@@ -33,4 +33,10 @@ public interface ResourceServerTrafficMapper extends BaseMapper<ResourceServerTr
                 .in(ResourceServerTrafficDO::getServerId, serverIds)
                 .isNull(ResourceServerTrafficDO::getEndTime));
     }
+
+    /** 删某机全部周期行(删服务器级联用); 返回删除行数. */
+    default int deleteByServerId(String serverId) {
+        return delete(Wrappers.<ResourceServerTrafficDO>lambdaQuery()
+                .eq(ResourceServerTrafficDO::getServerId, serverId));
+    }
 }

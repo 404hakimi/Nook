@@ -91,22 +91,19 @@ public class TradeAllocator {
     }
 
     /**
-     * 选同区域 + 同 IP 类型 + 规格达标的 AVAILABLE 落地机 (排除已试过的); 无候选返 null.
+     * 选同区域 + 同 IP 类型 + 规格达标 + 健康可分配的 AVAILABLE 落地机候选 (准入判定全在 ResourceServerAdmission).
      *
-     * @param region   区域码
-     * @param ipTypeId IP 类型
+     * @param region           区域码
+     * @param ipTypeId         IP 类型
      * @param minTrafficGb     套餐月流量
      * @param minBandwidthMbps 套餐带宽
-     * @param exclude  已试过的落地机 id
+     * @return 候选落地机 id 列表 (上层逐台试占, 被并发抢占则换下一台)
      */
-    public String pickLanding(String region, String ipTypeId, int minTrafficGb,
-                              int minBandwidthMbps, Set<String> exclude) {
+    public List<String> matchLandings(String region, String ipTypeId, int minTrafficGb, int minBandwidthMbps) {
         return landingApi.findMatchingForPlan(region, ipTypeId, minTrafficGb, minBandwidthMbps).stream()
-                .filter(l -> ResourceServerLandingStatusEnum.AVAILABLE.matches(l.getStatus())
-                        && !exclude.contains(l.getServerId()))
+                .filter(l -> ResourceServerLandingStatusEnum.AVAILABLE.matches(l.getStatus()))
                 .map(LandingSummaryDTO::getServerId)
-                .findFirst()
-                .orElse(null);
+                .toList();
     }
 
     /** 各线路机当前已挂带宽 = Σ(挂在它上面的应运行凭证, 其订阅套餐带宽). */

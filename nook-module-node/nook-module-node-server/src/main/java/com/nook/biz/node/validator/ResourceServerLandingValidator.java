@@ -11,7 +11,6 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.system.api.iptype.SystemIpTypeApi;
 import com.nook.biz.trade.api.SubscriptionCertApi;
-import com.nook.biz.trade.api.dto.SubscriptionCertRespDTO;
 import com.nook.biz.system.api.iptype.dto.SystemIpTypeRespDTO;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
@@ -112,20 +111,6 @@ public class ResourceServerLandingValidator {
                 || StrUtil.isBlank(landing.getSocks5Username())
                 || StrUtil.isBlank(landing.getSocks5Password())) {
             throw new BusinessException(ResourceErrorCode.LANDING_SOCKS5_INCOMPLETE, landing.getServerId());
-        }
-    }
-
-    /**
-     * 校验落地节点未被任何客户端绑定
-     *
-     * @param serverId  落地节点ID
-     * @param ipAddress 落地节点 IP
-     */
-    public void validateNoBoundClient(String serverId, String ipAddress) {
-        SubscriptionCertRespDTO bound = subscriptionCertApi.getByIp(serverId);
-        if (ObjectUtil.isNotNull(bound)) {
-            throw new BusinessException(ResourceErrorCode.LANDING_HAS_BOUND_CLIENT,
-                    ipAddress, bound.getSubscriptionId());
         }
     }
 

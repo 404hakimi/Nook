@@ -20,6 +20,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.resource.ResourceServerLandingSocksOpsService;
+import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.resource.ResourceServerTrafficService;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
@@ -58,6 +59,8 @@ public class ResourceServerLandingController {
     private ResourceServerLandingSocksOpsService resourceServerLandingSocksOpsService;
     @Resource
     private ResourceServerTrafficService resourceServerTrafficService;
+    @Resource
+    private ResourceServerService resourceServerService;
 
     /**
      * 获得落地节点分页
@@ -120,7 +123,8 @@ public class ResourceServerLandingController {
      */
     @DeleteMapping("/delete-landing")
     public Result<Boolean> delete(@RequestParam("id") String id) {
-        resourceServerLandingService.delete(id);
+        // 落地机也是一条 resource_server, 走统一的级联删 + 绑定守卫
+        resourceServerService.deleteServer(id);
         return Result.ok(true);
     }
 

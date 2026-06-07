@@ -36,13 +36,6 @@ public interface ResourceServerLandingService {
     void initSubtables(String serverId, String ipTypeId);
 
     /**
-     * 删除落地节点
-     *
-     * @param id 落地节点编号
-     */
-    void delete(String id);
-
-    /**
      * 更新落地节点核心字段
      *
      * @param id    落地节点编号
@@ -132,13 +125,13 @@ public interface ResourceServerLandingService {
     Map<String, Long> getSummary();
 
     /**
-     * 占用落地节点
+     * 占用落地节点 (条件更新, 仅 AVAILABLE 可占)
      *
      * @param serverId     落地节点编号
      * @param memberUserId 占用方编号
-     * @return 落地节点主表
+     * @return true=占用成功; false=被并发抢占 / 非 AVAILABLE
      */
-    ResourceServerDO occupyById(String serverId, String memberUserId);
+    boolean occupyById(String serverId, String memberUserId);
 
     /**
      * 退订释放落地节点 (直接转为可用, 立即可再分配)

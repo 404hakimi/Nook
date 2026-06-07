@@ -12,9 +12,16 @@ import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerBillingMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerCredentialMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayConfigMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayServerMapper;
 import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
@@ -70,6 +77,20 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     private ResourceServerLandingService resourceServerLandingService;
     @Resource
     private AgentTokenApi agentTokenApi;
+    @Resource
+    private ResourceServerCredentialMapper resourceServerCredentialMapper;
+    @Resource
+    private ResourceServerBillingMapper resourceServerBillingMapper;
+    @Resource
+    private ResourceServerLandingMapper resourceServerLandingMapper;
+    @Resource
+    private ResourceServerFrontlineMapper resourceServerFrontlineMapper;
+    @Resource
+    private ResourceServerTrafficMapper resourceServerTrafficMapper;
+    @Resource
+    private XrayServerMapper xrayServerMapper;
+    @Resource
+    private XrayConfigMapper xrayConfigMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -141,9 +162,23 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteServer(String id) {
-        resourceServerValidator.validateExists(id);
+        ResourceServerDO srv = resourceServerValidator.validateExists(id);
+        // 守卫: 仍被生效凭证绑定(线路机看 server_id, 落地机看 ip_id)不允许删, 防误删在用资源
+        resourceServerValidator.validateNoBoundClient(id);
+        // 级联删全部子表 + 主表, 同一事务原子; 防遗留孤儿行破坏装机/计量/对账
+        resourceServerCredentialMapper.deleteById(id);
+        resourceServerBillingMapper.deleteById(id);
+        resourceServerLandingMapper.deleteById(id);
+        resourceServerFrontlineMapper.deleteById(id);
+        resourceServerRuntimeMapper.deleteById(id);
+        resourceServerQuotaMapper.deleteById(id);
+        int trafficRows = resourceServerTrafficMapper.deleteByServerId(id);
+        xrayServerMapper.deleteById(id);
+        xrayConfigMapper.deleteById(id);
         resourceServerMapper.deleteById(id);
-        applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(id));
+        log.info("[server] DELETE CASCADE id={} type={} ip={} (子表 credential/billing/landing/frontline/runtime/quota/traffic({})/xray 已清)",
+                id, srv.getServerType(), srv.getIpAddress(), trafficRows);
+        applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(id)); // 清 SSH 会话缓存
     }
 
     @Override

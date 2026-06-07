@@ -6,6 +6,7 @@ import com.nook.biz.agent.api.enums.AgentOnlineState;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
@@ -25,7 +26,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 线路机 / 落地机可分配性准入 (一处综合 生命周期 + 流量限流 + 心跳 三类信号)
+ * 线路机 / 落地机可分配性准入 (一处综合: 生命周期 + 流量限流 + 心跳 + 套餐规格达标)
  *
  * @author nook
  */
@@ -120,5 +121,15 @@ public class ResourceServerAdmission {
     private boolean isThrottled(ResourceServerTrafficDO traffic) {
         return ObjectUtil.isNotNull(traffic)
                 && ResourceServerThrottleStateEnum.THROTTLED.matches(traffic.getThrottleState());
+    }
+
+    /** 落地机配额 / 带宽是否达到套餐规格 (机器侧 0/空=不限, 视为达标). */
+    public boolean meetsPlanSpec(ResourceServerQuotaDO quota, int minTrafficGb, int minBandwidthMbps) {
+        Integer totalGb = ObjectUtil.isNull(quota) ? null : quota.getTotalGb();
+        Integer bandwidthMbps = ObjectUtil.isNull(quota) ? null : quota.getBandwidthMbps();
+        if (ObjectUtil.isNotNull(totalGb) && totalGb > 0 && totalGb < minTrafficGb) {
+            return false;
+        }
+        return ObjectUtil.isNull(bandwidthMbps) || bandwidthMbps <= 0 || bandwidthMbps >= minBandwidthMbps;
     }
 }

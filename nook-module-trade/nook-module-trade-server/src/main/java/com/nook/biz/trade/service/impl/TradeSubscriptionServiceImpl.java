@@ -39,6 +39,7 @@ import com.nook.biz.trade.service.TradeSubscriptionService;
 import com.nook.biz.trade.service.TradeSubscriptionQuotaService;
 import com.nook.biz.trade.validator.TradePlanValidator;
 import com.nook.common.utils.collection.CollectionUtils;
+import com.nook.common.utils.unit.TrafficUnitUtils;
 import com.nook.common.web.exception.BusinessException;
 import com.nook.common.web.response.PageResult;
 import com.nook.framework.security.stp.StpSystemUtil;
@@ -69,7 +70,6 @@ import java.util.Set;
 @Service
 public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
-    private static final long BYTES_PER_GB = 1024L * 1024 * 1024;
     private static final int DEFAULT_PORT = 443;
     private static final DateTimeFormatter EXPIRE_FMT = DateTimeFormatter.ofPattern("MM-dd");
     /** 当前订阅只生成 vmess 链接; 其它协议待协议适配阶段放开 (node 侧已留 InboundProtocolMapping). */
@@ -111,23 +111,19 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         if (ObjectUtil.isNull(frontlineId)) {
             throw new BusinessException(TradeErrorCode.NO_AVAILABLE_FRONTLINE, plan.getRegionCode());
         }
+        // 候选落地机(同区域 + IP类型 + 规格达标 + 健康可分配)一次取全; 准入判定全在 node ResourceServerAdmission
+        List<String> candidates = allocator.matchLandings(plan.getRegionCode(), plan.getIpTypeId(), planTraffic, planBw);
+        if (CollUtil.isEmpty(candidates)) {
+            throw new BusinessException(TradeErrorCode.SKU_OUT_OF_STOCK, plan.getId());
+        }
         LocalDateTime startedAt = LocalDateTime.now();
         LocalDateTime expiresAt = startedAt.plusDays(plan.getPeriodDays());
-        Set<String> tried = new HashSet<>();
-        while (true) {
-            String landingId = allocator.pickLanding(
-                    plan.getRegionCode(), plan.getIpTypeId(), planTraffic, planBw, tried);
-            if (ObjectUtil.isNull(landingId)) {
-                throw new BusinessException(TradeErrorCode.SKU_OUT_OF_STOCK, plan.getId());
-            }
-            tried.add(landingId);
-            TradeSubscriptionDO sub;
-            try {
-                // 一次开通的全部库内写入放一个事务; 落地机被并发抢占则整笔回滚, 换下一台重试
-                sub = transactionTemplate.execute(status ->
-                        this.openOne(req, plan, frontlineId, landingId, planTraffic, startedAt, expiresAt));
-            } catch (BusinessException e) {
-                log.warn("[adminCreate] 开通失败 landing={}, 试下一个: {}", landingId, e.getMessage());
+        // 逐台试占, 一台一个事务: openOne 返 null = 落地机被并发抢占 → 换下一台; 其它异常直接抛(整笔回滚, 不掩盖真因)
+        for (String landingId : candidates) {
+            TradeSubscriptionDO sub = transactionTemplate.execute(status ->
+                    this.openOne(req, plan, frontlineId, landingId, planTraffic, startedAt, expiresAt));
+            if (ObjectUtil.isNull(sub)) {
+                log.warn("[adminCreate] 落地机 {} 被并发抢占, 试下一台", landingId);
                 continue;
             }
             this.publishOpenEvents(sub, req.getMemberUserId(), frontlineId, landingId);
@@ -135,14 +131,18 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
                     req.getMemberUserId(), plan.getId(), frontlineId, landingId, sub.getId());
             return sub;
         }
+        // 候选都被并发占完
+        throw new BusinessException(TradeErrorCode.SKU_OUT_OF_STOCK, plan.getId());
     }
 
-    /** 一次开通的全部库内写入, 由调用方事务包裹: 占落地机 → 签发凭证 → 建订阅 → 发基础额度. */
+    /** 一次开通的全部库内写入, 由调用方事务包裹: 占落地机 → 签发凭证 → 建订阅 → 发基础额度; 落地机被抢占返 null. */
     private TradeSubscriptionDO openOne(SubscriptionCreateReqVO req, TradePlanDO plan, String frontlineId,
                                        String landingId, int planTraffic,
                                        LocalDateTime startedAt, LocalDateTime expiresAt) {
-        // 占用落地机(条件更新, 被并发抢占抛异常 → 整笔回滚)
-        landingApi.occupyLanding(landingId, req.getMemberUserId());
+        // 占用落地机(条件更新); 被并发抢占返 false → 返 null 让上层换下一台(非异常, 空事务无写入)
+        if (!landingApi.occupyLanding(landingId, req.getMemberUserId())) {
+            return null;
+        }
         // 先生成订阅 id: 凭证按 subscription_id 反向关联它
         String subId = IdUtil.simpleUUID();
         TradeSubscriptionCertificateDO cert = tradeSubscriptionCertificateService.issue(
@@ -157,7 +157,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         sub.setStatus(TradeSubscriptionStatusEnum.ACTIVE.getState());
         subMapper.insert(sub);
         // 基础额度作为一条额度账; 订阅有效额度 = 名下生效额度之和
-        tradeSubscriptionQuotaService.createBaseQuota(subId, (long) planTraffic * BYTES_PER_GB, startedAt, expiresAt);
+        tradeSubscriptionQuotaService.createBaseQuota(subId, TrafficUnitUtils.gbToBytes(planTraffic), startedAt, expiresAt);
         return sub;
     }
 

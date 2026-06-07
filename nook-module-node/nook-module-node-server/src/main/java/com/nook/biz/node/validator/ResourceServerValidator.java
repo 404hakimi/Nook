@@ -1,11 +1,13 @@
 package com.nook.biz.node.validator;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
+import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
@@ -21,6 +23,8 @@ public class ResourceServerValidator {
 
     @Resource
     private ResourceServerMapper resourceServerMapper;
+    @Resource
+    private SubscriptionCertApi subscriptionCertApi;
 
     /**
      * 校验服务器存在
@@ -70,6 +74,19 @@ public class ResourceServerValidator {
     public void validateLifecycleState(String state) {
         if (ObjectUtil.isNull(ResourceServerLifecycleEnum.fromState(state))) {
             throw new BusinessException(CommonErrorCode.PARAM_INVALID, "未知 lifecycleState: " + state);
+        }
+    }
+
+    /**
+     * 校验服务器未被生效凭证绑定 (线路机看 server_id 的生效凭证, 落地机看 ip_id); 删服务器前置守卫.
+     *
+     * @param serverId 服务器ID
+     */
+    public void validateNoBoundClient(String serverId) {
+        boolean bound = CollUtil.isNotEmpty(subscriptionCertApi.listActiveByServer(serverId))
+                || ObjectUtil.isNotNull(subscriptionCertApi.getByIp(serverId));
+        if (bound) {
+            throw new BusinessException(ResourceErrorCode.SERVER_HAS_BOUND_CLIENT, serverId);
         }
     }
 }

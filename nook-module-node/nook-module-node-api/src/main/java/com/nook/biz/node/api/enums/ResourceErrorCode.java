@@ -20,6 +20,7 @@ public enum ResourceErrorCode implements ErrorCode {
     SERVER_LIFECYCLE_INVALID_TRANSITION(5005, "服务器生命周期不允许 %s → %s"),
     SERVER_LIVE_DOMAIN_REQUIRED(5006, "上线前必须先填域名"),
     SERVER_SSH_LOCKED_AFTER_LIVE(5007, "lifecycle=LIVE 后 host/port 不可改 (需先退到 READY)"),
+    SERVER_HAS_BOUND_CLIENT(5008, "服务器 %s 仍被客户端绑定, 请先吊销/退订占用它的订阅再删除"),
 
     LANDING_NOT_FOUND(5102, "落地节点 %s 不存在"),
     LANDING_SOCKS5_INCOMPLETE(5103, "落地节点 %s 的 SOCKS5 业务配置未填全"),

@@ -48,8 +48,8 @@ public class ResourceServerLandingApiImpl implements ResourceServerLandingApi {
     }
 
     @Override
-    public void occupyLanding(String landingServerId, String memberUserId) {
-        resourceServerLandingService.occupyById(landingServerId, memberUserId);
+    public boolean occupyLanding(String landingServerId, String memberUserId) {
+        return resourceServerLandingService.occupyById(landingServerId, memberUserId);
     }
 
     @Override
