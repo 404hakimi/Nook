@@ -91,7 +91,7 @@ public class TradeAllocator {
     }
 
     /**
-     * 选同区域 + 同 IP 类型 + 规格达标 + 健康可分配的 AVAILABLE 落地机候选 (准入判定全在 ResourceServerAdmission).
+     * 选同区域、同IP类型、并且规格达标 可分配的落地机候选
      *
      * @param region           区域码
      * @param ipTypeId         IP 类型
