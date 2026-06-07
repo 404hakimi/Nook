@@ -8,7 +8,7 @@ import com.nook.biz.agent.controller.vo.LandingDesiredRespVO;
 import com.nook.biz.agent.service.AgentReportService;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.api.resource.ResourceServerApi;
-import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
+import com.nook.biz.node.api.resource.ResourceServerQuotaApi;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
@@ -35,7 +35,7 @@ public class AgentReportServiceImpl implements AgentReportService {
     @Resource
     private ResourceServerRuntimeApi resourceServerRuntimeApi;
     @Resource
-    private ResourceServerCapacityApi resourceServerCapacityApi;
+    private ResourceServerQuotaApi resourceServerQuotaApi;
     @Resource
     private ResourceServerApi resourceServerApi;
     @Resource
@@ -65,17 +65,18 @@ public class AgentReportServiceImpl implements AgentReportService {
             return;
         }
         String ipAddress = StrUtil.isBlank(server.getIpAddress()) ? "-" : server.getIpAddress();
-        // 覆盖写入网卡周期累计字节
-        resourceServerCapacityApi.applyNicTraffic(serverId, req.getRxBytes(), req.getTxBytes(), req.getBizUsedBytes());
+        // 写入网卡累计 + 用户业务上下行累计
+        resourceServerQuotaApi.applyNicTraffic(serverId, req.getRxBytes(), req.getTxBytes(),
+                req.getBizUpBytes(), req.getBizDownBytes());
         // 根据服务器类型进行输出对应的日志
         if (ResourceServerTypeEnum.FRONTLINE.getState().equals(server.getServerType())) {
             log.info("[Agent流量上报] {}>>>[{}]({}) 入站={}GB 出站={}GB", ResourceServerTypeEnum.FRONTLINE.getState(), server.getName(), ipAddress,
                     TrafficUnitUtils.toGb(req.getRxBytes()), TrafficUnitUtils.toGb(req.getTxBytes()));
         } else {
-            Long biz = req.getBizUsedBytes();
-            String bizText = ObjectUtil.isNull(biz) ? "0MB" : TrafficUnitUtils.toMb(biz) + "MB";
-            log.info("[Agent流量上报] {}>>>[{}]({}) 入站={}GB 出站={}GB 业务流量={}", ResourceServerTypeEnum.LANDING.getState(), server.getName(), ipAddress,
-                    TrafficUnitUtils.toGb(req.getRxBytes()), TrafficUnitUtils.toGb(req.getTxBytes()), bizText);
+            String upText = ObjectUtil.isNull(req.getBizUpBytes()) ? "0MB" : TrafficUnitUtils.toMb(req.getBizUpBytes()) + "MB";
+            String downText = ObjectUtil.isNull(req.getBizDownBytes()) ? "0MB" : TrafficUnitUtils.toMb(req.getBizDownBytes()) + "MB";
+            log.info("[Agent流量上报] {}>>>[{}]({}) 入站={}GB 出站={}GB 用户上行={} 下行={}", ResourceServerTypeEnum.LANDING.getState(), server.getName(), ipAddress,
+                    TrafficUnitUtils.toGb(req.getRxBytes()), TrafficUnitUtils.toGb(req.getTxBytes()), upText, downText);
         }
     }
 

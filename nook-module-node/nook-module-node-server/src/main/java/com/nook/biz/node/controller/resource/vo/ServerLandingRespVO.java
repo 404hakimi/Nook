@@ -100,19 +100,19 @@ public class ServerLandingRespVO {
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate expiresAt;
 
-    // ===== capacity 子表 =====
-    /** 带宽上限 (Mbps). */
-    private Integer bandwidthLimitMbps;
-    /** 月流量配额 (GB). */
-    private Integer monthlyTrafficGb;
-    /** 已用流量字节. */
-    private Long usedTrafficBytes;
-    /** 入站累计字节. */
+    // ===== quota 子表 =====
+    /** 出站带宽上限 (Mbps). */
+    private Integer bandwidthMbps;
+    /** 总流量配额 (GB). */
+    private Integer totalGb;
+    /** 当周期机器已用字节 = rx + tx. */
+    private Long usedBytes;
+    /** 当周期入站字节. */
     private Long rxBytes;
-    /** 出站累计字节. */
+    /** 当周期出站字节. */
     private Long txBytes;
-    /** 周期重置策略: 按月 / 固定. */
-    private String quotaResetPolicy;
+    /** 重置策略: 按月 / 固定. */
+    private String resetPolicy;
     /** 限流状态: 正常 / 已限流. */
     private String throttleState;
 

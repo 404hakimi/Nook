@@ -1,14 +1,14 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityUpdateReqVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerQuotaUpdateReqVO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 
 /**
  * 服务器容量 Service 接口
  *
  * @author nook
  */
-public interface ResourceServerCapacityService {
+public interface ResourceServerQuotaService {
 
     /**
      * 获得服务器容量
@@ -16,7 +16,7 @@ public interface ResourceServerCapacityService {
      * @param serverId 服务器编号
      * @return 服务器容量
      */
-    ResourceServerCapacityDO get(String serverId);
+    ResourceServerQuotaDO get(String serverId);
 
     /**
      * 更新业务阈值
@@ -24,5 +24,5 @@ public interface ResourceServerCapacityService {
      * @param serverId 服务器编号
      * @param reqVO    阈值入参
      */
-    void updateQuota(String serverId, ResourceServerCapacityUpdateReqVO reqVO);
+    void updateQuota(String serverId, ResourceServerQuotaUpdateReqVO reqVO);
 }

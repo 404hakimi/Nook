@@ -10,7 +10,7 @@ import lombok.Getter;
  */
 @Getter
 @AllArgsConstructor
-public enum TradeTrafficGrantTypeEnum {
+public enum TradeQuotaTypeEnum {
 
     BASE("BASE", "基础"),
     ADDON("ADDON", "加购"),
@@ -21,11 +21,11 @@ public enum TradeTrafficGrantTypeEnum {
     private final String type;
     private final String label;
 
-    public static TradeTrafficGrantTypeEnum fromType(String type) {
+    public static TradeQuotaTypeEnum fromType(String type) {
         if (type == null) {
             return null;
         }
-        for (TradeTrafficGrantTypeEnum e : values()) {
+        for (TradeQuotaTypeEnum e : values()) {
             if (e.type.equals(type)) {
                 return e;
             }

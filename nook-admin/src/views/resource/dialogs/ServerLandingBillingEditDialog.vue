@@ -19,7 +19,7 @@ import {
 
 /**
  * 编辑 账面 (billing 子表) — 月度成本 + 账单日 + 到期日.
- * 仅财务记录, 不参与实际控制 (实际带宽/流量在 capacity 子表, 走 ServerLandingCapacityEditDialog).
+ * 仅财务记录, 不参与实际控制 (实际带宽/流量在 quota 子表, 走 ServerLandingQuotaEditDialog).
  */
 const props = defineProps<{
   modelValue: boolean

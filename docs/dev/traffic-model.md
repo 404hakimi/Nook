@@ -1,143 +1,225 @@
 # 流量计量与计费设计
 
-> 本文是 Nook「流量怎么测、怎么计费、怎么管容量、字段怎么命名」的**权威设计**。
-> 订阅 / 凭证 / 授予的实体结构见 [subscription-traffic-model.md](subscription-traffic-model.md);
-> 两篇若在流量计量部分冲突,**以本文为准**(本文取代那篇里 `member_plan_traffic` 的旧写法)。
+> Nook 流量怎么测、怎么扣套餐、怎么管容量、字段怎么命名的最终设计。本文自包含。
+> 相关实体(以代码为准):订阅 `trade_subscription`、接入点/凭证 `trade_subscription_certificate`、服务器 `resource_server`。
 
-## 1. 一句话心智
+## 一、三层心智:测量 / 算钱 / 展示,分开
 
-两套**完全独立**的流量计,绝不能混:
+- **测量**:计数器 → 算增量 → 周期累加。回答"流了多少"。
+- **算钱**:配额分配 + 扣减。回答"允许用多少 / 已用多少"。
+- **展示**:视图。把上面两层拼给人看。
 
-| | 物理流量 (Meter A) | 业务流量 (Meter B) |
+三层混在一张表 = 难维护。分开后每层各一种表,职责单一。
+
+## 二、两笔流量,互不相干
+
+| | 机器流量 | 用户流量 |
 |---|---|---|
-| 量什么 | 机器网卡 `rx+tx` | 用户 socks5 上下行 |
-| 粒度 | per 服务器 | per 订阅(per 接入点) |
-| 目的 | 护 IDC 账单 / 触发限流切换 | 算用户套餐 / 给用户看 |
-| 到顶 | 限流 + 故障切换 | 停订阅凭证 |
-| 归属 | node | trade |
+| 量什么 | 网卡进站 + 出站 | 用户上行 + 下行(代理实际负载) |
+| 粒度 | 每台服务器 | 每个接入点 → 汇总到每个订阅 |
+| 用途 | 护住向机房买的流量、到顶限流并切换 | 扣用户套餐、给用户看用量 |
+| 字段 | `rx_bytes` / `tx_bytes` | `up_bytes` / `down_bytes` |
 
-**用户按业务负载 1× 计费**(下 1GB 扣 1GB),展示上下行;中转产生的物理倍数是**运营成本**,摊进定价,**不进用户账单**。
+> 机器"进出站"和用户"上下行"**不是一个数**:用户下载 1GB,机器要"进一次出一次"≈2GB(中转更多)。机器口径对机房账单,用户口径扣套餐,绝不混。命名上 `rx/tx` 一律指机器、`up/down` 一律指用户。
 
-## 2. 中转链路 = 物理倍数(物理改不掉)
+## 三、字段命名规范(一眼知含义)
 
-链路:`用户 ↔ 线路机 ↔ 落地机 ↔ 公网`(落地机挂在线路机上)。一次**用户负载 1GB**:
+- **单位后缀**:字节 `_bytes`、GB `_gb`(人填的大额配额)、速率 `_mbps`。
+- **方向**:机器 `rx`/`tx`、用户 `up`/`down`。
+- **角色 token**:
 
-| 机器 | 收 rx | 发 tx | 该机物理消耗 |
-|---|---|---|---|
-| 落地机 | ≈1GB | ≈1GB | **≈2GB** |
-| 线路机 | ≈1GB | ≈1GB | **≈2GB** |
-| | | **全链** | **≈4GB** |
-
-- 任何转发节点,数据都"进一次 + 出一次" → 双向计费下 **每台 2×**;两跳 = **4×**。这是物理,不是 bug,上线第一天就在发生。
-- **计费系数**跟着 IDC 计费方式走:**双向(rx+tx)= 2**、**只算出网(egress,入网免费)= 1**。
-- 省钱杠杆:线路机只是中转、**不需要好 IP** → 选"只算出网"的机房当线路机 → 系数 1 → 同样配额承载翻倍。
-
-> 两个"双向"别混:**物理双向** = 同一份数据进网卡+出网卡(会翻倍);**用户双向** = 用户上传+下载两股不同的流(下载场景下行占绝大部分,合计≈下载量,不翻倍)。
-
-## 3. 计费口径(已定)
-
-- **用户**:业务负载(`up + down`)× **1**。100GB 套餐 = 100GB 负载;下载 1GB 扣 1GB。
-- **展示**:真实**上行 / 下行** + 套餐已用(= up+down)。绝不拿机器"进站/出站"糊弄用户(进出站每个方向≈混合负载,不等于用户上下行)。
-- **成本**:2~4× 物理摊进**定价**。若将来要转嫁给用户(100GB=50GB 可用),只需把"计费系数"调成 2 并在界面**明确标注**,架构不变。
-
-## 4. 容量瓶颈 = 线路机(运营重点)
-
-| | 落地机 | 线路机 |
+| token | 含义 | 例 |
 |---|---|---|
-| 采购流量 | 500GB~1TB(充盈) | 1~3TB(紧、贵、加购飙升) |
-| ÷系数后可售负载 | 250GB~1TB | 0.5~1.5TB |
-| 是否瓶颈 | 否(远大于单套餐 50~100GB) | **是**(被其上所有用户共享) |
+| `total_gb` | 总流量配额(服务器/套餐,人填 GB) | `total_gb` |
+| `total_bytes` | 每笔额度分配(订阅账本,字节) | `total_bytes` |
+| `used_bytes` | 已用/已扣(测量表 = rx+tx 或 up+down;额度表 = 本笔已扣;靠表名定位) | `used_bytes` |
+| `counter_<向>_bytes` | 落地机计数器最新值(socks5 源,给 trade 差分) | `counter_up_bytes` / `counter_down_bytes` |
+| `last_counter_<向>_bytes` | 游标:上次处理到的计数器值(算增量基准) | `last_counter_rx_bytes` / `last_counter_up_bytes` |
+| `bandwidth_mbps` | 带宽速率上限 | `bandwidth_mbps` |
+| `remaining_bytes` | 剩余可用 | `remaining_bytes` |
 
-- **线路机可售负载 = 线路机流量 ÷ 系数**;2TB 双向线路机 ≈ 1TB 负载,挂 ~10~20 个 50~100GB 用户。
-- 落地机:**只计不卡**(充盈)。线路机:**分配按"流量余量"准入**(不只看带宽 Mbps)。
-- 安全网已有:线路机 Meter A 到顶 `THROTTLED` + 触发切换。缺的是**分配前就按流量余量挑线路机**。
+- **周期累计不加前缀**(周期由 `start_time/end_time` 表达)。
+> 三个易混的现在分清了:`total_*` = 额度(`total_gb`/`total_bytes`)、`counter_*` = 落地机原始计数器、`last_counter_*` = 游标(上次处理到的计数器值)。
 
-## 5. 字段命名规范(一眼知是哪层流量)
+## 四、整条链路(从 agent 到展示)
 
-| 前缀 / 形态 | 含义 | 示例 | 所在表 |
-|---|---|---|---|
-| `biz_` | **用户业务**(socks5 上下行) | `biz_up_bytes` / `biz_down_bytes` | capacity(源头)、cert_traffic |
-| 裸 `rx/tx` | **网卡物理**(机器收发) | `rx_bytes` / `tx_bytes` / `used_traffic_bytes` | capacity |
-| `quota_ / used_` | **额度**账本 | `quota_bytes` / `used_bytes` | grant |
-| `last_biz_*` | 计量**游标** | `last_biz_up_bytes` | cert_traffic |
-| `cycle_biz_*` | **本周期**业务用量 | `cycle_biz_up_bytes` | cert_traffic |
-
-规则:**`biz_` = 用户业务上下行;裸 `rx/tx` = 网卡物理;`quota/used` = 额度。**
-物理侧保持 `rx/tx` 不折腾;只把含糊的 `biz_used_bytes`(单值)拆成 `biz_up_bytes` + `biz_down_bytes`。
-
-## 6. 现状的零碎 → 目标
-
-| 现状 | 问题 | 目标 |
-|---|---|---|
-| `member_plan_traffic.used_bytes` | 与 grant 的 `used_bytes` **重名不同义**;且与 grant 重复记账 | **删表**,已用归 grant |
-| `member_plan_traffic.cycle_reset_at` | 与 BASE 授予 `expires_at` 重复 | 周期归 BASE 授予,删 |
-| `member_plan_traffic.last_counter_tx` | 单向游标、命名含糊 | 迁入新表,拆 `last_biz_up/down_bytes` |
-| `capacity.biz_used_bytes` | 单值、不分向、命名含糊 | 拆 `biz_up_bytes` / `biz_down_bytes` |
-| `traffic_gb / used_traffic_bytes / quota_bytes / biz_used_bytes` | 4 个名字指"流量" | 按 §5 规范统一前缀 |
-
-## 7. 目标表结构
-
-物理侧(node)只**一处小改**,其余不动:
 ```
-resource_server_capacity   rx_bytes / tx_bytes / used_traffic_bytes / last_cum_rx_bytes / last_cum_tx_bytes
-                           monthly_traffic_gb / throttle_state / period_start / reset_day / quota_reset_policy
-                           biz_used_bytes  →  biz_up_bytes + biz_down_bytes        ← 唯一改动
-                           (新增 quota_factor: 1=仅出网 / 2=双向, 派生可售负载)
+落地机/线路机上的 agent —— 每隔几分钟读一次本机计数器, 直接上报"当前累计值"
+   要点:agent **不存任何状态**(服务器被厂商重装就清空了, 存了也没用)
+        "上次读到多少 / 已累计多少" 全记在**后端 DB**(状态不在服务器上, 服务器怎么重置都不丢)
+   ├─ 机器:rx 累计、tx 累计
+   └─ 用户:up 累计、down 累计(防火墙按方向计数,仅落地机)
+        │ 上报
+        ▼
+┌──────────────────────────── node ────────────────────────────┐
+│ 额度表 resource_server_quota   (admin 设上限, 不放统计)              │
+│ 测量表 resource_server_traffic (每服务器·每周期一行, 当周期那行在写)  │
+│   机器: 用 last_counter_rx_bytes/last_counter_tx_bytes 算增量 → 累加 rx_bytes/tx_bytes/used_bytes │
+│         used_bytes 到配额 → 置"限流"; 到重置日 → 旧行封存 + 开新行    │
+│   用户: 存 counter_up_bytes/counter_down_bytes 最新累计(覆盖, 跨周期不清零)│
+└──────────────────────────────────────────────────────────────┘
+        │ trade 扫描时, 经接口读该落地机的 counter_up_bytes/counter_down_bytes
+        ▼
+┌──────────────────────────── trade ───────────────────────────┐
+│ 测量表 trade_subscription_traffic (每接入点·每周期一行, 当周期在写)   │
+│   游标 last_counter_up_bytes/last_counter_down_bytes: 跟最新值做差 → 本轮增量        │
+│   本周期 up_bytes/down_bytes/used_bytes → 给用户看的上下行用量       │
+│   到重置日 → 旧行封存 + 开新行(游标带过去) = 自带每周期上下行历史   │
+│ 额度表 trade_subscription_quota: 把(上增量+下增量)按到期早的先扣      │
+│   剩余 ≤ 0 → 停该订阅名下接入点                                      │
+└──────────────────────────────────────────────────────────────┘
+        │
+        ▼
+ 视图 v_subscription_usage (每订阅一行, 只读, 不存数)
+   = 各接入点本周期用量(traffic 当周期行) 汇总 + 额度(quota) 现拼
+        │
+        ▼
+ 前端/后台: 查这一个视图 → 套餐上下行用量 + 总配额 + 剩余
 ```
 
-业务侧(trade)= 重构重灾区:
-```
-trade_plan            套餐定义   traffic_quota_gb(=负载配额, total)、bandwidth_mbps、period_days …
-trade_traffic_grant   额度账本   quota_bytes、used_bytes(total = up+down, 1× 负载)、grant_type、expires_at、status   ← 不变
-trade_cert_traffic    接入点流量  cert_id(uk)、subscription_id、landing_server_id           ← 新, 替 member_plan_traffic
-                                 last_biz_up_bytes / last_biz_down_bytes      游标(对 biz 累计计数器做差)
-                                 cycle_biz_up_bytes / cycle_biz_down_bytes    本周期业务用量(给用户看)
-                                 last_sampled_at
-（删 member_plan_traffic）
-```
+## 五、每张表的字段 + 各干什么
 
-→ **上下行全项目只出现在 2 处**:`capacity.biz_up/down`(源头)、`trade_cert_traffic`(游标+用量)。grant / plan / subscription 一律 total。开发时**只有一处要区分方向**。
+> 对称:每个实体都是 `_quota`(允许多少)+ `_traffic`(实际多少)。
 
-## 8. 代码组织(职责切干净)
+### 1. `resource_server_quota` —— 服务器额度/上限(admin 设, 只放上限不放统计)
+| 字段 | 作用 |
+|---|---|
+| `server_id` | 主键, 跟服务器 1:1 |
+| `total_gb` | 总流量配额 GB; **建议填机房配额的 ~90% 留余量**, 0=不限 |
+| `bandwidth_mbps` | 出站带宽上限; 落地机真实限速, 线路机供分配不超卖 |
+| `reset_day` | 月度重置日 1–28 |
+| `reset_policy` | 重置策略: 按月 / 固定不重置 |
+| `created_at` / `updated_at` | 时间 |
 
-| 组件 | 唯一职责 | 碰 up/down? |
+### 2. `resource_server_traffic` —— 服务器测量(每服务器·每周期一行)
+| 字段 | 作用 |
+|---|---|
+| `id` | 主键 |
+| `server_id` | 所属服务器 |
+| `start_time` / `end_time` | 周期起止; `end_time` 空 = 当前在写那行 |
+| `rx_bytes` / `tx_bytes` | 本周期进站 / 出站累计(增量累加) |
+| `used_bytes` | 本周期机器已用 = rx + tx(对机房配额) |
+| `last_counter_rx_bytes` / `last_counter_tx_bytes` | 游标:上次处理到的网卡累计值(翻篇带到新行) |
+| `counter_up_bytes` / `counter_down_bytes` | 落地机测到的用户上下行**最新累计值**(覆盖, 跨周期不清零; 给 trade 差分。用户量源头在此) |
+| `throttle_state` | 限流态; used 到配额置"限流"; 翻篇清回正常 |
+| `last_sampled_at` | 最近上报时刻 |
+
+> 唯一约束 `(server_id, start_time)`;当周期行 = `end_time` 空。**本表周期 = 服务器月度重置日(`reset_day`),与 `trade_subscription_traffic` 的订阅计费周期是两套,各自翻篇,互不影响。**
+
+### 3. `trade_subscription_traffic` —— 用户测量(每接入点·每周期一行; 与 `resource_server_traffic` 对称)
+| 字段 | 作用 |
+|---|---|
+| `id` | 主键 |
+| `cert_id` | 接入点(凭证) |
+| `subscription_id` | 所属订阅 |
+| `landing_server_id` | 在量哪台落地机(换落地机 → 重打游标) |
+| `start_time` / `end_time` | 周期起止; `end_time` 空 = 当前在写那行 |
+| `up_bytes` / `down_bytes` | 本周期用户上行 / 下行用量 |
+| `used_bytes` | 本周期已用 = up + down |
+| `last_counter_up_bytes` / `last_counter_down_bytes` | 游标:上次处理到的用户累计值(跟 node 的 `counter_up_bytes/counter_down_bytes` 做差;翻篇带到新行) |
+| `last_sampled_at` | 最近计量时刻 |
+
+> 当周期行 = `end_time` 为空那行(每接入点一行);唯一约束 `(cert_id, start_time)`。旧周期行即上下行用量历史。
+
+### 4. `trade_subscription_quota` —— 额度账本(每笔分配一行, 一个订阅可多行)
+| 字段 | 作用 |
+|---|---|
+| `id` | 主键 |
+| `subscription_id` | 所属订阅 |
+| `quota_type` | 类型: 基础 / 加购 / 赠送 / 补偿 |
+| `total_bytes` | 本笔配额 |
+| `used_bytes` | 本笔已扣(= 上+下 之和) |
+| `start_time` | 发放/生效时间(本笔起效) |
+| `end_time` | 到期时间(各笔独立到期) |
+| `status` | 状态: 生效 / 用尽 / 过期 / 撤销 |
+| `source_ref` | 关联订单(审计, 可空) |
+| `created_at` / `updated_at` | 时间 |
+
+> 配额永远用"**多一笔分配**"表达(`quota_type` 区分),剩余 = Σ(生效且未过期)`max(total_bytes − used_bytes, 0)`:
+> - **加购流量包**(ADDON):插一行、不动旧的 → 剩余 = 旧 + 新。
+> - **重置流量**(周期/付费, BASE):插一笔新 BASE + 旧 BASE 置过期 → 剩余 = 新额度。
+> - 两者 `end_time` 都**不超过订阅到期**(发放时按 `min(期望到期, 订阅到期)` 截断;套餐用到一半才买,只在剩余时限内有效)。
+> → "重置流量"和"流量包"是**同一机制**,现在不必定死,做哪个都不改表。
+
+### 5. `v_subscription_usage` —— 展示视图(每订阅一行, 只读)
+| 字段 | 来源 | 怎么算 |
 |---|---|---|
-| `BusinessTrafficMeteringService` | 每凭证:读 `biz_up/down` → 算 Δ → 累加 `cycle_biz_up/down` → 把 (Δup+Δdown) 记进 grant | **是(唯一)** |
-| `TradeTrafficGrantService` | 额度账本(total):addUsage / remaining / createBase | 否 |
-| `TradeLifecycleJob` | 编排:计量 → 判余额 → 停/活 → 翻篇(清 `cycle_biz_*` + 发 BASE) | 否 |
-| `TradeAllocator` + `ResourceServerAdmission` | 分配加**线路机流量余量**准入(可售 = (配额−已用)÷系数) | 否 |
-| node 物理计量 `ResourceServerTrafficServiceImpl` | NIC rx/tx 累计 + 月度重置 + 限流 | 否(rx/tx) |
-| (可选) `CounterDelta` 工具 | "累计值→增量 + 抗回绕",node 的 rx/tx 与 trade 的 biz_up/down 共用,不重复写 | — |
+| `subscription_id` | `trade_subscription.id` | 分组键 |
+| `up_bytes` | `trade_subscription_traffic.up_bytes` | Σ 该订阅各接入点**当周期行** |
+| `down_bytes` | `trade_subscription_traffic.down_bytes` | Σ 当周期行 |
+| `used_bytes` | 上两者 | 本周期已用 = up + down |
+| `total_bytes` | `trade_subscription_quota.total_bytes` | Σ(生效未过期) |
+| `remaining_bytes` | `trade_subscription_quota` | Σ `max(total_bytes − used_bytes, 0)` |
 
-## 9. 计量端到端
+> 视图**不存数**, 每次查现拼; 只聚 trade 自己的表, 不跨 node。
+> ⚠️ `used_bytes`(本周期)与 `remaining_bytes`(全部生效额度)**是两个口径**:无流量包时一致(已用+剩余=配额);有流量包后(包跨周期),本周期已用 + 剩余 ≠ 总配额(包的历史用量不在本周期)。上线流量包前需定义"已用"展示的是本周期还是累计。
+> 这是**汇总**视图(每订阅 1 行)。要看**每笔分配明细**(基础 + 各流量包,各自额度/已扣/到期),直接查 `trade_subscription_quota`(它本就是每笔一行),无需另建。
 
-1. agent 读落地机 socks5 nft 计数器(**拆两个方向**),上报 `bizUp / bizDown` → node 写 `capacity.biz_up_bytes / biz_down_bytes`(绝对值)。
-2. 计量(每个 ACTIVE 且有落地机的凭证):读 `biz_up/down` → 游标算 `Δup / Δdown`(抗回绕、换落地机重打基线)→ `cycle_biz_up += Δup`、`cycle_biz_down += Δdown`、`grant.addUsage(Δup+Δdown)` → 推进 `last_biz_up/down`。
-3. 生命周期:订阅剩余(Σ授予)≤0 → 停名下应运行凭证;BASE 授予到期且订阅未过期 → 发下一笔 BASE(翻篇)+ 清该订阅各凭证 `cycle_biz_*` + 原停服的复活。
-4. 展示:用户上下行 = Σ其凭证 `cycle_biz_up/down`;剩余/配额走 grant。
+### 6. 顺带对齐(套餐定义)
+`trade_plan`:`traffic_gb` → **`total_gb`**(套餐含总流量)、`bandwidth_mbps`(已是)。开通时 `total_gb` 换算成订阅的首笔基础 `total_bytes`。
 
-## 10. 解释器 / 链路展示(暂不做 — YAGNI)
+## 七、计量怎么跑(端到端)
 
-- **现在没有任何场景需要**。计费、计量、展示上下行均不依赖它。
-- 仅当要做前端「**链路流量分解**」视图(用户负载 → 线路机 ×系数 → 落地机 ×系数 → 厂商账单 的逐层展示)时,才需要一个**装配/解释类**把各层数字拼成链路叙事。
-- 它是**纯派生**:只要存了原始数(用户 `biz_up/down`、每台 `rx/tx`、每台 `quota_factor`),随时能加,**不改表**。
-- 结论:不建。存储保证"可派生"即可,需要时再加一个只读装配器。
+1. **agent**:读本机当前计数器 → **直接上报当前累计值**(不存状态;算增量、抗归零、累加全在后端)。
+2. **node 收到**:
+   - 机器:`增量 = 本次 − last_counter_rx_bytes/last_counter_tx_bytes` → 累加进当周期 `rx_bytes/tx_bytes/used_bytes`;`used_bytes ≥ total_gb 换算的字节`(留余量见 §九)置限流;到重置日封存旧行、开新行(游标带过去、累加清零)。
+   - 用户:把上下行最新累计值**覆盖**进当周期行的 `counter_up_bytes/counter_down_bytes`。
+3. **trade 扫描**(每个生效且有落地机的接入点):读 node 的 `counter_up_bytes/counter_down_bytes`。
+   - **首次见到该接入点**(`last_counter_up_bytes/last_counter_down_bytes` 为空)或 **它换了落地机**(`landing_server_id` 变了)→ 只把当前值记成游标、**这轮不计增量**(不继承旧机或别人的历史)。
+   - 否则 `增量 = 最新 − last_counter_up_bytes/last_counter_down_bytes`(变小=归零 → 按本次重算)→ 累加进 `up_bytes/down_bytes/used_bytes` → (上+下)增量按到期早的先扣进 `quota` → 推进游标。
+4. **判停服 / 翻篇**:该订阅 Σ 剩余 ≤ 0 → 名下接入点置"应停";到下个周期 → 发新基础配额 + **各接入点当周期 traffic 行封存(填 `end_time`)、开新行(游标带过去、`up_bytes/down_bytes/used_bytes` 归 0)** → 复活。
+5. **展示**:查 `v_subscription_usage`。
 
-## 11. 迁移 / 改造小步(每步 build 绿、可独立提交)
+## 八、这套设计能解决的场景
 
-1. `capacity`:`biz_used_bytes` → `biz_up_bytes` + `biz_down_bytes`;加 `quota_factor`。
-2. agent(Go):nft 计数器拆双向,上报 `bizUp / bizDown`;`AgentNicTrafficReqVO` 加两字段。
-3. 建 `trade_cert_traffic`(DO/Mapper);`trade_plan.traffic_gb` → `traffic_quota_gb`(可选,命名统一)。
-4. 计量改 up/down + 按凭证(读 `BusinessTrafficMeteringService`)。
-5. 生命周期翻篇:从 BASE 授予到期推导 + 清 `cycle_biz_*`(移出计量)。
-6. 展示(getPage/订阅渲染):已用/剩余走 grant,上下行走 `cycle_biz_*`。
-7. 分配:`Admission` 加线路机流量余量卡口。
-8. 删 `member_plan_traffic`。
-9. 重启验证 + 选择性提交(不碰前端 WIP)。
+| 场景 | 怎么解 |
+|---|---|
+| 普通用户用流量 | 计量 → 扣配额 → 展示上下行 → 到顶停服 |
+| 加购流量包 | `quota` 插一行(类型=加购, 自带配额+到期), 自动并入可用 |
+| 付费重置 / 周期重置 | 发一笔新基础配额 + traffic 当周期行封存、开新行; 不改结构 |
+| 续费 | 延长订阅到期 + 为新期发基础配额 |
+| 服务器重启、计数器归零 | 后端用上次读数做差, 识别"变小=归零"→ 从 0 重算; 累计在后端 DB, 不丢不重 |
+| **服务器被厂商重装**(数据全无, 只剩 IP) | 同上: 后端做差识别归零、重新起算。累计量在后端 DB、跟服务器无关, 照样不丢(仅丢重装瞬间未采的尾巴)。前提:重装后 agent 装回同一条 server 记录(同 `server_id`) |
+| 上报丢一次 / 重复上报 | 上报是累计值, 后端做差 → 重复或丢一次都不会算错(下次累计值一对比自动补回) |
+| 机房账面对不上 | 我方是"自己控制用的保守阈值", `total_gb` 按机房 ~90% 填, 永远先于机房到顶 |
+| 线路机流量到顶 | 置限流 + 触发故障切换; 分配时按"剩余流量"挑线路机, 不超卖共享池 |
+| 换落地机(故障切换) | `traffic` 换 `landing_server_id` + 重打游标, 不串号、不补漏增量 |
+| 落地机换手:A 换 IP/换机, 原机当月给了新用户 B | A 换机→重打游标(量停在换机前);B 接手→首见只记游标, 只算 B 自己的;A/B 互不串。L 这台 `rx/tx` 按机器记 = A+B 之和(对机房账单正确) |
+| 查某用户某月用量(含上下行) | 查 `trade_subscription_traffic` 该周期行 + `quota` 该周期基础笔 → 历史自带 |
+| 多 IP(以后) | 已是接入点粒度, 每 IP 一行 `traffic`, 能分 IP 展示用量 |
+| 用户看上下行 / 运营看机器量 | 两笔流量两套字段, 互不影响 |
 
-## 12. 暂不做(避免过度设计)
+## 九、边界与兜底
 
-- 链路流量解释器 / 前端链路分解视图(§10)。
-- 计费系数转嫁用户(默认 1×;改系数即可,需界面标注)。
-- 多 IP 的 per-IP 上下行展示(表已按凭证粒度就绪,UI 后做)。
-- 线路机流量"超售"策略的精细模型(先按可售负载硬卡,够用)。
+- **抗归零**:增量 = `本次 ≥ 上次 ? 本次−上次 : 本次`。计数器变小(重启)就按"从 0 重算", 不会负数、不暴增。
+- **状态全在后端**:游标 + 累计都存后端 DB, 不在服务器上。服务器重启、被厂商重装都不影响——后端做差识别归零、重新起算即可;只丢"最后一次上报到重置那一刻"的尾巴, 采样勤就小。
+- **留余量**:`total_gb` 填机房的 ~90%, 把丢的尾巴和口径差吃掉, 永远先于机房到顶。**(注:现有代码是 100% 触发, 落地时改成留余量。)**
+- **不对账机房**:我方数定位是保守阈值, 不追求等于机房账面; 要精确对账须调机房 API(暂不做)。
+
+## 十、为什么这套够"成熟平台"
+
+- **幂等**:上报累计值、后端做差 → 重复上报或丢一次都不算错。
+- **重启/重置安全**:游标、累计、配额全在 DB, 不在服务器、不在内存 → 后台服务重启、服务器被重装, 业务逻辑照常、数据不丢。
+- **两套计量隔离**:机器流量(按服务器)与用户流量(按订阅)各一套, 落地机换手、用户换 IP 都不串号。
+- **可追溯**:服务器每周期一行 `resource_server_traffic`、用户每接入点每周期一行 `trade_subscription_traffic`(含上下行)、每周期一笔基础 `quota` → 历史可查。
+- **强一致**:配额按订阅记账(不按机器), 用户换机/换 IP 用量连续不断。
+
+可后做的补强(表已留位, 不阻塞): **对账 job**(周期性核对 Σ`quota.used_bytes` 与 Σ`traffic`当周期, 漂移告警)。用量历史已内建(`traffic` 旧周期行)。
+
+## 十一、相对现状的改动
+
+- **agent(Go)**:防火墙计数器按方向拆(上行/下行)后上报当前累计值; 不需要本地持久化(状态全在后端)。
+- **node**:`resource_server_capacity` → `resource_server_quota`(退成纯上限, `monthly_traffic_gb`→`total_gb`、`bandwidth_limit_mbps`→`bandwidth_mbps`、`quota_reset_policy`→`reset_policy`);运行统计搬到 `resource_server_traffic`(当周期+历史, 加 `last_counter_rx_bytes/last_counter_tx_bytes`、`counter_up_bytes/counter_down_bytes`、`throttle_state`、`end_time`、`last_sampled_at`);`used_traffic_bytes`→`used_bytes`、`period_start/period_end`→`start_time/end_time`。
+- **跨模块 API**:`ResourceServerCapacityApi` / `ResourceServerCapacityRespDTO` 拆成两个出口——配额侧(`total_gb`/`bandwidth_mbps`,分配读)+ 测量侧(`counter_up/down`、`throttle_state`、`rx/tx/used`,trade 计量/分配读);随表改名(`ResourceServerQuotaApi` + traffic 读取口)。
+- **trade**:新建 `trade_subscription_traffic`(每接入点·每周期+历史);`trade_traffic_grant` → `trade_subscription_quota`;删 `member_plan_traffic`;计量改上下行 + 按接入点;周期翻篇移到生命周期。
+- **视图**:新建 `v_subscription_usage`(等接前端时建)。
+- **分配**:线路机增加"剩余流量"准入(不只看带宽)。
+- **类名同步**:`ResourceServerCapacity*` → `ResourceServerQuota*`;新 `TradeSubscriptionTrafficDO`、`TradeSubscriptionQuotaDO`(原 grant)。
+- 前后端:配置服务器/套餐处加大白话说明(机器双向计费、用户按实际上下行)。
+
+## 十二、暂不做
+
+- 链路逐层流量分解视图(纯派生, 需要时再加只读装配)。
+- 多 IP 的分 IP 展示(表已就绪, 界面后做)。
+- 流量包商品目录、分配优先级精细模型。
+- 机房 API 精确对账。

@@ -2,8 +2,8 @@ package com.nook.biz.trade.api;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
-import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
+import com.nook.biz.node.api.resource.ResourceServerQuotaApi;
+import com.nook.biz.node.api.resource.dto.ResourceServerQuotaRespDTO;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
@@ -31,7 +31,7 @@ public class TradeBandwidthApiImpl implements TradeBandwidthApi {
     @Resource
     private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
     @Resource
-    private ResourceServerCapacityApi capacityApi;
+    private ResourceServerQuotaApi resourceServerQuotaApi;
 
     @Override
     public int getLandingDesiredBandwidthMbps(String landingServerId) {
@@ -50,8 +50,8 @@ public class TradeBandwidthApiImpl implements TradeBandwidthApi {
         // 套餐带宽与落地机自身带宽上限取较小: 套餐封顶(不超卖客户没买的), 落地机可往下压; 任一为 0/空 表示该侧不限
         TradePlanDO plan = planMapper.selectById(sub.getPlanId());
         int planBw = ObjectUtil.isNotNull(plan) && ObjectUtil.isNotNull(plan.getBandwidthMbps()) ? plan.getBandwidthMbps() : 0;
-        ResourceServerCapacityRespDTO cap = capacityApi.listByServerIds(List.of(landingServerId)).get(landingServerId);
-        int landingBw = ObjectUtil.isNotNull(cap) && ObjectUtil.isNotNull(cap.getBandwidthLimitMbps()) ? cap.getBandwidthLimitMbps() : 0;
+        ResourceServerQuotaRespDTO cap = resourceServerQuotaApi.listByServerIds(List.of(landingServerId)).get(landingServerId);
+        int landingBw = ObjectUtil.isNotNull(cap) && ObjectUtil.isNotNull(cap.getBandwidthMbps()) ? cap.getBandwidthMbps() : 0;
         if (planBw <= 0) {
             return Math.max(landingBw, 0);
         }

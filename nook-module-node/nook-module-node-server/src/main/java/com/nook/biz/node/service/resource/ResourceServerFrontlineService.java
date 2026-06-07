@@ -2,10 +2,11 @@ package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineUpdateReqVO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 
 import java.util.Collection;
 import java.util.Map;
@@ -57,10 +58,11 @@ public interface ResourceServerFrontlineService {
      */
     RuntimeBundle loadRuntimeBundleSingle(String serverId);
 
-    /** 线路机运行时聚合 (4 张子表). */
+    /** 线路机运行时聚合 (凭据 / 运行时 / 配额配置 / 当周期测量 / xray). */
     record RuntimeBundle(
             Map<String, ResourceServerCredentialDO> credentialMap,
             Map<String, ResourceServerRuntimeDO> runtimeMap,
-            Map<String, ResourceServerCapacityDO> capacityMap,
+            Map<String, ResourceServerQuotaDO> quotaMap,
+            Map<String, ResourceServerTrafficDO> trafficMap,
             Map<String, XrayServerDO> xrayMap) { }
 }

@@ -3,16 +3,15 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
 import com.nook.biz.node.service.resource.ResourceServerTrafficService;
 import com.nook.common.utils.unit.TrafficUnitUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,7 +32,7 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     private static final int DEFAULT_RESET_DAY = 1;
 
     @Resource
-    private ResourceServerCapacityMapper resourceServerCapacityMapper;
+    private ResourceServerQuotaMapper resourceServerQuotaMapper;
     @Resource
     private ResourceServerTrafficMapper resourceServerTrafficMapper;
 
@@ -43,98 +42,121 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void applyNicTraffic(String serverId, long cumRxBytes, long cumTxBytes, Long bizUsedBytes) {
-        ResourceServerCapacityDO cap = resourceServerCapacityMapper.selectById(serverId);
-        if (ObjectUtil.isNull(cap)) {
-            return; // 容量行装机时已建; 缺失则跳过(理论不发生)
+    public void applyNicTraffic(String serverId, long cumRxBytes, long cumTxBytes, Long bizUpBytes, Long bizDownBytes) {
+        ResourceServerQuotaDO quota = resourceServerQuotaMapper.selectById(serverId);
+        if (ObjectUtil.isNull(quota)) {
+            return; // 额度配置行装机时已建; 缺失则跳过(理论不发生)
         }
         LocalDate today = LocalDate.now(ZoneId.of(resetZone));
 
-        this.rolloverIfNeeded(cap, today);
-        this.accumulate(cap, cumRxBytes, cumTxBytes);
-        this.markQuotaReached(cap);
-        if (ObjectUtil.isNotNull(bizUsedBytes)) {
-            cap.setBizUsedBytes(bizUsedBytes); // socks5 业务流量累计(绝对值); 增量计量在 TradeLifecycleJob, 此处只覆盖, 不随周期清零
+        ResourceServerTrafficDO row = resourceServerTrafficMapper.selectCurrentByServerId(serverId);
+        boolean isNew = ObjectUtil.isNull(row);
+        if (isNew) {
+            row = this.newCurrentRow(serverId, quota, today);
+        } else {
+            row = this.rolloverIfNeeded(quota, row, today);
+            isNew = ObjectUtil.isNull(row.getId());
         }
 
-        cap.setUpdatedAt(LocalDateTime.now());
-        resourceServerCapacityMapper.updateById(cap);
+        this.accumulate(row, cumRxBytes, cumTxBytes);
+        this.markQuotaReached(quota, row);
+        if (ObjectUtil.isNotNull(bizUpBytes)) {
+            row.setCounterUpBytes(bizUpBytes); // 业务上行累计(绝对值); 增量计量在 trade 侧, 此处只覆盖, 跨周期不清零
+        }
+        if (ObjectUtil.isNotNull(bizDownBytes)) {
+            row.setCounterDownBytes(bizDownBytes);
+        }
+        row.setLastSampledAt(LocalDateTime.now());
+        if (isNew) {
+            resourceServerTrafficMapper.insert(row);
+        } else {
+            resourceServerTrafficMapper.updateById(row);
+        }
     }
 
-    /** 周期翻篇: 跨过我方重置日则归档旧周期并清零 (FIXED 永不翻篇). */
-    private void rolloverIfNeeded(ResourceServerCapacityDO cap, LocalDate today) {
-        if (ResourceServerQuotaResetPolicyEnum.FIXED.matches(cap.getQuotaResetPolicy())) {
-            if (ObjectUtil.isNull(cap.getPeriodStart())) {
-                cap.setPeriodStart(today); // 仅记起点, 之后不再推进
-            }
+    @Override
+    public ResourceServerTrafficDO getCurrent(String serverId) {
+        return resourceServerTrafficMapper.selectCurrentByServerId(serverId);
+    }
+
+    /** 建当周期首行(未入库, id 空); 周期起点按重置策略定, 基线由 accumulate 首见建立. */
+    private ResourceServerTrafficDO newCurrentRow(String serverId, ResourceServerQuotaDO quota, LocalDate today) {
+        ResourceServerTrafficDO row = new ResourceServerTrafficDO();
+        row.setServerId(serverId);
+        row.setStartTime(this.periodStart(quota, today));
+        row.setRxBytes(0L);
+        row.setTxBytes(0L);
+        row.setUsedBytes(0L);
+        row.setThrottleState(ResourceServerThrottleStateEnum.NORMAL.getState());
+        return row;
+    }
+
+    /** 周期翻篇: 跨过我方重置日 → 封存当前行(填 end_time), 返回带过游标的新当周期行(未入库); 否则原样返回. FIXED 永不翻篇. */
+    private ResourceServerTrafficDO rolloverIfNeeded(ResourceServerQuotaDO quota, ResourceServerTrafficDO current,
+                                                     LocalDate today) {
+        if (ResourceServerQuotaResetPolicyEnum.FIXED.matches(quota.getResetPolicy())) {
+            return current;
+        }
+        LocalDate periodStart = this.periodStart(quota, today);
+        if (ObjectUtil.isNull(current.getStartTime()) || !current.getStartTime().isBefore(periodStart)) {
+            return current;
+        }
+        current.setEndTime(periodStart);
+        resourceServerTrafficMapper.updateById(current);
+        ResourceServerTrafficDO next = new ResourceServerTrafficDO();
+        next.setServerId(current.getServerId());
+        next.setStartTime(periodStart);
+        next.setRxBytes(0L);
+        next.setTxBytes(0L);
+        next.setUsedBytes(0L);
+        next.setLastCounterRxBytes(current.getLastCounterRxBytes()); // 游标带过去, 新周期接着做差
+        next.setLastCounterTxBytes(current.getLastCounterTxBytes());
+        next.setCounterUpBytes(current.getCounterUpBytes());         // 业务累计跨周期不清零
+        next.setCounterDownBytes(current.getCounterDownBytes());
+        next.setThrottleState(ResourceServerThrottleStateEnum.NORMAL.getState());
+        return next;
+    }
+
+    /** 增量累加 (抗计数器归零 / 整机重置 / 首见). */
+    private void accumulate(ResourceServerTrafficDO row, long cumRx, long cumTx) {
+        if (ObjectUtil.isNull(row.getLastCounterRxBytes())) {
+            // 首见仅建基准, 不把历史全量计入
+            row.setLastCounterRxBytes(cumRx);
+            row.setLastCounterTxBytes(cumTx);
             return;
         }
-        LocalDate periodStart = this.currentPeriodStart(cap, today);
-        if (ObjectUtil.isNull(cap.getPeriodStart())) {
-            cap.setPeriodStart(periodStart); // 首次建周期, 不归档
-        } else if (cap.getPeriodStart().isBefore(periodStart)) {
-            this.archive(cap, periodStart);
-            cap.setRxBytes(0L);
-            cap.setTxBytes(0L);
-            cap.setUsedTrafficBytes(0L);
-            cap.setPeriodStart(periodStart);
-            cap.setThrottleState(ResourceServerThrottleStateEnum.NORMAL.getState());
+        long dRx = cumRx >= row.getLastCounterRxBytes() ? cumRx - row.getLastCounterRxBytes() : cumRx;
+        long dTx = cumTx >= row.getLastCounterTxBytes() ? cumTx - row.getLastCounterTxBytes() : cumTx;
+        row.setRxBytes(nz(row.getRxBytes()) + dRx);
+        row.setTxBytes(nz(row.getTxBytes()) + dTx);
+        row.setUsedBytes(row.getRxBytes() + row.getTxBytes());
+        row.setLastCounterRxBytes(cumRx);
+        row.setLastCounterTxBytes(cumTx);
+    }
+
+    /** 配额到顶置已限流 (停分新用户 + 触发同地区切换, 上层消费); 不限额则不动. */
+    private void markQuotaReached(ResourceServerQuotaDO quota, ResourceServerTrafficDO row) {
+        Integer totalGb = quota.getTotalGb();
+        if (ObjectUtil.isNotNull(totalGb) && totalGb > 0 && nz(row.getUsedBytes()) >= TrafficUnitUtils.gbToBytes(totalGb)) {
+            row.setThrottleState(ResourceServerThrottleStateEnum.THROTTLED.getState());
         }
     }
 
-    /** 增量累加 (抗计数器归零 / 整机重置 / 首次上报). */
-    private void accumulate(ResourceServerCapacityDO cap, long cumRx, long cumTx) {
-        if (ObjectUtil.isNull(cap.getLastCumRxBytes())) {
-            // 首次仅建基准, 不把历史全量计入
-            cap.setLastCumRxBytes(cumRx);
-            cap.setLastCumTxBytes(cumTx);
-            return;
+    /** 周期起点: 按月 = ≤today 最近一个重置日(clamp 1..28); 固定不重置 = today. */
+    private LocalDate periodStart(ResourceServerQuotaDO quota, LocalDate today) {
+        if (ResourceServerQuotaResetPolicyEnum.FIXED.matches(quota.getResetPolicy())) {
+            return today;
         }
-        long dRx = cumRx >= cap.getLastCumRxBytes() ? cumRx - cap.getLastCumRxBytes() : cumRx;
-        long dTx = cumTx >= cap.getLastCumTxBytes() ? cumTx - cap.getLastCumTxBytes() : cumTx;
-        cap.setRxBytes(nz(cap.getRxBytes()) + dRx);
-        cap.setTxBytes(nz(cap.getTxBytes()) + dTx);
-        cap.setUsedTrafficBytes(cap.getRxBytes() + cap.getTxBytes());
-        cap.setLastCumRxBytes(cumRx);
-        cap.setLastCumTxBytes(cumTx);
-    }
-
-    /** 配额到顶置为已触发限流 (停止分新用户 + 触发同地区切换, 由上层消费); 不限额则不动. */
-    private void markQuotaReached(ResourceServerCapacityDO cap) {
-        Integer quotaGb = cap.getMonthlyTrafficGb();
-        if (ObjectUtil.isNotNull(quotaGb) && quotaGb > 0 && nz(cap.getUsedTrafficBytes()) >= TrafficUnitUtils.gbToBytes(quotaGb)) {
-            cap.setThrottleState(ResourceServerThrottleStateEnum.THROTTLED.getState());
-        }
-    }
-
-    /** 当前"按月"周期起点 = ≤today 的最近一个重置日 (clamp 1..28). */
-    private LocalDate currentPeriodStart(ResourceServerCapacityDO cap, LocalDate today) {
-        int resetDay = this.resolveResetDay(cap);
+        int resetDay = this.resolveResetDay(quota);
         return today.getDayOfMonth() >= resetDay
                 ? today.withDayOfMonth(resetDay)
                 : today.minusMonths(1).withDayOfMonth(resetDay);
     }
 
-    /** 我方重置日 = capacity.reset_day(clamp 1..28); 取不到用缺省. */
-    private int resolveResetDay(ResourceServerCapacityDO cap) {
-        Integer day = cap.getResetDay();
+    /** 我方重置日 = quota.reset_day(clamp 1..28); 取不到用缺省. */
+    private int resolveResetDay(ResourceServerQuotaDO quota) {
+        Integer day = quota.getResetDay();
         return (ObjectUtil.isNull(day) || day < 1 || day > 28) ? DEFAULT_RESET_DAY : day;
-    }
-
-    /** 把结束的周期写入历史表; (server_id, period_start) 唯一, 重复归档忽略. */
-    private void archive(ResourceServerCapacityDO cap, LocalDate periodEnd) {
-        ResourceServerTrafficDO row = new ResourceServerTrafficDO();
-        row.setServerId(cap.getServerId());
-        row.setPeriodStart(cap.getPeriodStart());
-        row.setPeriodEnd(periodEnd);
-        row.setRxBytes(nz(cap.getRxBytes()));
-        row.setTxBytes(nz(cap.getTxBytes()));
-        row.setUsedBytes(nz(cap.getUsedTrafficBytes()));
-        try {
-            resourceServerTrafficMapper.insert(row);
-        } catch (DuplicateKeyException e) {
-            log.warn("[archive] 周期已归档, 跳过: serverId={} periodStart={}", cap.getServerId(), cap.getPeriodStart());
-        }
     }
 
     private static long nz(Long v) {

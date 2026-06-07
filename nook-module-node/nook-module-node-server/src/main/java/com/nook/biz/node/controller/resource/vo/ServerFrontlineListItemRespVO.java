@@ -46,17 +46,17 @@ public class ServerFrontlineListItemRespVO {
     /** agent 在线状态 {@link AgentOnlineState} */
     private String onlineState;
 
-    /** 月度流量配额 GB; 0/null = 不限. */
-    private Integer monthlyTrafficGb;
+    /** 总流量配额 GB; 0/null = 不限. */
+    private Integer totalGb;
 
-    /** 当周期下行字节. */
+    /** 当周期入站字节. */
     private Long rxBytes;
 
-    /** 当周期上行字节. */
+    /** 当周期出站字节. */
     private Long txBytes;
 
-    /** 当周期已用流量字节 = rx + tx. */
-    private Long usedTrafficBytes;
+    /** 当周期机器已用字节 = rx + tx. */
+    private Long usedBytes;
 
     /** 限流状态 {@link ResourceServerThrottleStateEnum} */
     private String throttleState;

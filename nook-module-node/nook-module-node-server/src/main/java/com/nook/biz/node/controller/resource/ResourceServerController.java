@@ -2,8 +2,8 @@ package com.nook.biz.node.controller.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceServerBillingRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerBillingUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityRespVO;
-import com.nook.biz.node.controller.resource.vo.ResourceServerCapacityUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerQuotaRespVO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerQuotaUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialRespVO;
@@ -13,12 +13,13 @@ import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.convert.resource.ResourceServerBillingConvert;
-import com.nook.biz.node.convert.resource.ResourceServerCapacityConvert;
+import com.nook.biz.node.convert.resource.ResourceServerQuotaConvert;
 import com.nook.biz.node.convert.resource.ResourceServerConvert;
 import com.nook.biz.node.convert.resource.ResourceServerCredentialConvert;
 import com.nook.biz.node.convert.resource.ResourceServerFrontlineConvert;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
-import com.nook.biz.node.service.resource.ResourceServerCapacityService;
+import com.nook.biz.node.service.resource.ResourceServerQuotaService;
+import com.nook.biz.node.service.resource.ResourceServerTrafficService;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.biz.node.service.resource.ResourceServerService;
@@ -37,7 +38,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 管理后台 - 服务器公共 Controller
@@ -56,7 +56,9 @@ public class ResourceServerController {
     @Resource
     private ResourceServerBillingService resourceServerBillingService;
     @Resource
-    private ResourceServerCapacityService resourceServerCapacityService;
+    private ResourceServerQuotaService resourceServerQuotaService;
+    @Resource
+    private ResourceServerTrafficService resourceServerTrafficService;
     @Resource
     private ResourceServerFrontlineService resourceServerFrontlineService;
 
@@ -108,7 +110,8 @@ public class ResourceServerController {
                 server,
                 bundle.credentialMap().get(id),
                 bundle.runtimeMap().get(id),
-                bundle.capacityMap().get(id),
+                bundle.quotaMap().get(id),
+                bundle.trafficMap().get(id),
                 bundle.xrayMap().get(id),
                 LocalDateTime.now()));
     }
@@ -212,29 +215,30 @@ public class ResourceServerController {
     }
 
     /**
-     * 获得容量
+     * 获得配额
      *
      * @param id server 编号
-     * @return 容量
+     * @return 配额
      */
-    @GetMapping("/get-capacity")
-    public Result<ResourceServerCapacityRespVO> getCapacity(@RequestParam("id") String id) {
+    @GetMapping("/get-quota")
+    public Result<ResourceServerQuotaRespVO> getQuota(@RequestParam("id") String id) {
         resourceServerService.requireServer(id);
-        return Result.ok(ResourceServerCapacityConvert.INSTANCE.convert(resourceServerCapacityService.get(id)));
+        return Result.ok(ResourceServerQuotaConvert.INSTANCE.convert(
+                resourceServerQuotaService.get(id), resourceServerTrafficService.getCurrent(id)));
     }
 
     /**
-     * 更新容量阈值
+     * 更新配额阈值
      *
      * @param id    server 编号
-     * @param reqVO 容量更新入参
+     * @param reqVO 配额更新入参
      * @return 是否成功
      */
-    @PutMapping("/update-capacity")
-    public Result<Boolean> updateCapacity(@RequestParam("id") String id,
-                                          @RequestBody @Valid ResourceServerCapacityUpdateReqVO reqVO) {
+    @PutMapping("/update-quota")
+    public Result<Boolean> updateQuota(@RequestParam("id") String id,
+                                       @RequestBody @Valid ResourceServerQuotaUpdateReqVO reqVO) {
         resourceServerService.requireServer(id);
-        resourceServerCapacityService.updateQuota(id, reqVO);
+        resourceServerQuotaService.updateQuota(id, reqVO);
         return Result.ok(true);
     }
 }

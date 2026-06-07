@@ -5,15 +5,14 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.agent.api.AgentTokenApi;
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
-import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.event.ServerCredentialChangedEvent;
@@ -50,7 +49,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
-    private ResourceServerCapacityMapper resourceServerCapacityMapper;
+    private ResourceServerQuotaMapper resourceServerQuotaMapper;
     @Resource
     private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
     @Resource
@@ -97,7 +96,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
         // 共用子表
         resourceServerCredentialService.create(entity.getId(), createReqVO.getCredential());
-        this.initCapacityAndRuntime(entity.getId());
+        this.initQuotaAndRuntime(entity.getId());
 
         // 类型分支子表
         if (isLanding) {
@@ -109,20 +108,17 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         return entity.getId();
     }
 
-    private void initCapacityAndRuntime(String serverId) {
+    private void initQuotaAndRuntime(String serverId) {
         LocalDateTime now = LocalDateTime.now();
 
-        ResourceServerCapacityDO capacity = new ResourceServerCapacityDO();
-        capacity.setServerId(serverId);
-        capacity.setRxBytes(0L);
-        capacity.setTxBytes(0L);
-        capacity.setUsedTrafficBytes(0L);
-        capacity.setQuotaResetPolicy(ResourceServerQuotaResetPolicyEnum.MONTHLY.getState());
-        capacity.setResetDay(1); // 默认每月 1 号重置, admin 可改
-        capacity.setThrottleState(ResourceServerThrottleStateEnum.NORMAL.getState());
-        capacity.setCreatedAt(now);
-        capacity.setUpdatedAt(now);
-        resourceServerCapacityMapper.insert(capacity);
+        // 额度配置占位行; 上限 admin 后填, 运行统计首次上报时建测量行
+        ResourceServerQuotaDO quota = new ResourceServerQuotaDO();
+        quota.setServerId(serverId);
+        quota.setResetPolicy(ResourceServerQuotaResetPolicyEnum.MONTHLY.getState());
+        quota.setResetDay(1); // 默认每月 1 号重置, admin 可改
+        quota.setCreatedAt(now);
+        quota.setUpdatedAt(now);
+        resourceServerQuotaMapper.insert(quota);
 
         ResourceServerRuntimeDO runtime = new ResourceServerRuntimeDO();
         runtime.setServerId(serverId);

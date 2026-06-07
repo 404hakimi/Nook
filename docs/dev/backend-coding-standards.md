@@ -65,7 +65,7 @@ Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查
 
 参考: `nook-module-agent` 的 `-api` / `-server` 拆分.
 
-**Api 接口命名**: 名字对齐它主要操作的表 (`ResourceServerCapacityApi`↔`resource_server_capacity`、`ResourceServerLandingApi`↔`resource_server_landing`); 无单一表对应的**业务聚合 / 操作类**才用描述性后缀 (`XrayReconcileApi` 对账、`TradeBandwidthApi` 带宽聚合). **禁止**含糊无信息量的后缀 (如 "Node" / "Info" / "Data").
+**Api 接口命名**: 名字对齐它主要操作的表 (`ResourceServerQuotaApi`↔`resource_server_quota`、`ResourceServerLandingApi`↔`resource_server_landing`); 无单一表对应的**业务聚合 / 操作类**才用描述性后缀 (`XrayReconcileApi` 对账、`TradeBandwidthApi` 带宽聚合). **禁止**含糊无信息量的后缀 (如 "Node" / "Info" / "Data").
 
 ### 关联数据拼接 (跨模块 / 聚合视图: Service 经 Convert 直接返 VO)
 
@@ -346,7 +346,7 @@ throw new BusinessException(SomeErrorCode.NAME_EXISTS, name);
 | ✅ 推荐 | ❌ 禁止 |
 |---|---|
 | `GET /get-server?id=...` | `GET /get` 或 `GET /{id}` |
-| `PUT /update-capacity?id=...` | `PUT /capacity` 或 `PUT /{id}/capacity` |
+| `PUT /update-quota?id=...` | `PUT /quota` 或 `PUT /{id}/quota` |
 | `POST /create-frontline` | `POST /create` |
 | `DELETE /delete-server?id=...` | `DELETE /delete` |
 | `POST /transition-lifecycle?id=...` | `POST /lifecycle` |

@@ -2,17 +2,18 @@ package com.nook.biz.node.convert.resource;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingRespVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityRespVO;
+import com.nook.biz.node.controller.resource.vo.ServerLandingQuotaRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingInstallRespVO;
 import com.nook.biz.agent.api.enums.AgentOnlineState;
 import com.nook.biz.node.controller.resource.vo.ServerLandingRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5RespVO;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -50,29 +51,48 @@ public interface ResourceServerLandingConvert {
     /** billing 子表 → 账面 VO */
     ServerLandingBillingRespVO toBillingRespVO(ResourceServerBillingDO bill);
 
-    /** capacity 子表 → 容量监控 VO */
-    ServerLandingCapacityRespVO toCapacityRespVO(ResourceServerCapacityDO cap);
+    /** 配额配置 + 当周期测量 → 配额监控 VO. */
+    default ServerLandingQuotaRespVO toQuotaRespVO(ResourceServerQuotaDO quota, ResourceServerTrafficDO traffic) {
+        ServerLandingQuotaRespVO vo = new ServerLandingQuotaRespVO();
+        if (ObjectUtil.isNull(quota)) {
+            return vo;
+        }
+        vo.setServerId(quota.getServerId());
+        vo.setBandwidthMbps(quota.getBandwidthMbps());
+        vo.setTotalGb(quota.getTotalGb());
+        vo.setResetPolicy(quota.getResetPolicy());
+        vo.setResetDay(quota.getResetDay());
+        if (ObjectUtil.isNotNull(traffic)) {
+            vo.setUsedBytes(traffic.getUsedBytes());
+            vo.setRxBytes(traffic.getRxBytes());
+            vo.setTxBytes(traffic.getTxBytes());
+            vo.setThrottleState(traffic.getThrottleState());
+        }
+        return vo;
+    }
 
-    /** 详情聚合: 主表 + 4 子表 → RespVO (SSH 凭据走公共 /get-credential, 不在此 VO) */
+    /** 详情聚合: 主表 + 子表 → RespVO (SSH 凭据走公共 /get-credential, 不在此 VO) */
     default ServerLandingRespVO convertWithSubtables(ResourceServerDO main,
                                                     ResourceServerLandingDO landing,
                                                     ResourceServerBillingDO bill,
-                                                    ResourceServerCapacityDO cap,
+                                                    ResourceServerQuotaDO quota,
+                                                    ResourceServerTrafficDO traffic,
                                                     ResourceServerRuntimeDO runtime) {
         ServerLandingRespVO vo = convert(main);
         enrichLanding(vo, landing);
         enrichBilling(vo, bill);
-        enrichCapacity(vo, cap);
+        enrichQuota(vo, quota, traffic);
         enrichRuntime(vo, runtime);
         return vo;
     }
 
-    /** 列表聚合: 主表分页 + 4 子表 Map → 分页 RespVO */
+    /** 列表聚合: 主表分页 + 子表 Map → 分页 RespVO */
     default PageResult<ServerLandingRespVO> convertPageWithSubtables(
             PageResult<ResourceServerDO> page,
             Map<String, ResourceServerLandingDO> landingMap,
             Map<String, ResourceServerBillingDO> billMap,
-            Map<String, ResourceServerCapacityDO> capMap,
+            Map<String, ResourceServerQuotaDO> quotaMap,
+            Map<String, ResourceServerTrafficDO> trafficMap,
             Map<String, ResourceServerRuntimeDO> runtimeMap) {
         List<ResourceServerDO> records = page.getRecords();
         List<ServerLandingRespVO> list = new ArrayList<>(records.size());
@@ -80,7 +100,8 @@ public interface ResourceServerLandingConvert {
             ServerLandingRespVO vo = convert(srv);
             enrichLanding(vo, ObjectUtil.isNull(landingMap) ? null : landingMap.get(srv.getId()));
             enrichBilling(vo, ObjectUtil.isNull(billMap) ? null : billMap.get(srv.getId()));
-            enrichCapacity(vo, ObjectUtil.isNull(capMap) ? null : capMap.get(srv.getId()));
+            enrichQuota(vo, ObjectUtil.isNull(quotaMap) ? null : quotaMap.get(srv.getId()),
+                    ObjectUtil.isNull(trafficMap) ? null : trafficMap.get(srv.getId()));
             enrichRuntime(vo, ObjectUtil.isNull(runtimeMap) ? null : runtimeMap.get(srv.getId()));
             list.add(vo);
         }
@@ -115,15 +136,19 @@ public interface ResourceServerLandingConvert {
         vo.setExpiresAt(bill.getExpiresAt());
     }
 
-    static void enrichCapacity(ServerLandingRespVO vo, ResourceServerCapacityDO cap) {
-        if (ObjectUtil.isNull(vo) || ObjectUtil.isNull(cap)) return;
-        vo.setBandwidthLimitMbps(cap.getBandwidthLimitMbps());
-        vo.setMonthlyTrafficGb(cap.getMonthlyTrafficGb());
-        vo.setUsedTrafficBytes(cap.getUsedTrafficBytes());
-        vo.setRxBytes(cap.getRxBytes());
-        vo.setTxBytes(cap.getTxBytes());
-        vo.setQuotaResetPolicy(cap.getQuotaResetPolicy());
-        vo.setThrottleState(cap.getThrottleState());
+    static void enrichQuota(ServerLandingRespVO vo, ResourceServerQuotaDO quota, ResourceServerTrafficDO traffic) {
+        if (ObjectUtil.isNull(vo)) return;
+        if (ObjectUtil.isNotNull(quota)) {
+            vo.setBandwidthMbps(quota.getBandwidthMbps());
+            vo.setTotalGb(quota.getTotalGb());
+            vo.setResetPolicy(quota.getResetPolicy());
+        }
+        if (ObjectUtil.isNotNull(traffic)) {
+            vo.setUsedBytes(traffic.getUsedBytes());
+            vo.setRxBytes(traffic.getRxBytes());
+            vo.setTxBytes(traffic.getTxBytes());
+            vo.setThrottleState(traffic.getThrottleState());
+        }
     }
 
     static void enrichRuntime(ServerLandingRespVO vo, ResourceServerRuntimeDO runtime) {

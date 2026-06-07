@@ -24,7 +24,7 @@ import (
 // 从 `nft list table` 文本里提 cnt_in 规则的 dport.
 var dportRe = regexp.MustCompile(`dport (\d+)`)
 
-// Meter 维护 nft 业务流量计数器, 并提供 Sample 供 nic 上报采样. 无内存状态, 一切以内核为准.
+// Meter 维护 nft 业务流量计数器, 并提供 SampleUpDown 供 nic 上报采样. 无内存状态, 一切以内核为准.
 type Meter struct{}
 
 func New() *Meter {
@@ -90,38 +90,46 @@ table inet nook_meter {
 	return nil
 }
 
-// Sample: 读 nft 计数器(biz_in + biz_out 字节之和); table 不存在/读失败返 nil → nic 不报 biz, 后端回退整机 tx.
-func (m *Meter) Sample() *int64 {
-	total, err := m.readCounters()
+// SampleUpDown: 读 nft 计数器, 上行=biz_in(进 socks5 端口=客户端→代理), 下行=biz_out(出 socks5 端口=代理→客户端);
+// table 不存在/读失败返 (nil,nil) → nic 不报 biz, 后端本轮不更新业务流量.
+func (m *Meter) SampleUpDown() (up, down *int64) {
+	in, out, err := m.readCounters()
 	if err != nil {
-		return nil
+		return nil, nil
 	}
-	return &total
+	return &in, &out
 }
 
-// nft -j 输出结构 (只取 counter 的 bytes).
+// nft -j 输出结构 (取 counter 的 name + bytes).
 type nftJSON struct {
 	Nftables []struct {
 		Counter *struct {
-			Bytes int64 `json:"bytes"`
+			Name  string `json:"name"`
+			Bytes int64  `json:"bytes"`
 		} `json:"counter"`
 	} `json:"nftables"`
 }
 
-func (m *Meter) readCounters() (int64, error) {
-	out, err := exec.Command("nft", "-j", "list", "counters", "table", "inet", "nook_meter").Output()
+// readCounters: 分别读 biz_in(上行) / biz_out(下行) 累计字节.
+func (m *Meter) readCounters() (in, out int64, err error) {
+	raw, err := exec.Command("nft", "-j", "list", "counters", "table", "inet", "nook_meter").Output()
 	if err != nil {
-		return 0, fmt.Errorf("nft list counters: %w", err)
+		return 0, 0, fmt.Errorf("nft list counters: %w", err)
 	}
 	var parsed nftJSON
-	if err := json.Unmarshal(out, &parsed); err != nil {
-		return 0, fmt.Errorf("解析 nft json: %w", err)
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return 0, 0, fmt.Errorf("解析 nft json: %w", err)
 	}
-	var total int64
 	for _, item := range parsed.Nftables {
-		if item.Counter != nil {
-			total += item.Counter.Bytes
+		if item.Counter == nil {
+			continue
+		}
+		switch item.Counter.Name {
+		case "biz_in":
+			in = item.Counter.Bytes
+		case "biz_out":
+			out = item.Counter.Bytes
 		}
 	}
-	return total, nil
+	return in, out, nil
 }

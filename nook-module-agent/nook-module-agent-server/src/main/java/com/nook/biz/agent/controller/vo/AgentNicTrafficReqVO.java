@@ -12,17 +12,21 @@ import lombok.Data;
 @Data
 public class AgentNicTrafficReqVO {
 
-    /** 周期内累计入站字节. */
+    /** 网卡入站累计字节. */
     @NotNull(message = "rxBytes 不能为空")
     @PositiveOrZero
     private Long rxBytes;
 
-    /** 周期内累计出站字节. */
+    /** 网卡出站累计字节. */
     @NotNull(message = "txBytes 不能为空")
     @PositiveOrZero
     private Long txBytes;
 
-    /** socks5 业务流量累计字节 (落地机 nft 计数器读出, 双向之和); 老 agent 不上报为 null, 后端回退整机 tx 计量. */
+    /** socks5 用户上行累计字节 (落地机 nft 计数器读出); 未上报为 null. */
     @PositiveOrZero
-    private Long bizUsedBytes;
+    private Long bizUpBytes;
+
+    /** socks5 用户下行累计字节 (落地机 nft 计数器读出); 未上报为 null. */
+    @PositiveOrZero
+    private Long bizDownBytes;
 }

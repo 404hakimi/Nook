@@ -22,9 +22,9 @@ import {
   useMessage
 } from 'naive-ui'
 import {
-  getServerLandingCapacity,
+  getServerLandingQuota,
   type ServerLanding,
-  type ServerLandingCapacity
+  type ServerLandingQuota
 } from '@/api/resource/server-landing'
 import {
   getServerSystemInfo,
@@ -49,7 +49,7 @@ const props = defineProps<{
 }>()
 
 const message = useMessage()
-const capacity = ref<ServerLandingCapacity | null>(null)
+const capacity = ref<ServerLandingQuota | null>(null)
 const loading = ref(false)
 
 // 主机 / UFW: 实时 SSH 探测, 懒加载
@@ -62,7 +62,7 @@ async function loadCapacity() {
   if (!props.detail?.id) return
   loading.value = true
   try {
-    capacity.value = await getServerLandingCapacity(props.detail.id)
+    capacity.value = await getServerLandingQuota(props.detail.id)
   } catch (e) {
     message.error('拉容量失败: ' + ((e as Error).message ?? ''))
   } finally {
@@ -99,8 +99,8 @@ function bytesToGB(b?: number | null): number {
 }
 const rxGB = computed(() => bytesToGB(capacity.value?.rxBytes))
 const txGB = computed(() => bytesToGB(capacity.value?.txBytes))
-const usedGB = computed(() => bytesToGB(capacity.value?.usedTrafficBytes))
-const totalGB = computed(() => capacity.value?.monthlyTrafficGb ?? 0)
+const usedGB = computed(() => bytesToGB(capacity.value?.usedBytes))
+const totalGB = computed(() => capacity.value?.totalGb ?? 0)
 const usedPercent = computed(() => {
   if (!totalGB.value) return 0
   return Math.min(100, Math.round((usedGB.value / totalGB.value) * 100))
@@ -252,8 +252,8 @@ const socks5StateLabel = computed(() => {
           :label-style="{ width: '8rem', verticalAlign: 'middle' }"
         >
           <NDescriptionsItem label="限定带宽">
-            <template v-if="capacity?.bandwidthLimitMbps">
-              <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
+            <template v-if="capacity?.bandwidthMbps">
+              <span class="num">{{ capacity.bandwidthMbps }}</span>
               <span class="unit">Mbps</span>
             </template>
             <span v-else class="muted">不限</span>
@@ -277,8 +277,8 @@ const socks5StateLabel = computed(() => {
             <span v-else class="muted">不限</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="重置策略">
-            <NTag v-if="capacity?.quotaResetPolicy" size="small" :type="RESET_POLICY_TYPE[capacity.quotaResetPolicy] || 'default'">
-              {{ RESET_POLICY_LABELS[capacity.quotaResetPolicy] || capacity.quotaResetPolicy }}
+            <NTag v-if="capacity?.resetPolicy" size="small" :type="RESET_POLICY_TYPE[capacity.resetPolicy] || 'default'">
+              {{ RESET_POLICY_LABELS[capacity.resetPolicy] || capacity.resetPolicy }}
             </NTag>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>

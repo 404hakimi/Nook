@@ -12,20 +12,22 @@ import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.ServerLandingQuotaUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5UpdateReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerBillingMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
 import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
 import com.nook.biz.node.service.resource.ResourceServerAdmission;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
@@ -69,7 +71,9 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Resource
     private ResourceServerBillingMapper resourceServerBillingMapper;
     @Resource
-    private ResourceServerCapacityMapper resourceServerCapacityMapper;
+    private ResourceServerQuotaMapper resourceServerQuotaMapper;
+    @Resource
+    private ResourceServerTrafficMapper resourceServerTrafficMapper;
     @Resource
     private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
     @Resource
@@ -163,11 +167,11 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void updateCapacity(String id, ServerLandingCapacityUpdateReqVO reqVO) {
+    public void updateQuota(String id, ServerLandingQuotaUpdateReqVO reqVO) {
         resourceServerValidator.validateExists(id);
-        // capacity 在 create 时已 insert 占位, 这里只走 update 业务阈值
-        resourceServerCapacityMapper.updateQuota(id, reqVO.getMonthlyTrafficGb(), reqVO.getBandwidthLimitMbps(),
-                reqVO.getQuotaResetPolicy(), reqVO.getResetDay());
+        // 配额配置行装机时已 insert 占位, 这里只走 update 上限
+        resourceServerQuotaMapper.updateQuota(id, reqVO.getTotalGb(), reqVO.getBandwidthMbps(),
+                reqVO.getResetPolicy(), reqVO.getResetDay());
     }
 
     @Override
@@ -186,8 +190,8 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     @Override
-    public ResourceServerCapacityDO getCapacity(String id) {
-        return resourceServerCapacityMapper.selectById(id);
+    public ResourceServerQuotaDO getQuota(String id) {
+        return resourceServerQuotaMapper.selectById(id);
     }
 
     @Override
@@ -307,21 +311,19 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Override
     public SubtablesBundle batchLoadSubtables(Collection<String> serverIds) {
         if (CollUtil.isEmpty(serverIds)) {
-            Map<String, ResourceServerLandingDO> emptyLanding = Map.of();
-            Map<String, ResourceServerBillingDO> emptyBill = Map.of();
-            Map<String, ResourceServerCapacityDO> emptyCap = Map.of();
-            Map<String, ResourceServerRuntimeDO> emptyRt = Map.of();
-            return new SubtablesBundle(emptyLanding, emptyBill, emptyCap, emptyRt);
+            return new SubtablesBundle(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         }
         Map<String, ResourceServerLandingDO> landings = CollectionUtils.convertMap(
                 resourceServerLandingMapper.selectBatchIds(serverIds), ResourceServerLandingDO::getServerId);
         Map<String, ResourceServerBillingDO> bills = CollectionUtils.convertMap(
                 resourceServerBillingMapper.selectBatchIds(serverIds), ResourceServerBillingDO::getServerId);
-        Map<String, ResourceServerCapacityDO> caps = CollectionUtils.convertMap(
-                resourceServerCapacityMapper.selectBatchIds(serverIds), ResourceServerCapacityDO::getServerId);
+        Map<String, ResourceServerQuotaDO> quotas = CollectionUtils.convertMap(
+                resourceServerQuotaMapper.selectBatchIds(serverIds), ResourceServerQuotaDO::getServerId);
+        Map<String, ResourceServerTrafficDO> traffics = CollectionUtils.convertMap(
+                resourceServerTrafficMapper.selectCurrentByServerIds(serverIds), ResourceServerTrafficDO::getServerId);
         Map<String, ResourceServerRuntimeDO> runtimes = CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
-        return new SubtablesBundle(landings, bills, caps, runtimes);
+        return new SubtablesBundle(landings, bills, quotas, traffics, runtimes);
     }
 
     @Override
@@ -362,9 +364,9 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
             return List.of();
         }
         // ③ 容量: 批量取容量子表, 逐台按套餐流量 / 带宽阈值过滤后转概要
-        Map<String, ResourceServerCapacityDO> capMap = CollectionUtils.convertMap(
-                resourceServerCapacityMapper.selectBatchIds(CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
-                ResourceServerCapacityDO::getServerId);
+        Map<String, ResourceServerQuotaDO> capMap = CollectionUtils.convertMap(
+                resourceServerQuotaMapper.selectBatchIds(CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
+                ResourceServerQuotaDO::getServerId);
         Set<String> allocatable = resourceServerAdmission.filterAllocatable(serverMap.keySet());
         List<LandingSummaryDTO> matched = new ArrayList<>();
         for (ResourceServerLandingDO landing : landings) {
@@ -379,9 +381,9 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     /** 落地机配额 / 带宽是否达不到套餐要求 (机器侧 0 或空表示不限, 视为达标). */
-    private boolean belowPlanSpec(ResourceServerCapacityDO cap, int minTrafficGb, int minBandwidthMbps) {
-        Integer quotaGb = ObjectUtil.isNull(cap) ? null : cap.getMonthlyTrafficGb();
-        Integer bandwidthMbps = ObjectUtil.isNull(cap) ? null : cap.getBandwidthLimitMbps();
+    private boolean belowPlanSpec(ResourceServerQuotaDO cap, int minTrafficGb, int minBandwidthMbps) {
+        Integer quotaGb = ObjectUtil.isNull(cap) ? null : cap.getTotalGb();
+        Integer bandwidthMbps = ObjectUtil.isNull(cap) ? null : cap.getBandwidthMbps();
         if (ObjectUtil.isNotNull(quotaGb) && quotaGb > 0 && quotaGb < minTrafficGb) {
             return true;
         }
@@ -400,10 +402,10 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
                 resourceServerMapper.selectLiveLandingsByRegions(regions), ResourceServerDO::getId);
         List<ResourceServerLandingDO> landings = MapUtil.isEmpty(serverMap) ? List.of()
                 : resourceServerLandingMapper.selectByServerIdsAndIpTypes(serverMap.keySet(), ipTypeIds);
-        Map<String, ResourceServerCapacityDO> capMap = CollUtil.isEmpty(landings) ? Map.of()
-                : CollectionUtils.convertMap(resourceServerCapacityMapper.selectBatchIds(
+        Map<String, ResourceServerQuotaDO> capMap = CollUtil.isEmpty(landings) ? Map.of()
+                : CollectionUtils.convertMap(resourceServerQuotaMapper.selectBatchIds(
                         CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
-                        ResourceServerCapacityDO::getServerId);
+                        ResourceServerQuotaDO::getServerId);
         Set<String> allocatable = resourceServerAdmission.filterAllocatable(serverMap.keySet());
         // ② 落地机按 (区域 + IP 类型) 分桶, 让每个套餐 O(1) 命中自己的候选
         Map<String, List<ResourceServerLandingDO>> bucket = new HashMap<>();

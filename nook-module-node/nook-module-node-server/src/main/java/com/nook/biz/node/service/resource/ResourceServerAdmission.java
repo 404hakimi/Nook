@@ -5,12 +5,12 @@ import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.agent.api.enums.AgentOnlineState;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
 import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 线路机 / 落地机可分配性准入 (一处综合 生命周期 + 流量配额 + 心跳 三类信号)
+ * 线路机 / 落地机可分配性准入 (一处综合 生命周期 + 流量限流 + 心跳 三类信号)
  *
  * @author nook
  */
@@ -35,14 +35,14 @@ public class ResourceServerAdmission {
     @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
-    private ResourceServerCapacityMapper resourceServerCapacityMapper;
+    private ResourceServerTrafficMapper resourceServerTrafficMapper;
     @Resource
     private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
 
     /**
      * 从候选服务器中筛出健康可分配的子集
      *
-     * <p>排除未上线、流量配额到顶、心跳不健康的服务器.
+     * <p>排除未上线、流量到顶限流、心跳不健康的服务器.
      *
      * @param serverIds 候选服务器ID集合
      * @return 可分配的服务器ID子集
@@ -53,14 +53,14 @@ public class ResourceServerAdmission {
         }
         Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(serverIds), ResourceServerDO::getId);
-        Map<String, ResourceServerCapacityDO> capMap = CollectionUtils.convertMap(
-                resourceServerCapacityMapper.selectBatchIds(serverIds), ResourceServerCapacityDO::getServerId);
+        Map<String, ResourceServerTrafficDO> trafficMap = CollectionUtils.convertMap(
+                resourceServerTrafficMapper.selectCurrentByServerIds(serverIds), ResourceServerTrafficDO::getServerId);
         Map<String, ResourceServerRuntimeDO> rtMap = CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
         LocalDateTime now = LocalDateTime.now();
         Set<String> allocatable = new HashSet<>(serverIds.size());
         for (String id : serverIds) {
-            if (this.isAllocatable(serverMap.get(id), capMap.get(id), rtMap.get(id), now)) {
+            if (this.isAllocatable(serverMap.get(id), trafficMap.get(id), rtMap.get(id), now)) {
                 allocatable.add(id);
             }
         }
@@ -68,12 +68,12 @@ public class ResourceServerAdmission {
     }
 
     /** 单台服务器准入判定: 运行中 + 未触发限流 + 心跳健康. */
-    public boolean isAllocatable(ResourceServerDO srv, ResourceServerCapacityDO cap,
+    public boolean isAllocatable(ResourceServerDO srv, ResourceServerTrafficDO traffic,
                                  ResourceServerRuntimeDO rt, LocalDateTime now) {
         if (ObjectUtil.isNull(srv) || !ResourceServerLifecycleEnum.LIVE.matches(srv.getLifecycleState())) {
             return false;
         }
-        if (ObjectUtil.isNotNull(cap) && ResourceServerThrottleStateEnum.THROTTLED.matches(cap.getThrottleState())) {
+        if (this.isThrottled(traffic)) {
             return false;
         }
         Long elapsedSec = (ObjectUtil.isNull(rt) || ObjectUtil.isNull(rt.getLastHeartbeatAt())) ? null
@@ -95,15 +95,14 @@ public class ResourceServerAdmission {
             return Map.of();
         }
         Set<String> ids = CollectionUtils.convertSet(frontlines, ResourceServerDO::getId);
-        Map<String, ResourceServerCapacityDO> capMap = CollectionUtils.convertMap(
-                resourceServerCapacityMapper.selectBatchIds(ids), ResourceServerCapacityDO::getServerId);
+        Map<String, ResourceServerTrafficDO> trafficMap = CollectionUtils.convertMap(
+                resourceServerTrafficMapper.selectCurrentByServerIds(ids), ResourceServerTrafficDO::getServerId);
         Map<String, ResourceServerRuntimeDO> rtMap = CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(ids), ResourceServerRuntimeDO::getServerId);
         LocalDateTime now = LocalDateTime.now();
         Map<String, String> result = new HashMap<>();
         for (ResourceServerDO srv : frontlines) {
-            ResourceServerCapacityDO cap = capMap.get(srv.getId());
-            if (ObjectUtil.isNotNull(cap) && ResourceServerThrottleStateEnum.THROTTLED.matches(cap.getThrottleState())) {
+            if (this.isThrottled(trafficMap.get(srv.getId()))) {
                 result.put(srv.getId(), ResourceServerThrottleStateEnum.THROTTLED.getState());
                 continue;
             }
@@ -115,5 +114,11 @@ public class ResourceServerAdmission {
             }
         }
         return result;
+    }
+
+    /** 当周期测量行已置限流. */
+    private boolean isThrottled(ResourceServerTrafficDO traffic) {
+        return ObjectUtil.isNotNull(traffic)
+                && ResourceServerThrottleStateEnum.THROTTLED.matches(traffic.getThrottleState());
     }
 }

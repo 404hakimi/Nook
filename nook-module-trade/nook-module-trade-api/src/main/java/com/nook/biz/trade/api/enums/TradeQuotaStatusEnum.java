@@ -10,7 +10,7 @@ import lombok.Getter;
  */
 @Getter
 @AllArgsConstructor
-public enum TradeTrafficGrantStatusEnum {
+public enum TradeQuotaStatusEnum {
 
     ACTIVE("ACTIVE", "生效中"),
     USED_UP("USED_UP", "已用尽"),
@@ -21,11 +21,11 @@ public enum TradeTrafficGrantStatusEnum {
     private final String state;
     private final String label;
 
-    public static TradeTrafficGrantStatusEnum fromState(String state) {
+    public static TradeQuotaStatusEnum fromState(String state) {
         if (state == null) {
             return null;
         }
-        for (TradeTrafficGrantStatusEnum e : values()) {
+        for (TradeQuotaStatusEnum e : values()) {
             if (e.state.equals(state)) {
                 return e;
             }

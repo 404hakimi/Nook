@@ -23,7 +23,7 @@ func main() {
 }
 
 // registerFrontline: frontline 角色挂 xray reconcile; yaml 里 xray 段必填.
-// per-user 流量统计已移除 (计量改落地机 NIC, 见 trade member_plan_traffic), 不再采集 xray statsquery.
+// per-user 流量统计已移除 (计量改落地机 socks5 上下行, 见 trade trade_subscription_traffic), 不再采集 xray statsquery.
 func registerFrontline(cfg *config.Config, cli *client.Client) agentcore.RoleComponents {
 	bin := cfg.Xray.Bin
 	apiPort := cfg.Xray.APIPort

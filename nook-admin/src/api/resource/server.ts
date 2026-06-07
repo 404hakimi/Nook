@@ -45,11 +45,11 @@ export interface ServerFrontlineListItem {
   elapsedSec?: number
   onlineState: AgentOnlineState
 
-  /** 月度流量配额 GB; 0/null = 不限. */
-  monthlyTrafficGb?: number
+  /** 总流量配额 GB; 0/null = 不限. */
+  totalGb?: number
   rxBytes?: number
   txBytes?: number
-  usedTrafficBytes?: number
+  usedBytes?: number
   /** NORMAL / THROTTLED. */
   throttleState?: string
 }
@@ -66,7 +66,7 @@ export interface ServerCredential {
   installTimeoutSeconds?: number
 }
 
-/** 账面 (1:1, /admin/resource/server/billing?id=...); 仅财务字段, 业务带宽 / 流量阈值在 capacity. */
+/** 账面 (1:1, /admin/resource/server/billing?id=...); 仅财务字段, 业务带宽 / 流量配额在 quota. */
 export interface ServerBilling {
   serverId?: string
   idcProvider?: string
@@ -171,28 +171,28 @@ export function getServerDetailWithRuntime(id: string) {
   return request.get<unknown, ServerFrontlineListItem>('/admin/resource/server/get-detail-with-runtime', { params: { id } })
 }
 
-/** Server NIC 流量配额 + 已用 + 业务带宽阈值 (监控面板用); 未上报过 NIC 时返 null. */
-export interface ServerCapacity {
+/** Server 配额上限 + 当周期已用 (监控面板用); 未上报过 NIC 时返 null. */
+export interface ServerQuota {
   serverId: string
-  /** 业务月流量阈值 GB; 0/null = 不限. throttle 状态机 90% 触发基数. */
-  monthlyTrafficGb?: number
-  /** 线路机出站带宽容量 Mbps; 供套餐分配不超卖, 0/空=不参与分配; 不做 tc 整形 (真实限速在落地机). */
-  bandwidthLimitMbps?: number
+  /** 总流量配额 GB; 0/null = 不限. throttle 状态机触发基数 (建议填机房配额的 ~90%). */
+  totalGb?: number
+  /** 出站带宽上限 Mbps; 供套餐分配不超卖, 0/空=不参与分配; 不做 tc 整形 (真实限速在落地机). */
+  bandwidthMbps?: number
   rxBytes?: number
   txBytes?: number
-  usedTrafficBytes?: number
-  quotaResetPolicy?: string
-  /** 按月流量重置日 1-28; FIXED 时为空. */
+  usedBytes?: number
+  resetPolicy?: string
+  /** 按月流量重置日 1-28; 固定不重置时为空. */
   resetDay?: number
   throttleState?: string
 }
 
-/** 业务阈值编辑入参 (PUT /admin/resource/server/capacity?id=...). */
-export interface ServerCapacityUpdateDTO {
-  monthlyTrafficGb?: number
-  bandwidthLimitMbps?: number
-  /** 周期重置策略: MONTHLY / FIXED. */
-  quotaResetPolicy?: string
+/** 配额上限编辑入参 (PUT /admin/resource/server/update-quota?id=...). */
+export interface ServerQuotaUpdateDTO {
+  totalGb?: number
+  bandwidthMbps?: number
+  /** 重置策略: MONTHLY / FIXED. */
+  resetPolicy?: string
   /** 按月流量重置日 1-28; MONTHLY 必填, FIXED 忽略. */
   resetDay?: number
 }
@@ -209,13 +209,13 @@ export const SERVER_THROTTLE_STATE_LABELS: Record<string, string> = {
   THROTTLED: '已触发限流'
 }
 
-export function getServerCapacity(id: string) {
-  return request.get<unknown, ServerCapacity | null>('/admin/resource/server/get-capacity', { params: { id } })
+export function getServerQuota(id: string) {
+  return request.get<unknown, ServerQuota | null>('/admin/resource/server/get-quota', { params: { id } })
 }
 
-/** 更新业务阈值 (月流量配额 + 限定带宽); agent tc / throttle 状态机用. */
-export function updateServerCapacity(id: string, dto: ServerCapacityUpdateDTO) {
-  return request.put<unknown, boolean>('/admin/resource/server/update-capacity', dto, { params: { id } })
+/** 更新配额上限 (总流量配额 + 出站带宽); agent tc / throttle 状态机用. */
+export function updateServerQuota(id: string, dto: ServerQuotaUpdateDTO) {
+  return request.put<unknown, boolean>('/admin/resource/server/update-quota', dto, { params: { id } })
 }
 
 /** SSH 列出远端网卡 (排除 lo); 失败返空 list, 前端 fallback 到 "auto". */

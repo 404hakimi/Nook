@@ -2,8 +2,8 @@ package com.nook.biz.node.controller.resource;
 
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingRespVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityRespVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.ServerLandingQuotaRespVO;
+import com.nook.biz.node.controller.resource.vo.ServerLandingQuotaUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingDeployReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingInstallRespVO;
@@ -20,6 +20,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.resource.ResourceServerLandingSocksOpsService;
+import com.nook.biz.node.service.resource.ResourceServerTrafficService;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
@@ -55,6 +56,8 @@ public class ResourceServerLandingController {
     private ResourceServerLandingService resourceServerLandingService;
     @Resource
     private ResourceServerLandingSocksOpsService resourceServerLandingSocksOpsService;
+    @Resource
+    private ResourceServerTrafficService resourceServerTrafficService;
 
     /**
      * 获得落地节点分页
@@ -69,7 +72,7 @@ public class ResourceServerLandingController {
         ResourceServerLandingService.SubtablesBundle bundle = resourceServerLandingService.batchLoadSubtables(ids);
         return Result.ok(ResourceServerLandingConvert.INSTANCE.convertPageWithSubtables(
                 page, bundle.landings(), bundle.billings(),
-                bundle.capacities(), bundle.runtimes()));
+                bundle.quotas(), bundle.traffics(), bundle.runtimes()));
     }
 
     /**
@@ -104,7 +107,8 @@ public class ResourceServerLandingController {
                 resourceServerLandingService.getServer(id),
                 resourceServerLandingService.getLanding(id),
                 resourceServerLandingService.getBilling(id),
-                resourceServerLandingService.getCapacity(id),
+                resourceServerLandingService.getQuota(id),
+                resourceServerTrafficService.getCurrent(id),
                 resourceServerLandingService.getRuntime(id)));
     }
 
@@ -196,27 +200,28 @@ public class ResourceServerLandingController {
     }
 
     /**
-     * 获得容量监控
+     * 获得配额监控
      *
      * @param id 落地节点编号
-     * @return 容量监控 (子表不存在返回 null)
+     * @return 配额监控 (子表不存在返回 null)
      */
-    @GetMapping("/get-capacity")
-    public Result<ServerLandingCapacityRespVO> getCapacity(@RequestParam("id") String id) {
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.toCapacityRespVO(resourceServerLandingService.getCapacity(id)));
+    @GetMapping("/get-quota")
+    public Result<ServerLandingQuotaRespVO> getQuota(@RequestParam("id") String id) {
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.toQuotaRespVO(
+                resourceServerLandingService.getQuota(id), resourceServerTrafficService.getCurrent(id)));
     }
 
     /**
-     * 更新容量阈值 (限速 / 月流量上限 / 重置策略)
+     * 更新配额阈值 (限速 / 月流量上限 / 重置策略)
      *
      * @param id    落地节点编号
-     * @param reqVO 容量入参
+     * @param reqVO 配额入参
      * @return 是否成功
      */
-    @PutMapping("/update-capacity")
-    public Result<Boolean> updateCapacity(@RequestParam("id") String id,
-                                          @Valid @RequestBody ServerLandingCapacityUpdateReqVO reqVO) {
-        resourceServerLandingService.updateCapacity(id, reqVO);
+    @PutMapping("/update-quota")
+    public Result<Boolean> updateQuota(@RequestParam("id") String id,
+                                       @Valid @RequestBody ServerLandingQuotaUpdateReqVO reqVO) {
+        resourceServerLandingService.updateQuota(id, reqVO);
         return Result.ok(true);
     }
 

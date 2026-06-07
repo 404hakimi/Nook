@@ -66,14 +66,14 @@ export interface ServerLanding {
   billingCycleDay?: number
   /** IP 到期日 YYYY-MM-DD. */
   expiresAt?: string
-  /** dante 实际限速 Mbps (capacity 子表); 0=不限. */
-  bandwidthLimitMbps?: number
-  /** 月流量上限 GB (capacity 子表); null/0=不限. */
-  monthlyTrafficGb?: number
-  /** 当周期累计已用字节 (capacity 子表; agent push). */
-  usedTrafficBytes?: number
-  /** 周期重置策略. */
-  quotaResetPolicy?: string
+  /** dante 实际限速 Mbps (quota 子表); 0=不限. */
+  bandwidthMbps?: number
+  /** 总流量配额 GB (quota 子表); null/0=不限. */
+  totalGb?: number
+  /** 当周期累计已用字节 (quota 子表; agent push). */
+  usedBytes?: number
+  /** 重置策略. */
+  resetPolicy?: string
   /** NORMAL / THROTTLED. */
   throttleState?: string
   remark?: string
@@ -90,7 +90,7 @@ export interface ServerLandingCoreUpdateDTO {
   remark?: string
 }
 
-/** 账面 (纯财务记录; 实际带宽/流量配额在 ServerLandingCapacity). */
+/** 账面 (纯财务记录; 实际带宽/流量配额在 ServerLandingQuota). */
 export interface ServerLandingBilling {
   serverId?: string
   /** 月成本 CNY. */
@@ -99,7 +99,7 @@ export interface ServerLandingBilling {
   expiresAt?: string
 }
 
-/** dante 配置; socks5Password 留空 = 保留原值. 限速字段拆到 ServerLandingCapacity. */
+/** dante 配置; socks5Password 留空 = 保留原值. 限速字段拆到 ServerLandingQuota. */
 export interface ServerLandingSocks5 {
   serverId?: string
   socks5Port: number
@@ -141,19 +141,19 @@ export interface ServerLandingInstall {
   lastDanteUptime?: string
 }
 
-/** 落地机容量监控 (限速 + 月流量上限 + 累计已用; 跟 server_capacity 一致). */
-export interface ServerLandingCapacity {
+/** 落地机配额监控 (限速 + 总流量配额 + 累计已用; 跟 server quota 一致). */
+export interface ServerLandingQuota {
   serverId?: string
   /** dante 实际限速 Mbps; 0=不限. */
-  bandwidthLimitMbps: number
-  /** 月流量上限 GB; null/0=不限. */
-  monthlyTrafficGb?: number
+  bandwidthMbps: number
+  /** 总流量配额 GB; null/0=不限. */
+  totalGb?: number
   /** 当周期累计已用 byte (agent push). */
-  usedTrafficBytes?: number
+  usedBytes?: number
   rxBytes?: number
   txBytes?: number
   /** MONTHLY / FIXED. */
-  quotaResetPolicy?: string
+  resetPolicy?: string
   /** 按月流量重置日 1-28; FIXED 时为空. */
   resetDay?: number
   /** NORMAL / THROTTLED. */
@@ -292,7 +292,7 @@ export function getServerLandingSocks5(id: string) {
   return request.get<unknown, ServerLandingSocks5 | null>('/admin/resource/server-landing/get-socks5', { params: { id } })
 }
 
-/** 更新 dante 配置 (socks5Password 留空 = 保留原值; 限速走 capacity endpoint). */
+/** 更新 dante 配置 (socks5Password 留空 = 保留原值; 限速走 quota endpoint). */
 export function updateServerLandingSocks5(id: string, dto: ServerLandingSocks5) {
   return request.put<unknown, boolean>('/admin/resource/server-landing/update-socks5', dto, { params: { id } })
 }
@@ -302,14 +302,14 @@ export function getServerLandingInstall(id: string) {
   return request.get<unknown, ServerLandingInstall | null>('/admin/resource/server-landing/get-install', { params: { id } })
 }
 
-/** 取容量监控 (限速 / 月流量上限 / 累计 / throttle 状态). */
-export function getServerLandingCapacity(id: string) {
-  return request.get<unknown, ServerLandingCapacity | null>('/admin/resource/server-landing/get-capacity', { params: { id } })
+/** 取配额监控 (限速 / 总流量配额 / 累计 / throttle 状态). */
+export function getServerLandingQuota(id: string) {
+  return request.get<unknown, ServerLandingQuota | null>('/admin/resource/server-landing/get-quota', { params: { id } })
 }
 
-/** 更新容量配置 (限速 + 月流量上限 + 重置策略; rx/tx/throttle 由 agent / 状态机改不在此). */
-export function updateServerLandingCapacity(id: string, dto: ServerLandingCapacity) {
-  return request.put<unknown, boolean>('/admin/resource/server-landing/update-capacity', dto, { params: { id } })
+/** 更新配额配置 (限速 + 总流量配额 + 重置策略; rx/tx/throttle 由 agent / 状态机改不在此). */
+export function updateServerLandingQuota(id: string, dto: ServerLandingQuota) {
+  return request.put<unknown, boolean>('/admin/resource/server-landing/update-quota', dto, { params: { id } })
 }
 
 /** 周期重置策略选项. */

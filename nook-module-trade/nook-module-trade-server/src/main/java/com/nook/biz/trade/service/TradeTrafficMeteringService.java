@@ -1,8 +1,9 @@
 package com.nook.biz.trade.service;
 
-import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
-import com.nook.biz.trade.dal.dataobject.MemberPlanTrafficDO;
+import com.nook.biz.node.api.resource.dto.ResourceServerQuotaRespDTO;
+import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
+import com.nook.biz.trade.dal.dataobject.TradeSubscriptionTrafficDO;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,7 +17,7 @@ import java.util.Map;
 public interface TradeTrafficMeteringService {
 
     /**
-     * 批量预载一轮计量所需只读数据 (套餐流量上限 / 落地机映射 / 落地机容量 / 订阅用量行).
+     * 批量预载一轮计量所需只读数据 (套餐流量上限 / 订阅接入点 / 落地机测量 / 接入点当周期行).
      *
      * @param subs 本轮待处理订阅
      * @return 计量上下文
@@ -24,22 +25,22 @@ public interface TradeTrafficMeteringService {
     MeteringContext preload(List<TradeSubscriptionDO> subs);
 
     /**
-     * 把落地机业务流量增量累加进订阅用量 (到周期点则清零重打基线). 返回是否已达套餐流量上限.
+     * 按接入点累加用户上下行增量进订阅额度 (跨周期则翻篇发新基础额度). 返回订阅是否已耗尽额度.
      *
      * @param sub 订阅
      * @param now 当前时刻
      * @param ctx 计量上下文
-     * @return true = 已达上限 (调用方据此停服)
+     * @return true = 已耗尽 (调用方据此停服)
      */
     boolean accumulate(TradeSubscriptionDO sub, LocalDateTime now, MeteringContext ctx);
 
     /**
-     * 停服订阅到重置点则清零用量 + 重打基线 + 推下一周期. 返回是否本轮已重置.
+     * 停服订阅到下周期则翻篇 (接入点行封存开新行 + 发新基础额度). 返回是否本轮已翻篇.
      *
      * @param sub 订阅
      * @param now 当前时刻
      * @param ctx 计量上下文
-     * @return true = 已重置 (调用方据此复活)
+     * @return true = 已翻篇 (调用方据此复活)
      */
     boolean tryCycleReset(TradeSubscriptionDO sub, LocalDateTime now, MeteringContext ctx);
 
@@ -48,8 +49,8 @@ public interface TradeTrafficMeteringService {
      */
     record MeteringContext(
             Map<String, Integer> planTrafficGb,
-            Map<String, String> landingBySub,
-            Map<String, ResourceServerCapacityRespDTO> capMap,
-            Map<String, MemberPlanTrafficDO> trafficBySub) {
+            Map<String, List<TradeSubscriptionCertificateDO>> certsBySub,
+            Map<String, ResourceServerQuotaRespDTO> capByLanding,
+            Map<String, TradeSubscriptionTrafficDO> trafficByCert) {
     }
 }

@@ -26,7 +26,7 @@ import {
 import {
   deleteServer,
   getServerBilling,
-  getServerCapacity,
+  getServerQuota,
   getServerDetail,
   getServerFrontline,
   SERVER_LIFECYCLE_LABELS,
@@ -34,13 +34,13 @@ import {
   transitionServerLifecycle,
   type ResourceServer,
   type ServerBilling,
-  type ServerCapacity,
+  type ServerQuota,
   type ServerFrontline
 } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import ServerCoreEditDialog from '@/views/server/dialogs/ServerCoreEditDialog.vue'
 import ServerBillingEditDialog from '@/views/server/dialogs/ServerBillingEditDialog.vue'
-import ServerCapacityEditDialog from '@/views/server/dialogs/ServerCapacityEditDialog.vue'
+import ServerQuotaEditDialog from '@/views/server/dialogs/ServerQuotaEditDialog.vue'
 import ServerFrontlineEditDialog from '@/views/server/dialogs/ServerFrontlineEditDialog.vue'
 
 const props = defineProps<{
@@ -54,7 +54,7 @@ const dialog = useDialog()
 const detail = ref<ResourceServer | null>(null)
 const billing = ref<ServerBilling | null>(null)
 const frontline = ref<ServerFrontline | null>(null)
-const capacity = ref<ServerCapacity | null>(null)
+const capacity = ref<ServerQuota | null>(null)
 const loading = ref(false)
 
 async function load() {
@@ -65,7 +65,7 @@ async function load() {
       getServerDetail(props.serverId),
       getServerBilling(props.serverId),
       getServerFrontline(props.serverId),
-      getServerCapacity(props.serverId)
+      getServerQuota(props.serverId)
     ])
     detail.value = d
     billing.value = b
@@ -132,7 +132,7 @@ const expiresTagType = computed(() => {
 // ===== 编辑 dialogs =====
 const coreEditOpen = ref(false)
 const billingEditOpen = ref(false)
-const capacityEditOpen = ref(false)
+const quotaEditOpen = ref(false)
 const frontlineEditOpen = ref(false)
 
 function afterEdit() { load(); emit('refresh') }
@@ -256,7 +256,7 @@ function afterEdit() { load(); emit('refresh') }
             <span>容量与流量</span>
             <span class="text-xs text-zinc-400 ml-2">业务阈值 · agent tc / throttle 用</span>
             <span class="flex-1"></span>
-            <NButton size="tiny" quaternary type="primary" @click="capacityEditOpen = true">
+            <NButton size="tiny" quaternary type="primary" @click="quotaEditOpen = true">
               <template #icon><NIcon><Edit3 :size="12" /></NIcon></template>
               编辑
             </NButton>
@@ -264,16 +264,16 @@ function afterEdit() { load(); emit('refresh') }
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
           <NDescriptionsItem label="限定带宽">
-            <template v-if="capacity?.bandwidthLimitMbps">
-              <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
+            <template v-if="capacity?.bandwidthMbps">
+              <span class="num">{{ capacity.bandwidthMbps }}</span>
               <span class="unit">Mbps</span>
               <span class="text-xs text-zinc-400 ml-2">远端带宽限速值</span>
             </template>
             <span v-else class="muted">不限</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="月流量阈值">
-            <template v-if="capacity?.monthlyTrafficGb">
-              <span class="num">{{ capacity.monthlyTrafficGb }}</span>
+            <template v-if="capacity?.totalGb">
+              <span class="num">{{ capacity.totalGb }}</span>
               <span class="unit">GB / 月</span>
               <span class="text-xs text-zinc-400 ml-2">月用量达 90% 触发限流</span>
             </template>
@@ -335,7 +335,7 @@ function afterEdit() { load(); emit('refresh') }
 
     <ServerCoreEditDialog v-if="detail" v-model="coreEditOpen" :server="detail" @saved="afterEdit" />
     <ServerBillingEditDialog v-model="billingEditOpen" :server-id="serverId" @saved="afterEdit" />
-    <ServerCapacityEditDialog v-model="capacityEditOpen" :server-id="serverId" @saved="afterEdit" />
+    <ServerQuotaEditDialog v-model="quotaEditOpen" :server-id="serverId" @saved="afterEdit" />
     <ServerFrontlineEditDialog v-model="frontlineEditOpen" :server-id="serverId" :lifecycle-state="detail?.lifecycleState" @saved="afterEdit" />
   </NSpin>
 </template>

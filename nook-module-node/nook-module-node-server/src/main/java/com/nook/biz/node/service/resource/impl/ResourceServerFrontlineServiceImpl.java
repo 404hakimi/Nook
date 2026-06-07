@@ -3,14 +3,16 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineUpdateReqVO;
 import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCapacityMapper;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCredentialMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayServerMapper;
 import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.biz.node.validator.ResourceServerFrontlineValidator;
@@ -42,7 +44,9 @@ public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontli
     @Resource
     private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
     @Resource
-    private ResourceServerCapacityMapper resourceServerCapacityMapper;
+    private ResourceServerQuotaMapper resourceServerQuotaMapper;
+    @Resource
+    private ResourceServerTrafficMapper resourceServerTrafficMapper;
     @Resource
     private XrayServerMapper xrayServerMapper;
 
@@ -84,16 +88,18 @@ public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontli
     @Override
     public RuntimeBundle batchLoadRuntimeBundle(Collection<String> serverIds) {
         if (CollectionUtils.isAnyEmpty(serverIds)) {
-            return new RuntimeBundle(Map.of(), Map.of(), Map.of(), Map.of());
+            return new RuntimeBundle(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         }
         Map<String, ResourceServerCredentialDO> creds = CollectionUtils.convertMap(
                 resourceServerCredentialMapper.selectBatchIds(serverIds), ResourceServerCredentialDO::getServerId);
         Map<String, ResourceServerRuntimeDO> runtimes = CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
-        Map<String, ResourceServerCapacityDO> caps = CollectionUtils.convertMap(
-                resourceServerCapacityMapper.selectBatchIds(serverIds), ResourceServerCapacityDO::getServerId);
+        Map<String, ResourceServerQuotaDO> quotas = CollectionUtils.convertMap(
+                resourceServerQuotaMapper.selectBatchIds(serverIds), ResourceServerQuotaDO::getServerId);
+        Map<String, ResourceServerTrafficDO> traffics = CollectionUtils.convertMap(
+                resourceServerTrafficMapper.selectCurrentByServerIds(serverIds), ResourceServerTrafficDO::getServerId);
         Map<String, XrayServerDO> xrays = CollectionUtils.convertMap(
                 xrayServerMapper.selectBatchIds(serverIds), XrayServerDO::getServerId);
-        return new RuntimeBundle(creds, runtimes, caps, xrays);
+        return new RuntimeBundle(creds, runtimes, quotas, traffics, xrays);
     }
 }

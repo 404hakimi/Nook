@@ -168,15 +168,15 @@ function onCreated(serverId: string) {
 // ===== 流量进度 (bytes long, JS Number 2^53 内精确) =====
 const GB = 1024 * 1024 * 1024
 function trafficUsedGB(s: ServerFrontlineListItem): number {
-  if (s.usedTrafficBytes == null) return 0
-  return Number((s.usedTrafficBytes / GB).toFixed(1))
+  if (s.usedBytes == null) return 0
+  return Number((s.usedBytes / GB).toFixed(1))
 }
 function trafficPercent(s: ServerFrontlineListItem): number {
-  if (!s.monthlyTrafficGb) return 0
-  return Math.min(100, Math.round((trafficUsedGB(s) / s.monthlyTrafficGb) * 100))
+  if (!s.totalGb) return 0
+  return Math.min(100, Math.round((trafficUsedGB(s) / s.totalGb) * 100))
 }
 function trafficStatus(s: ServerFrontlineListItem): 'default' | 'success' | 'warning' | 'error' {
-  if (!s.monthlyTrafficGb) return 'default'
+  if (!s.totalGb) return 'default'
   const p = trafficPercent(s)
   if (p >= 90) return 'error'
   if (p >= 70) return 'warning'
@@ -432,18 +432,18 @@ onMounted(async () => {
                 <NIcon class="text-zinc-400"><Gauge :size="11" /></NIcon>
                 <span class="status-key">本月流量</span>
                 <span class="flex-1"></span>
-                <template v-if="s.monthlyTrafficGb">
+                <template v-if="s.totalGb">
                   <span class="num-sm">{{ trafficUsedGB(s) }}</span>
-                  <span class="unit-sm">/ {{ s.monthlyTrafficGb }} GB</span>
+                  <span class="unit-sm">/ {{ s.totalGb }} GB</span>
                 </template>
-                <template v-else-if="s.usedTrafficBytes != null">
+                <template v-else-if="s.usedBytes != null">
                   <span class="num-sm">{{ trafficUsedGB(s) }}</span>
                   <span class="unit-sm">GB · 不限</span>
                 </template>
                 <span v-else class="text-zinc-400 text-xs">—</span>
               </div>
               <NProgress
-                v-if="s.monthlyTrafficGb"
+                v-if="s.totalGb"
                 :percentage="trafficPercent(s)"
                 :height="4"
                 :status="trafficStatus(s)"

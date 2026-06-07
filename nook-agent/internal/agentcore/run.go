@@ -25,7 +25,7 @@ type Goroutine func(ctx context.Context)
 // RoleComponents: 角色注册器返回的组件 — 额外 goroutine + 可选的 nic 业务流量采样器.
 type RoleComponents struct {
 	Goroutines    []Goroutine
-	NicBizSampler func() *int64 // landing: 采样 nft socks5 业务流量供 nic 上报; nil = nic 不报 biz
+	NicBizSampler func() (up, down *int64) // landing: 采样 nft socks5 业务上下行供 nic 上报; nil = nic 不报 biz
 }
 
 // RoleRegister: 角色自己挂额外 collector + 提供可选的业务流量采样器.

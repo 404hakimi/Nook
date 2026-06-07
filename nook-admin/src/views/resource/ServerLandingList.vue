@@ -549,11 +549,11 @@ onMounted(async () => {
               </span>
               <span class="lc-field">
                 <NIcon :size="13"><Gauge /></NIcon>
-                {{ ip.bandwidthLimitMbps ? `${ip.bandwidthLimitMbps} Mbps` : '带宽不限' }}
+                {{ ip.bandwidthMbps ? `${ip.bandwidthMbps} Mbps` : '带宽不限' }}
               </span>
               <span class="lc-field">
                 <NIcon :size="13"><Database /></NIcon>
-                {{ ip.monthlyTrafficGb ? `${ip.monthlyTrafficGb} GB/月` : '流量不限' }}
+                {{ ip.totalGb ? `${ip.totalGb} GB/月` : '流量不限' }}
               </span>
             </div>
           </div>

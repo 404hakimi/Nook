@@ -14,18 +14,15 @@ import {
   useMessage
 } from 'naive-ui'
 import {
-  getServerCapacity,
-  updateServerCapacity,
-  SERVER_QUOTA_RESET_POLICY_OPTIONS,
-  SERVER_THROTTLE_STATE_LABELS,
-  type ServerCapacity
-} from '@/api/resource/server'
+  THROTTLE_STATE_LABELS,
+  getServerLandingQuota,
+  updateServerLandingQuota,
+  type ServerLandingQuota
+} from '@/api/resource/server-landing'
 
 /**
- * 编辑 server 容量阈值 — 业务阈值 (限速 / 月流量上限 / 重置策略).
- *
- * <p>throttleState 由后期业务流转 (90% 阈值 + agent push) 自动维护, 这里只读展示.
- * rxBytes/txBytes/usedTrafficBytes 由 agent push, 这里只读展示.
+ * 编辑 容量 (quota 子表) — 实际限速 + 月流量上限 + 重置策略.
+ * rx/tx/used/throttle 由 agent push, 这里只读展示.
  */
 const props = defineProps<{
   modelValue: boolean
@@ -36,31 +33,36 @@ const emit = defineEmits<{
   saved: []
 }>()
 
+const QUOTA_RESET_OPTIONS = [
+  { label: '按月重置 (MONTHLY, 默认)', value: 'MONTHLY' },
+  { label: '永不重置 (FIXED)', value: 'FIXED' }
+]
+
 const message = useMessage()
 const submitting = ref(false)
 const loading = ref(false)
+const errors = reactive<Record<string, string>>({})
 
 const form = reactive({
-  monthlyTrafficGb: null as number | null,
-  bandwidthLimitMbps: null as number | null,
-  quotaResetPolicy: 'MONTHLY',
+  bandwidthMbps: 0,
+  totalGb: null as number | null,
+  resetPolicy: 'MONTHLY',
   resetDay: 1 as number | null
 })
-
-// 远端 agent 上报的累计字段 + 状态机字段 (只读, 后期业务流转写)
+// 远端 agent 上报的累计字段 (只读)
 const runtime = reactive({
-  usedTrafficBytes: 0 as number | null,
+  usedBytes: 0 as number | null,
   rxBytes: 0 as number | null,
   txBytes: 0 as number | null,
   throttleState: 'NORMAL' as string | null
 })
 
-function fill(c: ServerCapacity | null) {
-  form.monthlyTrafficGb = c?.monthlyTrafficGb ?? null
-  form.bandwidthLimitMbps = c?.bandwidthLimitMbps ?? null
-  form.quotaResetPolicy = c?.quotaResetPolicy ?? 'MONTHLY'
+function fill(c: ServerLandingQuota | null) {
+  form.bandwidthMbps = c?.bandwidthMbps ?? 0
+  form.totalGb = c?.totalGb ?? null
+  form.resetPolicy = c?.resetPolicy ?? 'MONTHLY'
   form.resetDay = c?.resetDay ?? 1
-  runtime.usedTrafficBytes = c?.usedTrafficBytes ?? 0
+  runtime.usedBytes = c?.usedBytes ?? 0
   runtime.rxBytes = c?.rxBytes ?? 0
   runtime.txBytes = c?.txBytes ?? 0
   runtime.throttleState = c?.throttleState ?? 'NORMAL'
@@ -68,17 +70,18 @@ function fill(c: ServerCapacity | null) {
 
 watch(() => [props.modelValue, props.serverId], async ([open]) => {
   if (!open) return
+  Object.keys(errors).forEach((k) => delete errors[k])
   loading.value = true
   try {
-    const c = await getServerCapacity(props.serverId)
+    const c = await getServerLandingQuota(props.serverId).catch(() => null)
     fill(c)
-  } catch { /* */ } finally {
+  } finally {
     loading.value = false
   }
-})
+}, { immediate: true })
 
 const usedTrafficLabel = computed(() => {
-  const bytes = runtime.usedTrafficBytes ?? 0
+  const bytes = runtime.usedBytes ?? 0
   if (bytes === 0) return '0 B'
   const gb = bytes / 1024 / 1024 / 1024
   if (gb >= 1) return `${gb.toFixed(2)} GB`
@@ -87,19 +90,31 @@ const usedTrafficLabel = computed(() => {
 })
 
 const trafficUsagePercent = computed(() => {
-  if (!form.monthlyTrafficGb || form.monthlyTrafficGb <= 0) return null
-  const usedGb = (runtime.usedTrafficBytes ?? 0) / 1024 / 1024 / 1024
-  return Math.min(100, Math.round((usedGb / form.monthlyTrafficGb) * 100))
+  if (!form.totalGb || form.totalGb <= 0) return null
+  const usedGb = (runtime.usedBytes ?? 0) / 1024 / 1024 / 1024
+  return Math.min(100, Math.round((usedGb / form.totalGb) * 100))
 })
 
+function validate(): boolean {
+  Object.keys(errors).forEach((k) => delete errors[k])
+  if (form.bandwidthMbps == null || form.bandwidthMbps < 0) {
+    errors.bandwidthMbps = '实际限速 ≥ 0 (0 = 不限)'
+  }
+  if (form.totalGb != null && form.totalGb < 0) {
+    errors.totalGb = '月流量上限 ≥ 0'
+  }
+  return Object.keys(errors).length === 0
+}
+
 async function onSubmit() {
+  if (!validate()) return
   submitting.value = true
   try {
-    await updateServerCapacity(props.serverId, {
-      monthlyTrafficGb: form.monthlyTrafficGb ?? 0,
-      bandwidthLimitMbps: form.bandwidthLimitMbps ?? 0,
-      quotaResetPolicy: form.quotaResetPolicy,
-      resetDay: form.quotaResetPolicy === 'MONTHLY' ? (form.resetDay ?? undefined) : undefined
+    await updateServerLandingQuota(props.serverId, {
+      bandwidthMbps: form.bandwidthMbps,
+      totalGb: form.totalGb ?? undefined,
+      resetPolicy: form.resetPolicy,
+      resetDay: form.resetPolicy === 'MONTHLY' ? (form.resetDay ?? undefined) : undefined
     })
     message.success('已保存')
     emit('saved')
@@ -114,13 +129,12 @@ async function onSubmit() {
   <NModal
     :show="modelValue"
     preset="card"
-    title="编辑容量与流量阈值"
+    title="编辑 容量 — 实际控制"
     style="max-width: 40rem; width: 92vw"
     :bordered="false"
     @update:show="(v: boolean) => emit('update:modelValue', v)"
   >
     <NSpin :show="loading">
-      <!-- 当前限流状态 (read-only, 由后期业务状态机维护) -->
       <div class="section-header">
         <span class="section-title">运行控制</span>
         <NTag
@@ -128,27 +142,36 @@ async function onSubmit() {
           size="small"
           type="warning"
         >
-          {{ SERVER_THROTTLE_STATE_LABELS[runtime.throttleState] || runtime.throttleState }}
+          {{ THROTTLE_STATE_LABELS[runtime.throttleState] || runtime.throttleState }}
         </NTag>
         <NTag v-else size="small" type="success">
-          {{ SERVER_THROTTLE_STATE_LABELS.NORMAL }}
+          {{ THROTTLE_STATE_LABELS.NORMAL }}
         </NTag>
       </div>
       <NAlert type="info" :show-icon="false" size="small" class="mb-3">
-        <strong>带宽容量</strong>: 线路机出站带宽, 供套餐分配不超卖 (预留 ~10%), 不做真实限速 (限速在落地机 egress); <strong>月流量阈值</strong>: 月用量达 90% 触发限流的基数. 0 = 不限.
+        <strong>实际限速</strong>: 落地机出口带宽限速值, 修改后需重装才在远端生效;
+        <strong>月流量上限</strong>: 达到上限后该落地机自动停止参与新订阅分配. 0 = 不限.
       </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-          <NFormItem label="带宽容量 Mbps (供分配, 须 >0)">
-            <NInputNumber v-model:value="form.bandwidthLimitMbps" :min="0" :max="100000" class="w-full" />
+          <NFormItem
+            label="实际限速 Mbps (0=不限)"
+            :feedback="errors.bandwidthMbps"
+            :validation-status="errors.bandwidthMbps ? 'error' : undefined"
+          >
+            <NInputNumber v-model:value="form.bandwidthMbps" :min="0" :max="1000000" class="w-full" />
           </NFormItem>
-          <NFormItem label="月流量阈值 GB (0=不限)">
-            <NInputNumber v-model:value="form.monthlyTrafficGb" :min="0" :max="1000000" class="w-full" />
+          <NFormItem
+            label="月流量上限 GB (留空=不限)"
+            :feedback="errors.totalGb"
+            :validation-status="errors.totalGb ? 'error' : undefined"
+          >
+            <NInputNumber v-model:value="form.totalGb" :min="0" :max="10000000" class="w-full" />
           </NFormItem>
           <NFormItem label="周期重置策略">
-            <NSelect v-model:value="form.quotaResetPolicy" :options="SERVER_QUOTA_RESET_POLICY_OPTIONS as any" />
+            <NSelect v-model:value="form.resetPolicy" :options="QUOTA_RESET_OPTIONS" />
           </NFormItem>
-          <NFormItem v-if="form.quotaResetPolicy === 'MONTHLY'" label="每月重置日 (1-28)">
+          <NFormItem v-if="form.resetPolicy === 'MONTHLY'" label="每月重置日 (1-28)">
             <NInputNumber v-model:value="form.resetDay" :min="1" :max="28" class="w-full" />
           </NFormItem>
         </div>
@@ -160,12 +183,12 @@ async function onSubmit() {
             <span class="font-mono">{{ usedTrafficLabel }}</span>
             <template v-if="trafficUsagePercent != null">
               <span class="text-zinc-400 mx-1">/</span>
-              <span class="font-mono">{{ form.monthlyTrafficGb }} GB</span>
+              <span class="font-mono">{{ form.totalGb }} GB</span>
               <NTag size="small" :type="trafficUsagePercent >= 90 ? 'error' : (trafficUsagePercent >= 70 ? 'warning' : 'success')" class="ml-2">
                 {{ trafficUsagePercent }}%
               </NTag>
             </template>
-            <span v-else class="text-zinc-400 ml-2 text-xs">月流量阈值未配置, 不触发限流</span>
+            <span v-else class="text-zinc-400 ml-2 text-xs">月流量上限未配置, 不触发限流</span>
           </div>
         </div>
       </NForm>
@@ -173,7 +196,9 @@ async function onSubmit() {
     <template #footer>
       <NSpace justify="end">
         <NButton size="small" @click="emit('update:modelValue', false)">取消</NButton>
-        <NButton type="primary" size="small" :loading="submitting" :disabled="loading" @click="onSubmit">保存</NButton>
+        <NButton type="primary" size="small" :loading="submitting" :disabled="loading" @click="onSubmit">
+          保存
+        </NButton>
       </NSpace>
     </template>
   </NModal>

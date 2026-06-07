@@ -53,8 +53,8 @@ public class ResourceServerFrontlineController {
         Set<String> ids = ResourceServerFrontlineConvert.INSTANCE.extractServerIds(page.getRecords());
         ResourceServerFrontlineService.RuntimeBundle bundle = resourceServerFrontlineService.batchLoadRuntimeBundle(ids);
         return Result.ok(ResourceServerFrontlineConvert.INSTANCE.convertPageWithRuntime(
-                page, bundle.credentialMap(), bundle.runtimeMap(), bundle.capacityMap(),
-                bundle.xrayMap(), LocalDateTime.now()));
+                page, bundle.credentialMap(), bundle.runtimeMap(), bundle.quotaMap(),
+                bundle.trafficMap(), bundle.xrayMap(), LocalDateTime.now()));
     }
 
     /**

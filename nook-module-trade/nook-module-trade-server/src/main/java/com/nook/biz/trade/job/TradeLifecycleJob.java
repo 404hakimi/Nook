@@ -57,7 +57,7 @@ public class TradeLifecycleJob {
         int expired = 0, suspended = 0, resumed = 0;
         for (TradeSubscriptionDO s : subs) {
             try {
-                // 每订阅一个事务: 计量写 member_plan_traffic 与生命周期改订阅状态 原子提交
+                // 每订阅一个事务: 计量写 trade_subscription_traffic/额度 与生命周期改订阅状态 原子提交
                 Outcome o = transactionTemplate.execute(st -> processOne(s, now, ctx));
                 if (o == Outcome.EXPIRED) {
                     expired++;

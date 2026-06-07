@@ -1,17 +1,16 @@
 package com.nook.biz.trade.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
-import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
-import com.nook.biz.trade.dal.dataobject.MemberPlanTrafficDO;
+import com.nook.biz.node.api.resource.ResourceServerQuotaApi;
+import com.nook.biz.node.api.resource.dto.ResourceServerQuotaRespDTO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
-import com.nook.biz.trade.dal.mysql.mapper.MemberPlanTrafficMapper;
+import com.nook.biz.trade.dal.dataobject.TradeSubscriptionTrafficDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
+import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionTrafficMapper;
 import com.nook.biz.trade.service.TradeSubscriptionCertificateService;
-import com.nook.biz.trade.service.TradeTrafficGrantService;
+import com.nook.biz.trade.service.TradeSubscriptionQuotaService;
 import com.nook.biz.trade.service.TradeTrafficMeteringService;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.unit.TrafficUnitUtils;
@@ -19,6 +18,8 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -33,21 +34,19 @@ import java.util.Set;
 @Service
 public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringService {
 
-    /**
-     * 流量重置周期(天); 默认 30 天一个周期, 从开通时刻起算(保留时分秒).
-     */
+    /** 流量重置周期(天); 30 天一个周期, 从开通时刻起算(保留时分秒). */
     private static final int CYCLE_RESET_DAYS = 30;
 
     @Resource
     private TradePlanMapper tradePlanMapper;
     @Resource
-    private MemberPlanTrafficMapper memberPlanTrafficMapper;
+    private TradeSubscriptionTrafficMapper tradeSubscriptionTrafficMapper;
     @Resource
     private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
     @Resource
-    private ResourceServerCapacityApi resourceServerCapacityApi;
+    private ResourceServerQuotaApi resourceServerQuotaApi;
     @Resource
-    private TradeTrafficGrantService tradeTrafficGrantService;
+    private TradeSubscriptionQuotaService tradeSubscriptionQuotaService;
 
     @Override
     public MeteringContext preload(List<TradeSubscriptionDO> subs) {
@@ -56,135 +55,170 @@ public class TradeTrafficMeteringServiceImpl implements TradeTrafficMeteringServ
         Map<String, Integer> planTrafficGb = CollectionUtils.convertMap(
                 tradePlanMapper.selectBatchIds(planIds), TradePlanDO::getId,
                 p -> ObjectUtil.isNull(p.getTrafficGb()) ? 0 : p.getTrafficGb());
-        // 订阅 → 凭证 → 落地机 (订阅维度)
+        // 订阅 → 已分配落地机的接入点(凭证), 按订阅分组
         Set<String> subIds = CollectionUtils.convertSet(subs, TradeSubscriptionDO::getId);
-        Map<String, String> landingBySub = new HashMap<>();
+        Map<String, List<TradeSubscriptionCertificateDO>> certsBySub = new HashMap<>();
+        Set<String> landingIds = new HashSet<>();
         for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscriptionIds(subIds)) {
-            if (ObjectUtil.isNotNull(cert.getIpId())) {
-                landingBySub.put(cert.getSubscriptionId(), cert.getIpId());
+            if (ObjectUtil.isNull(cert.getIpId())) {
+                continue; // 未分配落地机, 不计量
             }
+            certsBySub.computeIfAbsent(cert.getSubscriptionId(), k -> new ArrayList<>()).add(cert);
+            landingIds.add(cert.getIpId());
         }
-        Set<String> landingIds = new HashSet<>(landingBySub.values());
-        Map<String, ResourceServerCapacityRespDTO> capMap = CollUtil.isEmpty(landingIds)
-                ? Map.of() : resourceServerCapacityApi.listByServerIds(landingIds);
-        Map<String, MemberPlanTrafficDO> trafficBySub = CollectionUtils.convertMap(
-                memberPlanTrafficMapper.selectBatchIds(subIds), MemberPlanTrafficDO::getSubscriptionId);
-        return new MeteringContext(planTrafficGb, landingBySub, capMap, trafficBySub);
+        Map<String, ResourceServerQuotaRespDTO> capByLanding = landingIds.isEmpty()
+                ? Map.of() : resourceServerQuotaApi.listByServerIds(landingIds);
+        // 各接入点的当周期计量行
+        Map<String, TradeSubscriptionTrafficDO> trafficByCert = CollectionUtils.convertMap(
+                tradeSubscriptionTrafficMapper.selectCurrentBySubscriptionIds(subIds),
+                TradeSubscriptionTrafficDO::getCertId);
+        return new MeteringContext(planTrafficGb, certsBySub, capByLanding, trafficByCert);
     }
 
     @Override
     public boolean accumulate(TradeSubscriptionDO s, LocalDateTime now, MeteringContext ctx) {
-        String landingId = ctx.landingBySub().get(s.getId());
-        if (ObjectUtil.isNull(landingId)) {
-            return false; // 无落地机绑定信息, 跳过本轮
+        // 跨周期先翻篇(接入点行封存开新行 + 发新基础额度), 再累加本轮增量
+        this.rolloverIfDue(s, now, ctx);
+        long totalDelta = 0L;
+        for (TradeSubscriptionCertificateDO cert : ctx.certsBySub().getOrDefault(s.getId(), List.of())) {
+            totalDelta += this.meterCert(s, cert, now, ctx);
         }
-        ResourceServerCapacityRespDTO cap = ctx.capMap().get(landingId);
-        if (ObjectUtil.isNull(cap)) {
-            return false;
+        if (totalDelta > 0) {
+            tradeSubscriptionQuotaService.addUsage(s.getId(), totalDelta);
         }
-        // 优先用 socks5 业务流量(双向, 已排除 agent/系统); 老 agent 未上报时回退整机双向累计(rx+tx, 与 biz 同口径)
-        Long cumSource = ObjectUtil.isNotNull(cap.getBizUsedBytes()) ? cap.getBizUsedBytes() : cap.getUsedTrafficBytes();
-        if (ObjectUtil.isNull(cumSource)) {
-            return false; // 落地机还没上报, 本轮无数据
-        }
-        long cur = cumSource;
-
-        MemberPlanTrafficDO row = ctx.trafficBySub().get(s.getId());
-        long delta = 0L; // 本轮新增用量, 累加到额度授予
-        if (ObjectUtil.isNull(row)) {
-            // 首见: 建计量游标, 基线=当前 (不继承落地机历史)
-            row = new MemberPlanTrafficDO();
-            row.setSubscriptionId(s.getId());
-            row.setMemberUserId(s.getMemberUserId());
-            row.setLandingServerId(landingId);
-            row.setUsedBytes(0L);
-            row.setLastCounterTx(cur);
-            row.setCycleResetAt(this.firstCycleReset(s)); // 重置锚点=开通时刻+周期天数; 不足一周期返 null
-            row.setLastSampledAt(now);
-            memberPlanTrafficMapper.insert(row);
-        } else {
-            long used = ObjectUtil.isNull(row.getUsedBytes()) ? 0L : row.getUsedBytes();
-            long last = ObjectUtil.isNull(row.getLastCounterTx()) ? cur : row.getLastCounterTx();
-            if (!landingId.equals(row.getLandingServerId())) {
-                row.setLandingServerId(landingId); // 换落地机: 重打基线, 不补增量
-                row.setLastCounterTx(cur);
-            } else if (cur < last) {
-                row.setLastCounterTx(cur);         // 计数回退: 只挪游标
-            } else {
-                delta = cur - last;                // 正常累加
-                row.setUsedBytes(used + delta);
-                row.setLastCounterTx(cur);
-            }
-            // 周期重置(多周期订阅): 到锚点 → 游标清零 + 发下一周期基础额度 + 推下一锚点
-            if (ObjectUtil.isNotNull(row.getCycleResetAt()) && !now.isBefore(row.getCycleResetAt())) {
-                this.rollover(s, row, cur, ctx);
-            }
-            row.setLastSampledAt(now);
-            memberPlanTrafficMapper.updateById(row);
-        }
-
-        // 本轮增量累加到额度授予; 是否耗尽按"生效且未到期额度之和"判定
-        if (delta > 0) {
-            tradeTrafficGrantService.addUsage(s.getId(), delta);
-        }
-        return tradeTrafficGrantService.remainingBytes(s.getId()) <= 0;
+        return tradeSubscriptionQuotaService.remainingBytes(s.getId()) <= 0;
     }
 
     @Override
     public boolean tryCycleReset(TradeSubscriptionDO s, LocalDateTime now, MeteringContext ctx) {
-        MemberPlanTrafficDO row = ctx.trafficBySub().get(s.getId());
-        if (ObjectUtil.isNull(row) || ObjectUtil.isNull(row.getCycleResetAt()) || now.isBefore(row.getCycleResetAt())) {
-            return false; // 没到重置点, 继续停服
-        }
-        // 取不到当前累计值则沿用旧基线
-        Long cur = this.currentBiz(s.getId(), ctx);
-        long cursor = ObjectUtil.isNotNull(cur) ? cur
-                : (ObjectUtil.isNull(row.getLastCounterTx()) ? 0L : row.getLastCounterTx());
-        this.rollover(s, row, cursor, ctx);
-        row.setLastSampledAt(now);
-        memberPlanTrafficMapper.updateById(row);
-        return true;
+        return this.rolloverIfDue(s, now, ctx);
     }
 
-    /** 周期翻篇: 计量游标清零并重打基线 + 发下一周期基础额度 (旧额度到期自动失效, 不重复计). */
-    private void rollover(TradeSubscriptionDO s, MemberPlanTrafficDO row, long cursor, MeteringContext ctx) {
-        row.setUsedBytes(0L);
-        row.setLastCounterTx(cursor);
-        LocalDateTime cycleStart = row.getCycleResetAt();
-        LocalDateTime next = cycleStart.plusDays(CYCLE_RESET_DAYS);
-        boolean hasNext = ObjectUtil.isNotNull(s.getExpiresAt()) && next.isBefore(s.getExpiresAt());
-        row.setCycleResetAt(hasNext ? next : null);
-        int gb = ctx.planTrafficGb().getOrDefault(s.getPlanId(), 0);
-        LocalDateTime grantExpiry = hasNext ? next : s.getExpiresAt();
-        tradeTrafficGrantService.createBaseGrant(s.getId(), TrafficUnitUtils.gbToBytes(gb), cycleStart, grantExpiry);
-    }
-
-    /**
-     * 流量重置锚点: 开通时刻 + 30 天(保留时分秒); 不足一个重置周期(锚点 ≥ 到期)则返 null.
-     */
-    private LocalDateTime firstCycleReset(TradeSubscriptionDO s) {
-        if (ObjectUtil.isNull(s.getStartedAt())) {
-            return null;
-        }
-        LocalDateTime first = s.getStartedAt().plusDays(CYCLE_RESET_DAYS);
-        if (ObjectUtil.isNotNull(s.getExpiresAt()) && !first.isBefore(s.getExpiresAt())) {
-            return null;
-        }
-        return first;
-    }
-
-    /**
-     * 取某接入点当前落地机的业务流量累计 (业务流量优先, 回退整机双向累计); 无数据返 null.
-     */
-    private Long currentBiz(String subscriptionId, MeteringContext ctx) {
-        String landingId = ctx.landingBySub().get(subscriptionId);
-        if (ObjectUtil.isNull(landingId)) {
-            return null;
-        }
-        ResourceServerCapacityRespDTO cap = ctx.capMap().get(landingId);
+    /** 单接入点本轮上下行增量累加(抗归零 / 换落地机重打游标 / 首见只建基线); 返回本轮增量(上+下). */
+    private long meterCert(TradeSubscriptionDO s, TradeSubscriptionCertificateDO cert,
+                           LocalDateTime now, MeteringContext ctx) {
+        String landingId = cert.getIpId();
+        ResourceServerQuotaRespDTO cap = ctx.capByLanding().get(landingId);
         if (ObjectUtil.isNull(cap)) {
-            return null;
+            return 0L;
         }
-        return ObjectUtil.isNotNull(cap.getBizUsedBytes()) ? cap.getBizUsedBytes() : cap.getUsedTrafficBytes();
+        Long up = cap.getCounterUpBytes();
+        Long down = cap.getCounterDownBytes();
+        if (ObjectUtil.isNull(up) && ObjectUtil.isNull(down)) {
+            return 0L; // 落地机还没上报业务流量
+        }
+        TradeSubscriptionTrafficDO row = ctx.trafficByCert().get(cert.getId());
+        if (ObjectUtil.isNull(row)) {
+            // 首见: 建当周期行, 基线=当前 (不补历史)
+            row = new TradeSubscriptionTrafficDO();
+            row.setCertId(cert.getId());
+            row.setSubscriptionId(s.getId());
+            row.setLandingServerId(landingId);
+            row.setStartTime(this.cycleStart(s, now));
+            row.setUpBytes(0L);
+            row.setDownBytes(0L);
+            row.setUsedBytes(0L);
+            row.setLastCounterUpBytes(up);
+            row.setLastCounterDownBytes(down);
+            row.setLastSampledAt(now);
+            tradeSubscriptionTrafficMapper.insert(row);
+            ctx.trafficByCert().put(cert.getId(), row);
+            return 0L;
+        }
+        if (!landingId.equals(row.getLandingServerId())) {
+            // 换落地机: 重打游标, 不补增量
+            row.setLandingServerId(landingId);
+            row.setLastCounterUpBytes(up);
+            row.setLastCounterDownBytes(down);
+            row.setLastSampledAt(now);
+            tradeSubscriptionTrafficMapper.updateById(row);
+            return 0L;
+        }
+        long dUp = this.delta(up, row.getLastCounterUpBytes());
+        long dDown = this.delta(down, row.getLastCounterDownBytes());
+        row.setUpBytes(nz(row.getUpBytes()) + dUp);
+        row.setDownBytes(nz(row.getDownBytes()) + dDown);
+        row.setUsedBytes(nz(row.getUpBytes()) + nz(row.getDownBytes()));
+        if (ObjectUtil.isNotNull(up)) {
+            row.setLastCounterUpBytes(up);
+        }
+        if (ObjectUtil.isNotNull(down)) {
+            row.setLastCounterDownBytes(down);
+        }
+        row.setLastSampledAt(now);
+        tradeSubscriptionTrafficMapper.updateById(row);
+        return dUp + dDown;
+    }
+
+    /** 跨周期: 各接入点当周期行封存(填 end_time) + 开新行(游标带过去, 用量归零) + 发下一周期基础额度; 返回是否翻篇. */
+    private boolean rolloverIfDue(TradeSubscriptionDO s, LocalDateTime now, MeteringContext ctx) {
+        List<TradeSubscriptionCertificateDO> certs = ctx.certsBySub().getOrDefault(s.getId(), List.of());
+        if (certs.isEmpty()) {
+            return false;
+        }
+        LocalDateTime cycleStart = this.cycleStart(s, now);
+        boolean rolled = false;
+        for (TradeSubscriptionCertificateDO cert : certs) {
+            TradeSubscriptionTrafficDO row = ctx.trafficByCert().get(cert.getId());
+            if (ObjectUtil.isNull(row) || ObjectUtil.isNull(row.getStartTime())
+                    || !row.getStartTime().isBefore(cycleStart)) {
+                continue;
+            }
+            row.setEndTime(cycleStart);
+            tradeSubscriptionTrafficMapper.updateById(row);
+            TradeSubscriptionTrafficDO next = new TradeSubscriptionTrafficDO();
+            next.setCertId(cert.getId());
+            next.setSubscriptionId(s.getId());
+            next.setLandingServerId(row.getLandingServerId());
+            next.setStartTime(cycleStart);
+            next.setUpBytes(0L);
+            next.setDownBytes(0L);
+            next.setUsedBytes(0L);
+            next.setLastCounterUpBytes(row.getLastCounterUpBytes()); // 游标带过去, 新周期接着做差
+            next.setLastCounterDownBytes(row.getLastCounterDownBytes());
+            next.setLastSampledAt(now);
+            tradeSubscriptionTrafficMapper.insert(next);
+            ctx.trafficByCert().put(cert.getId(), next);
+            rolled = true;
+        }
+        if (rolled) {
+            int gb = ctx.planTrafficGb().getOrDefault(s.getPlanId(), 0);
+            tradeSubscriptionQuotaService.createBaseQuota(
+                    s.getId(), TrafficUnitUtils.gbToBytes(gb), cycleStart, this.cycleEnd(s, cycleStart));
+        }
+        return rolled;
+    }
+
+    /** 当前周期起点 = 开通时刻 + 整数个周期(stateless 推算); 无开通时刻退化为 now. */
+    private LocalDateTime cycleStart(TradeSubscriptionDO s, LocalDateTime now) {
+        LocalDateTime start = s.getStartedAt();
+        if (ObjectUtil.isNull(start)) {
+            return now;
+        }
+        long days = ChronoUnit.DAYS.between(start, now);
+        if (days < CYCLE_RESET_DAYS) {
+            return start;
+        }
+        return start.plusDays(days / CYCLE_RESET_DAYS * CYCLE_RESET_DAYS);
+    }
+
+    /** 周期到期 = min(下个周期起点, 订阅到期); 额度不超过订阅有效期. */
+    private LocalDateTime cycleEnd(TradeSubscriptionDO s, LocalDateTime cycleStart) {
+        LocalDateTime next = cycleStart.plusDays(CYCLE_RESET_DAYS);
+        LocalDateTime expiry = s.getExpiresAt();
+        return (ObjectUtil.isNotNull(expiry) && expiry.isBefore(next)) ? expiry : next;
+    }
+
+    /** 累计值做差(抗归零): 当前 ≥ 上次取差, 否则按归零从当前重算; 当前空记 0. */
+    private long delta(Long current, Long last) {
+        if (ObjectUtil.isNull(current)) {
+            return 0L;
+        }
+        long base = nz(last);
+        return current >= base ? current - base : current;
+    }
+
+    private static long nz(Long v) {
+        return ObjectUtil.isNull(v) ? 0L : v;
     }
 }

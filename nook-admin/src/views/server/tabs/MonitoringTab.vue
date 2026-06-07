@@ -22,8 +22,8 @@ import {
   useMessage
 } from 'naive-ui'
 import {
-  getServerCapacity,
-  type ServerCapacity
+  getServerQuota,
+  type ServerQuota
 } from '@/api/resource/server'
 import { getServerSystemInfo, getServerUfwStatus, type ServerSystemInfo } from '@/api/xray/server'
 import { formatDateTime } from '@/utils/date'
@@ -35,7 +35,7 @@ const props = defineProps<{
   agentInfo: ServerFrontlineListItem | null
 }>()
 
-const capacity = ref<ServerCapacity | null>(null)
+const capacity = ref<ServerQuota | null>(null)
 const loading = ref(false)
 
 // 主机 / UFW 状态: 走 SSH 实时拉, 不在 onMounted 跑, 避免每次进监控面板都触发远端命令; 用户点"加载"按钮才查
@@ -67,7 +67,7 @@ async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    capacity.value = await getServerCapacity(props.serverId)
+    capacity.value = await getServerQuota(props.serverId)
   } catch { /* */ } finally {
     loading.value = false
   }
@@ -84,8 +84,8 @@ function bytesToGB(b?: number | null): number {
 }
 const rxGB = computed(() => bytesToGB(capacity.value?.rxBytes))
 const txGB = computed(() => bytesToGB(capacity.value?.txBytes))
-const usedGB = computed(() => bytesToGB(capacity.value?.usedTrafficBytes))
-const totalGB = computed(() => capacity.value?.monthlyTrafficGb ?? 0)
+const usedGB = computed(() => bytesToGB(capacity.value?.usedBytes))
+const totalGB = computed(() => capacity.value?.totalGb ?? 0)
 const usedPercent = computed(() => {
   if (!totalGB.value) return 0
   return Math.min(100, Math.round((usedGB.value / totalGB.value) * 100))
@@ -225,8 +225,8 @@ const heartbeatColor = computed(() => {
           :label-style="{ width: '8rem', verticalAlign: 'middle' }"
         >
           <NDescriptionsItem label="限定带宽">
-            <template v-if="capacity?.bandwidthLimitMbps">
-              <span class="num">{{ capacity.bandwidthLimitMbps }}</span>
+            <template v-if="capacity?.bandwidthMbps">
+              <span class="num">{{ capacity.bandwidthMbps }}</span>
               <span class="unit">Mbps</span>
             </template>
             <span v-else class="muted">不限</span>
@@ -250,8 +250,8 @@ const heartbeatColor = computed(() => {
             <span v-else class="muted">不限</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="重置策略">
-            <NTag v-if="capacity?.quotaResetPolicy" size="small" :type="RESET_POLICY_TYPE[capacity.quotaResetPolicy] || 'default'">
-              {{ RESET_POLICY_LABELS[capacity.quotaResetPolicy] || capacity.quotaResetPolicy }}
+            <NTag v-if="capacity?.resetPolicy" size="small" :type="RESET_POLICY_TYPE[capacity.resetPolicy] || 'default'">
+              {{ RESET_POLICY_LABELS[capacity.resetPolicy] || capacity.resetPolicy }}
             </NTag>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>

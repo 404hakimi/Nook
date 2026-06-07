@@ -30,7 +30,7 @@ public class TradePlanDO extends BaseEntity {
     /** 产品 IP 类型; 选址时匹配落地机. */
     private String ipTypeId;
 
-    /** 月流量配额 GB; 已用量 (member_plan_traffic) 达此值即停服. */
+    /** 月流量配额 GB; 开通换算成订阅首笔基础额度, 用尽即停服. */
     private Integer trafficGb;
 
     /** 带宽上限 Mbps; 真实生效, 由占用落地机的本订阅派生 tc 限速值. */

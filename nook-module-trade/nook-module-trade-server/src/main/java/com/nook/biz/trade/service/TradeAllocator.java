@@ -4,10 +4,10 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.resource.ResourceServerApi;
-import com.nook.biz.node.api.resource.ResourceServerCapacityApi;
+import com.nook.biz.node.api.resource.ResourceServerQuotaApi;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
-import com.nook.biz.node.api.resource.dto.ResourceServerCapacityRespDTO;
+import com.nook.biz.node.api.resource.dto.ResourceServerQuotaRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
@@ -40,7 +40,7 @@ public class TradeAllocator {
     @Resource
     private ResourceServerLandingApi landingApi;
     @Resource
-    private ResourceServerCapacityApi capacityApi;
+    private ResourceServerQuotaApi resourceServerQuotaApi;
     @Resource
     private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
     @Resource
@@ -62,7 +62,7 @@ public class TradeAllocator {
         Set<String> fIds = CollectionUtils.convertSet(frontlines, ResourceServerRespDTO::getId);
         // 健康准入: 非 LIVE / 到顶 / 心跳不健康 一处判定 (node 侧 ResourceServerAdmission)
         Set<String> allocatable = serverApi.filterAllocatable(fIds);
-        Map<String, ResourceServerCapacityRespDTO> capMap = capacityApi.listByServerIds(fIds);
+        Map<String, ResourceServerQuotaRespDTO> capMap = resourceServerQuotaApi.listByServerIds(fIds);
         Map<String, Integer> committed = committedBandwidthByFrontline(fIds);
 
         String best = null;
@@ -71,8 +71,8 @@ public class TradeAllocator {
             if (!allocatable.contains(f.getId())) {
                 continue;
             }
-            ResourceServerCapacityRespDTO cap = capMap.get(f.getId());
-            Integer bwLimit = cap == null ? null : cap.getBandwidthLimitMbps();
+            ResourceServerQuotaRespDTO cap = capMap.get(f.getId());
+            Integer bwLimit = cap == null ? null : cap.getBandwidthMbps();
             // 不超卖语义: 线路机须配带宽上限才能参与准入
             if (bwLimit == null || bwLimit <= 0) {
                 continue;

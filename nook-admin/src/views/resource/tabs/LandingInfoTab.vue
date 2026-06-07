@@ -112,9 +112,9 @@ const expiresTagType = computed(() => {
 })
 
 const trafficUsagePercent = computed(() => {
-  const limitGb = props.detail.monthlyTrafficGb
+  const limitGb = props.detail.totalGb
   if (!limitGb || limitGb <= 0) return null
-  const usedGb = (props.detail.usedTrafficBytes ?? 0) / 1024 / 1024 / 1024
+  const usedGb = (props.detail.usedBytes ?? 0) / 1024 / 1024 / 1024
   return Math.min(100, Math.round((usedGb / limitGb) * 100))
 })
 </script>
@@ -271,23 +271,23 @@ const trafficUsagePercent = computed(() => {
       </template>
       <NDescriptions bordered size="small" label-placement="left" :column="2" label-style="width: 6rem">
         <NDescriptionsItem label="限定带宽">
-          <template v-if="detail.bandwidthLimitMbps">
-            <span class="num">{{ detail.bandwidthLimitMbps }}</span>
+          <template v-if="detail.bandwidthMbps">
+            <span class="num">{{ detail.bandwidthMbps }}</span>
             <span class="unit">Mbps</span>
             <span class="text-xs text-zinc-400 ml-2">dante 限速值</span>
           </template>
           <span v-else class="muted">不限</span>
         </NDescriptionsItem>
         <NDescriptionsItem label="月流量阈值">
-          <template v-if="detail.monthlyTrafficGb">
-            <span class="num">{{ detail.monthlyTrafficGb }}</span>
+          <template v-if="detail.totalGb">
+            <span class="num">{{ detail.totalGb }}</span>
             <span class="unit">GB / 月</span>
             <span class="text-xs text-zinc-400 ml-2">月用量达 90% 触发限流</span>
           </template>
           <span v-else class="muted">不限</span>
         </NDescriptionsItem>
         <NDescriptionsItem label="本期已用" :span="2">
-          <span class="num">{{ ((detail.usedTrafficBytes ?? 0) / 1024 / 1024 / 1024).toFixed(2) }}</span>
+          <span class="num">{{ ((detail.usedBytes ?? 0) / 1024 / 1024 / 1024).toFixed(2) }}</span>
           <span class="unit">GB</span>
           <NTag
             v-if="trafficUsagePercent != null"

@@ -22,17 +22,18 @@ type Reporter struct {
 	cli        *client.Client
 	interval   time.Duration
 	iface      string
-	bizSampler func() *int64 // landing: 采样 nft socks5 业务流量; nil = 不报 biz (frontline)
+	bizSampler func() (up, down *int64) // landing: 采样 nft socks5 业务上下行; nil = 不报 biz (frontline)
 }
 
-func New(cli *client.Client, interval time.Duration, iface string, bizSampler func() *int64) *Reporter {
+func New(cli *client.Client, interval time.Duration, iface string, bizSampler func() (up, down *int64)) *Reporter {
 	return &Reporter{cli: cli, interval: interval, iface: iface, bizSampler: bizSampler}
 }
 
 type req struct {
 	RxBytes      int64  `json:"rxBytes"`
 	TxBytes      int64  `json:"txBytes"`
-	BizUsedBytes *int64 `json:"bizUsedBytes,omitempty"` // socks5 业务流量(落地机); nil=不报, 后端回退整机 tx
+	BizUpBytes   *int64 `json:"bizUpBytes,omitempty"`   // socks5 用户上行(落地机); nil=不报
+	BizDownBytes *int64 `json:"bizDownBytes,omitempty"` // socks5 用户下行(落地机); nil=不报
 }
 
 func (r *Reporter) Run(ctx context.Context) {
@@ -76,17 +77,25 @@ func (r *Reporter) tick() {
 	}
 	body := req{RxBytes: rx, TxBytes: tx}
 	if r.bizSampler != nil {
-		body.BizUsedBytes = r.bizSampler()
+		body.BizUpBytes, body.BizDownBytes = r.bizSampler()
 	}
 	if err := r.cli.Post("/api/agent/nic-traffic", body, nil); err != nil {
 		log.Printf("[流量] 上报失败: %v", err)
 		return
 	}
 	biz := "未采集" // 线路机不计业务流量, 落地机计数器未就绪时也为此值
-	if body.BizUsedBytes != nil {
-		biz = megaBytes(*body.BizUsedBytes)
+	if body.BizUpBytes != nil || body.BizDownBytes != nil {
+		biz = fmt.Sprintf("上行=%s 下行=%s", megaBytes(deref(body.BizUpBytes)), megaBytes(deref(body.BizDownBytes)))
 	}
-	log.Printf("[流量] 上报成功 累计 入站=%s 出站=%s 业务=%s", humanBytes(rx), humanBytes(tx), biz)
+	log.Printf("[流量] 上报成功 累计 入站=%s 出站=%s 业务[%s]", humanBytes(rx), humanBytes(tx), biz)
+}
+
+// deref 取 *int64 值, nil 视为 0 (仅日志展示用).
+func deref(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 // megaBytes 固定以 MB 为单位格式化 (业务流量统一看 MB, 便于跨行比对);

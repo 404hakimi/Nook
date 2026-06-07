@@ -76,7 +76,7 @@ import ServerLandingTestDialog from '@/views/resource/ServerLandingTestDialog.vu
 import ServerLandingLogDialog from '@/views/resource/ServerLandingLogDialog.vue'
 import ServerLandingCoreEditDialog from '@/views/resource/dialogs/ServerLandingCoreEditDialog.vue'
 import ServerLandingBillingEditDialog from '@/views/resource/dialogs/ServerLandingBillingEditDialog.vue'
-import ServerLandingCapacityEditDialog from '@/views/resource/dialogs/ServerLandingCapacityEditDialog.vue'
+import ServerLandingQuotaEditDialog from '@/views/resource/dialogs/ServerLandingQuotaEditDialog.vue'
 import ServerLandingSocks5EditDialog from '@/views/resource/dialogs/ServerLandingSocks5EditDialog.vue'
 
 /**
@@ -570,7 +570,7 @@ const landingHeartbeatDotColor = computed(() => {
       <ServerLandingLogDialog v-model="logOpen" :ip="landingInfo" />
       <ServerLandingCoreEditDialog v-if="landingInfo" v-model="coreEditOpen" :server-landing="landingInfo" @saved="onSubDialogSaved" />
       <ServerLandingBillingEditDialog v-if="landingInfo" v-model="billingEditOpen" :server-id="landingInfo.id" @saved="onSubDialogSaved" />
-      <ServerLandingCapacityEditDialog v-if="landingInfo" v-model="capacityEditOpen" :server-id="landingInfo.id" @saved="onSubDialogSaved" />
+      <ServerLandingQuotaEditDialog v-if="landingInfo" v-model="capacityEditOpen" :server-id="landingInfo.id" @saved="onSubDialogSaved" />
       <ServerLandingSocks5EditDialog v-if="landingInfo" v-model="socks5EditOpen" :server-id="landingInfo.id" @saved="onSubDialogSaved" />
     </template>
   </div>

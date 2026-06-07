@@ -1,0 +1,32 @@
+package com.nook.biz.node.dal.mysql.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
+import org.apache.ibatis.annotations.Mapper;
+
+import java.time.LocalDateTime;
+
+/**
+ * 资源服务器额度 Mapper
+ *
+ * @author nook
+ */
+@Mapper
+public interface ResourceServerQuotaMapper extends BaseMapper<ResourceServerQuotaDO> {
+
+    /**
+     * 额度上限增量更新; null 字段不动 (Wrapper.set 显式写 null 会落库, 故按条件跳过).
+     */
+    default int updateQuota(String serverId, Integer totalGb, Integer bandwidthMbps,
+                            String resetPolicy, Integer resetDay) {
+        return update(null, Wrappers.<ResourceServerQuotaDO>lambdaUpdate()
+                .set(totalGb != null, ResourceServerQuotaDO::getTotalGb, totalGb)
+                .set(bandwidthMbps != null, ResourceServerQuotaDO::getBandwidthMbps, bandwidthMbps)
+                .set(resetPolicy != null, ResourceServerQuotaDO::getResetPolicy, resetPolicy)
+                .set(resetDay != null, ResourceServerQuotaDO::getResetDay, resetDay)
+                .set(ResourceServerQuotaDO::getUpdatedAt, LocalDateTime.now())
+                .eq(ResourceServerQuotaDO::getServerId, serverId));
+    }
+
+}

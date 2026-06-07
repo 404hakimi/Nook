@@ -25,18 +25,18 @@ import com.nook.biz.trade.controller.vo.SubscriptionCreateReqVO;
 import com.nook.biz.trade.controller.vo.TradeSubscriptionPageReqVO;
 import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
 import com.nook.biz.trade.convert.TradeSubscriptionConvert;
-import com.nook.biz.trade.dal.dataobject.MemberPlanTrafficDO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
-import com.nook.biz.trade.dal.mysql.mapper.MemberPlanTrafficMapper;
+import com.nook.biz.trade.dal.dataobject.TradeSubscriptionTrafficDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
+import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionTrafficMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import com.nook.biz.trade.event.SubscriptionMachineChangeEvent;
 import com.nook.biz.trade.service.TradeAllocator;
 import com.nook.biz.trade.service.TradeSubscriptionCertificateService;
 import com.nook.biz.trade.service.TradeSubscriptionService;
-import com.nook.biz.trade.service.TradeTrafficGrantService;
+import com.nook.biz.trade.service.TradeSubscriptionQuotaService;
 import com.nook.biz.trade.validator.TradePlanValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.exception.BusinessException;
@@ -80,7 +80,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Resource
     private TradePlanMapper planMapper;
     @Resource
-    private MemberPlanTrafficMapper trafficMapper;
+    private TradeSubscriptionTrafficMapper tradeSubscriptionTrafficMapper;
     @Resource
     private TradePlanValidator planValidator;
     @Resource
@@ -88,7 +88,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Resource
     private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
     @Resource
-    private TradeTrafficGrantService tradeTrafficGrantService;
+    private TradeSubscriptionQuotaService tradeSubscriptionQuotaService;
     @Resource
     private TransactionTemplate transactionTemplate;
     @Resource
@@ -156,8 +156,8 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         sub.setExpiresAt(expiresAt);
         sub.setStatus(TradeSubscriptionStatusEnum.ACTIVE.getState());
         subMapper.insert(sub);
-        // 基础额度作为一条授予; 订阅有效额度 = 名下生效授予之和
-        tradeTrafficGrantService.createBaseGrant(subId, (long) planTraffic * BYTES_PER_GB, startedAt, expiresAt);
+        // 基础额度作为一条额度账; 订阅有效额度 = 名下生效额度之和
+        tradeSubscriptionQuotaService.createBaseQuota(subId, (long) planTraffic * BYTES_PER_GB, startedAt, expiresAt);
         return sub;
     }
 
@@ -188,12 +188,14 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         // 会员邮箱
         Map<String, String> emailMap = getMemberEmailMap(
                 CollectionUtils.convertSet(records, TradeSubscriptionDO::getMemberUserId));
-        // 已用流量(一份订阅一行; 尚未计量的订阅无行, 已用按 0)
-        Map<String, MemberPlanTrafficDO> trafficMap = CollectionUtils.convertMap(
-                trafficMapper.selectBatchIds(CollectionUtils.convertSet(records, TradeSubscriptionDO::getId)),
-                MemberPlanTrafficDO::getSubscriptionId);
         // 订阅 → 凭证 → 所在线路机 / 占用落地机 (订阅维度)
         Set<String> subIds = CollectionUtils.convertSet(records, TradeSubscriptionDO::getId);
+        // 本周期已用: 名下各接入点当周期 traffic 行 used_bytes 汇总到订阅 (无行按 0)
+        Map<String, Long> usedBytesBySub = new HashMap<>();
+        for (TradeSubscriptionTrafficDO row : tradeSubscriptionTrafficMapper.selectCurrentBySubscriptionIds(subIds)) {
+            usedBytesBySub.merge(row.getSubscriptionId(),
+                    ObjectUtil.isNull(row.getUsedBytes()) ? 0L : row.getUsedBytes(), Long::sum);
+        }
         Map<String, String> subFrontlineMap = new HashMap<>();
         Map<String, String> subLandingMap = new HashMap<>();
         for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscriptionIds(subIds)) {
@@ -211,7 +213,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
                 landingApi.listSummaryByServerIds(serverIds),
                 LandingSummaryDTO::getServerId, LandingSummaryDTO::getIpAddress);
         return TradeSubscriptionConvert.INSTANCE.convertPage(PageResult.of(page.getTotal(), records),
-                planMap, emailMap, trafficMap, subFrontlineMap, subLandingMap, serverIpMap);
+                planMap, emailMap, usedBytesBySub, subFrontlineMap, subLandingMap, serverIpMap);
     }
 
     @Override

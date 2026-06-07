@@ -1,7 +1,7 @@
 package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCapacityUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.ServerLandingQuotaUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5UpdateReqVO;
@@ -9,10 +9,11 @@ import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCapacityDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 import com.nook.common.web.response.PageResult;
 
 import java.util.Collection;
@@ -73,7 +74,7 @@ public interface ResourceServerLandingService {
      * @param id    落地节点ID
      * @param reqVO 容量入参
      */
-    void updateCapacity(String id, ServerLandingCapacityUpdateReqVO reqVO);
+    void updateQuota(String id, ServerLandingQuotaUpdateReqVO reqVO);
 
     /**
      * 获得落地节点主表
@@ -105,7 +106,7 @@ public interface ResourceServerLandingService {
      * @param id 落地节点编号
      * @return 容量
      */
-    ResourceServerCapacityDO getCapacity(String id);
+    ResourceServerQuotaDO getQuota(String id);
 
     /**
      * 获得运行时子表
@@ -192,10 +193,11 @@ public interface ResourceServerLandingService {
      */
     Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs);
 
-    /** 落地节点 4 张子表批量返回包. */
+    /** 落地节点子表批量返回包 (landing / billing / 配额配置 / 当周期测量 / runtime). */
     record SubtablesBundle(
             Map<String, ResourceServerLandingDO> landings,
             Map<String, ResourceServerBillingDO> billings,
-            Map<String, ResourceServerCapacityDO> capacities,
+            Map<String, ResourceServerQuotaDO> quotas,
+            Map<String, ResourceServerTrafficDO> traffics,
             Map<String, ResourceServerRuntimeDO> runtimes) { }
 }

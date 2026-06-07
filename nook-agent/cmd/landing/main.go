@@ -59,7 +59,7 @@ func registerLanding(cfg *config.Config, cli *client.Client) agentcore.RoleCompo
 	}
 	return agentcore.RoleComponents{
 		Goroutines:    []agentcore.Goroutine{loop},
-		NicBizSampler: m.Sample,
+		NicBizSampler: m.SampleUpDown,
 	}
 }
 
