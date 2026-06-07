@@ -4,7 +4,10 @@ import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
+import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
+import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
+import com.nook.biz.node.service.resource.ResourceServerAdmission;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -14,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * {@link ResourceServerLandingApi} 实现; 转发到 {@link ResourceServerLandingService}.
+ * 落地机 核心业务 API实现
  *
  * @author nook
  */
@@ -23,21 +26,27 @@ public class ResourceServerLandingApiImpl implements ResourceServerLandingApi {
 
     @Resource
     private ResourceServerLandingService resourceServerLandingService;
+    @Resource
+    private ResourceServerAdmission resourceServerAdmission;
 
     @Override
     public List<LandingSummaryDTO> listSummaryByServerIds(Collection<String> serverIds) {
-        return resourceServerLandingService.listSummaryByServerIds(serverIds);
+        // 跨模块边界: 调 Service 拿 DO, 由 Convert 拼概要 DTO
+        Map<String, ResourceServerDO> serverMap = resourceServerLandingService.getServerMap(serverIds);
+        Map<String, ResourceServerLandingDO> landingMap = resourceServerLandingService.getLandingMap(serverIds);
+        return ResourceServerLandingConvert.INSTANCE.toSummaries(serverIds, serverMap, landingMap);
     }
 
     @Override
     public List<LandingSummaryDTO> findMatchingForPlan(String region, String ipTypeId,
                                                        int minTrafficGb, int minBandwidthMbps) {
-        return resourceServerLandingService.findMatchingForPlan(region, ipTypeId, minTrafficGb, minBandwidthMbps);
+        // 选址核心在 ResourceServerAdmission, 本类只做跨模块转发
+        return resourceServerAdmission.findMatchingForPlan(region, ipTypeId, minTrafficGb, minBandwidthMbps);
     }
 
     @Override
     public Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs) {
-        return resourceServerLandingService.countCapacityForPlans(specs);
+        return resourceServerAdmission.countCapacityForPlans(specs);
     }
 
     @Override

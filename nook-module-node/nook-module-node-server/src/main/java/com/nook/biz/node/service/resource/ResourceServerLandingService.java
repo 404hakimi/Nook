@@ -5,19 +5,14 @@ import com.nook.biz.node.controller.resource.vo.ServerLandingQuotaUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5UpdateReqVO;
-import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
-import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
-import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 import com.nook.common.web.response.PageResult;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -141,6 +136,14 @@ public interface ResourceServerLandingService {
     void releaseForRevoke(String serverId);
 
     /**
+     * 批量获得落地节点主表
+     *
+     * @param serverIds 落地节点编号集合
+     * @return 落地节点编号 → 主表
+     */
+    Map<String, ResourceServerDO> getServerMap(Collection<String> serverIds);
+
+    /**
      * 批量获得落地节点子表
      *
      * @param serverIds 落地节点编号集合
@@ -149,48 +152,26 @@ public interface ResourceServerLandingService {
     Map<String, ResourceServerLandingDO> getLandingMap(Collection<String> serverIds);
 
     /**
-     * 批量获得 4 张子表
+     * 批量获得账面子表
      *
      * @param serverIds 落地节点编号集合
-     * @return 子表批量返回包
+     * @return 落地节点编号 → 账面
      */
-    SubtablesBundle batchLoadSubtables(Collection<String> serverIds);
+    Map<String, ResourceServerBillingDO> getBillingMap(Collection<String> serverIds);
 
     /**
-     * 批量查落地机概要 (含生命周期、占用状态、IP 类型、IP 地址)
+     * 批量获得配额子表
      *
      * @param serverIds 落地节点编号集合
-     * @return 概要列表 (不存在的跳过)
+     * @return 落地节点编号 → 配额
      */
-    List<LandingSummaryDTO> listSummaryByServerIds(Collection<String> serverIds);
+    Map<String, ResourceServerQuotaDO> getQuotaMap(Collection<String> serverIds);
 
     /**
-     * 查匹配套餐的运行中落地机 (同区域 + 同 IP 类型 + 容量达标)
+     * 批量获得运行时子表
      *
-     * <p>落地机配额 / 带宽为 0 或空视为不限.
-     *
-     * @param region           区域码
-     * @param ipTypeId         IP 类型编号
-     * @param minTrafficGb     套餐月流量 (落地机配额须 ≥)
-     * @param minBandwidthMbps 套餐带宽 (落地机带宽须 ≥)
-     * @return 匹配的运行中落地机概要
+     * @param serverIds 落地节点编号集合
+     * @return 落地节点编号 → 运行时
      */
-    List<LandingSummaryDTO> findMatchingForPlan(String region, String ipTypeId,
-                                                int minTrafficGb, int minBandwidthMbps);
-
-    /**
-     * 批量算套餐落地机池容量 (各规格匹配后按占用状态分桶)
-     *
-     * @param specs 套餐规格集合
-     * @return 套餐ID → 容量 (总数 / 可用 / 占用)
-     */
-    Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs);
-
-    /** 落地节点子表批量返回包 (landing / billing / 配额配置 / 当周期测量 / runtime). */
-    record SubtablesBundle(
-            Map<String, ResourceServerLandingDO> landings,
-            Map<String, ResourceServerBillingDO> billings,
-            Map<String, ResourceServerQuotaDO> quotas,
-            Map<String, ResourceServerTrafficDO> traffics,
-            Map<String, ResourceServerRuntimeDO> runtimes) { }
+    Map<String, ResourceServerRuntimeDO> getRuntimeMap(Collection<String> serverIds);
 }

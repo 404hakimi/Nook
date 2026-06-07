@@ -32,10 +32,11 @@
 ## 1. 分层职责
 
 ```
-Controller  → 参数校验、调用 Service、调 Convert 组装 VO、返回 Result
-Service     → 业务逻辑、事务、缓存; 校验委托 Validator; 返回 DO, 不构建 VO (跨模块/聚合视图例外: 经 Convert 返 VO, 见下方关联拼接 / §8)
+Controller  → (web 边界) 参数校验、调用 Service、调 Convert 组装 VO、返回 Result
+Api 实现    → (跨模块边界) 实现本模块对外 Api; 调 Service 拿本模块 DO → 调 Convert 组装跨模块 DTO 返回; 角色等同 Controller, 只是出参是 DTO 不是 VO
+Service     → 业务逻辑、事务、缓存; 校验委托 Validator; 返回 DO, 不构建 VO / 跨模块 DTO (例外: 需**调其他模块 Api**聚合的视图, 经 Convert 直接返 VO, 见下方关联拼接 / §8)
 Validator   → 集中存在性 / 唯一性 / 业务前置校验, 抛 BusinessException; 每个含校验逻辑的 Service 配对一个 XxxValidator
-Convert     → DO ↔ VO / DTO 映射; 接收纯数据 Map / List 拼接; **禁止注入** Service / Api (依赖单向); 由 Controller 或 (跨模块/聚合视图) Service 调用
+Convert     → DO ↔ VO / DTO 映射; 接收纯数据 Map / List 拼接; **禁止注入** Service / Api (依赖单向); 由 Controller / Api 实现 / (跨模块聚合) Service 调用
 Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查询 Wrapper
 ```
 
@@ -84,9 +85,51 @@ public PageResult<SomeRespVO> getSomePage(SomePageReqVO req) {
 return Result.ok(someService.getSomePage(req));
 ```
 
-- 此为 §1「Service 返回 DO, 不构建 VO」的**例外**, 仅限"无单一 DO 对应"的跨模块 / 聚合视图 (跟 §8 snapshot 例外同源); 普通单表 CRUD 仍 Service 返 DO + Controller 调 Convert.
+- 此为 §1「Service 返回 DO, 不构建 VO」的**例外**, 仅限"无单一 DO 对应"的跨模块 / 聚合视图 (跟 §8 snapshot 例外同源); 普通单表 CRUD / 单纯把本模块 DO 装配成对外出参, 仍 Service 返 DO + 边界层 (Controller / Api 实现) 调 Convert.
 - 入参转换 (`toSpecs`) 抽成**独立一行**, 不要内联嵌进 Api 调用 (可读性).
 - Convert 只接纯数据 Map / DTO 拼 VO, **禁止**注入 Service / Api.
+
+### 对外 Api 实现 = 跨模块边界 (装配 DTO 在这层, 不在 Service)
+
+模块对外 `XxxApiImpl` 是**跨模块边界, 角色等同 Controller**: 调本模块 Service 拿 DO → 调 Convert 拼成跨模块 DTO 返回. **Service 不构建跨模块 DTO** (同「Service 不构建 VO」). 区分两种"跨模块":
+
+| 场景 | 谁装配 | 说明 |
+|---|---|---|
+| 本模块把自己的 DO 暴露成对外 DTO | **Api 实现** | 查询编排 + Convert 在 ApiImpl; Service 提供返 DO 的查询方法 |
+| 需调**其他**模块 Api 聚合多源 | **Service** | 见上「关联数据拼接」, Service 直接返 VO |
+
+「暴露成 DTO」限**纯拼装** (调用方指定 id, 仅 join + map DO→DTO, 无业务判断); 若方法本身是**核心选择 / 计算** (选址、库存等), 即便出参是 DTO 也留核心类 (属下「核心编排」/ §8「多源聚合」), 不拆进 ApiImpl.
+
+```java
+// ✅ Api 实现: 编排查询 (Service 返 DO) + Convert 拼对外 DTO
+@Override
+public List<XxxSummaryDTO> listSummaryByServerIds(Collection<String> ids) {
+    Map<String, FooDO> fooMap = xxxService.getFooMap(ids);       // Service 只返 DO
+    Map<String, BarDO> barMap = xxxService.getBarMap(ids);
+    return XxxConvert.INSTANCE.toSummaries(ids, fooMap, barMap); // Convert 拼 DTO
+}
+
+// ❌ 错: Service 直接返跨模块 DTO (把装配 / Convert 沉到 Service)
+public List<XxxSummaryDTO> listSummaryByServerIds(Collection<String> ids) { ... }
+```
+
+### 核心编排 vs 纯规则 (哪些留 Service / Admission, 哪些抽工具)
+
+- **有 I/O / 状态 / 事务 / 多源编排**的业务 (选址、准入、分配、计量) → 收口到**核心类** (`ResourceServerAdmission` / `TradeAllocator` / 对应 Service), 其它地方只调用、不重复实现 (见 §10).
+- **纯判定 / 纯计算** (无注入依赖、无 I/O、无状态, 只对入参做布尔 / 数值运算, 如"配额是否达标""带宽余量") → 抽成**工具 / 辅助方法**, 由核心类调用.
+  - **入参用值字段 (基本类型 / 值对象), 禁止直接传 `DO` / `VO` / `Entity`** —— 纯规则不该依赖持久化类型; 解耦后可跨 DO / VO 复用、可单测, 调用方负责从 DO 取字段后传入.
+  - 放置: 同域多条纯规则 → 收一个 `XxxRules` / `XxxSpec` 辅助类 (放对应业务模块, 非通用别塞 `nook-common`); 通用算法 (单位换算等) → `nook-common` 工具类; 单处 trivial 可留 `private static`, 但**仍用值入参** (见 §14「别过度拆私有方法」).
+
+```java
+// ✅ 纯规则: 值入参, 不依赖 DO
+public static boolean meetsPlanSpec(Integer totalGb, Integer bandwidthMbps,
+                                    int minTrafficGb, int minBandwidthMbps) { ... }
+// 调用方从 DO 取值后调用
+ResourceServerRules.meetsPlanSpec(quota.getTotalGb(), quota.getBandwidthMbps(), minTrafficGb, minBandwidthMbps);
+
+// ❌ 错: 纯判定却塞 DO, 跟持久化类型耦合
+public boolean meetsPlanSpec(ResourceServerQuotaDO quota, int minTrafficGb, int minBandwidthMbps) { ... }
+```
 
 ---
 
@@ -465,9 +508,10 @@ Convert 本质是**跨层数据格式翻译**. 按输入类型决定谁调用 Co
 
 | Convert 输入 | 调用方 | 理由 |
 |---|---|---|
-| **业务实体 DO** (`dal/dataobject/*DO`) | **Controller** | 标准三层: Controller 拿 Service 返的 DO → Convert → VO |
+| **业务实体 DO → VO** (web 出参) | **Controller** | 标准三层: Controller 拿 Service 返的 DO → Convert → VO |
+| **业务实体 DO → 跨模块 DTO** (对外 Api 纯拼装出参) | **Api 实现** | Api 实现是跨模块边界 (等同 Controller): 调 Service 拿本模块 DO → Convert 拼 DTO; Service 不构建 DTO (见 §1). 注: 核心选择 / 计算类 DTO (选址 / 库存) 归核心类, 见下「多源聚合」行 |
 | **基础设施 Snapshot** (`framework/**/snapshot/*` 等 framework 层数据载体) | **Service** | snapshot 是 service 从 framework 拉的中间数据; Controller 不该 import framework 内部结构, service 是唯一能桥接基础设施层 ↔ 业务 VO 的位置 |
-| **跨模块 / 聚合视图** (无单一 DO 对应) | **Service** | Service 查 + 调跨模块 Api + Convert 拼 VO **直接返 VO** (见 §1); Controller 纯转发, 不碰其他模块 Api |
+| **多源聚合视图** (需调**其他**模块 Api, 无单一 DO 对应) | **Service** | Service 查 + 调其他模块 Api + Convert 拼 VO **直接返 VO** (见 §1); Controller / Api 实现纯转发 |
 
 **核心判定**: Convert 的输入来自哪一层, 就由那一层的调用者触发翻译.
 
@@ -1190,16 +1234,16 @@ for (User u : users) { ... }
 
 ```java
 // ✅ 对
-if (this.belowPlanSpec(cap, minTrafficGb, minBandwidthMbps)) { ... }
+Set<String> ok = this.filterAllocatable(serverIds);
 String key = this.regionIpKey(region, ipTypeId);
 
 // ❌ 错: 裸方法名, 看不出是本类方法还是静态导入 / 父类方法
-if (belowPlanSpec(cap, minTrafficGb, minBandwidthMbps)) { ... }
+Set<String> ok = filterAllocatable(serverIds);
 ```
 
 ### 别为单处使用过度拆私有方法
 
-私有 helper 在**多处复用 / 封装非平凡逻辑**时才抽 (如 `belowPlanSpec`、`regionIpKey` 都被 ≥2 处调用); **只一处调用且短小**的逻辑直接内联在调用处 —— 私有方法堆太多反而割裂阅读 (来回跳转), 可读性不升反降. 判据: 抽出去是让人"少看几行"还是"多跳一次".
+私有 helper 在**多处复用 / 封装非平凡逻辑**时才抽 (如 `regionIpKey` 被 ≥2 处调用); **只一处调用且短小**的逻辑直接内联在调用处 —— 私有方法堆太多反而割裂阅读 (来回跳转), 可读性不升反降. 判据: 抽出去是让人"少看几行"还是"多跳一次".
 
 ### package-info.java
 

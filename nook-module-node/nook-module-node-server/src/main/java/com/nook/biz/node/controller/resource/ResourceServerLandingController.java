@@ -72,10 +72,13 @@ public class ResourceServerLandingController {
     public Result<PageResult<ServerLandingRespVO>> getPage(@ModelAttribute ServerLandingPageReqVO reqVO) {
         PageResult<ResourceServerDO> page = resourceServerLandingService.getPage(reqVO);
         Set<String> ids = CollectionUtils.convertSet(page.getRecords(), ResourceServerDO::getId);
-        ResourceServerLandingService.SubtablesBundle bundle = resourceServerLandingService.batchLoadSubtables(ids);
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.convertPageWithSubtables(
-                page, bundle.landings(), bundle.billings(),
-                bundle.quotas(), bundle.traffics(), bundle.runtimes()));
+        // 查询编排在本层, 各子表批量取出后交 Convert 拼 VO
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.convertPageWithSubtables(page,
+                resourceServerLandingService.getLandingMap(ids),
+                resourceServerLandingService.getBillingMap(ids),
+                resourceServerLandingService.getQuotaMap(ids),
+                resourceServerTrafficService.getCurrentMap(ids),
+                resourceServerLandingService.getRuntimeMap(ids)));
     }
 
     /**

@@ -1,16 +1,12 @@
 package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerProvisionModeEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
-import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
-import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
-import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingBillingUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingQuotaUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerLandingCoreUpdateReqVO;
@@ -21,15 +17,11 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerBillingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
-import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
-import com.nook.biz.node.service.resource.ResourceServerAdmission;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
@@ -49,9 +41,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * SOCKS5 落地节点 Service 实现类
@@ -71,15 +61,11 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Resource
     private ResourceServerQuotaMapper resourceServerQuotaMapper;
     @Resource
-    private ResourceServerTrafficMapper resourceServerTrafficMapper;
-    @Resource
     private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
     @Resource
     private ResourceServerValidator resourceServerValidator;
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
-    @Resource
-    private ResourceServerAdmission resourceServerAdmission;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -287,6 +273,13 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     @Override
+    public Map<String, ResourceServerDO> getServerMap(Collection<String> serverIds) {
+        if (CollUtil.isEmpty(serverIds)) return Map.of();
+        return CollectionUtils.convertMap(
+                resourceServerMapper.selectBatchIds(serverIds), ResourceServerDO::getId);
+    }
+
+    @Override
     public Map<String, ResourceServerLandingDO> getLandingMap(Collection<String> serverIds) {
         if (CollUtil.isEmpty(serverIds)) return Map.of();
         List<ResourceServerLandingDO> rows = resourceServerLandingMapper.selectBatchIds(serverIds);
@@ -294,134 +287,24 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     @Override
-    public SubtablesBundle batchLoadSubtables(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) {
-            return new SubtablesBundle(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
-        }
-        Map<String, ResourceServerLandingDO> landings = CollectionUtils.convertMap(
-                resourceServerLandingMapper.selectBatchIds(serverIds), ResourceServerLandingDO::getServerId);
-        Map<String, ResourceServerBillingDO> bills = CollectionUtils.convertMap(
+    public Map<String, ResourceServerBillingDO> getBillingMap(Collection<String> serverIds) {
+        if (CollUtil.isEmpty(serverIds)) return Map.of();
+        return CollectionUtils.convertMap(
                 resourceServerBillingMapper.selectBatchIds(serverIds), ResourceServerBillingDO::getServerId);
-        Map<String, ResourceServerQuotaDO> quotas = CollectionUtils.convertMap(
+    }
+
+    @Override
+    public Map<String, ResourceServerQuotaDO> getQuotaMap(Collection<String> serverIds) {
+        if (CollUtil.isEmpty(serverIds)) return Map.of();
+        return CollectionUtils.convertMap(
                 resourceServerQuotaMapper.selectBatchIds(serverIds), ResourceServerQuotaDO::getServerId);
-        Map<String, ResourceServerTrafficDO> traffics = CollectionUtils.convertMap(
-                resourceServerTrafficMapper.selectCurrentByServerIds(serverIds), ResourceServerTrafficDO::getServerId);
-        Map<String, ResourceServerRuntimeDO> runtimes = CollectionUtils.convertMap(
+    }
+
+    @Override
+    public Map<String, ResourceServerRuntimeDO> getRuntimeMap(Collection<String> serverIds) {
+        if (CollUtil.isEmpty(serverIds)) return Map.of();
+        return CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
-        return new SubtablesBundle(landings, bills, quotas, traffics, runtimes);
-    }
-
-    @Override
-    public List<LandingSummaryDTO> listSummaryByServerIds(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) {
-            return List.of();
-        }
-        Map<String, ResourceServerDO> srvMap = CollectionUtils.convertMap(
-                resourceServerMapper.selectBatchIds(serverIds), ResourceServerDO::getId);
-        Map<String, ResourceServerLandingDO> landingMap = CollectionUtils.convertMap(
-                resourceServerLandingMapper.selectBatchIds(serverIds), ResourceServerLandingDO::getServerId);
-        return serverIds.stream()
-                .map(id -> {
-                    ResourceServerDO s = srvMap.get(id);
-                    return ObjectUtil.isNull(s) ? null
-                            : ResourceServerLandingConvert.INSTANCE.toSummary(s, landingMap.get(id));
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<LandingSummaryDTO> findMatchingForPlan(String region, String ipTypeId,
-                                                       int minTrafficGb, int minBandwidthMbps) {
-        if (StrUtil.isBlank(region) || StrUtil.isBlank(ipTypeId)) {
-            return List.of();
-        }
-        // ① 区域 + 运行中 + 落地角色: 主表先筛, 把范围缩到本机房在线落地机 (区域选择性最强)
-        List<ResourceServerDO> liveServers = resourceServerMapper.selectLiveLandingsByRegion(region);
-        if (CollUtil.isEmpty(liveServers)) {
-            return List.of();
-        }
-        Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(liveServers, ResourceServerDO::getId);
-        // ② IP 类型: 只在上面这批机器里筛对应 IP 类型的落地子表
-        List<ResourceServerLandingDO> landings =
-                resourceServerLandingMapper.selectByServerIdsAndIpType(serverMap.keySet(), ipTypeId);
-        if (CollUtil.isEmpty(landings)) {
-            return List.of();
-        }
-        // ③ 容量: 批量取容量子表, 逐台按套餐流量 / 带宽阈值过滤后转概要
-        Map<String, ResourceServerQuotaDO> capMap = CollectionUtils.convertMap(
-                resourceServerQuotaMapper.selectBatchIds(CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
-                ResourceServerQuotaDO::getServerId);
-        Set<String> allocatable = resourceServerAdmission.filterAllocatable(serverMap.keySet());
-        List<LandingSummaryDTO> matched = new ArrayList<>();
-        for (ResourceServerLandingDO landing : landings) {
-            // 健康准入 + 规格达标 才进候选 (都归 ResourceServerAdmission)
-            if (!allocatable.contains(landing.getServerId())
-                    || !resourceServerAdmission.meetsPlanSpec(capMap.get(landing.getServerId()), minTrafficGb, minBandwidthMbps)) {
-                continue;
-            }
-            matched.add(ResourceServerLandingConvert.INSTANCE.toSummary(serverMap.get(landing.getServerId()), landing));
-        }
-        return matched;
-    }
-
-    @Override
-    public Map<String, PlanCapacityDTO> countCapacityForPlans(Collection<PlanSpecDTO> specs) {
-        if (CollUtil.isEmpty(specs)) {
-            return Map.of();
-        }
-        // ① 批量捞 (固定 3 查询, 不随套餐数增长): 涉及区域的运行中落地机 → 这批机器里涉及 IP 类型的落地子表 → 容量子表
-        Set<String> regions = CollectionUtils.convertSet(specs, PlanSpecDTO::getRegionCode);
-        Set<String> ipTypeIds = CollectionUtils.convertSet(specs, PlanSpecDTO::getIpTypeId);
-        Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(
-                resourceServerMapper.selectLiveLandingsByRegions(regions), ResourceServerDO::getId);
-        List<ResourceServerLandingDO> landings = MapUtil.isEmpty(serverMap) ? List.of()
-                : resourceServerLandingMapper.selectByServerIdsAndIpTypes(serverMap.keySet(), ipTypeIds);
-        Map<String, ResourceServerQuotaDO> capMap = CollUtil.isEmpty(landings) ? Map.of()
-                : CollectionUtils.convertMap(resourceServerQuotaMapper.selectBatchIds(
-                        CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
-                        ResourceServerQuotaDO::getServerId);
-        Set<String> allocatable = resourceServerAdmission.filterAllocatable(serverMap.keySet());
-        // ② 落地机按 (区域 + IP 类型) 分桶, 让每个套餐 O(1) 命中自己的候选
-        Map<String, List<ResourceServerLandingDO>> bucket = new HashMap<>();
-        for (ResourceServerLandingDO landing : landings) {
-            ResourceServerDO server = serverMap.get(landing.getServerId());
-            bucket.computeIfAbsent(this.regionIpKey(server.getRegion(), landing.getIpTypeId()),
-                    k -> new ArrayList<>()).add(landing);
-        }
-        // ③ 每个套餐在自己的桶里按容量阈值过滤 + status 计数 (纯内存, 不再查库)
-        Map<String, PlanCapacityDTO> result = new HashMap<>(specs.size());
-        for (PlanSpecDTO spec : specs) {
-            List<ResourceServerLandingDO> candidates = bucket.getOrDefault(
-                    this.regionIpKey(spec.getRegionCode(), spec.getIpTypeId()), List.of());
-            int total = 0;
-            int available = 0;
-            int occupied = 0;
-            for (ResourceServerLandingDO landing : candidates) {
-                // 占用中的落地机在服务本套餐订阅, 即便被降配到不达标也照常计入 (运行时按 min(套餐,落地机) 带宽限速)
-                if (ResourceServerLandingStatusEnum.OCCUPIED.matches(landing.getStatus())) {
-                    total++;
-                    occupied++;
-                    continue;
-                }
-                // 空闲机器需健康可分配 + 达标 才算"可售"
-                if (!allocatable.contains(landing.getServerId())
-                        || !resourceServerAdmission.meetsPlanSpec(capMap.get(landing.getServerId()), spec.getTrafficGb(), spec.getBandwidthMbps())) {
-                    continue;
-                }
-                total++;
-                if (ResourceServerLandingStatusEnum.AVAILABLE.matches(landing.getStatus())) {
-                    available++;
-                }
-            }
-            result.put(spec.getPlanId(), new PlanCapacityDTO(total, available, occupied));
-        }
-        return result;
-    }
-
-    /** (区域 + IP 类型) 复合 key; 把落地机按套餐匹配维度分桶. */
-    private String regionIpKey(String region, String ipTypeId) {
-        return region + '|' + ipTypeId;
     }
 
 }

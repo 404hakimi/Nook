@@ -2,6 +2,9 @@ package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 
+import java.util.Collection;
+import java.util.Map;
+
 /**
  * 服务器流量计量 Service 接口
  *
@@ -27,4 +30,12 @@ public interface ResourceServerTrafficService {
      * @return 当周期测量行
      */
     ResourceServerTrafficDO getCurrent(String serverId);
+
+    /**
+     * 批量取各服务器当周期测量行 (end_time 空)
+     *
+     * @param serverIds 服务器编号集合
+     * @return 服务器编号 → 当周期测量行
+     */
+    Map<String, ResourceServerTrafficDO> getCurrentMap(Collection<String> serverIds);
 }

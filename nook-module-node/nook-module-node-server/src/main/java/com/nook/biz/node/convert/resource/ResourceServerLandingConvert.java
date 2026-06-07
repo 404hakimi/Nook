@@ -22,6 +22,7 @@ import org.mapstruct.factory.Mappers;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -38,6 +39,20 @@ public interface ResourceServerLandingConvert {
     // 主表 + landing 子表 → 跨模块概要 DTO; serverId 取主表 id, landing 为 null 时 status/ipType 留空
     @Mapping(target = "serverId", source = "server.id")
     LandingSummaryDTO toSummary(ResourceServerDO server, ResourceServerLandingDO landing);
+
+    /** 批量拼概要: serverId 集合 + 主表 / landing 子表 Map → 概要列表 (主表不存在的跳过). */
+    default List<LandingSummaryDTO> toSummaries(Collection<String> serverIds,
+                                               Map<String, ResourceServerDO> serverMap,
+                                               Map<String, ResourceServerLandingDO> landingMap) {
+        List<LandingSummaryDTO> list = new ArrayList<>(serverIds.size());
+        for (String serverId : serverIds) {
+            ResourceServerDO server = serverMap.get(serverId);
+            if (ObjectUtil.isNotNull(server)) {
+                list.add(toSummary(server, landingMap.get(serverId)));
+            }
+        }
+        return list;
+    }
 
     /** 主表 → RespVO (仅主表字段; 子表字段需另行回填) */
     ServerLandingRespVO convert(ResourceServerDO bean);
