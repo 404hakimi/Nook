@@ -6,7 +6,7 @@ import type { AgentOnlineState } from '@/api/resource/server'
  * 落地机 (SOCKS5 落地节点): server_type='landing' 的 resource_server 行 + resource_server_landing 子表.
  *
  * - lifecycleState (装机): INSTALLING/READY/LIVE/RETIRED
- * - status (占用): AVAILABLE/RESERVED/OCCUPIED
+ * - 占用 (是否被订阅绑定) 收口到 trade_subscription_certificate.ip_id, 不在本结构
  * - region 为字典码 (FK → resource_region.code)
  */
 export interface ServerLanding {
@@ -23,11 +23,6 @@ export interface ServerLanding {
   socks5Username?: string
   /** 明文 SOCKS5 密码; DB 明文存储, 编辑时 fill 进 type=password. */
   socks5Password?: string
-  /** 占用状态: AVAILABLE / RESERVED / OCCUPIED. */
-  status: string
-  occupiedByMemberId?: string
-  occupiedAt?: string
-  reservedExpiresAt?: string
   lastHeartbeatAt?: string
   /** agent 上报版本 (形如 landing-0.8.2); null = 未上报. */
   agentVersion?: string
@@ -166,8 +161,6 @@ export interface ServerLandingQuery {
   keyword?: string
   /** 装机生命周期过滤. */
   lifecycleState?: string
-  /** 占用状态过滤. */
-  status?: string
   /** 区域码集合 (城市选单个, 国家选该国全部城市; 空=全部). */
   regionCodes?: string[]
   ipTypeId?: string
@@ -221,20 +214,6 @@ export const SERVER_LANDING_LIFECYCLE_OPTIONS = [
   { label: '已停用', value: 'RETIRED' }
 ]
 
-/** 占用状态 → 中文标签. */
-export const SERVER_LANDING_STATUS_LABELS: Record<string, string> = {
-  AVAILABLE: '可分配',
-  RESERVED: '预占中',
-  OCCUPIED: '已占用'
-}
-
-export const SERVER_LANDING_STATUS_OPTIONS = [
-  { label: '全部', value: undefined as string | undefined },
-  { label: '可分配', value: 'AVAILABLE' },
-  { label: '预占中', value: 'RESERVED' },
-  { label: '已占用', value: 'OCCUPIED' }
-]
-
 export function pageServerLanding(params: ServerLandingQuery) {
   const { regionCodes, ...rest } = params
   // 后端 List<String> 用逗号串绑定, 避免 axios 默认数组序列化带 [] 绑不上
@@ -250,10 +229,10 @@ export interface ServerLandingSummary {
   ready: number
   live: number
   retired: number
+  /** 可用 = 总数 - 占用 (cert.ip_id 派生). */
   available: number
+  /** 已占用 (有生效凭证绑定). */
   occupied: number
-  cooling: number
-  reserved: number
 }
 
 export function getServerLandingSummary() {

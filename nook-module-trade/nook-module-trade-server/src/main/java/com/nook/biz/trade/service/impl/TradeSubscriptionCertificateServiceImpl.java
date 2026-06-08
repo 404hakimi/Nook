@@ -11,7 +11,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -106,5 +108,10 @@ public class TradeSubscriptionCertificateServiceImpl implements TradeSubscriptio
     @Override
     public TradeSubscriptionCertificateDO getByIpId(String ipId) {
         return tradeSubscriptionCertificateMapper.selectByIpId(ipId);
+    }
+
+    @Override
+    public Set<String> filterBoundIpIds(Collection<String> ipIds) {
+        return new HashSet<>(tradeSubscriptionCertificateMapper.selectBoundIpIds(ipIds));
     }
 }

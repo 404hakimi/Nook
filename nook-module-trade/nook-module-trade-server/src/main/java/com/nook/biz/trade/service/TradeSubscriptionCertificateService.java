@@ -4,6 +4,7 @@ import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 订阅凭证 Service 接口
@@ -100,4 +101,12 @@ public interface TradeSubscriptionCertificateService {
      * @return 凭证; 无返 null
      */
     TradeSubscriptionCertificateDO getByIpId(String ipId);
+
+    /**
+     * 过滤出这批落地机里已被占用的 (ip_id 非空即占用, 含 ACTIVE/SUSPENDED)
+     *
+     * @param ipIds 落地机ID集合
+     * @return 已占用的落地机ID集合
+     */
+    Set<String> filterBoundIpIds(Collection<String> ipIds);
 }

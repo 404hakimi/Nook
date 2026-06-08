@@ -3,13 +3,10 @@ package com.nook.biz.node.validator;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
-import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
@@ -26,8 +23,6 @@ public class ServerLifecycleValidator {
 
     @Resource
     private ResourceServerFrontlineMapper resourceServerFrontlineMapper;
-    @Resource
-    private ResourceServerLandingMapper resourceServerLandingMapper;
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
 
@@ -60,14 +55,9 @@ public class ServerLifecycleValidator {
         }
     }
 
-    /** 落地机停用前: 占用中(已占用/预占中)或仍有客户端绑定则拒 (订阅占用与客户端绑定一般同步, 但客户端可手工管理, 故两个信号都查). */
+    /** 落地机停用前: 仍有生效凭证绑定 (cert.ip_id, 含 ACTIVE/SUSPENDED) 则拒. */
     public void validateLandingNotInUse(String serverId) {
-        ResourceServerLandingDO landing = resourceServerLandingMapper.selectById(serverId);
-        String status = ObjectUtil.isNull(landing) ? null : landing.getStatus();
-        boolean inUse = ResourceServerLandingStatusEnum.OCCUPIED.matches(status)
-                || ResourceServerLandingStatusEnum.RESERVED.matches(status)
-                || resourceServerLandingValidator.hasBoundClient(serverId);
-        if (inUse) {
+        if (resourceServerLandingValidator.hasBoundClient(serverId)) {
             throw new BusinessException(ResourceErrorCode.LANDING_IN_USE_CANNOT_RETIRE);
         }
     }

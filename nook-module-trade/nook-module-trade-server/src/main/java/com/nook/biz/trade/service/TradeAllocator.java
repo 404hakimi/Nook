@@ -2,7 +2,6 @@ package com.nook.biz.trade.service;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.node.api.resource.ResourceServerQuotaApi;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
@@ -100,10 +99,12 @@ public class TradeAllocator {
      * @return 候选落地机 id 列表 (上层逐台试占, 被并发抢占则换下一台)
      */
     public List<String> matchLandings(String region, String ipTypeId, int minTrafficGb, int minBandwidthMbps) {
-        return landingApi.findMatchingForPlan(region, ipTypeId, minTrafficGb, minBandwidthMbps).stream()
-                .filter(l -> ResourceServerLandingStatusEnum.AVAILABLE.matches(l.getStatus()))
+        List<String> matching = landingApi.findMatchingForPlan(region, ipTypeId, minTrafficGb, minBandwidthMbps).stream()
                 .map(LandingSummaryDTO::getServerId)
                 .toList();
+        // 占用收口到 cert.ip_id: 去掉已被生效凭证绑定的, 候选只留真正空闲 (逐台试占由 uk_cert_ip 唯一键兜底)
+        Set<String> bound = tradeSubscriptionCertificateService.filterBoundIpIds(matching);
+        return matching.stream().filter(id -> !bound.contains(id)).toList();
     }
 
     /** 各线路机当前已挂带宽 = Σ(挂在它上面的应运行凭证, 其订阅套餐带宽). */

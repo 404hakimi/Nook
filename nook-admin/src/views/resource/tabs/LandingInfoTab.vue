@@ -25,7 +25,6 @@ import {
 import {
   SERVER_LANDING_LIFECYCLE_LABELS,
   SERVER_LANDING_LIFECYCLE_TAG_TYPE,
-  SERVER_LANDING_STATUS_LABELS,
   deleteServerLanding,
   type ServerLanding
 } from '@/api/resource/server-landing'
@@ -34,7 +33,6 @@ import { IP_TYPE_CODE_LABELS } from '@/api/system/ip-type'
 import { useIpTypeStore } from '@/stores/ipType'
 import { storeToRefs } from 'pinia'
 import { formatDateTime } from '@/utils/date'
-import { statusTagType } from './landingHelpers'
 
 /**
  * 落地机详情 — 信息 tab. 结构对齐线路机 ServerInfoTab: NCard + NDescriptions.
@@ -195,19 +193,6 @@ const trafficUsagePercent = computed(() => {
           <NTag size="small" :type="detail.provisionMode === 1 ? 'success' : 'info'">
             {{ detail.provisionMode === 1 ? '自部署' : '第三方' }}
           </NTag>
-        </NDescriptionsItem>
-        <NDescriptionsItem label="占用状态">
-          <NTag size="small" :type="statusTagType(detail.status)">
-            {{ SERVER_LANDING_STATUS_LABELS[detail.status] || detail.status }}
-          </NTag>
-        </NDescriptionsItem>
-        <NDescriptionsItem label="当前会员">
-          <code v-if="detail.occupiedByMemberId" class="kbd text-xs">{{ detail.occupiedByMemberId }}</code>
-          <span v-else class="muted">—</span>
-        </NDescriptionsItem>
-        <NDescriptionsItem label="占用时间">
-          <span v-if="detail.occupiedAt">{{ formatDateTime(detail.occupiedAt) }}</span>
-          <span v-else class="muted">—</span>
         </NDescriptionsItem>
       </NDescriptions>
     </NCard>

@@ -2,7 +2,6 @@ package com.nook.biz.trade.job;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.trade.api.enums.TradeCertStatusEnum;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
@@ -36,8 +35,6 @@ public class TradeLifecycleJob {
     @Resource
     private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
     @Resource
-    private ResourceServerLandingApi resourceServerLandingApi;
-    @Resource
     private TradeTrafficMeteringService tradeTrafficMeteringService;
     @Resource
     private TransactionTemplate transactionTemplate;
@@ -62,9 +59,7 @@ public class TradeLifecycleJob {
                     // 到期 → 释放: 名下凭证先释放落地机再吊销(清分配, 远端 xray 由 agent 对账清理) + 标过期; 重复执行幂等
                     if (ObjectUtil.isNotNull(s.getExpiresAt()) && !s.getExpiresAt().isAfter(now)) {
                         for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(s.getId())) {
-                            if (ObjectUtil.isNotNull(cert.getIpId())) {
-                                resourceServerLandingApi.releaseLanding(cert.getIpId());
-                            }
+                            // revoke 清 cert.ip_id (占用真相), 落地机随之空闲; 远端 xray 由 agent 对账清理
                             tradeSubscriptionCertificateService.revoke(cert.getId());
                         }
                         s.setStatus(TradeSubscriptionStatusEnum.EXPIRED.getState());

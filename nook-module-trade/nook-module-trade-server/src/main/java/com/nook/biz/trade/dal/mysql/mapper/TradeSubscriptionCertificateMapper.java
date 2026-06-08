@@ -54,4 +54,15 @@ public interface TradeSubscriptionCertificateMapper extends BaseMapper<TradeSubs
         }
         return selectBatchIds(ids);
     }
+
+    /** 这批落地机里已被占用的 (ip_id 非空即占用, 含 ACTIVE/SUSPENDED; REVOKED 已清空 ip_id). */
+    default List<String> selectBoundIpIds(Collection<String> ipIds) {
+        if (CollUtil.isEmpty(ipIds)) {
+            return List.of();
+        }
+        return selectList(Wrappers.<TradeSubscriptionCertificateDO>lambdaQuery()
+                        .select(TradeSubscriptionCertificateDO::getIpId)
+                        .in(TradeSubscriptionCertificateDO::getIpId, ipIds))
+                .stream().map(TradeSubscriptionCertificateDO::getIpId).toList();
+    }
 }

@@ -26,7 +26,4 @@ public class ServerLandingPageReqVO extends PageParam {
 
     /** 装机生命周期过滤 (server.lifecycle_state). */
     private String lifecycleState;
-
-    /** 占用状态过滤 (landing.status). */
-    private String status;
 }

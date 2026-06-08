@@ -3,7 +3,7 @@ package com.nook.biz.node.api.resource.dto;
 import lombok.Data;
 
 /**
- * 落地机概要 (主表 lifecycle + landing 子表 status/ipType); 供 trade 算 SKU 池容量 + 绑定校验.
+ * 落地机概要 (主表 lifecycle + landing 子表 ipType); 供 trade 算 SKU 池容量 + 绑定校验.
  *
  * @author nook
  */
@@ -15,9 +15,6 @@ public class LandingSummaryDTO {
 
     /** 装机生命周期: 装机中 / 待上线 / 运行中 / 已退役. */
     private String lifecycleState;
-
-    /** 落地机占用状态 (可分配 / 已占用 / 预留); null=非落地机或无子表. */
-    private String status;
 
     /** landing 子表 ip_type_id. */
     private String ipTypeId;

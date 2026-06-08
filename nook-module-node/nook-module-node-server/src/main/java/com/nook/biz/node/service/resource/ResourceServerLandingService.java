@@ -116,25 +116,9 @@ public interface ResourceServerLandingService {
     /**
      * 获得落地节点总览统计
      *
-     * @return key → count (total, lifecycle_INSTALLING/READY/LIVE/RETIRED, status_AVAILABLE/OCCUPIED/RESERVED)
+     * @return key → count (total, lifecycle_INSTALLING/READY/LIVE/RETIRED, status_AVAILABLE/OCCUPIED)
      */
     Map<String, Long> getSummary();
-
-    /**
-     * 占用落地节点 (条件更新, 仅 AVAILABLE 可占)
-     *
-     * @param serverId     落地节点编号
-     * @param memberUserId 占用方编号
-     * @return true=占用成功; false=被并发抢占 / 非 AVAILABLE
-     */
-    boolean occupyById(String serverId, String memberUserId);
-
-    /**
-     * 退订释放落地节点 (直接转为可用, 立即可再分配)
-     *
-     * @param serverId 落地节点编号
-     */
-    void releaseForRevoke(String serverId);
 
     /**
      * 批量获得落地节点主表

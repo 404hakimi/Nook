@@ -55,14 +55,4 @@ public class ResourceServerLandingApiImpl implements ResourceServerLandingApi {
         Integer port = ObjectUtil.isNull(landing) ? null : landing.getSocks5Port();
         return ObjectUtil.isNull(port) ? 0 : port;
     }
-
-    @Override
-    public boolean occupyLanding(String landingServerId, String memberUserId) {
-        return resourceServerLandingService.occupyById(landingServerId, memberUserId);
-    }
-
-    @Override
-    public void releaseLanding(String landingServerId) {
-        resourceServerLandingService.releaseForRevoke(landingServerId);
-    }
 }

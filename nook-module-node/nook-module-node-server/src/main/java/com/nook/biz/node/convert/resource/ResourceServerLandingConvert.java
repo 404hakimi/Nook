@@ -115,11 +115,6 @@ public interface ResourceServerLandingConvert {
         vo.setSocks5Port(landing.getSocks5Port());
         vo.setSocks5Username(landing.getSocks5Username());
         vo.setSocks5Password(landing.getSocks5Password());
-        vo.setStatus(landing.getStatus());
-        vo.setOccupiedByMemberId(landing.getOccupiedByMemberId());
-        vo.setOccupiedAt(landing.getOccupiedAt());
-        vo.setReservedExpiresAt(landing.getReservedExpiresAt());
-        vo.setAssignCount(landing.getAssignCount());
         vo.setProvisionMode(landing.getProvisionMode());
         vo.setLogLevel(landing.getLogLevel());
         vo.setLogPath(landing.getLogPath());

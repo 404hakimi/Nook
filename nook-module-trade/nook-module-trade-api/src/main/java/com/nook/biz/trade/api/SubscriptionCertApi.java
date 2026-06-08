@@ -4,6 +4,7 @@ import com.nook.biz.trade.api.dto.SubscriptionCertRespDTO;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 订阅凭证跨模块契约 (node 消费: 对账读凭证、分配回写)
@@ -59,4 +60,12 @@ public interface SubscriptionCertApi {
      * @param certId 凭证ID
      */
     void clearAllocation(String certId);
+
+    /**
+     * 过滤出这批落地机里已被凭证占用的 (ip_id 非空即占用)
+     *
+     * @param ipIds 落地机ID集合
+     * @return 已占用的落地机ID集合
+     */
+    Set<String> filterBoundIpIds(Collection<String> ipIds);
 }

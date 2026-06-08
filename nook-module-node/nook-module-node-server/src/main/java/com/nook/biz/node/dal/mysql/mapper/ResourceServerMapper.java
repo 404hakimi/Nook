@@ -128,7 +128,6 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
      * @param page           分页参数
      * @param keyword        名称 / IP 模糊
      * @param lifecycleState 生命周期
-     * @param status         占用状态 (landing 子表)
      * @param ipTypeId       IP 类型 (landing 子表)
      * @param regionCodes    区域码集合
      * @param serverType     机器类型
@@ -136,7 +135,7 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
      */
     IPage<ServerLandingListItemRespVO> selectLandingPage(IPage<ServerLandingListItemRespVO> page,
             @Param("keyword") String keyword, @Param("lifecycleState") String lifecycleState,
-            @Param("status") String status, @Param("ipTypeId") String ipTypeId,
+            @Param("ipTypeId") String ipTypeId,
             @Param("regionCodes") Collection<String> regionCodes, @Param("serverType") String serverType);
 
     /**

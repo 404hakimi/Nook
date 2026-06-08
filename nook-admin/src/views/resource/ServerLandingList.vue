@@ -40,8 +40,6 @@ import {
   SERVER_LANDING_LIFECYCLE_LABELS,
   SERVER_LANDING_LIFECYCLE_OPTIONS,
   SERVER_LANDING_LIFECYCLE_TAG_TYPE,
-  SERVER_LANDING_STATUS_LABELS,
-  SERVER_LANDING_STATUS_OPTIONS,
   deleteServerLanding,
   getServerLandingSummary,
   pageServerLanding,
@@ -99,7 +97,6 @@ const query = reactive<Required<Pick<ServerLandingQuery, 'pageNo' | 'pageSize'>>
   pageSize: 12,
   keyword: '',
   lifecycleState: undefined,
-  status: undefined,
   ipTypeId: ''
 })
 const list = ref<ServerLanding[]>([])
@@ -107,7 +104,7 @@ const total = ref(0)
 const loading = ref(false)
 const summary = ref<ServerLandingSummary>({
   total: 0, installing: 0, ready: 0, live: 0, retired: 0,
-  available: 0, occupied: 0, cooling: 0, reserved: 0
+  available: 0, occupied: 0
 })
 
 async function loadSummary() {
@@ -116,13 +113,10 @@ async function loadSummary() {
   } catch { /* silent */ }
 }
 
-/** 点 stats 卡片 = 按 lifecycle 或 status 过滤; 再点同一个清掉过滤 */
-function applyStatsFilter(opts: { lifecycleState?: string; status?: string }) {
+/** 点 stats 卡片 = 按 lifecycle 过滤; 再点同一个清掉过滤 */
+function applyStatsFilter(opts: { lifecycleState?: string }) {
   if (opts.lifecycleState != null) {
     query.lifecycleState = query.lifecycleState === opts.lifecycleState ? undefined : (opts.lifecycleState as never)
-  }
-  if (opts.status != null) {
-    query.status = query.status === opts.status ? undefined : (opts.status as never)
   }
   query.pageNo = 1
   void loadList()
@@ -137,7 +131,6 @@ async function loadList() {
       pageSize: query.pageSize,
       keyword: query.keyword || undefined,
       lifecycleState: query.lifecycleState,
-      status: query.status,
       regionCodes: regionCodes.value.length ? regionCodes.value : undefined,
       ipTypeId: query.ipTypeId || undefined
     })
@@ -161,7 +154,6 @@ function resetQuery() {
   query.pageNo = 1
   query.keyword = ''
   query.lifecycleState = undefined
-  query.status = undefined
   query.ipTypeId = ''
   regionCodes.value = []
   regionFilter.value?.reset()
@@ -178,15 +170,6 @@ function ipTypeName(typeId: string): string {
   if (!t) return typeId
   const label = IP_TYPE_CODE_LABELS[t.code] ?? t.code
   return `${t.name} · ${label}`
-}
-
-function statusTagType(status: string): 'success' | 'info' | 'warning' | 'default' {
-  switch (status) {
-    case 'AVAILABLE': return 'success'
-    case 'RESERVED': return 'warning'
-    case 'OCCUPIED': return 'info'
-    default: return 'default'
-  }
 }
 
 type PillTone = 'success' | 'warning' | 'error' | 'default'
@@ -244,13 +227,9 @@ function expiryTitle(d?: string): string {
 }
 
 // ===== lifecycle 流转 (admin 只暴露 2 项: 停用 / 启用; INSTALLING/READY 是装机内部态) =====
-/** 占用中 (已分配 / 预占): 在用, 不可停用. */
-function landingInUse(ip: ServerLanding): boolean {
-  return ip.status === 'OCCUPIED' || ip.status === 'RESERVED'
-}
 async function onSuspend(ip: ServerLanding) {
-  // 占用 / 预占中不可停用 (后端同样拦截; 这里提前挡掉)
-  if (ip.lifecycleState !== 'LIVE' || ip.status === 'OCCUPIED' || ip.status === 'RESERVED') return
+  // 占用判定收口到后端 (cert.ip_id); 仍被订阅占用时 transition 会抛 LANDING_IN_USE_CANNOT_RETIRE
+  if (ip.lifecycleState !== 'LIVE') return
   const ok = await confirm({
     title: '停用落地机',
     message: `停用落地机 ${ip.ipAddress}? 停用后将从分配池移除, 不再分配给新订阅.`,
@@ -368,8 +347,8 @@ onMounted(async () => {
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
       <div
         class="stat-card stat-card--zinc"
-        :class="{ 'stat-card--active': !query.lifecycleState && !query.status }"
-        @click="() => { query.lifecycleState = undefined; query.status = undefined; query.pageNo = 1; loadList() }"
+        :class="{ 'stat-card--active': !query.lifecycleState }"
+        @click="() => { query.lifecycleState = undefined; query.pageNo = 1; loadList() }"
       >
         <div class="stat-card__accent" />
         <div class="stat-card__body">
@@ -398,11 +377,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div
-        class="stat-card stat-card--blue"
-        :class="{ 'stat-card--active': query.status === 'AVAILABLE' }"
-        @click="applyStatsFilter({ status: 'AVAILABLE' })"
-      >
+      <div class="stat-card stat-card--blue">
         <div class="stat-card__accent" />
         <div class="stat-card__body">
           <div class="stat-card__label">可分配</div>
@@ -414,11 +389,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div
-        class="stat-card stat-card--orange"
-        :class="{ 'stat-card--active': query.status === 'OCCUPIED' }"
-        @click="applyStatsFilter({ status: 'OCCUPIED' })"
-      >
+      <div class="stat-card stat-card--orange">
         <div class="stat-card__accent" />
         <div class="stat-card__body">
           <div class="stat-card__label">已占用</div>
@@ -448,10 +419,6 @@ onMounted(async () => {
         <div>
           <div class="text-xs text-zinc-500 mb-1">生命周期</div>
           <NSelect v-model:value="query.lifecycleState" :options="SERVER_LANDING_LIFECYCLE_OPTIONS" size="small" class="w-28" />
-        </div>
-        <div>
-          <div class="text-xs text-zinc-500 mb-1">占用状态</div>
-          <NSelect v-model:value="query.status" :options="SERVER_LANDING_STATUS_OPTIONS" size="small" class="w-28" />
         </div>
         <div>
           <div class="text-xs text-zinc-500 mb-1">类型</div>
@@ -523,9 +490,6 @@ onMounted(async () => {
               <NTag size="small" :type="SERVER_LANDING_LIFECYCLE_TAG_TYPE[ip.lifecycleState] || 'default'">
                 {{ SERVER_LANDING_LIFECYCLE_LABELS[ip.lifecycleState] || ip.lifecycleState }}
               </NTag>
-              <NTag size="small" :type="statusTagType(ip.status)">
-                {{ SERVER_LANDING_STATUS_LABELS[ip.status] || ip.status }}
-              </NTag>
             </div>
 
             <!-- 第二行: IP / 探活 / 安装 / 带宽 / 流量 -->
@@ -587,15 +551,12 @@ onMounted(async () => {
                   quaternary
                   type="warning"
                   circle
-                  :disabled="landingInUse(ip)"
                   @click="onSuspend(ip)"
                 >
                   <template #icon><NIcon><PauseCircle /></NIcon></template>
                 </NButton>
               </template>
-              <div class="text-xs">
-                {{ landingInUse(ip) ? '占用中不可停用 (请先释放占用它的订阅)' : '停用 (移出分配池, 不再分配给新订阅)' }}
-              </div>
+              <div class="text-xs">停用 (移出分配池; 仍被订阅占用时后端会拦)</div>
             </NTooltip>
             <NTooltip v-else-if="ip.lifecycleState === 'RETIRED'" placement="top">
               <template #trigger>
@@ -605,14 +566,14 @@ onMounted(async () => {
               </template>
               <div class="text-xs">启用 (恢复分配)</div>
             </NTooltip>
-            <!-- 删除: 仅未占用 (OCCUPIED / RESERVED 在用, 禁止删除) -->
-            <NTooltip v-if="ip.status !== 'OCCUPIED' && ip.status !== 'RESERVED'" placement="top">
+            <!-- 删除: 仍被订阅占用 (cert.ip_id) 时后端拦截 -->
+            <NTooltip placement="top">
               <template #trigger>
                 <NButton size="small" quaternary type="error" circle @click="onDelete(ip)">
                   <template #icon><NIcon><Trash2 /></NIcon></template>
                 </NButton>
               </template>
-              <div class="text-xs">删除落地机 (不可恢复)</div>
+              <div class="text-xs">删除落地机 (不可恢复; 占用中后端会拦)</div>
             </NTooltip>
           </div>
         </div>

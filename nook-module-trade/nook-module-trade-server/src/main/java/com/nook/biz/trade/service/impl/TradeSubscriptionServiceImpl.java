@@ -46,6 +46,7 @@ import com.nook.framework.security.stp.StpSystemUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -120,9 +121,12 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         LocalDateTime expiresAt = startedAt.plusDays(plan.getPeriodDays());
         // 逐台试占, 一台一个事务: openOne 返 null = 落地机被并发抢占 → 换下一台; 其它异常直接抛(整笔回滚, 不掩盖真因)
         for (String landingId : candidates) {
-            TradeSubscriptionDO sub = transactionTemplate.execute(status ->
-                    this.openOne(req, plan, frontlineId, landingId, planTraffic, startedAt, expiresAt));
-            if (ObjectUtil.isNull(sub)) {
+            TradeSubscriptionDO sub;
+            try {
+                sub = transactionTemplate.execute(status ->
+                        this.openOne(req, plan, frontlineId, landingId, planTraffic, startedAt, expiresAt));
+            } catch (DuplicateKeyException e) {
+                // 落地机被并发占 (cert.ip_id 撞 uk_cert_ip), 事务已回滚, 试下一台
                 log.warn("[adminCreate] 落地机 {} 被并发抢占, 试下一台", landingId);
                 continue;
             }
@@ -135,18 +139,15 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         throw new BusinessException(TradeErrorCode.SKU_OUT_OF_STOCK, plan.getId());
     }
 
-    /** 一次开通的全部库内写入, 由调用方事务包裹: 占落地机 → 签发凭证 → 建订阅 → 发基础额度; 落地机被抢占返 null. */
+    /** 一次开通的全部库内写入, 由调用方事务包裹: 签发凭证(带分配) → 建订阅 → 发基础额度; 落地机被并发占时 setAllocation 撞 uk_cert_ip 抛 DuplicateKeyException. */
     private TradeSubscriptionDO openOne(SubscriptionCreateReqVO req, TradePlanDO plan, String frontlineId,
                                        String landingId, int planTraffic,
                                        LocalDateTime startedAt, LocalDateTime expiresAt) {
-        // 占用落地机(条件更新); 被并发抢占返 false → 返 null 让上层换下一台(非异常, 空事务无写入)
-        if (!landingApi.occupyLanding(landingId, req.getMemberUserId())) {
-            return null;
-        }
         // 先生成订阅 id: 凭证按 subscription_id 反向关联它
         String subId = IdUtil.simpleUUID();
         TradeSubscriptionCertificateDO cert = tradeSubscriptionCertificateService.issue(
                 subId, req.getMemberUserId(), TradeCertSourceEnum.BASE.getSource());
+        // 占位即 claim: 写 ip_id 撞 uk_cert_ip 唯一键 = 被并发占 → DuplicateKeyException, 上层换下一台
         tradeSubscriptionCertificateService.setAllocation(cert.getId(), frontlineId, landingId);
         TradeSubscriptionDO sub = new TradeSubscriptionDO();
         sub.setId(subId);
@@ -255,9 +256,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(id)) {
             String frontlineId = cert.getServerId();
             String landingId = cert.getIpId();
-            if (ObjectUtil.isNotNull(landingId)) {
-                landingApi.releaseLanding(landingId);
-            }
+            // 释放: revoke 清 cert.ip_id (占用真相), 落地机随之空闲; 远端 xray 由 agent 对账清理
             tradeSubscriptionCertificateService.revoke(cert.getId());
             // 发布释放事件 (监听器落换机历史日志, 与退订解耦)
             if (ObjectUtil.isNotNull(frontlineId)) {

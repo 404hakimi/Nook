@@ -23,11 +23,9 @@ public class ServerLandingSummaryRespVO {
     /** 已退役数量. */
     private long retired;
 
-    // ===== 占用状态维度 =====
+    // ===== 占用维度 (cert.ip_id 派生) =====
     /** 可用数量. */
     private long available;
     /** 已占用数量. */
     private long occupied;
-    /** 预留数量. */
-    private long reserved;
 }

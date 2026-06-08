@@ -7,7 +7,7 @@
     <select id="selectLandingPage"
             resultType="com.nook.biz.node.controller.resource.vo.landing.ServerLandingListItemRespVO">
         SELECT rs.id, rs.ip_address, rs.region, rs.lifecycle_state,
-               l.status, l.ip_type_id, l.provision_mode, l.dante_version, l.installed_at,
+               l.ip_type_id, l.provision_mode, l.dante_version, l.installed_at,
                l.socks5_port, l.socks5_username, l.socks5_password,
                b.expires_at,
                q.bandwidth_mbps, q.total_gb,
@@ -20,7 +20,6 @@
         <where>
             <if test="serverType != null and serverType != ''">AND rs.server_type = #{serverType}</if>
             <if test="lifecycleState != null and lifecycleState != ''">AND rs.lifecycle_state = #{lifecycleState}</if>
-            <if test="status != null and status != ''">AND l.status = #{status}</if>
             <if test="ipTypeId != null and ipTypeId != ''">AND l.ip_type_id = #{ipTypeId}</if>
             <if test="keyword != null and keyword != ''">AND (rs.name LIKE CONCAT('%', #{keyword}, '%') OR rs.ip_address LIKE CONCAT('%', #{keyword}, '%'))</if>
             <if test="regionCodes != null and regionCodes.size() > 0">

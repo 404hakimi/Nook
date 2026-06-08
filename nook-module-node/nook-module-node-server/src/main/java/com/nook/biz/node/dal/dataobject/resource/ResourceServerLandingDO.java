@@ -2,7 +2,6 @@ package com.nook.biz.node.dal.dataobject.resource;
 
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerProvisionModeEnum;
 import lombok.Data;
 
@@ -20,23 +19,6 @@ public class ResourceServerLandingDO {
     /** 落地机 id (主键). */
     @TableId
     private String serverId;
-
-    // ===== 占用状态 (资源调度真相, 与订阅生命周期独立) =====
-
-    /** 占用状态 {@link ResourceServerLandingStatusEnum} */
-    private String status;
-
-    /** 当前占用的会员 id; 空闲时为 null. */
-    private String occupiedByMemberId;
-
-    /** 被客户开通占用的时刻; 空闲时为 null. */
-    private LocalDateTime occupiedAt;
-
-    /** 预留到期时刻; 预留功能暂未启用, 占位字段. */
-    private LocalDateTime reservedExpiresAt;
-
-    /** 历史累计被分配次数. */
-    private Integer assignCount;
 
     /** 部署模式 {@link ResourceServerProvisionModeEnum} */
     private Integer provisionMode;

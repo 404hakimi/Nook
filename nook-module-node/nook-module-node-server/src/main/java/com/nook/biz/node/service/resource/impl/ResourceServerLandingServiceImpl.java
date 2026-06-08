@@ -5,7 +5,6 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerProvisionModeEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
@@ -30,6 +29,7 @@ import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.ServerLifecycleValidator;
+import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
@@ -69,6 +69,8 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     private ResourceServerLandingValidator resourceServerLandingValidator;
     @Resource
     private ServerLifecycleValidator serverLifecycleValidator;
+    @Resource
+    private SubscriptionCertApi subscriptionCertApi;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -79,8 +81,6 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         lan.setServerId(serverId);
         lan.setIpTypeId(ipTypeId);
         lan.setProvisionMode(ResourceServerProvisionModeEnum.SELF_DEPLOY.getCode());
-        lan.setStatus(ResourceServerLandingStatusEnum.AVAILABLE.getState());
-        lan.setAssignCount(0);
         lan.setCreatedAt(now);
         lan.setUpdatedAt(now);
         resourceServerLandingMapper.insert(lan);
@@ -182,7 +182,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         // 主表 + landing/billing/quota/runtime 连表按需出列表项; status/ipType 直接 JOIN landing 子表过滤
         IPage<ServerLandingListItemRespVO> result = resourceServerMapper.selectLandingPage(
                 Page.of(reqVO.getPageNo(), reqVO.getPageSize()),
-                reqVO.getKeyword(), reqVO.getLifecycleState(), reqVO.getStatus(), reqVO.getIpTypeId(),
+                reqVO.getKeyword(), reqVO.getLifecycleState(), reqVO.getIpTypeId(),
                 reqVO.getRegionCodes(), ResourceServerTypeEnum.LANDING.getState());
         LocalDateTime now = LocalDateTime.now();
         result.getRecords().forEach(vo -> ResourceServerLandingConvert.fillOnlineState(vo, now));
@@ -192,12 +192,10 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Override
     public Map<String, Long> getSummary() {
         Map<String, Long> result = new HashMap<>();
-        long total = 0;
         long installing = 0, ready = 0, live = 0, retired = 0;
-        long available = 0, occupied = 0, reserved = 0;
 
         List<ResourceServerDO> servers = resourceServerMapper.selectByServerType(ResourceServerTypeEnum.LANDING.getState());
-        total = servers.size();
+        long total = servers.size();
         for (ResourceServerDO s : servers) {
             String state = s.getLifecycleState();
             if (ResourceServerLifecycleEnum.INSTALLING.matches(state)) installing++;
@@ -205,46 +203,17 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
             else if (ResourceServerLifecycleEnum.LIVE.matches(state)) live++;
             else if (ResourceServerLifecycleEnum.RETIRED.matches(state)) retired++;
         }
-        if (CollUtil.isNotEmpty(servers)) {
-            List<String> ids = CollectionUtils.convertList(servers, ResourceServerDO::getId);
-            List<ResourceServerLandingDO> landings = resourceServerLandingMapper.selectBatchIds(ids);
-            for (ResourceServerLandingDO l : landings) {
-                ResourceServerLandingStatusEnum st = ResourceServerLandingStatusEnum.fromState(l.getStatus());
-                if (ObjectUtil.isNull(st)) continue;
-                switch (st) {
-                    case AVAILABLE -> available++;
-                    case OCCUPIED -> occupied++;
-                    case RESERVED -> reserved++;
-                }
-            }
-        }
+        // 占用由 cert.ip_id 派生 (含 ACTIVE/SUSPENDED); 可用 = 总数 - 占用
+        long occupied = subscriptionCertApi.filterBoundIpIds(
+                CollectionUtils.convertList(servers, ResourceServerDO::getId)).size();
         result.put("total", total);
         result.put("lifecycle_INSTALLING", installing);
         result.put("lifecycle_READY", ready);
         result.put("lifecycle_LIVE", live);
         result.put("lifecycle_RETIRED", retired);
-        result.put("status_AVAILABLE", available);
+        result.put("status_AVAILABLE", total - occupied);
         result.put("status_OCCUPIED", occupied);
-        result.put("status_RESERVED", reserved);
         return result;
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean occupyById(String serverId, String memberUserId) {
-        resourceServerValidator.validateExists(serverId);
-        // 条件更新(仅 AVAILABLE→OCCUPIED); 影响 0 行 = 被并发抢占, 返 false 由上层换下一台(非异常)
-        return resourceServerLandingMapper.markOccupied(serverId, memberUserId, LocalDateTime.now()) == 1;
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void releaseForRevoke(String serverId) {
-        // 退订直接转 "可分配"
-        int rows = resourceServerLandingMapper.markAvailable(serverId);
-        if (rows == 0) {
-            log.warn("[landing-release] markAvailable rows=0 serverId={}", serverId);
-        }
     }
 
     @Override

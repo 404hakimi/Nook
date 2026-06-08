@@ -87,7 +87,6 @@ public class ResourceServerLandingController {
         vo.setRetired(raw.getOrDefault("lifecycle_RETIRED", 0L));
         vo.setAvailable(raw.getOrDefault("status_AVAILABLE", 0L));
         vo.setOccupied(raw.getOrDefault("status_OCCUPIED", 0L));
-        vo.setReserved(raw.getOrDefault("status_RESERVED", 0L));
         return Result.ok(vo);
     }
 

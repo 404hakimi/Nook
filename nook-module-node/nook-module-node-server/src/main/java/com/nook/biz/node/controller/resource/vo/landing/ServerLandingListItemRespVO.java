@@ -23,8 +23,6 @@ public class ServerLandingListItemRespVO {
     /** 装机生命周期. */
     private String lifecycleState;
 
-    /** 占用状态 (可分配 / 已占用 / 预留). */
-    private String status;
     /** IP 类型. */
     private String ipTypeId;
     /** 1=自部署 2=第三方. */

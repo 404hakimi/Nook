@@ -5,7 +5,6 @@ import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.agent.api.enums.AgentOnlineState;
-import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
@@ -23,6 +22,7 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
 import com.nook.biz.node.service.rules.ResourceServerRules;
+import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
@@ -58,6 +58,8 @@ public class ResourceServerAdmission {
     private ResourceServerTrafficMapper resourceServerTrafficMapper;
     @Resource
     private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
+    @Resource
+    private SubscriptionCertApi subscriptionCertApi;
 
     /**
      * 从候选服务器中筛出健康可分配的子集
@@ -176,6 +178,9 @@ public class ResourceServerAdmission {
                         CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
                         ResourceServerQuotaDO::getServerId);
         Set<String> allocatable = this.filterAllocatable(serverMap.keySet());
+        // cert.ip_id 派生占用 (含 ACTIVE/SUSPENDED); 落地机占用真相收口到凭证, 不再读 landing.status
+        Set<String> boundIds = subscriptionCertApi.filterBoundIpIds(
+                CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId));
         // ② 落地机按 (区域 + IP 类型) 分桶, 让每个套餐 O(1) 命中自己的候选
         Map<String, List<ResourceServerLandingDO>> bucket = new HashMap<>();
         for (ResourceServerLandingDO landing : landings) {
@@ -193,7 +198,7 @@ public class ResourceServerAdmission {
             int occupied = 0;
             for (ResourceServerLandingDO landing : candidates) {
                 // 占用中的落地机在服务本套餐订阅, 即便被降配到不达标也照常计入 (运行时按 min(套餐,落地机) 带宽限速)
-                if (ResourceServerLandingStatusEnum.OCCUPIED.matches(landing.getStatus())) {
+                if (boundIds.contains(landing.getServerId())) {
                     total++;
                     occupied++;
                     continue;
@@ -207,9 +212,7 @@ public class ResourceServerAdmission {
                     continue;
                 }
                 total++;
-                if (ResourceServerLandingStatusEnum.AVAILABLE.matches(landing.getStatus())) {
-                    available++;
-                }
+                available++;
             }
             result.put(spec.getPlanId(), new PlanCapacityDTO(total, available, occupied));
         }

@@ -50,20 +50,4 @@ public interface ResourceServerLandingApi {
      * @return socks5 端口 (0 表示未配置或落地机不存在)
      */
     int getSocks5Port(String serverId);
-
-    /**
-     * 占用落地机 (条件更新: 可用 → 已占用)
-     *
-     * @param landingServerId 落地机ID
-     * @param memberUserId    占用方会员ID
-     * @return true=占用成功; false=被并发抢占 / 非可用 (上层换下一台)
-     */
-    boolean occupyLanding(String landingServerId, String memberUserId);
-
-    /**
-     * 释放落地机 (转为可用, 立即可再分配)
-     *
-     * @param landingServerId 落地机ID
-     */
-    void releaseLanding(String landingServerId);
 }

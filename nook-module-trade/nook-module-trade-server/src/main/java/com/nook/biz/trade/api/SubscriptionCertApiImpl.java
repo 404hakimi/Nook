@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 订阅凭证跨模块 Api 实现类
@@ -54,5 +55,10 @@ public class SubscriptionCertApiImpl implements SubscriptionCertApi {
     @Override
     public void clearAllocation(String certId) {
         tradeSubscriptionCertificateService.clearAllocation(certId);
+    }
+
+    @Override
+    public Set<String> filterBoundIpIds(Collection<String> ipIds) {
+        return tradeSubscriptionCertificateService.filterBoundIpIds(ipIds);
     }
 }

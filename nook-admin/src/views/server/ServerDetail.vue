@@ -40,7 +40,6 @@ import {
 import {
   SERVER_LANDING_LIFECYCLE_LABELS,
   SERVER_LANDING_LIFECYCLE_TAG_TYPE,
-  SERVER_LANDING_STATUS_LABELS,
   getServerLandingDetail,
   getServerLandingInstall,
   type ServerLanding,
@@ -159,14 +158,6 @@ function ipTypeName(ipTypeId?: string): string {
 }
 
 // === Landing-only derived states ===
-function statusTagType(status?: string) {
-  switch (status) {
-    case 'OCCUPIED': return 'warning'
-    case 'AVAILABLE': return 'success'
-    default: return 'default'
-  }
-}
-
 const canTest = computed(() =>
   !!landingInfo.value?.ipAddress && !!landingInfo.value?.socks5Port
   && !!landingInfo.value?.socks5Username && !!landingInfo.value?.socks5Password)
@@ -375,9 +366,6 @@ const landingHeartbeatDotColor = computed(() => {
                 <NTag size="small" :type="SERVER_LANDING_LIFECYCLE_TAG_TYPE[landingInfo.lifecycleState] || 'default'">
                   {{ SERVER_LANDING_LIFECYCLE_LABELS[landingInfo.lifecycleState] || landingInfo.lifecycleState }}
                 </NTag>
-                <NTag size="small" :type="statusTagType(landingInfo.status)">
-                  {{ SERVER_LANDING_STATUS_LABELS[landingInfo.status] || landingInfo.status }}
-                </NTag>
                 <NTag size="small" :type="landingInfo.provisionMode === 1 ? 'success' : 'warning'" :bordered="false">
                   {{ landingInfo.provisionMode === 1 ? '自部署' : '第三方' }}
                 </NTag>
@@ -409,9 +397,6 @@ const landingHeartbeatDotColor = computed(() => {
                 <span v-if="landingInfo.lastHeartbeatAt" class="text-zinc-400 font-mono ml-1">
                   {{ relativeTime(landingInfo.lastHeartbeatAt) }}
                 </span>
-              </div>
-              <div v-if="landingInfo.occupiedByMemberId" class="text-zinc-500">
-                占用: <span class="font-mono">{{ landingInfo.occupiedByMemberId }}</span>
               </div>
               <div class="text-zinc-400 mt-0.5">
                 创建于 {{ formatDateTime(landingInfo.createdAt) }}

@@ -40,23 +40,6 @@ public class ServerLandingRespVO {
     /** 明文密码; admin 后台展示. */
     private String socks5Password;
 
-    /** 占用状态 (可分配 / 已占用 / 预留). */
-    private String status;
-
-    /** 当前占用的会员 id; 空闲时为 null. */
-    private String occupiedByMemberId;
-
-    /** 被占用的时刻; 空闲时为 null. */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime occupiedAt;
-
-    /** 预留到期时刻; 预留功能暂未启用. */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime reservedExpiresAt;
-
-    /** 累计被分配过几次. */
-    private Integer assignCount;
-
     /** 1=自部署 2=第三方. */
     private Integer provisionMode;
 
