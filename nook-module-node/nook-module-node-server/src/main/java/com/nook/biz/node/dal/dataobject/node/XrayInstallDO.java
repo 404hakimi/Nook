@@ -40,7 +40,7 @@ public class XrayInstallDO implements Serializable {
     private String xrayBinaryPath;
 
     /** 远端 xray config.json 绝对路径. */
-    private String xrayInboundPath;
+    private String xrayConfigPath;
 
     /** 远端 xray share 目录 (geo*.dat). */
     private String xrayShareDir;

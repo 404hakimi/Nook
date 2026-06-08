@@ -16,7 +16,7 @@ const emit = defineEmits<{
 }>()
 
 /**
- * 全部路径来自后端 RespVO 字段: xray_binary_path / xray_inbound_path / xray_share_dir / xray_log_dir
+ * 全部路径来自后端 RespVO 字段: xray_binary_path / xray_config_path / xray_share_dir / xray_log_dir
  * 由装机流程落库, systemd_unit_path 是后端常量回填.
  */
 const installPaths = computed(() => {
@@ -25,7 +25,7 @@ const installPaths = computed(() => {
   const logSuffix = '{access,error}.log'
   const rows = [
     { label: '二进制包', value: s.xrayBinaryPath },
-    { label: 'config', value: s.xrayInboundPath },
+    { label: 'config', value: s.xrayConfigPath },
     { label: 'share', value: s.xrayShareDir },
     { label: 'log', value: s.xrayLogDir ? `${s.xrayLogDir.replace(/\/+$/, '')}/${logSuffix}` : '' },
     { label: 'systemd', value: s.xraySystemdUnitPath }

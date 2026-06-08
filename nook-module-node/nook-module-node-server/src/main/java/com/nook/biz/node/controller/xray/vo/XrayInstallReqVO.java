@@ -41,10 +41,10 @@ public class XrayInstallReqVO {
     private String xrayBinaryPath;
 
     /** xray config.json 绝对路径; 前端默认 <installDir>/etc/xray/config.json. */
-    @NotBlank(message = "xrayInboundPath 必填")
-    @Pattern(regexp = "^/.+", message = "xrayInboundPath 必须是绝对路径")
+    @NotBlank(message = "xrayConfigPath 必填")
+    @Pattern(regexp = "^/.+", message = "xrayConfigPath 必须是绝对路径")
     @Size(max = 255)
-    private String xrayInboundPath;
+    private String xrayConfigPath;
 
     /** xray share 目录 (geo*.dat); 前端默认 <installDir>/share/xray. */
     @NotBlank(message = "xrayShareDir 必填")

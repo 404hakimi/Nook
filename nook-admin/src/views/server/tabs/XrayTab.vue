@@ -177,7 +177,7 @@ function onRestart() {
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="config">
-            <code v-if="server.xrayInboundPath" class="kbd">{{ server.xrayInboundPath }}</code>
+            <code v-if="server.xrayConfigPath" class="kbd">{{ server.xrayConfigPath }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="share 目录">

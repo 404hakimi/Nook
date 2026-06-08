@@ -15,7 +15,7 @@ export interface XrayInstall {
   /** xray binary 绝对路径; 装机时落库 */
   xrayBinaryPath?: string
   /** xray config.json 绝对路径; 装机时落库 */
-  xrayInboundPath?: string
+  xrayConfigPath?: string
   /** xray share 目录 (geo*.dat); 装机时落库 */
   xrayShareDir?: string
   xrayLogDir?: string
@@ -80,7 +80,7 @@ export interface LineServerInstallDTO {
   /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray. */
   xrayBinaryPath: string
   /** xray config.json 绝对路径; 前端默认 <installDir>/etc/xray/config.json. */
-  xrayInboundPath: string
+  xrayConfigPath: string
   /** xray share 目录 (geo*.dat); 前端默认 <installDir>/share/xray. */
   xrayShareDir: string
   /** Xray 内置 api server 端口 (loopback); xray api adi/rmi 用. */

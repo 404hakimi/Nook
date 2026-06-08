@@ -154,7 +154,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         srv.setXrayApiPort(r.getXrayApiPort());
         srv.setXrayInstallDir(r.getInstallDir());
         srv.setXrayBinaryPath(r.getXrayBinaryPath());
-        srv.setXrayInboundPath(r.getXrayInboundPath());
+        srv.setXrayConfigPath(r.getXrayConfigPath());
         srv.setXrayShareDir(r.getXrayShareDir());
         srv.setXrayLogDir(r.getLogDir());
         srv.setXraySystemdUnitPath(r.getXraySystemdUnitPath());
@@ -266,7 +266,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         vars.put("SHARED_INBOUND_PORT", String.valueOf(r.getSharedInboundPort()));
         vars.put("WS_PATH", r.getWsPath());
         vars.put("XRAY_BINARY_PATH",       r.getXrayBinaryPath());
-        vars.put("XRAY_CONFIG_PATH",       r.getXrayInboundPath());
+        vars.put("XRAY_CONFIG_PATH",       r.getXrayConfigPath());
         vars.put("XRAY_SHARE_DIR",         r.getXrayShareDir());
         vars.put("XRAY_SYSTEMD_UNIT_PATH", r.getXraySystemdUnitPath());
         vars.put("USE_TLS", String.valueOf(useTls));

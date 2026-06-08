@@ -126,7 +126,7 @@ const form = reactive<LineServerInstallDTO>({
   xrayVersion: XRAY_DEFAULT_VERSION,
   installDir: DEFAULT_INSTALL_DIR,
   xrayBinaryPath: '',
-  xrayInboundPath: '',
+  xrayConfigPath: '',
   xrayShareDir: '',
   xrayApiPort: randomXrayApiPort(),
   logDir: '',
@@ -167,7 +167,7 @@ const derivedPaths = computed(() => {
   //   ${d}/tls/                cert + key
   return {
     xrayBinaryPath: `${d}/bin/xray`,
-    xrayInboundPath: `${d}/config.json`,
+    xrayConfigPath: `${d}/config.json`,
     xrayShareDir: `${d}/bin`,
     logDir: d,
     tlsCertPath: `${d}/tls/cert.pem`,
@@ -181,7 +181,7 @@ const installPaths = computed(() => {
   const log = form.logDir.trim() || d.logDir
   return [
     { label: '二进制包', path: form.xrayBinaryPath?.trim() || d.xrayBinaryPath },
-    { label: 'config', path: form.xrayInboundPath?.trim() || d.xrayInboundPath },
+    { label: 'config', path: form.xrayConfigPath?.trim() || d.xrayConfigPath },
     { label: 'share', path: (form.xrayShareDir?.trim() || d.xrayShareDir) + '  (geo 数据)' },
     { label: 'log', path: `${log}/{access,error}.log` },
     { label: 'systemd', path: form.xraySystemdUnitPath?.trim() || DEFAULT_SYSTEMD_UNIT_PATH }
@@ -260,7 +260,7 @@ async function onSubmit() {
       xrayVersion: form.xrayVersion,
       installDir: form.installDir.trim(),
       xrayBinaryPath: form.xrayBinaryPath?.trim() || d.xrayBinaryPath,
-      xrayInboundPath: form.xrayInboundPath?.trim() || d.xrayInboundPath,
+      xrayConfigPath: form.xrayConfigPath?.trim() || d.xrayConfigPath,
       xrayShareDir: form.xrayShareDir?.trim() || d.xrayShareDir,
       xrayApiPort: form.xrayApiPort,
       logDir: form.logDir.trim() || d.logDir,

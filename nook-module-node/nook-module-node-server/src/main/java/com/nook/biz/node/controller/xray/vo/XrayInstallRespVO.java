@@ -35,7 +35,7 @@ public class XrayInstallRespVO {
     private String xrayBinaryPath;
 
     /** xray config.json 绝对路径; 装机时落库. */
-    private String xrayInboundPath;
+    private String xrayConfigPath;
 
     /** xray share 目录 (geo*.dat); 装机时落库. */
     private String xrayShareDir;
