@@ -2,9 +2,7 @@ package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceServerCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
-import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.common.web.response.PageResult;
 
 import java.util.Collection;
 import java.util.Map;
@@ -61,14 +59,6 @@ public interface ResourceServerService {
      * @return 服务器
      */
     ResourceServerDO requireServer(String id);
-
-    /**
-     * 获得服务器分页
-     *
-     * @param pageReqVO 分页条件
-     * @return 服务器分页
-     */
-    PageResult<ResourceServerDO> getServerPage(ResourceServerPageReqVO pageReqVO);
 
     /**
      * 批量获得服务器 DO

@@ -1,4 +1,4 @@
-package com.nook.biz.node.controller.resource.vo;
+package com.nook.biz.node.controller.resource.vo.frontline;
 
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.common.web.request.PageParam;

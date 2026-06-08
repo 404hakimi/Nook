@@ -1,9 +1,9 @@
 package com.nook.biz.node.controller.resource;
 
-import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineRespVO;
-import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerFrontlineRespVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerFrontlineUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerPageReqVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.convert.resource.ResourceServerFrontlineConvert;
 import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.biz.node.service.resource.ResourceServerService;

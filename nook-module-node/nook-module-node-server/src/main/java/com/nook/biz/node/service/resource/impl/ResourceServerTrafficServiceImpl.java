@@ -8,7 +8,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
-import com.nook.biz.node.service.resource.ResourceServerRules;
+import com.nook.biz.node.service.rules.ResourceServerRules;
 import com.nook.biz.node.service.resource.ResourceServerTrafficService;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.unit.TrafficUnitUtils;

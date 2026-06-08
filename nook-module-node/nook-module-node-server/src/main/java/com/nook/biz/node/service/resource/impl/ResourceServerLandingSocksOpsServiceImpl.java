@@ -3,7 +3,7 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
-import com.nook.biz.node.controller.resource.vo.ServerLandingDeployReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingDeployReqVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.convert.resource.LandingSocksOpsConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;

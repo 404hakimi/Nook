@@ -1,4 +1,4 @@
-package com.nook.biz.node.controller.resource.vo;
+package com.nook.biz.node.controller.resource.vo.frontline;
 
 import jakarta.validation.constraints.Size;
 import lombok.Data;

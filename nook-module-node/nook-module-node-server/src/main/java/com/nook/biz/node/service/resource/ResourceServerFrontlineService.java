@@ -1,8 +1,8 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerFrontlineUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerPageReqVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
 import com.nook.common.web.response.PageResult;
 

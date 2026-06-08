@@ -1,6 +1,6 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.resource.vo.ServerLandingDeployReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingDeployReqVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;

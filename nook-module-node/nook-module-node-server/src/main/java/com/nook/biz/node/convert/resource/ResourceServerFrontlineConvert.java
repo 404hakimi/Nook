@@ -2,8 +2,8 @@ package com.nook.biz.node.convert.resource;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.agent.api.enums.AgentOnlineState;
-import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineRespVO;
-import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerFrontlineRespVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.factory.Mappers;

@@ -1,4 +1,4 @@
-package com.nook.biz.node.controller.resource.vo;
+package com.nook.biz.node.controller.resource.vo.landing;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

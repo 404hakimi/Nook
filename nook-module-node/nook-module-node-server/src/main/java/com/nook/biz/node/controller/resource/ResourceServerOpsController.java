@@ -1,10 +1,10 @@
 package com.nook.biz.node.controller.resource;
 
-import com.nook.biz.node.controller.resource.vo.ConnectivityTestRespVO;
-import com.nook.biz.node.controller.resource.vo.EnableSwapReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerSystemInfoRespVO;
+import com.nook.biz.node.controller.resource.vo.ops.ConnectivityTestRespVO;
+import com.nook.biz.node.controller.resource.vo.ops.EnableSwapReqVO;
+import com.nook.biz.node.controller.resource.vo.ops.ServerSystemInfoRespVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
-import com.nook.biz.node.controller.resource.vo.SystemdStatusRespVO;
+import com.nook.biz.node.controller.resource.vo.ops.SystemdStatusRespVO;
 import com.nook.biz.node.convert.server.ServerInspectorConvert;
 import com.nook.biz.node.service.resource.ResourceServerOpsService;
 import com.nook.common.web.response.Result;

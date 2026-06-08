@@ -1,8 +1,6 @@
 package com.nook.biz.node.api.resource;
 
-import com.nook.biz.node.api.resource.dto.ResourceServerPageReqDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
-import com.nook.common.web.response.PageResult;
 
 import java.util.Collection;
 import java.util.List;
@@ -41,14 +39,6 @@ public interface ResourceServerApi {
      * @return 服务器视图; 未匹配返 null
      */
     ResourceServerRespDTO getByAgentToken(String agentToken);
-
-    /**
-     * 分页查服务器
-     *
-     * @param reqDTO 分页条件
-     * @return 分页列表
-     */
-    PageResult<ResourceServerRespDTO> page(ResourceServerPageReqDTO reqDTO);
 
     /**
      * 批量获得服务器名称

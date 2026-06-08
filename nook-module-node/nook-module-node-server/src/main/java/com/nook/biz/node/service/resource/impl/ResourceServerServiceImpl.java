@@ -1,14 +1,11 @@
 package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.agent.api.AgentTokenApi;
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
-import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
@@ -33,7 +30,6 @@ import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.ServerLifecycleValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
-import com.nook.common.web.response.PageResult;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -189,16 +185,6 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Override
     public ResourceServerDO requireServer(String id) {
         return resourceServerValidator.validateExists(id);
-    }
-
-    @Override
-    public PageResult<ResourceServerDO> getServerPage(ResourceServerPageReqVO pageReqVO) {
-        // ip_address 直接落主表; host 关键字 LIKE ip_address, 不再 JOIN credential 子表
-        IPage<ResourceServerDO> result = resourceServerMapper.selectPageByQuery(
-                Page.of(pageReqVO.getPageNo(), pageReqVO.getPageSize()),
-                pageReqVO.getName(), pageReqVO.getLifecycleState(), pageReqVO.getRegionCodes(),
-                pageReqVO.getHost(), null, ResourceServerTypeEnum.FRONTLINE.getState());
-        return PageResult.of(result.getTotal(), result.getRecords());
     }
 
     @Override

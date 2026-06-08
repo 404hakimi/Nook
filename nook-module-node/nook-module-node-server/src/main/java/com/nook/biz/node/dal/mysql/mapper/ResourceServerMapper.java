@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
-import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -97,25 +97,6 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
     default List<ResourceServerDO> selectByLifecycleState(String lifecycleState) {
         return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
                 .eq(ResourceServerDO::getLifecycleState, lifecycleState));
-    }
-
-    /**
-     * 列表分页. ipAddress 直接 LIKE 主表; idIn (来自子表预过滤如 landing.status) 可选作 id 集合过滤;
-     * serverType (frontline / landing) 可选.
-     */
-    default IPage<ResourceServerDO> selectPageByQuery(IPage<ResourceServerDO> page, String name,
-                                                      String lifecycleState, Collection<String> regionCodes,
-                                                      String ipAddress,
-                                                      Collection<String> idIn,
-                                                      String serverType) {
-        return selectPage(page, Wrappers.<ResourceServerDO>lambdaQuery()
-                .eq(StrUtil.isNotBlank(serverType), ResourceServerDO::getServerType, serverType)
-                .eq(StrUtil.isNotBlank(lifecycleState), ResourceServerDO::getLifecycleState, lifecycleState)
-                .in(CollUtil.isNotEmpty(regionCodes), ResourceServerDO::getRegion, regionCodes)
-                .like(StrUtil.isNotBlank(name), ResourceServerDO::getName, name)
-                .like(StrUtil.isNotBlank(ipAddress), ResourceServerDO::getIpAddress, ipAddress)
-                .in(idIn != null, ResourceServerDO::getId, idIn)
-                .orderByDesc(ResourceServerDO::getCreatedAt));
     }
 
     /** 按区域统计机器数 (线路机+落地机, 即全部 resource_server 行); 返回 区域码 → 机器数. */

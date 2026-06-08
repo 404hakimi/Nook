@@ -1,10 +1,10 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.resource.vo.ServerLandingBillingUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingQuotaUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingCoreUpdateReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingPageReqVO;
-import com.nook.biz.node.controller.resource.vo.ServerLandingSocks5UpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingBillingUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingQuotaUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingCoreUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingPageReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingSocks5UpdateReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;

@@ -2,7 +2,7 @@ package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.io.resource.ResourceUtil;
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.node.controller.resource.vo.EnableSwapReqVO;
+import com.nook.biz.node.controller.resource.vo.ops.EnableSwapReqVO;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
 import com.nook.biz.node.framework.server.script.config.ServerOsOp;

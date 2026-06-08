@@ -41,7 +41,7 @@
 
     <!-- 线路机分页: 连表出列表项视图, 按创建倒序 -->
     <select id="selectFrontlinePage"
-            resultType="com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO">
+            resultType="com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO">
         <include refid="runtimeViewSelect"/>
         <where>
             <if test="serverType != null and serverType != ''">AND rs.server_type = #{serverType}</if>
@@ -58,7 +58,7 @@
 
     <!-- 服务器运行时详情视图 (线路机 / 落地机共用): 单条同款 JOIN -->
     <select id="selectServerRuntimeDetail"
-            resultType="com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO">
+            resultType="com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO">
         <include refid="runtimeViewSelect"/>
         WHERE rs.id = #{serverId}
     </select>

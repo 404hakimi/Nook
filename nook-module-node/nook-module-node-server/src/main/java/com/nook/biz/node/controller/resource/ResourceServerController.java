@@ -9,7 +9,7 @@ import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialRespVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerRespVO;
-import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
+import com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.convert.resource.ResourceServerBillingConvert;

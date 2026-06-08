@@ -1,4 +1,4 @@
-package com.nook.biz.node.service.resource;
+package com.nook.biz.node.service.rules;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;

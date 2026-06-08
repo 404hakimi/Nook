@@ -1,4 +1,4 @@
-package com.nook.biz.node.controller.resource.vo;
+package com.nook.biz.node.controller.resource.vo.frontline;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.nook.biz.agent.api.enums.AgentOnlineState;

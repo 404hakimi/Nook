@@ -1,4 +1,4 @@
-package com.nook.biz.node.controller.resource.vo;
+package com.nook.biz.node.controller.resource.vo.landing;
 
 import com.nook.common.web.request.PageParam;
 import lombok.Data;
