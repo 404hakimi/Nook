@@ -32,13 +32,13 @@ public class XrayInstallServiceImpl implements XrayInstallService {
         XrayInstallDO existing = xrayInstallMapper.selectById(entity.getServerId());
         if (ObjectUtil.isNull(existing)) {
             xrayInstallMapper.insert(entity);
-            log.info("[xray-server] insert server={} version={} apiPort={}",
+            log.info("[xray-install] insert server={} version={} apiPort={}",
                     entity.getServerId(), entity.getXrayVersion(), entity.getXrayApiPort());
         } else {
             // 重装时清零上次启动时间, 由对账任务后续重新探测
             entity.setLastXrayUptime(null);
             xrayInstallMapper.updateById(entity);
-            log.info("[xray-server] update server={} version={} apiPort={}",
+            log.info("[xray-install] update server={} version={} apiPort={}",
                     entity.getServerId(), entity.getXrayVersion(), entity.getXrayApiPort());
         }
     }
@@ -62,7 +62,7 @@ public class XrayInstallServiceImpl implements XrayInstallService {
     public void markReplayDone(String serverId, LocalDateTime xrayUptime) {
         int affected = xrayInstallMapper.updateXrayUptime(serverId, xrayUptime);
         if (affected == 0) {
-            log.warn("[xray-server] markReplayDone 没匹配到行 server={} (xray_install 缺失?)", serverId);
+            log.warn("[xray-install] markReplayDone 没匹配到行 server={} (xray_install 缺失?)", serverId);
         }
     }
 }

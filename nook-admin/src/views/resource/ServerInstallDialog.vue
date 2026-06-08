@@ -16,7 +16,7 @@ import {
   useMessage
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
-import { xrayInstallStream, type LineServerInstallDTO } from '@/api/xray/server'
+import { xrayInstallStream, type LineServerInstallDTO } from '@/api/xray/xray-install'
 import { pageServers } from '@/api/resource/server'
 
 /** ServerInstallDialog 仅需 server.id + server.name; 实际可接受任何含 id/name 的形态 (ResourceServer / ServerFrontlineListItem). */

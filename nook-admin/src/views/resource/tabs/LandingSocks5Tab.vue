@@ -28,7 +28,7 @@ import type {
   ServerLanding,
   ServerLandingInstall
 } from '@/api/resource/server-landing'
-import type { SystemdStatus } from '@/api/xray/server'
+import type { SystemdStatus } from '@/api/resource/server-ops'
 import { formatDateTime } from '@/utils/date'
 
 /**

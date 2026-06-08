@@ -32,7 +32,7 @@ public class XrayInboundController {
      * @param serverId 服务器编号
      * @return inbound 共享配置
      */
-    @GetMapping("/get-xray-config")
+    @GetMapping("/get-xray-inbound")
     public Result<XrayInboundRespVO> getXrayInbound(@RequestParam("serverId") String serverId) {
         XrayInboundDO entity = xrayInboundService.get(serverId);
         if (ObjectUtil.isNull(entity)) {

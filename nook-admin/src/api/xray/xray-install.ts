@@ -1,0 +1,138 @@
+import request from '@/api/request'
+import { streamPost } from '@/api/stream'
+import type { XrayLog } from '@/api/resource/server-ops'
+
+/** Xray 实例元数据 (装机契约 / 部署事实); 跟 resource_server 1:1 */
+export interface XrayInstall {
+  serverId: string
+  /** 服务器别名 (后端 enrich) */
+  serverName?: string
+  /** 服务器主机 (后端 enrich) */
+  serverHost?: string
+  xrayVersion?: string
+  xrayApiPort?: number
+  xrayInstallDir?: string
+  /** xray binary 绝对路径; 装机时落库 */
+  xrayBinaryPath?: string
+  /** xray config.json 绝对路径; 装机时落库 */
+  xrayInboundPath?: string
+  /** xray share 目录 (geo*.dat); 装机时落库 */
+  xrayShareDir?: string
+  xrayLogDir?: string
+  /** 全节点固定常量, 后端回填 (/etc/systemd/system/xray.service) */
+  xraySystemdUnitPath?: string
+  /** 最近一次部署完成时间 (重装覆写) */
+  installedAt?: string
+  /** 上次探测到的 xray 启动时间; 重装清零 */
+  lastXrayUptime?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+/** 按 serverId 取 xray 实例元数据 (server detail tab 用); 不存在抛 SERVER_STATE_NOT_FOUND */
+export function getXrayInstall(serverId: string) {
+  return request.get<unknown, XrayInstall>('/admin/xray/install/get-xray-install', { params: { serverId } })
+}
+
+/** xray 文件日志变体: access (每个连接) vs error (xray 内部错误). */
+export type XrayLogFileVariant = 'access' | 'error'
+
+/**
+ * 拉 xray 自己的日志文件 (access.log / error.log); 跟 journalctl 互补.
+ * file 看真正的连接 / 错误日志, journal 只有 systemd 启动 banner.
+ */
+export function getXrayLogFile(
+  serverId: string,
+  opts?: { variant?: XrayLogFileVariant; lines?: number; keyword?: string }
+) {
+  return request.get<unknown, XrayLog>('/admin/xray/install/get-xray-log-file', {
+    params: {
+      id: serverId,
+      variant: opts?.variant,
+      lines: opts?.lines,
+      keyword: opts?.keyword?.trim() || undefined
+    }
+  })
+}
+
+/** 重启 Xray 服务; 客户连接会断 1-2 秒. */
+export function xrayRestart(serverId: string) {
+  return request.post<unknown, string>('/admin/xray/install/restart-xray', null, { params: { id: serverId } })
+}
+
+/** 开/关 Xray 开机自启 (systemctl enable/disable); 末尾返回 is-enabled 结果给前端确认. */
+export function xrayAutostart(serverId: string, enabled: boolean) {
+  return request.post<unknown, string>('/admin/xray/install/set-xray-autostart', null, { params: { id: serverId, enabled } })
+}
+
+/**
+ * Xray 线路服务器一键安装入参.
+ *
+ * <p>仅装 xray 内核 + 落地池 + UFW + 时区; swap / bbr 等通用 OS 调优走 ServerOps 接口单独触发.
+ *
+ * <p>所有字段都必须由前端传入, 后端不再 fallback (LineServerInstallReqVOValidator 严校验).
+ */
+export interface LineServerInstallDTO {
+  /** Xray 版本; "v26.3.27" 这种或 "latest". */
+  xrayVersion: string
+  /** Xray 安装根目录, 仅作展示分组; 实际路径全部独立传 (xrayBinaryPath 等). */
+  installDir: string
+  /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray. */
+  xrayBinaryPath: string
+  /** xray config.json 绝对路径; 前端默认 <installDir>/etc/xray/config.json. */
+  xrayInboundPath: string
+  /** xray share 目录 (geo*.dat); 前端默认 <installDir>/share/xray. */
+  xrayShareDir: string
+  /** Xray 内置 api server 端口 (loopback); xray api adi/rmi 用. */
+  xrayApiPort: number
+  /** xray 日志目录; 前端默认 <installDir>/logs. */
+  logDir: string
+  /** systemd unit 文件绝对路径; 前端默认 /etc/systemd/system/xray.service. 改路径要保留同名 (basename = xray) 因为脚本里 systemctl 服务名硬编码 xray. */
+  xraySystemdUnitPath: string
+  /** Xray 日志级别: debug / info / warning / error / none. */
+  logLevel: 'debug' | 'info' | 'warning' | 'error' | 'none'
+  /** systemd Restart= 策略: always / on-failure / no. */
+  restartPolicy: 'always' | 'on-failure' | 'no'
+  /** 是否 systemctl enable xray (机器重启后自动起 xray). */
+  enableOnBoot: boolean
+  /** 强制重装; 即使版本号一致也走下载流程, 用于自编译 / build 后缀差异. */
+  forceReinstall: boolean
+  installUfw: boolean
+  /** true = 设置远端时区为 Asia/Shanghai, false = 跳过 (10-timezone 模块不渲染). */
+  setTimezone: boolean
+  /** true = 装 logrotate 自动滚 xray 日志 (低配机推荐); false = 跳过 (日志可能填满磁盘). */
+  logRotate: boolean
+  /** 共享 inbound 协议; 当前部署期固定 vmess (前端置灰), 协议适配阶段才放开. */
+  protocol: 'vmess' | 'vless' | 'trojan'
+  /** 共享 inbound 传输; 当前部署期固定 ws (前端置灰). */
+  transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
+  /** 共享 inbound 监听 IP; 当前部署期固定 0.0.0.0 (前端置灰). */
+  listenIp: string
+  /** 共享 inbound 监听端口 (默认 443). */
+  sharedInboundPort: number
+  /** WebSocket transport path; 必须 / 开头. */
+  wsPath: string
+  /**
+   * true = 走域名 + TLS (生产路径): domain 必填, 安装链路跑 CF A 记录 + 45-acme-tls 模块 + xray inbound 渲染 TLS;
+   * false = 不走域名, xray inbound 退化成纯 vmess+ws, domain / cfApiToken 字段被忽略.
+   */
+  useTls: boolean
+  /** 对外域名; useTls=true 时必填. */
+  domain?: string
+  /** Cloudflare API Token; useTls=true 且远端 cert 需新签时必填. 远端保存供续期, 不入 nook DB. */
+  cfApiToken?: string
+  /** TLS 证书路径; useTls=true 必填, useTls=false 送空串. 前端默认 <installDir>/tls/cert.pem. */
+  tlsCertPath: string
+  /** TLS 私钥路径; useTls=true 必填, useTls=false 送空串. 前端默认 <installDir>/tls/key.pem. */
+  tlsKeyPath: string
+}
+
+/** 一键安装/重装 Xray (流式). */
+export function xrayInstallStream(
+  serverId: string,
+  dto: LineServerInstallDTO,
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  return streamPost(`/api/admin/xray/install/install-xray?id=${encodeURIComponent(serverId)}`, dto, onChunk, signal)
+}

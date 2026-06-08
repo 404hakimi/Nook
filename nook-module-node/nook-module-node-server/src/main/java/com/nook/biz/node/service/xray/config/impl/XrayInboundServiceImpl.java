@@ -34,7 +34,7 @@ public class XrayInboundServiceImpl implements XrayInboundService {
         } else {
             xrayInboundMapper.updateById(entity);
         }
-        log.info("[xray-config] upsert server={} protocol={} port={} domain={}",
+        log.info("[xray-inbound] upsert server={} protocol={} port={} domain={}",
                 entity.getServerId(), entity.getProtocol(), entity.getSharedInboundPort(), entity.getDomain());
     }
 

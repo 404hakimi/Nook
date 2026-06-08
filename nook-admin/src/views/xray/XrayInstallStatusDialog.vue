@@ -13,12 +13,8 @@ import {
   useMessage
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
-import {
-  getServerSystemdStatus,
-  xrayAutostart,
-  type SystemdStatus
-} from '@/api/xray/server'
-import type { XrayInstall } from '@/api/xray/xray-server'
+import { getServerSystemdStatus, type SystemdStatus } from '@/api/resource/server-ops'
+import { xrayAutostart, type XrayInstall } from '@/api/xray/xray-install'
 
 /** Xray 走公共 systemd 接口的固定 unit 名. */
 const XRAY_UNIT = 'xray'

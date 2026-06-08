@@ -31,7 +31,7 @@ import {
   getServerUfwStatus,
   type ServerSystemInfo,
   type SystemdStatus
-} from '@/api/xray/server'
+} from '@/api/resource/server-ops'
 import { formatDateTime } from '@/utils/date'
 
 /**

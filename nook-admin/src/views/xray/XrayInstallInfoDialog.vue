@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { NDescriptions, NDescriptionsItem, NModal, NSpace, NButton, NTag } from 'naive-ui'
-import type { XrayInstall } from '@/api/xray/xray-server'
-import type { XrayInbound } from '@/api/xray/xray-config'
+import type { XrayInstall } from '@/api/xray/xray-install'
+import type { XrayInbound } from '@/api/xray/xray-inbound'
 import { formatDateTime } from '@/utils/date'
 
 interface Props {

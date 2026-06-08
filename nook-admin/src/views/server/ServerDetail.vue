@@ -46,7 +46,7 @@ import {
   type ServerLanding,
   type ServerLandingInstall
 } from '@/api/resource/server-landing'
-import { getServerSystemdStatus, type SystemdStatus } from '@/api/xray/server'
+import { getServerSystemdStatus, type SystemdStatus } from '@/api/resource/server-ops'
 
 /** dante 的固定 systemd unit 名; 公共 /get-systemd-status 接口靠 unit 参数区分. */
 const DANTE_UNIT = 'danted'

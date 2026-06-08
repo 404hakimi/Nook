@@ -13,14 +13,8 @@ import {
   NSpin,
   useMessage
 } from 'naive-ui'
-import {
-  getXrayLog,
-  getXrayLogFile,
-  type XrayLog,
-  type XrayLogFileVariant,
-  type XrayLogLevel
-} from '@/api/xray/server'
-import type { XrayInstall } from '@/api/xray/xray-server'
+import { getXrayLog, type XrayLog, type XrayLogLevel } from '@/api/resource/server-ops'
+import { getXrayLogFile, type XrayLogFileVariant, type XrayInstall } from '@/api/xray/xray-install'
 
 /** 日志源切换: file (xray 自己的 access/error.log, 默认) vs journal (systemctl 启停 / 启动报错). */
 type LogSource = 'file' | 'journal'

@@ -25,7 +25,7 @@ import {
   getServerQuota,
   type ServerQuota
 } from '@/api/resource/server'
-import { getServerSystemInfo, getServerUfwStatus, type ServerSystemInfo } from '@/api/xray/server'
+import { getServerSystemInfo, getServerUfwStatus, type ServerSystemInfo } from '@/api/resource/server-ops'
 import { formatDateTime } from '@/utils/date'
 import { AGENT_ONLINE_LABELS, AGENT_ONLINE_TAG_TYPE } from '@/api/agent/agent'
 import type { ServerFrontlineListItem } from '@/api/resource/server'

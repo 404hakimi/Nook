@@ -36,7 +36,7 @@ public class XrayInstallManageController {
      * @param serverId 服务器编号
      * @return xray 实例详情
      */
-    @GetMapping("/get-xray-server")
+    @GetMapping("/get-xray-install")
     public Result<XrayInstallRespVO> getXrayInstall(@RequestParam("serverId") String serverId) {
         return Result.ok(xrayInstallManageService.getXrayInstallDetail(serverId));
     }
