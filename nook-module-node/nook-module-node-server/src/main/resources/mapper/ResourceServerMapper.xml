@@ -13,7 +13,7 @@
                q.bandwidth_mbps, q.total_gb,
                rt.agent_version, rt.last_heartbeat_at
           FROM resource_server rs
-          LEFT JOIN resource_server_landing l ON l.server_id = rs.id
+          LEFT JOIN socks5_install l ON l.server_id = rs.id
           LEFT JOIN resource_server_billing b ON b.server_id = rs.id
           LEFT JOIN resource_server_quota q ON q.server_id = rs.id
           LEFT JOIN resource_server_runtime rt ON rt.server_id = rs.id

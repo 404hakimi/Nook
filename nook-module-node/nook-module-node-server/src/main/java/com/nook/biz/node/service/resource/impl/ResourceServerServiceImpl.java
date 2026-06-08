@@ -11,7 +11,7 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerBillingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCredentialMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
+import com.nook.biz.node.dal.mysql.mapper.Socks5InstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
@@ -74,7 +74,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Resource
     private ResourceServerBillingMapper resourceServerBillingMapper;
     @Resource
-    private ResourceServerLandingMapper resourceServerLandingMapper;
+    private Socks5InstallMapper socks5InstallMapper;
     @Resource
     private ResourceServerFrontlineMapper resourceServerFrontlineMapper;
     @Resource
@@ -160,7 +160,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         // 级联删全部子表 + 主表, 同一事务原子; 防遗留孤儿行破坏装机/计量/对账
         resourceServerCredentialMapper.deleteById(id);
         resourceServerBillingMapper.deleteById(id);
-        resourceServerLandingMapper.deleteById(id);
+        socks5InstallMapper.deleteById(id);
         resourceServerFrontlineMapper.deleteById(id);
         resourceServerRuntimeMapper.deleteById(id);
         resourceServerQuotaMapper.deleteById(id);

@@ -66,7 +66,7 @@ Mapper      → 数据库访问; 继承 `BaseMapper<T>`, default 方法封装查
 
 参考: `nook-module-agent` 的 `-api` / `-server` 拆分.
 
-**Api 接口命名**: 名字对齐它主要操作的表 (`ResourceServerQuotaApi`↔`resource_server_quota`、`ResourceServerLandingApi`↔`resource_server_landing`); 无单一表对应的**业务聚合 / 操作类**才用描述性后缀 (`XrayReconcileApi` 对账、`TradeBandwidthApi` 带宽聚合). **禁止**含糊无信息量的后缀 (如 "Node" / "Info" / "Data").
+**Api 接口命名**: 名字对齐它主要操作的表 (`ResourceServerQuotaApi`↔`resource_server_quota`); 无单一表对应的**业务聚合 / 操作类**才用描述性后缀 (`XrayReconcileApi` 对账、`TradeBandwidthApi` 带宽聚合、`ResourceServerLandingApi` 落地机机器聚合). **禁止**含糊无信息量的后缀 (如 "Node" / "Info" / "Data").
 
 ### 关联数据拼接 (跨模块 / 聚合视图: Service 经 Convert 直接返 VO)
 

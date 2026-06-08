@@ -17,11 +17,11 @@ import com.nook.biz.node.controller.resource.vo.landing.ServerLandingSocks5Updat
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
+import com.nook.biz.node.dal.dataobject.resource.Socks5InstallDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerBillingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
+import com.nook.biz.node.dal.mysql.mapper.Socks5InstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
@@ -56,7 +56,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
-    private ResourceServerLandingMapper resourceServerLandingMapper;
+    private Socks5InstallMapper socks5InstallMapper;
     @Resource
     private ResourceServerBillingMapper resourceServerBillingMapper;
     @Resource
@@ -77,13 +77,13 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     public void initSubtables(String serverId, String ipTypeId) {
         // 只填业务必填字段; SOCKS5 凭据 / dante install 字段留 null, 由"部署"流程前端 prefill 后写入
         LocalDateTime now = LocalDateTime.now();
-        ResourceServerLandingDO lan = new ResourceServerLandingDO();
+        Socks5InstallDO lan = new Socks5InstallDO();
         lan.setServerId(serverId);
         lan.setIpTypeId(ipTypeId);
         lan.setProvisionMode(ResourceServerProvisionModeEnum.SELF_DEPLOY.getCode());
         lan.setCreatedAt(now);
         lan.setUpdatedAt(now);
-        resourceServerLandingMapper.insert(lan);
+        socks5InstallMapper.insert(lan);
     }
 
     @Override
@@ -101,11 +101,11 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         srvPatch.setRemark(reqVO.getRemark());
         resourceServerMapper.updateById(srvPatch);
 
-        ResourceServerLandingDO lanPatch = new ResourceServerLandingDO();
+        Socks5InstallDO lanPatch = new Socks5InstallDO();
         lanPatch.setServerId(id);
         lanPatch.setIpTypeId(reqVO.getIpTypeId());
         lanPatch.setProvisionMode(reqVO.getProvisionMode());
-        resourceServerLandingMapper.updateBySelective(lanPatch);
+        socks5InstallMapper.updateBySelective(lanPatch);
     }
 
     @Override
@@ -114,13 +114,13 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         resourceServerValidator.validateExists(id);
         resourceServerLandingValidator.validateExists(id);
 
-        ResourceServerLandingDO patch = BeanUtils.toBean(reqVO, ResourceServerLandingDO.class);
+        Socks5InstallDO patch = BeanUtils.toBean(reqVO, Socks5InstallDO.class);
         patch.setServerId(id);
         // 密码留空 = 保留原值
         if (StrUtil.isBlank(patch.getSocks5Password())) {
             patch.setSocks5Password(null);
         }
-        resourceServerLandingMapper.updateBySelective(patch);
+        socks5InstallMapper.updateBySelective(patch);
     }
 
     @Override
@@ -158,7 +158,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     @Override
-    public ResourceServerLandingDO getLanding(String id) {
+    public Socks5InstallDO getLanding(String id) {
         return resourceServerLandingValidator.validateExists(id);
     }
 
@@ -224,10 +224,10 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     @Override
-    public Map<String, ResourceServerLandingDO> getLandingMap(Collection<String> serverIds) {
+    public Map<String, Socks5InstallDO> getLandingMap(Collection<String> serverIds) {
         if (CollUtil.isEmpty(serverIds)) return Map.of();
-        List<ResourceServerLandingDO> rows = resourceServerLandingMapper.selectBatchIds(serverIds);
-        return CollectionUtils.convertMap(rows, ResourceServerLandingDO::getServerId);
+        List<Socks5InstallDO> rows = socks5InstallMapper.selectBatchIds(serverIds);
+        return CollectionUtils.convertMap(rows, Socks5InstallDO::getServerId);
     }
 
     @Override

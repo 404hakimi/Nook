@@ -3,7 +3,7 @@ import { useUserStore } from '@/stores/user'
 import type { AgentOnlineState } from '@/api/resource/server'
 
 /**
- * 落地机 (SOCKS5 落地节点): server_type='landing' 的 resource_server 行 + resource_server_landing 子表.
+ * 落地机 (SOCKS5 落地节点): server_type='landing' 的 resource_server 行 + socks5_install 子表.
  *
  * - lifecycleState (装机): INSTALLING/READY/LIVE/RETIRED
  * - 占用 (是否被订阅绑定) 收口到 trade_subscription_certificate.ip_id, 不在本结构
@@ -107,7 +107,7 @@ export interface ServerLandingSocks5 {
   installDir?: string
 }
 
-/** SOCKS5 装机事实 (resource_server_landing_install 子表; 路径/版本/systemd 服务名等). */
+/** SOCKS5 装机事实 (socks5_install 子表; 路径/版本/systemd 服务名等). */
 export interface ServerLandingInstall {
   serverId?: string
   /** sockd -v 探测到的 dante 版本. */

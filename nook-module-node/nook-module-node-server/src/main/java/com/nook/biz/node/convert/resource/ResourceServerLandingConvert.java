@@ -12,7 +12,7 @@ import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
+import com.nook.biz.node.dal.dataobject.resource.Socks5InstallDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
 import org.mapstruct.Mapper;
@@ -38,12 +38,12 @@ public interface ResourceServerLandingConvert {
 
     // 主表 + landing 子表 → 跨模块概要 DTO; serverId 取主表 id, landing 为 null 时 status/ipType 留空
     @Mapping(target = "serverId", source = "server.id")
-    LandingSummaryDTO toSummary(ResourceServerDO server, ResourceServerLandingDO landing);
+    LandingSummaryDTO toSummary(ResourceServerDO server, Socks5InstallDO landing);
 
     /** 批量拼概要: serverId 集合 + 主表 / landing 子表 Map → 概要列表 (主表不存在的跳过). */
     default List<LandingSummaryDTO> toSummaries(Collection<String> serverIds,
                                                Map<String, ResourceServerDO> serverMap,
-                                               Map<String, ResourceServerLandingDO> landingMap) {
+                                               Map<String, Socks5InstallDO> landingMap) {
         List<LandingSummaryDTO> list = new ArrayList<>(serverIds.size());
         for (String serverId : serverIds) {
             ResourceServerDO server = serverMap.get(serverId);
@@ -58,10 +58,10 @@ public interface ResourceServerLandingConvert {
     ServerLandingRespVO convert(ResourceServerDO bean);
 
     /** landing 子表 → SOCKS5 配置 VO */
-    ServerLandingSocks5RespVO toSocks5RespVO(ResourceServerLandingDO landing);
+    ServerLandingSocks5RespVO toSocks5RespVO(Socks5InstallDO landing);
 
     /** landing 子表 → 装机事实 VO */
-    ServerLandingInstallRespVO toInstallRespVO(ResourceServerLandingDO landing);
+    ServerLandingInstallRespVO toInstallRespVO(Socks5InstallDO landing);
 
     /** billing 子表 → 账面 VO */
     ServerLandingBillingRespVO toBillingRespVO(ResourceServerBillingDO bill);
@@ -88,7 +88,7 @@ public interface ResourceServerLandingConvert {
 
     /** 详情聚合: 主表 + 子表 → RespVO (SSH 凭据走公共 /get-credential, 不在此 VO) */
     default ServerLandingRespVO convertWithSubtables(ResourceServerDO main,
-                                                    ResourceServerLandingDO landing,
+                                                    Socks5InstallDO landing,
                                                     ResourceServerBillingDO bill,
                                                     ResourceServerQuotaDO quota,
                                                     ResourceServerTrafficDO traffic,
@@ -109,7 +109,7 @@ public interface ResourceServerLandingConvert {
         vo.setOnlineState(AgentOnlineState.classify(elapsedSec).name());
     }
 
-    static void enrichLanding(ServerLandingRespVO vo, ResourceServerLandingDO landing) {
+    static void enrichLanding(ServerLandingRespVO vo, Socks5InstallDO landing) {
         if (ObjectUtil.isNull(vo) || ObjectUtil.isNull(landing)) return;
         vo.setIpTypeId(landing.getIpTypeId());
         vo.setSocks5Port(landing.getSocks5Port());

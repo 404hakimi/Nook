@@ -12,11 +12,11 @@ import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
+import com.nook.biz.node.dal.dataobject.resource.Socks5InstallDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
+import com.nook.biz.node.dal.mysql.mapper.Socks5InstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
@@ -51,7 +51,7 @@ public class ResourceServerAdmission {
     @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
-    private ResourceServerLandingMapper resourceServerLandingMapper;
+    private Socks5InstallMapper socks5InstallMapper;
     @Resource
     private ResourceServerQuotaMapper resourceServerQuotaMapper;
     @Resource
@@ -132,18 +132,18 @@ public class ResourceServerAdmission {
         }
         Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(liveServers, ResourceServerDO::getId);
         // ② IP 类型: 只在上面这批机器里筛对应 IP 类型的落地子表
-        List<ResourceServerLandingDO> landings =
-                resourceServerLandingMapper.selectByServerIdsAndIpType(serverMap.keySet(), ipTypeId);
+        List<Socks5InstallDO> landings =
+                socks5InstallMapper.selectByServerIdsAndIpType(serverMap.keySet(), ipTypeId);
         if (CollUtil.isEmpty(landings)) {
             return List.of();
         }
         // ③ 容量子表 + 健康准入 + 规格达标 → 候选概要
         Map<String, ResourceServerQuotaDO> capMap = CollectionUtils.convertMap(
-                resourceServerQuotaMapper.selectBatchIds(CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
+                resourceServerQuotaMapper.selectBatchIds(CollectionUtils.convertSet(landings, Socks5InstallDO::getServerId)),
                 ResourceServerQuotaDO::getServerId);
         Set<String> allocatable = this.filterAllocatable(serverMap.keySet());
         List<LandingSummaryDTO> matched = new ArrayList<>();
-        for (ResourceServerLandingDO landing : landings) {
+        for (Socks5InstallDO landing : landings) {
             ResourceServerQuotaDO quota = capMap.get(landing.getServerId());
             Integer totalGb = ObjectUtil.isNull(quota) ? null : quota.getTotalGb();
             Integer bandwidthMbps = ObjectUtil.isNull(quota) ? null : quota.getBandwidthMbps();
@@ -171,19 +171,19 @@ public class ResourceServerAdmission {
         Set<String> ipTypeIds = CollectionUtils.convertSet(specs, PlanSpecDTO::getIpTypeId);
         Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(
                 resourceServerMapper.selectLiveLandingsByRegions(regions), ResourceServerDO::getId);
-        List<ResourceServerLandingDO> landings = MapUtil.isEmpty(serverMap) ? List.of()
-                : resourceServerLandingMapper.selectByServerIdsAndIpTypes(serverMap.keySet(), ipTypeIds);
+        List<Socks5InstallDO> landings = MapUtil.isEmpty(serverMap) ? List.of()
+                : socks5InstallMapper.selectByServerIdsAndIpTypes(serverMap.keySet(), ipTypeIds);
         Map<String, ResourceServerQuotaDO> capMap = CollUtil.isEmpty(landings) ? Map.of()
                 : CollectionUtils.convertMap(resourceServerQuotaMapper.selectBatchIds(
-                        CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId)),
+                        CollectionUtils.convertSet(landings, Socks5InstallDO::getServerId)),
                         ResourceServerQuotaDO::getServerId);
         Set<String> allocatable = this.filterAllocatable(serverMap.keySet());
         // cert.ip_id 派生占用 (含 ACTIVE/SUSPENDED); 落地机占用真相收口到凭证, 不再读 landing.status
         Set<String> boundIds = subscriptionCertApi.filterBoundIpIds(
-                CollectionUtils.convertSet(landings, ResourceServerLandingDO::getServerId));
+                CollectionUtils.convertSet(landings, Socks5InstallDO::getServerId));
         // ② 落地机按 (区域 + IP 类型) 分桶, 让每个套餐 O(1) 命中自己的候选
-        Map<String, List<ResourceServerLandingDO>> bucket = new HashMap<>();
-        for (ResourceServerLandingDO landing : landings) {
+        Map<String, List<Socks5InstallDO>> bucket = new HashMap<>();
+        for (Socks5InstallDO landing : landings) {
             ResourceServerDO server = serverMap.get(landing.getServerId());
             bucket.computeIfAbsent(this.regionIpKey(server.getRegion(), landing.getIpTypeId()),
                     k -> new ArrayList<>()).add(landing);
@@ -191,12 +191,12 @@ public class ResourceServerAdmission {
         // ③ 每个套餐在自己的桶里按容量阈值过滤 + status 计数 (纯内存, 不再查库)
         Map<String, PlanCapacityDTO> result = new HashMap<>(specs.size());
         for (PlanSpecDTO spec : specs) {
-            List<ResourceServerLandingDO> candidates = bucket.getOrDefault(
+            List<Socks5InstallDO> candidates = bucket.getOrDefault(
                     this.regionIpKey(spec.getRegionCode(), spec.getIpTypeId()), List.of());
             int total = 0;
             int available = 0;
             int occupied = 0;
-            for (ResourceServerLandingDO landing : candidates) {
+            for (Socks5InstallDO landing : candidates) {
                 // 占用中的落地机在服务本套餐订阅, 即便被降配到不达标也照常计入 (运行时按 min(套餐,落地机) 带宽限速)
                 if (boundIds.contains(landing.getServerId())) {
                     total++;

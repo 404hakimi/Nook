@@ -6,8 +6,8 @@ import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
+import com.nook.biz.node.dal.dataobject.resource.Socks5InstallDO;
+import com.nook.biz.node.dal.mysql.mapper.Socks5InstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.system.api.iptype.SystemIpTypeApi;
 import com.nook.biz.trade.api.SubscriptionCertApi;
@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
 public class ResourceServerLandingValidator {
 
     @Resource
-    private ResourceServerLandingMapper resourceServerLandingMapper;
+    private Socks5InstallMapper socks5InstallMapper;
     @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
@@ -37,10 +37,10 @@ public class ResourceServerLandingValidator {
      * 校验落地节点存在
      *
      * @param serverId 落地节点ID
-     * @return ResourceServerLandingDO
+     * @return Socks5InstallDO
      */
-    public ResourceServerLandingDO validateExists(String serverId) {
-        ResourceServerLandingDO landing = resourceServerLandingMapper.selectByServerId(serverId);
+    public Socks5InstallDO validateExists(String serverId) {
+        Socks5InstallDO landing = socks5InstallMapper.selectByServerId(serverId);
         if (ObjectUtil.isNull(landing)) {
             throw new BusinessException(ResourceErrorCode.LANDING_NOT_FOUND, serverId);
         }
@@ -106,7 +106,7 @@ public class ResourceServerLandingValidator {
      *
      * @param landing 落地节点 DO
      */
-    public void validateSocks5ConfigReady(ResourceServerLandingDO landing) {
+    public void validateSocks5ConfigReady(Socks5InstallDO landing) {
         if (ObjectUtil.isNull(landing.getSocks5Port())
                 || StrUtil.isBlank(landing.getSocks5Username())
                 || StrUtil.isBlank(landing.getSocks5Password())) {

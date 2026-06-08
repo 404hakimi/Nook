@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
  * @author nook
  */
 @Data
-@TableName("resource_server_landing")
-public class ResourceServerLandingDO {
+@TableName("socks5_install")
+public class Socks5InstallDO {
 
     /** 落地机 id (主键). */
     @TableId

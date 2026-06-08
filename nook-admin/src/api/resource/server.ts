@@ -318,7 +318,7 @@ export function transitionFrontlineLifecycle(id: string, state: string) {
 }
 
 export interface AgentInstallDTO {
-  /** agent 角色; frontline → resource_server, landing → resource_server (server_type=landing) + resource_server_landing. */
+  /** agent 角色; frontline → resource_server, landing → resource_server (server_type=landing) + socks5_install. */
   role: AgentType
   backendTimeoutSeconds: number
   heartbeatIntervalSeconds: number

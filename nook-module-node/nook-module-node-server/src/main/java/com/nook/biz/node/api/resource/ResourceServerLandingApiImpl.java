@@ -6,7 +6,7 @@ import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
 import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
+import com.nook.biz.node.dal.dataobject.resource.Socks5InstallDO;
 import com.nook.biz.node.service.resource.ResourceServerAdmission;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import jakarta.annotation.Resource;
@@ -33,7 +33,7 @@ public class ResourceServerLandingApiImpl implements ResourceServerLandingApi {
     public List<LandingSummaryDTO> listSummaryByServerIds(Collection<String> serverIds) {
         // 跨模块边界: 调 Service 拿 DO, 由 Convert 拼概要 DTO
         Map<String, ResourceServerDO> serverMap = resourceServerLandingService.getServerMap(serverIds);
-        Map<String, ResourceServerLandingDO> landingMap = resourceServerLandingService.getLandingMap(serverIds);
+        Map<String, Socks5InstallDO> landingMap = resourceServerLandingService.getLandingMap(serverIds);
         return ResourceServerLandingConvert.INSTANCE.toSummaries(serverIds, serverMap, landingMap);
     }
 
@@ -51,7 +51,7 @@ public class ResourceServerLandingApiImpl implements ResourceServerLandingApi {
 
     @Override
     public int getSocks5Port(String serverId) {
-        ResourceServerLandingDO landing = resourceServerLandingService.getLanding(serverId);
+        Socks5InstallDO landing = resourceServerLandingService.getLanding(serverId);
         Integer port = ObjectUtil.isNull(landing) ? null : landing.getSocks5Port();
         return ObjectUtil.isNull(port) ? 0 : port;
     }

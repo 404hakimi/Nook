@@ -9,7 +9,7 @@ import com.nook.biz.node.controller.resource.vo.landing.ServerLandingSocks5Updat
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
+import com.nook.biz.node.dal.dataobject.resource.Socks5InstallDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.common.web.response.PageResult;
 
@@ -79,7 +79,7 @@ public interface ResourceServerLandingService {
      * @param id 落地节点编号
      * @return 落地节点子表
      */
-    ResourceServerLandingDO getLanding(String id);
+    Socks5InstallDO getLanding(String id);
 
     /**
      * 获得账面子表
@@ -134,7 +134,7 @@ public interface ResourceServerLandingService {
      * @param serverIds 落地节点编号集合
      * @return 落地节点编号 → 子表
      */
-    Map<String, ResourceServerLandingDO> getLandingMap(Collection<String> serverIds);
+    Map<String, Socks5InstallDO> getLandingMap(Collection<String> serverIds);
 
     /**
      * 切换落地机生命周期 (停用前置: 在用不可停)

@@ -5,8 +5,8 @@ import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
+import com.nook.biz.node.dal.dataobject.resource.Socks5InstallDO;
+import com.nook.biz.node.dal.mysql.mapper.Socks5InstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.XrayInboundMapper;
 import com.nook.biz.node.framework.xray.XrayConstants;
@@ -41,7 +41,7 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
     @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
-    private ResourceServerLandingMapper resourceServerLandingMapper;
+    private Socks5InstallMapper socks5InstallMapper;
     @Resource
     private SubscriptionCertApi subscriptionCertApi;
     @Resource
@@ -72,14 +72,14 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
         }
         Map<String, ResourceServerDO> landingSrvMap = CollUtil.isEmpty(ipIds) ? Map.of()
                 : CollectionUtils.convertMap(resourceServerMapper.selectBatchIds(ipIds), ResourceServerDO::getId);
-        Map<String, ResourceServerLandingDO> landingMap = CollUtil.isEmpty(ipIds) ? Map.of()
-                : CollectionUtils.convertMap(resourceServerLandingMapper.selectByServerIds(ipIds),
-                        ResourceServerLandingDO::getServerId);
+        Map<String, Socks5InstallDO> landingMap = CollUtil.isEmpty(ipIds) ? Map.of()
+                : CollectionUtils.convertMap(socks5InstallMapper.selectByServerIds(ipIds),
+                        Socks5InstallDO::getServerId);
 
         List<XrayReconcileClientDTO> out = new ArrayList<>(certs.size());
         for (SubscriptionCertRespDTO cert : certs) {
             ResourceServerDO landingSrv = landingSrvMap.get(cert.getIpId());
-            ResourceServerLandingDO landing = landingMap.get(cert.getIpId());
+            Socks5InstallDO landing = landingMap.get(cert.getIpId());
             // 落地机出网IP / socks 凭据任一缺失就拼不出出站, 跳过这一个接入点而不是让整轮对账失败
             if (ObjectUtil.isNull(landingSrv) || ObjectUtil.isNull(landing)
                     || ObjectUtil.isNull(landing.getSocks5Port()) || ObjectUtil.isNull(landingSrv.getIpAddress())) {

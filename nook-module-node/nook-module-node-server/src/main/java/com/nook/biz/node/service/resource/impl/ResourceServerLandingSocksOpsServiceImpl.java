@@ -8,9 +8,9 @@ import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.convert.resource.LandingSocksOpsConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
+import com.nook.biz.node.dal.dataobject.resource.Socks5InstallDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCredentialMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
+import com.nook.biz.node.dal.mysql.mapper.Socks5InstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
@@ -67,7 +67,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
     @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
-    private ResourceServerLandingMapper resourceServerLandingMapper;
+    private Socks5InstallMapper socks5InstallMapper;
     @Resource
     private ResourceServerCredentialMapper resourceServerCredentialMapper;
     @Resource
@@ -84,7 +84,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
 
         // 装机配置写回 landing 子表; 重读 DO 保证 buildInstallVars 拿到最新值
         this.applyDeployConfig(serverId, reqVO);
-        ResourceServerLandingDO landing = resourceServerLandingMapper.selectByServerId(serverId);
+        Socks5InstallDO landing = socks5InstallMapper.selectByServerId(serverId);
         resourceServerLandingValidator.validateSocks5ConfigReady(landing);
 
         Duration emitterTimeout = Duration.ofSeconds(cred.getInstallTimeoutSeconds())
@@ -96,7 +96,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
     @Override
     public Socks5ProbeSnapshot testSocks5(String serverId, String echoUrl, int connectTimeoutMs, int readTimeoutMs) {
         ResourceServerDO server = resourceServerValidator.validateExists(serverId);
-        ResourceServerLandingDO landing = resourceServerLandingValidator.validateExists(serverId);
+        Socks5InstallDO landing = resourceServerLandingValidator.validateExists(serverId);
         if (StrUtil.isBlank(server.getIpAddress()) || ObjectUtil.isNull(landing.getSocks5Port())) {
             return new Socks5ProbeSnapshot(false, 0L, echoUrl, connectTimeoutMs, readTimeoutMs,
                     0, null, "SOCKS5 IP 或端口未配置");
@@ -117,10 +117,10 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
             session.ssh().exec(cmd);
         });
 
-        ResourceServerLandingDO patch = new ResourceServerLandingDO();
+        Socks5InstallDO patch = new Socks5InstallDO();
         patch.setServerId(serverId);
         patch.setAutostartEnabled(enabled ? 1 : 0);
-        resourceServerLandingMapper.updateBySelective(patch);
+        socks5InstallMapper.updateBySelective(patch);
         log.info("[setAutostart] serverId={} ip={} enabled={}", serverId, server.getIpAddress(), enabled);
     }
 
@@ -137,7 +137,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
     @Override
     public ServiceLogRespVO getFileLog(String serverId, Integer lines, String keyword) {
         ResourceServerDO server = resourceServerValidator.validateExists(serverId);
-        ResourceServerLandingDO landing = resourceServerLandingValidator.validateExists(serverId);
+        Socks5InstallDO landing = resourceServerLandingValidator.validateExists(serverId);
         SessionCredential cred = buildOpsSshCred(server);
         JournalLogSnapshot snap = SshSessions.runAdHoc(cred, session ->
                 serverProbe.readFileLog(session, landing.getLogPath(), lines, keyword));
@@ -151,7 +151,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
      * @param reqVO    装机入参
      */
     private void applyDeployConfig(String serverId, ServerLandingDeployReqVO reqVO) {
-        ResourceServerLandingDO patch = new ResourceServerLandingDO();
+        Socks5InstallDO patch = new Socks5InstallDO();
         patch.setServerId(serverId);
         patch.setSocks5Port(reqVO.getSocks5Port());
         patch.setSocks5Username(reqVO.getSocks5Username());
@@ -166,7 +166,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
         patch.setAutostartEnabled(reqVO.getAutostartEnabled());
         patch.setFirewallEnabled(reqVO.getFirewallEnabled());
         patch.setLogRotateEnabled(reqVO.getLogRotateEnabled());
-        resourceServerLandingMapper.updateBySelective(patch);
+        socks5InstallMapper.updateBySelective(patch);
     }
 
     /**
@@ -177,7 +177,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
      * @param cred     SSH 凭据子表
      * @param lineSink 流式输出回调
      */
-    private void doInstallSocks5(ResourceServerDO server, ResourceServerLandingDO landing,
+    private void doInstallSocks5(ResourceServerDO server, Socks5InstallDO landing,
                                  ResourceServerCredentialDO cred, Consumer<String> lineSink) {
         SessionCredential sshCred = buildSshCred(server, cred, "install");
         Map<String, String> vars = buildInstallVars(landing, cred);
@@ -208,12 +208,12 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
      */
     private void finalizeInstall(ResourceServerDO server, PostInstallFacts facts) {
         LocalDateTime now = LocalDateTime.now();
-        ResourceServerLandingDO landingPatch = new ResourceServerLandingDO();
+        Socks5InstallDO landingPatch = new Socks5InstallDO();
         landingPatch.setServerId(server.getId());
         landingPatch.setInstalledAt(now);
         landingPatch.setDanteVersion(facts.version());
         landingPatch.setLastDanteUptime(DateUtils.parseOffsetOrFallback(facts.uptimeRaw(), UPTIME_FORMATTER, now));
-        resourceServerLandingMapper.updateBySelective(landingPatch);
+        socks5InstallMapper.updateBySelective(landingPatch);
         if (!ResourceServerLifecycleEnum.LIVE.matches(server.getLifecycleState())) {
             resourceServerMapper.updateLifecycleState(server.getId(), ResourceServerLifecycleEnum.LIVE.getState());
         }
@@ -267,7 +267,7 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
      * @param cred credential 子表 (含 sshPort 给脚本渲染日志)
      * @return 不可变 ENV map
      */
-    private Map<String, String> buildInstallVars(ResourceServerLandingDO l, ResourceServerCredentialDO cred) {
+    private Map<String, String> buildInstallVars(Socks5InstallDO l, ResourceServerCredentialDO cred) {
         return Map.ofEntries(
                 Map.entry("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
                 Map.entry("SOCKS_PORT", String.valueOf(l.getSocks5Port())),
