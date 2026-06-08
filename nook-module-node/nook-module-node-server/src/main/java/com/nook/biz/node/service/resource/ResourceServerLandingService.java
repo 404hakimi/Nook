@@ -174,4 +174,12 @@ public interface ResourceServerLandingService {
      * @return 落地节点编号 → 运行时
      */
     Map<String, ResourceServerRuntimeDO> getRuntimeMap(Collection<String> serverIds);
+
+    /**
+     * 切换落地机生命周期 (停用前置: 在用不可停)
+     *
+     * @param id       落地机编号
+     * @param newState 目标生命周期
+     */
+    void transitionLifecycle(String id, String newState);
 }

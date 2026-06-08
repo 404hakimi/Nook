@@ -85,11 +85,4 @@ public interface ResourceServerService {
      */
     Map<String, String> getIpAddressMap(Collection<String> ids);
 
-    /**
-     * 切换服务器 生命周期 状态
-     *
-     * @param id       服务器编号
-     * @param newState 目标生命周期
-     */
-    void transitionLifecycle(String id, String newState);
 }

@@ -308,10 +308,10 @@ export function deleteServer(id: string) {
   return request.delete<unknown, void>('/admin/resource/server/delete-server', { params: { id } })
 }
 
-/** 切换 lifecycle_state; admin 上线 / 退役流转用. */
-export function transitionServerLifecycle(id: string, state: string) {
+/** 切换线路机 lifecycle_state (上线 / 退役). */
+export function transitionFrontlineLifecycle(id: string, state: string) {
   return request.post<unknown, boolean>(
-    '/admin/resource/server/transition-lifecycle',
+    '/admin/resource/server-frontline/transition-lifecycle',
     null,
     { params: { id, state } }
   )

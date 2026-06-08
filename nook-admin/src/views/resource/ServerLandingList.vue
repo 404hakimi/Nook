@@ -49,7 +49,7 @@ import {
   type ServerLandingQuery,
   type ServerLandingSummary
 } from '@/api/resource/server-landing'
-import { transitionServerLifecycle } from '@/api/resource/server'
+import { transitionLandingLifecycle } from '@/api/resource/server-landing'
 import { AGENT_ONLINE_TAG_TYPE } from '@/api/agent/agent'
 import type { SystemRegion } from '@/api/system/region'
 import { IP_TYPE_CODE_LABELS } from '@/api/system/ip-type'
@@ -259,7 +259,7 @@ async function onSuspend(ip: ServerLanding) {
   })
   if (!ok) return
   try {
-    await transitionServerLifecycle(ip.id, 'RETIRED')
+    await transitionLandingLifecycle(ip.id, 'RETIRED')
     message.success('已停用')
     onSaved()
     void refreshDetail()
@@ -276,7 +276,7 @@ async function onActivate(ip: ServerLanding) {
   })
   if (!ok) return
   try {
-    await transitionServerLifecycle(ip.id, 'LIVE')
+    await transitionLandingLifecycle(ip.id, 'LIVE')
     message.success('已启用')
     onSaved()
     void refreshDetail()

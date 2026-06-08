@@ -14,6 +14,7 @@ import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -69,6 +70,20 @@ public class ResourceServerFrontlineController {
     public Result<Boolean> updateFrontline(@RequestParam("id") String id,
                                            @Valid @RequestBody ResourceServerFrontlineUpdateReqVO reqVO) {
         resourceServerFrontlineService.update(id, reqVO);
+        return Result.ok(true);
+    }
+
+    /**
+     * 切换线路机生命周期 (上线 / 退役)
+     *
+     * @param id    线路机编号
+     * @param state 目标生命周期
+     * @return 是否成功
+     */
+    @PostMapping("/transition-lifecycle")
+    public Result<Boolean> transitionLifecycle(@RequestParam("id") String id,
+                                               @RequestParam("state") String state) {
+        resourceServerFrontlineService.transitionLifecycle(id, state);
         return Result.ok(true);
     }
 }

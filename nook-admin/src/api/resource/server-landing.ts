@@ -268,7 +268,14 @@ export function deleteServerLanding(id: string) {
   return request.delete<unknown, void>('/admin/resource/server-landing/delete-landing', { params: { id } })
 }
 
-// lifecycle 切换走 server.ts 的公共 transitionServerLifecycle (POST /admin/resource/server/transition-lifecycle)
+/** 切换落地机 lifecycle_state (上线 / 退役). */
+export function transitionLandingLifecycle(id: string, state: string) {
+  return request.post<unknown, boolean>(
+    '/admin/resource/server-landing/transition-lifecycle',
+    null,
+    { params: { id, state } }
+  )
+}
 
 // ===== 子表分段编辑 (拆 4 个 dialog 各自调) =====
 

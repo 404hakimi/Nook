@@ -29,7 +29,7 @@ import {
   deleteServerLanding,
   type ServerLanding
 } from '@/api/resource/server-landing'
-import { transitionServerLifecycle } from '@/api/resource/server'
+import { transitionLandingLifecycle } from '@/api/resource/server-landing'
 import { IP_TYPE_CODE_LABELS } from '@/api/system/ip-type'
 import { useIpTypeStore } from '@/stores/ipType'
 import { storeToRefs } from 'pinia'
@@ -79,7 +79,7 @@ async function doTransition() {
     positiveText: '切换', negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        await transitionServerLifecycle(props.detail.id, targetLifecycle.value!)
+        await transitionLandingLifecycle(props.detail.id, targetLifecycle.value!)
         message.success('已切换')
         targetLifecycle.value = null
         emit('refresh')

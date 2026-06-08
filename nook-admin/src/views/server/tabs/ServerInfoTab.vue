@@ -31,7 +31,7 @@ import {
   getServerFrontline,
   SERVER_LIFECYCLE_LABELS,
   SERVER_LIFECYCLE_TAG_TYPE,
-  transitionServerLifecycle,
+  transitionFrontlineLifecycle,
   type ResourceServer,
   type ServerBilling,
   type ServerQuota,
@@ -95,7 +95,7 @@ async function doTransition() {
     positiveText: '切换', negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        await transitionServerLifecycle(props.serverId, targetLifecycle.value!)
+        await transitionFrontlineLifecycle(props.serverId, targetLifecycle.value!)
         message.success('已切换')
         targetLifecycle.value = null
         await load()

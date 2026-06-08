@@ -132,6 +132,20 @@ public class ResourceServerLandingController {
     }
 
     /**
+     * 切换落地机生命周期 (上线 / 退役)
+     *
+     * @param id    落地机编号
+     * @param state 目标生命周期
+     * @return 是否成功
+     */
+    @PostMapping("/transition-lifecycle")
+    public Result<Boolean> transitionLifecycle(@RequestParam("id") String id,
+                                               @RequestParam("state") String state) {
+        resourceServerLandingService.transitionLifecycle(id, state);
+        return Result.ok(true);
+    }
+
+    /**
      * 更新核心字段
      *
      * @param id    落地节点编号

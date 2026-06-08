@@ -52,4 +52,12 @@ public interface ResourceServerFrontlineService {
      * @return 运行时详情视图 (不存在返 null)
      */
     ServerFrontlineListItemRespVO getServerRuntimeDetail(String serverId);
+
+    /**
+     * 切换线路机生命周期 (上线前置: 域名必填)
+     *
+     * @param id       线路机编号
+     * @param newState 目标生命周期
+     */
+    void transitionLifecycle(String id, String newState);
 }

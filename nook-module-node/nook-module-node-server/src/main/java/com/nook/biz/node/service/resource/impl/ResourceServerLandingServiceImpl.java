@@ -27,6 +27,7 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
+import com.nook.biz.node.validator.ServerLifecycleValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
@@ -65,6 +66,8 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     private ResourceServerValidator resourceServerValidator;
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
+    @Resource
+    private ServerLifecycleValidator serverLifecycleValidator;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -283,6 +286,22 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         if (CollUtil.isEmpty(serverIds)) return Map.of();
         return CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void transitionLifecycle(String id, String newState) {
+        ResourceServerDO srv = resourceServerValidator.validateExists(id);
+        if (StrUtil.equals(srv.getLifecycleState(), newState)) {
+            return;
+        }
+        serverLifecycleValidator.validateTransitionTable(srv, newState);
+        // 落地机停用前置: 在用 (占用 / 预占 / 绑定客户端) 不可停
+        if (ResourceServerLifecycleEnum.RETIRED.matches(newState)) {
+            serverLifecycleValidator.validateLandingNotInUse(id);
+        }
+        resourceServerMapper.updateLifecycleState(id, newState);
+        log.info("[landing] LIFECYCLE id={} {} → {}", id, srv.getLifecycleState(), newState);
     }
 
 }

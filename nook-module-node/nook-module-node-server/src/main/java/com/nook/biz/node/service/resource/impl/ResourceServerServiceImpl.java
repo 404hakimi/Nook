@@ -1,6 +1,5 @@
 package com.nook.biz.node.service.resource.impl;
 
-import cn.hutool.core.util.StrUtil;
 import com.nook.biz.agent.api.AgentTokenApi;
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
@@ -27,7 +26,6 @@ import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
-import com.nook.biz.node.validator.ServerLifecycleValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import jakarta.annotation.Resource;
@@ -61,8 +59,6 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     private ResourceServerValidator resourceServerValidator;
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
-    @Resource
-    private ServerLifecycleValidator serverLifecycleValidator;
     @Resource
     private ResourceServerCredentialService resourceServerCredentialService;
     @Resource
@@ -210,19 +206,6 @@ public class ResourceServerServiceImpl implements ResourceServerService {
                 resourceServerMapper.selectBatchIds(ids),
                 ResourceServerDO::getId,
                 ResourceServerDO::getIpAddress);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void transitionLifecycle(String id, String newState) {
-        ResourceServerDO srv = resourceServerValidator.validateExists(id);
-        if (StrUtil.equals(srv.getLifecycleState(), newState)) {
-            return;
-        }
-        // 转移表 + 各前置守卫 (域名必填 / 占用不可停 / 绑定客户端不可停) 统一收口到生命周期校验器
-        serverLifecycleValidator.validateTransition(srv, newState);
-        resourceServerMapper.updateLifecycleState(id, newState);
-        log.info("[server] LIFECYCLE id={} {} → {}", id, srv.getLifecycleState(), newState);
     }
 
     @Override

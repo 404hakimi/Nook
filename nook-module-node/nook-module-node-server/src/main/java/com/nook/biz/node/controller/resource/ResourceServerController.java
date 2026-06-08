@@ -133,20 +133,6 @@ public class ResourceServerController {
     }
 
     /**
-     * 切换服务器的生命周期
-     *
-     * @param id    server 编号
-     * @param state 目标 lifecycle 状态
-     * @return 是否成功
-     */
-    @PostMapping("/transition-lifecycle")
-    public Result<Boolean> transitionLifecycle(@RequestParam("id") String id,
-                                               @RequestParam("state") String state) {
-        resourceServerService.transitionLifecycle(id, state);
-        return Result.ok(true);
-    }
-
-    /**
      * 获得 SSH 凭据
      *
      * @param id server 编号
