@@ -7,7 +7,7 @@ import { getXrayInbound, type XrayInbound } from '@/api/xray/xray-config'
 import { xrayRestart } from '@/api/xray/server'
 import type { ServerFrontlineListItem } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
-import XrayInstallInstallInfoDialog from '@/views/xray/XrayInstallInstallInfoDialog.vue'
+import XrayInstallInfoDialog from '@/views/xray/XrayInstallInfoDialog.vue'
 import XrayInstallStatusDialog from '@/views/xray/XrayInstallStatusDialog.vue'
 import XrayInstallLogDialog from '@/views/xray/XrayInstallLogDialog.vue'
 import ServerInstallDialog from '@/views/resource/ServerInstallDialog.vue'
@@ -212,7 +212,7 @@ function onRestart() {
         </NDescriptions>
       </NCard>
 
-      <XrayInstallInstallInfoDialog v-model="installInfoOpen" :server="server" :config="config" />
+      <XrayInstallInfoDialog v-model="installInfoOpen" :server="server" :config="config" />
       <XrayInstallStatusDialog v-model="statusOpen" :server="server" />
       <XrayInstallLogDialog v-model="logOpen" :server="server" />
     </div>
