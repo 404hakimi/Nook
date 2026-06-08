@@ -5,7 +5,6 @@ import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineUpdateReq
 import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
 import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.convert.resource.ResourceServerFrontlineConvert;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.common.web.response.PageResult;
@@ -20,9 +19,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.time.LocalDateTime;
-import java.util.Set;
 
 /**
  * 管理后台 - 线路机 Controller
@@ -40,21 +36,14 @@ public class ResourceServerFrontlineController {
     private ResourceServerFrontlineService resourceServerFrontlineService;
 
     /**
-     * 获得线路机分页 (主表 + agent 运行时聚合: online state / agentVersion / xrayVersion / 流量 / throttle).
-     *
-     * <p>规范三步走: ① Convert 提 serverIds → ② Service 批量查 4 子表 + 跨模块查 syncState → ③ Convert 拼装 VO.
+     * 获得线路机分页 (连表出运行时聚合视图: 在线态 / 版本 / 配额 / 流量 / throttle)
      *
      * @param reqVO 分页条件
      * @return 线路机列表项分页
      */
     @GetMapping("/page-frontline")
     public Result<PageResult<ServerFrontlineListItemRespVO>> getPage(@ModelAttribute ResourceServerPageReqVO reqVO) {
-        PageResult<ResourceServerDO> page = resourceServerService.getServerPage(reqVO);
-        Set<String> ids = ResourceServerFrontlineConvert.INSTANCE.extractServerIds(page.getRecords());
-        ResourceServerFrontlineService.RuntimeBundle bundle = resourceServerFrontlineService.batchLoadRuntimeBundle(ids);
-        return Result.ok(ResourceServerFrontlineConvert.INSTANCE.convertPageWithRuntime(
-                page, bundle.credentialMap(), bundle.runtimeMap(), bundle.quotaMap(),
-                bundle.trafficMap(), bundle.xrayMap(), LocalDateTime.now()));
+        return Result.ok(resourceServerFrontlineService.getFrontlinePage(reqVO));
     }
 
     /**

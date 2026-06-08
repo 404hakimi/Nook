@@ -16,7 +16,6 @@ import com.nook.biz.node.convert.resource.ResourceServerBillingConvert;
 import com.nook.biz.node.convert.resource.ResourceServerQuotaConvert;
 import com.nook.biz.node.convert.resource.ResourceServerConvert;
 import com.nook.biz.node.convert.resource.ResourceServerCredentialConvert;
-import com.nook.biz.node.convert.resource.ResourceServerFrontlineConvert;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
 import com.nook.biz.node.service.resource.ResourceServerQuotaService;
 import com.nook.biz.node.service.resource.ResourceServerTrafficService;
@@ -36,7 +35,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -104,16 +102,8 @@ public class ResourceServerController {
      */
     @GetMapping("/get-detail-with-runtime")
     public Result<ServerFrontlineListItemRespVO> getDetailWithRuntime(@RequestParam("id") String id) {
-        ResourceServerDO server = resourceServerService.requireServer(id);
-        ResourceServerFrontlineService.RuntimeBundle bundle = resourceServerFrontlineService.loadRuntimeBundleSingle(id);
-        return Result.ok(ResourceServerFrontlineConvert.INSTANCE.convertSingleWithRuntime(
-                server,
-                bundle.credentialMap().get(id),
-                bundle.runtimeMap().get(id),
-                bundle.quotaMap().get(id),
-                bundle.trafficMap().get(id),
-                bundle.xrayMap().get(id),
-                LocalDateTime.now()));
+        resourceServerService.requireServer(id);
+        return Result.ok(resourceServerFrontlineService.getServerRuntimeDetail(id));
     }
 
     /**

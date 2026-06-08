@@ -3,6 +3,8 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.api.enums.ResourceServerLandingStatusEnum;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerProvisionModeEnum;
@@ -33,11 +35,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -176,42 +175,21 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
 
     @Override
     public PageResult<ResourceServerDO> getPage(ServerLandingPageReqVO reqVO) {
-        // 子表 (status / ipTypeId) 过滤先拿候选 serverIds
-        Set<String> statusFilterIds = null;
+        // 子表 (status / ipType) 过滤先拿候选 serverIds
+        Set<String> idIn = null;
         if (StrUtil.isNotBlank(reqVO.getStatus()) || StrUtil.isNotBlank(reqVO.getIpTypeId())) {
             List<ResourceServerLandingDO> rows = resourceServerLandingMapper.selectByFilter(reqVO.getStatus(), reqVO.getIpTypeId());
-            statusFilterIds = CollectionUtils.convertSet(rows, ResourceServerLandingDO::getServerId);
-            if (CollUtil.isEmpty(statusFilterIds)) {
+            idIn = CollectionUtils.convertSet(rows, ResourceServerLandingDO::getServerId);
+            if (CollUtil.isEmpty(idIn)) {
                 return PageResult.empty();
             }
         }
-        // 全量拉落地机, 按账单到期升序 (无到期排末) → 快到期的靠前便于续费, 再内存分页 (小规模)
-        List<ResourceServerDO> all = resourceServerMapper.selectListByQuery(
+        // 账单到期升序 (空排末) → 创建倒序: 排序键在账面子表, 走 LEFT JOIN 在库里排 + 分页
+        IPage<ResourceServerDO> result = resourceServerMapper.selectLandingPageOrderByExpiry(
+                Page.of(reqVO.getPageNo(), reqVO.getPageSize()),
                 reqVO.getKeyword(), reqVO.getLifecycleState(), reqVO.getRegionCodes(),
-                statusFilterIds, ResourceServerTypeEnum.LANDING.getState());
-        if (CollUtil.isEmpty(all)) {
-            return PageResult.empty();
-        }
-        Map<String, LocalDate> expiryMap = this.loadExpiryMap(all);
-        all.sort(Comparator
-                .comparing((ResourceServerDO s) -> expiryMap.get(s.getId()), Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparing(ResourceServerDO::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
-        int total = all.size();
-        int from = Math.min((int) ((reqVO.getPageNo() - 1L) * reqVO.getPageSize()), total);
-        int to = Math.min(from + reqVO.getPageSize(), total);
-        return PageResult.of((long) total, new ArrayList<>(all.subList(from, to)));
-    }
-
-    /** 批量取落地机账单到期日 (serverId → 到期日); 无到期日的不入表. */
-    private Map<String, LocalDate> loadExpiryMap(List<ResourceServerDO> servers) {
-        Set<String> ids = CollectionUtils.convertSet(servers, ResourceServerDO::getId);
-        Map<String, LocalDate> map = new HashMap<>();
-        for (ResourceServerBillingDO bill : resourceServerBillingMapper.selectBatchIds(ids)) {
-            if (ObjectUtil.isNotNull(bill.getExpiresAt())) {
-                map.put(bill.getServerId(), bill.getExpiresAt());
-            }
-        }
-        return map;
+                idIn, ResourceServerTypeEnum.LANDING.getState());
+        return PageResult.of(result.getTotal(), result.getRecords());
     }
 
     @Override

@@ -1,15 +1,10 @@
 package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineUpdateReqVO;
-import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
+import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
-
-import java.util.Collection;
-import java.util.Map;
+import com.nook.common.web.response.PageResult;
 
 /**
  * 线路机扩展 Service 接口
@@ -43,26 +38,18 @@ public interface ResourceServerFrontlineService {
     void update(String serverId, ResourceServerFrontlineUpdateReqVO reqVO);
 
     /**
-     * 批量加载线路机列表的运行时聚合 (凭据 / 运行时 / 容量 / xray 实例)
+     * 线路机分页 (连表出运行时聚合视图: 在线态 / 版本 / 配额 / 流量 / xray)
      *
-     * @param serverIds 服务器编号集合
-     * @return 运行时聚合包
+     * @param reqVO 分页条件
+     * @return 列表项视图分页
      */
-    RuntimeBundle batchLoadRuntimeBundle(Collection<String> serverIds);
+    PageResult<ServerFrontlineListItemRespVO> getFrontlinePage(ResourceServerPageReqVO reqVO);
 
     /**
-     * 加载单条线路机的运行时聚合
+     * 服务器运行时详情视图 (线路机 / 落地机共用)
      *
-     * @param serverId 线路机编号
-     * @return 单条运行时聚合
+     * @param serverId 服务器编号
+     * @return 运行时详情视图 (不存在返 null)
      */
-    RuntimeBundle loadRuntimeBundleSingle(String serverId);
-
-    /** 线路机运行时聚合 (凭据 / 运行时 / 配额配置 / 当周期测量 / xray). */
-    record RuntimeBundle(
-            Map<String, ResourceServerCredentialDO> credentialMap,
-            Map<String, ResourceServerRuntimeDO> runtimeMap,
-            Map<String, ResourceServerQuotaDO> quotaMap,
-            Map<String, ResourceServerTrafficDO> trafficMap,
-            Map<String, XrayServerDO> xrayMap) { }
+    ServerFrontlineListItemRespVO getServerRuntimeDetail(String serverId);
 }

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper">
+
+    <!-- 落地机分页: 按账单到期排序 (升序、空排末 → 创建倒序) -->
+    <select id="selectLandingPageOrderByExpiry"
+            resultType="com.nook.biz.node.dal.dataobject.resource.ResourceServerDO">
+        SELECT rs.*
+          FROM resource_server rs
+          LEFT JOIN resource_server_billing b ON b.server_id = rs.id
+        <where>
+            <if test="serverType != null and serverType != ''">AND rs.server_type = #{serverType}</if>
+            <if test="lifecycleState != null and lifecycleState != ''">AND rs.lifecycle_state = #{lifecycleState}</if>
+            <if test="name != null and name != ''">AND rs.name LIKE CONCAT('%', #{name}, '%')</if>
+            <if test="regionCodes != null and regionCodes.size() > 0">
+                AND rs.region IN
+                <foreach collection="regionCodes" item="r" open="(" separator="," close=")">#{r}</foreach>
+            </if>
+            <if test="idIn != null">
+                AND rs.id IN
+                <foreach collection="idIn" item="sid" open="(" separator="," close=")">#{sid}</foreach>
+            </if>
+        </where>
+        ORDER BY ISNULL(b.expires_at), b.expires_at ASC, rs.created_at DESC
+    </select>
+
+    <!-- 运行时聚合视图: 主表 + 运行时 / 配额 / 当周期流量 / xray (在线态 elapsedSec/onlineState 由 Java 补) -->
+    <sql id="runtimeViewSelect">
+        SELECT rs.id, rs.name, rs.ip_address AS host, rs.region, rs.lifecycle_state,
+               rt.agent_version, rt.last_heartbeat_at,
+               q.total_gb,
+               t.rx_bytes, t.tx_bytes, t.used_bytes, t.throttle_state,
+               x.xray_version
+          FROM resource_server rs
+          LEFT JOIN resource_server_runtime rt ON rt.server_id = rs.id
+          LEFT JOIN resource_server_quota q ON q.server_id = rs.id
+          LEFT JOIN resource_server_traffic t ON t.server_id = rs.id AND t.end_time IS NULL
+          LEFT JOIN xray_server x ON x.server_id = rs.id
+    </sql>
+
+    <!-- 线路机分页: 连表出列表项视图, 按创建倒序 -->
+    <select id="selectFrontlinePage"
+            resultType="com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO">
+        <include refid="runtimeViewSelect"/>
+        <where>
+            <if test="serverType != null and serverType != ''">AND rs.server_type = #{serverType}</if>
+            <if test="lifecycleState != null and lifecycleState != ''">AND rs.lifecycle_state = #{lifecycleState}</if>
+            <if test="name != null and name != ''">AND rs.name LIKE CONCAT('%', #{name}, '%')</if>
+            <if test="host != null and host != ''">AND rs.ip_address LIKE CONCAT('%', #{host}, '%')</if>
+            <if test="regionCodes != null and regionCodes.size() > 0">
+                AND rs.region IN
+                <foreach collection="regionCodes" item="r" open="(" separator="," close=")">#{r}</foreach>
+            </if>
+        </where>
+        ORDER BY rs.created_at DESC
+    </select>
+
+    <!-- 服务器运行时详情视图 (线路机 / 落地机共用): 单条同款 JOIN -->
+    <select id="selectServerRuntimeDetail"
+            resultType="com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO">
+        <include refid="runtimeViewSelect"/>
+        WHERE rs.id = #{serverId}
+    </select>
+</mapper>

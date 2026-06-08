@@ -1,31 +1,25 @@
 package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.util.ObjectUtil;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.controller.resource.vo.ResourceServerFrontlineUpdateReqVO;
-import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
+import com.nook.biz.node.controller.resource.vo.ResourceServerPageReqVO;
+import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
+import com.nook.biz.node.convert.resource.ResourceServerFrontlineConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerCredentialMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
-import com.nook.biz.node.dal.mysql.mapper.XrayServerMapper;
+import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.biz.node.validator.ResourceServerFrontlineValidator;
-import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
+import com.nook.common.web.response.PageResult;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * 线路机扩展 Service 实现类
@@ -40,15 +34,7 @@ public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontli
     @Resource
     private ResourceServerFrontlineValidator resourceServerFrontlineValidator;
     @Resource
-    private ResourceServerCredentialMapper resourceServerCredentialMapper;
-    @Resource
-    private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
-    @Resource
-    private ResourceServerQuotaMapper resourceServerQuotaMapper;
-    @Resource
-    private ResourceServerTrafficMapper resourceServerTrafficMapper;
-    @Resource
-    private XrayServerMapper xrayServerMapper;
+    private ResourceServerMapper resourceServerMapper;
 
     @Override
     public ResourceServerFrontlineDO get(String serverId) {
@@ -81,25 +67,22 @@ public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontli
     }
 
     @Override
-    public RuntimeBundle loadRuntimeBundleSingle(String serverId) {
-        return this.batchLoadRuntimeBundle(Set.of(serverId));
+    public PageResult<ServerFrontlineListItemRespVO> getFrontlinePage(ResourceServerPageReqVO reqVO) {
+        IPage<ServerFrontlineListItemRespVO> result = resourceServerMapper.selectFrontlinePage(
+                Page.of(reqVO.getPageNo(), reqVO.getPageSize()),
+                reqVO.getName(), reqVO.getHost(), reqVO.getLifecycleState(), reqVO.getRegionCodes(),
+                ResourceServerTypeEnum.FRONTLINE.getState());
+        LocalDateTime now = LocalDateTime.now();
+        result.getRecords().forEach(vo -> ResourceServerFrontlineConvert.fillOnlineState(vo, now));
+        return PageResult.of(result.getTotal(), result.getRecords());
     }
 
     @Override
-    public RuntimeBundle batchLoadRuntimeBundle(Collection<String> serverIds) {
-        if (CollectionUtils.isAnyEmpty(serverIds)) {
-            return new RuntimeBundle(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+    public ServerFrontlineListItemRespVO getServerRuntimeDetail(String serverId) {
+        ServerFrontlineListItemRespVO vo = resourceServerMapper.selectServerRuntimeDetail(serverId);
+        if (ObjectUtil.isNotNull(vo)) {
+            ResourceServerFrontlineConvert.fillOnlineState(vo, LocalDateTime.now());
         }
-        Map<String, ResourceServerCredentialDO> creds = CollectionUtils.convertMap(
-                resourceServerCredentialMapper.selectBatchIds(serverIds), ResourceServerCredentialDO::getServerId);
-        Map<String, ResourceServerRuntimeDO> runtimes = CollectionUtils.convertMap(
-                resourceServerRuntimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
-        Map<String, ResourceServerQuotaDO> quotas = CollectionUtils.convertMap(
-                resourceServerQuotaMapper.selectBatchIds(serverIds), ResourceServerQuotaDO::getServerId);
-        Map<String, ResourceServerTrafficDO> traffics = CollectionUtils.convertMap(
-                resourceServerTrafficMapper.selectCurrentByServerIds(serverIds), ResourceServerTrafficDO::getServerId);
-        Map<String, XrayServerDO> xrays = CollectionUtils.convertMap(
-                xrayServerMapper.selectBatchIds(serverIds), XrayServerDO::getServerId);
-        return new RuntimeBundle(creds, runtimes, quotas, traffics, xrays);
+        return vo;
     }
 }

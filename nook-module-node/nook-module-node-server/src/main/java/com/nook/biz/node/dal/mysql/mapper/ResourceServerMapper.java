@@ -7,8 +7,10 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
+import com.nook.biz.node.controller.resource.vo.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -138,17 +140,44 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .eq(ResourceServerDO::getRegion, oldRegion));
     }
 
-    /** 列表 (不分页; 落地机按账单到期内存排序用). 过滤同 selectPageByQuery, 去分页与排序. */
-    default List<ResourceServerDO> selectListByQuery(String name, String lifecycleState,
-                                                     Collection<String> regionCodes,
-                                                     Collection<String> idIn, String serverType) {
-        return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
-                .eq(StrUtil.isNotBlank(serverType), ResourceServerDO::getServerType, serverType)
-                .eq(StrUtil.isNotBlank(lifecycleState), ResourceServerDO::getLifecycleState, lifecycleState)
-                .in(CollUtil.isNotEmpty(regionCodes), ResourceServerDO::getRegion, regionCodes)
-                .like(StrUtil.isNotBlank(name), ResourceServerDO::getName, name)
-                .in(idIn != null, ResourceServerDO::getId, idIn));
-    }
+    /**
+     * 落地机分页, 按账单到期升序 (空排末) → 创建倒序
+     *
+     * @param page           分页参数
+     * @param name           名称模糊
+     * @param lifecycleState 生命周期
+     * @param regionCodes    区域码集合
+     * @param idIn           子表预过滤的 id 集合 (status / ipType)
+     * @param serverType     机器类型
+     * @return 主表分页
+     */
+    IPage<ResourceServerDO> selectLandingPageOrderByExpiry(IPage<ResourceServerDO> page,
+            @Param("name") String name, @Param("lifecycleState") String lifecycleState,
+            @Param("regionCodes") Collection<String> regionCodes, @Param("idIn") Collection<String> idIn,
+            @Param("serverType") String serverType);
+
+    /**
+     * 线路机分页: 主表 LEFT JOIN 运行时 / 配额 / 当周期流量 / xray, 直接出列表项视图
+     *
+     * @param page           分页参数
+     * @param name           名称模糊
+     * @param host           IP 模糊
+     * @param lifecycleState 生命周期
+     * @param regionCodes    区域码集合
+     * @param serverType     机器类型
+     * @return 列表项视图分页
+     */
+    IPage<ServerFrontlineListItemRespVO> selectFrontlinePage(IPage<ServerFrontlineListItemRespVO> page,
+            @Param("name") String name, @Param("host") String host, @Param("lifecycleState") String lifecycleState,
+            @Param("regionCodes") Collection<String> regionCodes, @Param("serverType") String serverType);
+
+    /**
+     * 服务器运行时详情视图 (线路机 / 落地机共用): 单条同款 JOIN
+     *
+     * @param serverId 服务器编号
+     * @return 运行时详情视图 (不存在返 null)
+     */
+    ServerFrontlineListItemRespVO selectServerRuntimeDetail(@Param("serverId") String serverId);
 
     /** 切换生命周期; Wrapper 更新须显式 set updated_at. */
     default int updateLifecycleState(String id, String newState) {
