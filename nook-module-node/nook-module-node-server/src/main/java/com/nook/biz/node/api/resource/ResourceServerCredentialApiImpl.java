@@ -2,11 +2,11 @@ package com.nook.biz.node.api.resource;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
+import com.nook.biz.node.convert.resource.ResourceServerCredentialConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCredentialMapper;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.common.utils.collection.CollectionUtils;
-import com.nook.common.utils.object.BeanUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
@@ -29,13 +29,13 @@ public class ResourceServerCredentialApiImpl implements ResourceServerCredential
     @Override
     public ResourceServerCredentialRespDTO getByServerId(String serverId) {
         ResourceServerCredentialDO row = resourceServerCredentialService.getServerCredential(serverId);
-        return ObjectUtil.isNull(row) ? null : BeanUtils.toBean(row, ResourceServerCredentialRespDTO.class);
+        return ObjectUtil.isNull(row) ? null : ResourceServerCredentialConvert.INSTANCE.toRespDTO(row);
     }
 
     @Override
     public ResourceServerCredentialRespDTO requireByServerId(String serverId) {
-        return BeanUtils.toBean(resourceServerCredentialService.requireByServerId(serverId),
-                ResourceServerCredentialRespDTO.class);
+        return ResourceServerCredentialConvert.INSTANCE.toRespDTO(
+                resourceServerCredentialService.requireByServerId(serverId));
     }
 
     @Override
@@ -46,6 +46,6 @@ public class ResourceServerCredentialApiImpl implements ResourceServerCredential
         return CollectionUtils.convertMap(
                 resourceServerCredentialMapper.selectBatchIds(serverIds),
                 ResourceServerCredentialDO::getServerId,
-                row -> BeanUtils.toBean(row, ResourceServerCredentialRespDTO.class));
+                ResourceServerCredentialConvert.INSTANCE::toRespDTO);
     }
 }

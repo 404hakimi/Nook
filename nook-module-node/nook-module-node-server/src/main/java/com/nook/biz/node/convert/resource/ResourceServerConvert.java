@@ -1,5 +1,6 @@
 package com.nook.biz.node.convert.resource;
 
+import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.common.web.response.PageResult;
@@ -25,4 +26,8 @@ public interface ResourceServerConvert {
     default PageResult<ResourceServerRespVO> convertPage(PageResult<ResourceServerDO> page) {
         return PageResult.of(page.getTotal(), convertList(page.getRecords()));
     }
+
+    ResourceServerRespDTO toRespDTO(ResourceServerDO bean);
+
+    List<ResourceServerRespDTO> toRespDTOList(List<ResourceServerDO> list);
 }

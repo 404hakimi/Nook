@@ -3,10 +3,10 @@ package com.nook.biz.node.api.resource;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
+import com.nook.biz.node.convert.resource.ResourceServerRuntimeConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.common.utils.collection.CollectionUtils;
-import com.nook.common.utils.object.BeanUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
@@ -28,7 +28,7 @@ public class ResourceServerRuntimeApiImpl implements ResourceServerRuntimeApi {
     @Override
     public ResourceServerRuntimeRespDTO getByServerId(String serverId) {
         ResourceServerRuntimeDO row = resourceServerRuntimeMapper.selectById(serverId);
-        return ObjectUtil.isNull(row) ? null : BeanUtils.toBean(row, ResourceServerRuntimeRespDTO.class);
+        return ObjectUtil.isNull(row) ? null : ResourceServerRuntimeConvert.INSTANCE.toRespDTO(row);
     }
 
     @Override
@@ -39,7 +39,7 @@ public class ResourceServerRuntimeApiImpl implements ResourceServerRuntimeApi {
         return CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(serverIds),
                 ResourceServerRuntimeDO::getServerId,
-                row -> BeanUtils.toBean(row, ResourceServerRuntimeRespDTO.class));
+                ResourceServerRuntimeConvert.INSTANCE::toRespDTO);
     }
 
     @Override

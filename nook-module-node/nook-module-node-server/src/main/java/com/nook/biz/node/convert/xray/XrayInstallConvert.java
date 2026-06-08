@@ -1,6 +1,7 @@
 package com.nook.biz.node.convert.xray;
 
 import cn.hutool.core.util.ObjectUtil;
+import com.nook.biz.node.api.xray.dto.XrayInstallRespDTO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
 import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
@@ -20,6 +21,9 @@ public interface XrayInstallConvert {
     XrayInstallConvert INSTANCE = Mappers.getMapper(XrayInstallConvert.class);
 
     XrayInstallRespVO convert(XrayInstallDO entity);
+
+    /** Api 仅暴露 binary / apiPort / version (跨模块刚需); inbound 配置等模块私有, 不外发. */
+    XrayInstallRespDTO toRespDTO(XrayInstallDO entity);
 
     /** host 与 name 分两 map 注入 */
     static void fillServer(XrayInstallRespVO vo,

@@ -100,6 +100,8 @@ return Result.ok(someService.getSomePage(req));
 
 「暴露成 DTO」限**纯拼装** (调用方指定 id, 仅 join + map DO→DTO, 无业务判断); 若方法本身是**核心选择 / 计算** (选址、库存等), 即便出参是 DTO 也留核心类 (属下「核心编排」/ §8「多源聚合」), 不拆进 ApiImpl.
 
+**DO→DTO 转换一律走 Convert**: ApiImpl 只调 `XxxConvert.INSTANCE.toRespDTO(do)` / `toRespDTOList(list)`, **禁止**内联 `BeanUtils.toBean(do, Dto.class)` 或手写 `toDto(...)` —— 即便 1:1 全字段拷贝也走 Convert 方法 (转换集中可单测; 字段对不上时 MapStruct 编译期显式告警, 优于 `BeanUtils` 静默漏拷). 注: Service 里 `reqVO → DO` 的入参拷贝非对外转换, 仍可用 `BeanUtils`.
+
 ```java
 // ✅ Api 实现: 编排查询 (Service 返 DO) + Convert 拼对外 DTO
 @Override

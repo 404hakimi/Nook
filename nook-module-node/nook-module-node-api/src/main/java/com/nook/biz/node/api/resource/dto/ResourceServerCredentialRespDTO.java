@@ -13,9 +13,6 @@ public class ResourceServerCredentialRespDTO {
     /** 服务器编号. */
     private String serverId;
 
-    /** 连接地址. */
-    private String host;
-
     /** SSH 端口. */
     private Integer sshPort;
 
