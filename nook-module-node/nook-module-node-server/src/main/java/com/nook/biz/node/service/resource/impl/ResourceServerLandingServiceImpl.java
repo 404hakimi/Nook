@@ -13,6 +13,7 @@ import com.nook.biz.node.controller.resource.vo.landing.ServerLandingBillingUpda
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingQuotaUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingPageReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingListItemRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingSocks5UpdateReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
@@ -24,6 +25,7 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
+import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
@@ -41,7 +43,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * SOCKS5 落地节点 Service 实现类
@@ -177,21 +178,14 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     @Override
-    public PageResult<ResourceServerDO> getPage(ServerLandingPageReqVO reqVO) {
-        // 子表 (status / ipType) 过滤先拿候选 serverIds
-        Set<String> idIn = null;
-        if (StrUtil.isNotBlank(reqVO.getStatus()) || StrUtil.isNotBlank(reqVO.getIpTypeId())) {
-            List<ResourceServerLandingDO> rows = resourceServerLandingMapper.selectByFilter(reqVO.getStatus(), reqVO.getIpTypeId());
-            idIn = CollectionUtils.convertSet(rows, ResourceServerLandingDO::getServerId);
-            if (CollUtil.isEmpty(idIn)) {
-                return PageResult.empty();
-            }
-        }
-        // 账单到期升序 (空排末) → 创建倒序: 排序键在账面子表, 走 LEFT JOIN 在库里排 + 分页
-        IPage<ResourceServerDO> result = resourceServerMapper.selectLandingPageOrderByExpiry(
+    public PageResult<ServerLandingListItemRespVO> getLandingPage(ServerLandingPageReqVO reqVO) {
+        // 主表 + landing/billing/quota/runtime 连表按需出列表项; status/ipType 直接 JOIN landing 子表过滤
+        IPage<ServerLandingListItemRespVO> result = resourceServerMapper.selectLandingPage(
                 Page.of(reqVO.getPageNo(), reqVO.getPageSize()),
-                reqVO.getKeyword(), reqVO.getLifecycleState(), reqVO.getRegionCodes(),
-                idIn, ResourceServerTypeEnum.LANDING.getState());
+                reqVO.getKeyword(), reqVO.getLifecycleState(), reqVO.getStatus(), reqVO.getIpTypeId(),
+                reqVO.getRegionCodes(), ResourceServerTypeEnum.LANDING.getState());
+        LocalDateTime now = LocalDateTime.now();
+        result.getRecords().forEach(vo -> ResourceServerLandingConvert.fillOnlineState(vo, now));
         return PageResult.of(result.getTotal(), result.getRecords());
     }
 
@@ -265,27 +259,6 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         if (CollUtil.isEmpty(serverIds)) return Map.of();
         List<ResourceServerLandingDO> rows = resourceServerLandingMapper.selectBatchIds(serverIds);
         return CollectionUtils.convertMap(rows, ResourceServerLandingDO::getServerId);
-    }
-
-    @Override
-    public Map<String, ResourceServerBillingDO> getBillingMap(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) return Map.of();
-        return CollectionUtils.convertMap(
-                resourceServerBillingMapper.selectBatchIds(serverIds), ResourceServerBillingDO::getServerId);
-    }
-
-    @Override
-    public Map<String, ResourceServerQuotaDO> getQuotaMap(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) return Map.of();
-        return CollectionUtils.convertMap(
-                resourceServerQuotaMapper.selectBatchIds(serverIds), ResourceServerQuotaDO::getServerId);
-    }
-
-    @Override
-    public Map<String, ResourceServerRuntimeDO> getRuntimeMap(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) return Map.of();
-        return CollectionUtils.convertMap(
-                resourceServerRuntimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
     }
 
     @Override

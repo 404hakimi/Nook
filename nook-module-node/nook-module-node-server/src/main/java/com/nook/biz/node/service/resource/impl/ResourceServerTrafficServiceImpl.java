@@ -1,6 +1,5 @@
 package com.nook.biz.node.service.resource.impl;
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
@@ -10,7 +9,6 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
 import com.nook.biz.node.service.rules.ResourceServerRules;
 import com.nook.biz.node.service.resource.ResourceServerTrafficService;
-import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.unit.TrafficUnitUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -21,8 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Collection;
-import java.util.Map;
 
 /**
  * 服务器流量计量 Service 实现类
@@ -79,13 +75,6 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
     @Override
     public ResourceServerTrafficDO getCurrent(String serverId) {
         return resourceServerTrafficMapper.selectCurrentByServerId(serverId);
-    }
-
-    @Override
-    public Map<String, ResourceServerTrafficDO> getCurrentMap(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) return Map.of();
-        return CollectionUtils.convertMap(
-                resourceServerTrafficMapper.selectCurrentByServerIds(serverIds), ResourceServerTrafficDO::getServerId);
     }
 
     /** 建当周期首行(未入库, id 空); 周期起点按重置策略定, 基线由 accumulate 首见建立. */

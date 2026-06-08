@@ -7,6 +7,7 @@ import com.nook.biz.node.controller.resource.vo.landing.ServerLandingQuotaUpdate
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingDeployReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingInstallRespVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingListItemRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingPageReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingSocks5RespVO;
@@ -16,13 +17,11 @@ import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.Socks5TestReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.Socks5TestRespVO;
 import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.resource.ResourceServerLandingSocksOpsService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.resource.ResourceServerTrafficService;
-import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
@@ -41,7 +40,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 管理后台 - SOCKS5 落地节点 Controller
@@ -69,16 +67,8 @@ public class ResourceServerLandingController {
      * @return 落地节点分页
      */
     @GetMapping("/page-landing")
-    public Result<PageResult<ServerLandingRespVO>> getPage(@ModelAttribute ServerLandingPageReqVO reqVO) {
-        PageResult<ResourceServerDO> page = resourceServerLandingService.getPage(reqVO);
-        Set<String> ids = CollectionUtils.convertSet(page.getRecords(), ResourceServerDO::getId);
-        // 查询编排在本层, 各子表批量取出后交 Convert 拼 VO
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.convertPageWithSubtables(page,
-                resourceServerLandingService.getLandingMap(ids),
-                resourceServerLandingService.getBillingMap(ids),
-                resourceServerLandingService.getQuotaMap(ids),
-                resourceServerTrafficService.getCurrentMap(ids),
-                resourceServerLandingService.getRuntimeMap(ids)));
+    public Result<PageResult<ServerLandingListItemRespVO>> getPage(@ModelAttribute ServerLandingPageReqVO reqVO) {
+        return Result.ok(resourceServerLandingService.getLandingPage(reqVO));
     }
 
     /**

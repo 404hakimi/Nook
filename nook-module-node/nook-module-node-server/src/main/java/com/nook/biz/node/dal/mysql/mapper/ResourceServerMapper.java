@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingListItemRespVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -122,20 +123,21 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
     }
 
     /**
-     * 落地机分页, 按账单到期升序 (空排末) → 创建倒序
+     * 落地机分页: 连表 landing/billing/quota/runtime 出列表项视图, 按账单到期 (空排末) → 创建倒序
      *
      * @param page           分页参数
-     * @param name           名称模糊
+     * @param keyword        名称 / IP 模糊
      * @param lifecycleState 生命周期
+     * @param status         占用状态 (landing 子表)
+     * @param ipTypeId       IP 类型 (landing 子表)
      * @param regionCodes    区域码集合
-     * @param idIn           子表预过滤的 id 集合 (status / ipType)
      * @param serverType     机器类型
-     * @return 主表分页
+     * @return 列表项视图分页
      */
-    IPage<ResourceServerDO> selectLandingPageOrderByExpiry(IPage<ResourceServerDO> page,
-            @Param("name") String name, @Param("lifecycleState") String lifecycleState,
-            @Param("regionCodes") Collection<String> regionCodes, @Param("idIn") Collection<String> idIn,
-            @Param("serverType") String serverType);
+    IPage<ServerLandingListItemRespVO> selectLandingPage(IPage<ServerLandingListItemRespVO> page,
+            @Param("keyword") String keyword, @Param("lifecycleState") String lifecycleState,
+            @Param("status") String status, @Param("ipTypeId") String ipTypeId,
+            @Param("regionCodes") Collection<String> regionCodes, @Param("serverType") String serverType);
 
     /**
      * 线路机分页: 主表 LEFT JOIN 运行时 / 配额 / 当周期流量 / xray, 直接出列表项视图

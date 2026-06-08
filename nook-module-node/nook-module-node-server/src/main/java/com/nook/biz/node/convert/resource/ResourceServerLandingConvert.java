@@ -5,6 +5,7 @@ import com.nook.biz.node.controller.resource.vo.landing.ServerLandingBillingResp
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingQuotaRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingInstallRespVO;
 import com.nook.biz.agent.api.enums.AgentOnlineState;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingListItemRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingSocks5RespVO;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
@@ -14,7 +15,6 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
-import com.nook.common.web.response.PageResult;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
@@ -101,26 +101,12 @@ public interface ResourceServerLandingConvert {
         return vo;
     }
 
-    /** 列表聚合: 主表分页 + 子表 Map → 分页 RespVO */
-    default PageResult<ServerLandingRespVO> convertPageWithSubtables(
-            PageResult<ResourceServerDO> page,
-            Map<String, ResourceServerLandingDO> landingMap,
-            Map<String, ResourceServerBillingDO> billMap,
-            Map<String, ResourceServerQuotaDO> quotaMap,
-            Map<String, ResourceServerTrafficDO> trafficMap,
-            Map<String, ResourceServerRuntimeDO> runtimeMap) {
-        List<ResourceServerDO> records = page.getRecords();
-        List<ServerLandingRespVO> list = new ArrayList<>(records.size());
-        for (ResourceServerDO srv : records) {
-            ServerLandingRespVO vo = convert(srv);
-            enrichLanding(vo, ObjectUtil.isNull(landingMap) ? null : landingMap.get(srv.getId()));
-            enrichBilling(vo, ObjectUtil.isNull(billMap) ? null : billMap.get(srv.getId()));
-            enrichQuota(vo, ObjectUtil.isNull(quotaMap) ? null : quotaMap.get(srv.getId()),
-                    ObjectUtil.isNull(trafficMap) ? null : trafficMap.get(srv.getId()));
-            enrichRuntime(vo, ObjectUtil.isNull(runtimeMap) ? null : runtimeMap.get(srv.getId()));
-            list.add(vo);
-        }
-        return PageResult.of(page.getTotal(), list);
+    /** 回填落地机列表项 agent 在线态 (连表 SQL 只出原始字段). */
+    static void fillOnlineState(ServerLandingListItemRespVO vo, LocalDateTime now) {
+        Long elapsedSec = ObjectUtil.isNull(vo.getLastHeartbeatAt()) ? null
+                : Duration.between(vo.getLastHeartbeatAt(), now).getSeconds();
+        vo.setElapsedSec(elapsedSec);
+        vo.setOnlineState(AgentOnlineState.classify(elapsedSec).name());
     }
 
     static void enrichLanding(ServerLandingRespVO vo, ResourceServerLandingDO landing) {

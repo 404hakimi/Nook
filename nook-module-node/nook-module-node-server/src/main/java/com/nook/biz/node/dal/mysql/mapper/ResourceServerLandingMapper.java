@@ -67,13 +67,6 @@ public interface ResourceServerLandingMapper extends BaseMapper<ResourceServerLa
                 .last("LIMIT 1"));
     }
 
-    /** 按 status + ipTypeId 过滤拿候选 server_id (page 前置筛选用; 全空跳过). */
-    default List<ResourceServerLandingDO> selectByFilter(String status, String ipTypeId) {
-        return selectList(Wrappers.<ResourceServerLandingDO>lambdaQuery()
-                .eq(StrUtil.isNotBlank(status), ResourceServerLandingDO::getStatus, status)
-                .eq(StrUtil.isNotBlank(ipTypeId), ResourceServerLandingDO::getIpTypeId, ipTypeId));
-    }
-
     /** 指定 server 集合里某 IP 类型的落地子表. */
     default List<ResourceServerLandingDO> selectByServerIdsAndIpType(Collection<String> serverIds, String ipTypeId) {
         return selectList(Wrappers.<ResourceServerLandingDO>lambdaQuery()

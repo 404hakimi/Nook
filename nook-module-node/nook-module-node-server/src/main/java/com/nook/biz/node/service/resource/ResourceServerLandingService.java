@@ -3,6 +3,7 @@ package com.nook.biz.node.service.resource;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingBillingUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingQuotaUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingCoreUpdateReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingListItemRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingPageReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingSocks5UpdateReqVO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
@@ -105,12 +106,12 @@ public interface ResourceServerLandingService {
     ResourceServerRuntimeDO getRuntime(String id);
 
     /**
-     * 获得落地节点分页主表
+     * 落地机分页 (连表出按需列表项视图: 占用 / IP 类型 / socks5 / 账单到期 / 配额 / 在线态)
      *
      * @param reqVO 分页条件
-     * @return 主表分页
+     * @return 列表项视图分页
      */
-    PageResult<ResourceServerDO> getPage(ServerLandingPageReqVO reqVO);
+    PageResult<ServerLandingListItemRespVO> getLandingPage(ServerLandingPageReqVO reqVO);
 
     /**
      * 获得落地节点总览统计
@@ -150,30 +151,6 @@ public interface ResourceServerLandingService {
      * @return 落地节点编号 → 子表
      */
     Map<String, ResourceServerLandingDO> getLandingMap(Collection<String> serverIds);
-
-    /**
-     * 批量获得账面子表
-     *
-     * @param serverIds 落地节点编号集合
-     * @return 落地节点编号 → 账面
-     */
-    Map<String, ResourceServerBillingDO> getBillingMap(Collection<String> serverIds);
-
-    /**
-     * 批量获得配额子表
-     *
-     * @param serverIds 落地节点编号集合
-     * @return 落地节点编号 → 配额
-     */
-    Map<String, ResourceServerQuotaDO> getQuotaMap(Collection<String> serverIds);
-
-    /**
-     * 批量获得运行时子表
-     *
-     * @param serverIds 落地节点编号集合
-     * @return 落地节点编号 → 运行时
-     */
-    Map<String, ResourceServerRuntimeDO> getRuntimeMap(Collection<String> serverIds);
 
     /**
      * 切换落地机生命周期 (停用前置: 在用不可停)

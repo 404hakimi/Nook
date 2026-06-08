@@ -3,23 +3,29 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper">
 
-    <!-- 落地机分页: 按账单到期排序 (升序、空排末 → 创建倒序) -->
-    <select id="selectLandingPageOrderByExpiry"
-            resultType="com.nook.biz.node.dal.dataobject.resource.ResourceServerDO">
-        SELECT rs.*
+    <!-- 落地机分页: 主表 LEFT JOIN landing/billing/quota/runtime 按需出列表项视图, 按账单到期 (空排末) → 创建倒序 -->
+    <select id="selectLandingPage"
+            resultType="com.nook.biz.node.controller.resource.vo.landing.ServerLandingListItemRespVO">
+        SELECT rs.id, rs.ip_address, rs.region, rs.lifecycle_state,
+               l.status, l.ip_type_id, l.provision_mode, l.dante_version, l.installed_at,
+               l.socks5_port, l.socks5_username, l.socks5_password,
+               b.expires_at,
+               q.bandwidth_mbps, q.total_gb,
+               rt.agent_version, rt.last_heartbeat_at
           FROM resource_server rs
+          LEFT JOIN resource_server_landing l ON l.server_id = rs.id
           LEFT JOIN resource_server_billing b ON b.server_id = rs.id
+          LEFT JOIN resource_server_quota q ON q.server_id = rs.id
+          LEFT JOIN resource_server_runtime rt ON rt.server_id = rs.id
         <where>
             <if test="serverType != null and serverType != ''">AND rs.server_type = #{serverType}</if>
             <if test="lifecycleState != null and lifecycleState != ''">AND rs.lifecycle_state = #{lifecycleState}</if>
-            <if test="name != null and name != ''">AND rs.name LIKE CONCAT('%', #{name}, '%')</if>
+            <if test="status != null and status != ''">AND l.status = #{status}</if>
+            <if test="ipTypeId != null and ipTypeId != ''">AND l.ip_type_id = #{ipTypeId}</if>
+            <if test="keyword != null and keyword != ''">AND (rs.name LIKE CONCAT('%', #{keyword}, '%') OR rs.ip_address LIKE CONCAT('%', #{keyword}, '%'))</if>
             <if test="regionCodes != null and regionCodes.size() > 0">
                 AND rs.region IN
                 <foreach collection="regionCodes" item="r" open="(" separator="," close=")">#{r}</foreach>
-            </if>
-            <if test="idIn != null">
-                AND rs.id IN
-                <foreach collection="idIn" item="sid" open="(" separator="," close=")">#{sid}</foreach>
             </if>
         </where>
         ORDER BY ISNULL(b.expires_at), b.expires_at ASC, rs.created_at DESC
