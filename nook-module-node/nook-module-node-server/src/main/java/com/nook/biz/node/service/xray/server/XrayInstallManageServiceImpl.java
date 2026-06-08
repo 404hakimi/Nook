@@ -3,23 +3,23 @@ package com.nook.biz.node.service.xray.server;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
-import com.nook.biz.node.convert.xray.XrayServerConvert;
+import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
+import com.nook.biz.node.convert.xray.XrayInstallConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceServerService;
-import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
-import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
+import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
+import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
 import com.nook.biz.node.framework.cloudflare.CloudflareApiClient;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
-import com.nook.biz.node.service.xray.config.XrayConfigService;
-import com.nook.biz.node.service.xray.server.XrayServerService;
+import com.nook.biz.node.service.xray.config.XrayInboundService;
+import com.nook.biz.node.service.xray.server.XrayInstallService;
 import com.nook.biz.node.validator.ResourceServerValidator;
-import com.nook.biz.node.validator.XrayServerValidator;
+import com.nook.biz.node.validator.XrayInstallValidator;
 import com.nook.framework.web.StreamingEndpointSupport;
 import com.nook.framework.web.WebStreamingProperties;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
@@ -56,7 +56,7 @@ import java.util.function.Consumer;
  */
 @Slf4j
 @Service
-public class XrayServerManageServiceImpl implements XrayServerManageService {
+public class XrayInstallManageServiceImpl implements XrayInstallManageService {
 
     @Resource
     private RemoteScriptRunner remoteScriptRunner;
@@ -67,11 +67,11 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     @Resource
     private XrayDaemonProbe xrayDaemonProbe;
     @Resource
-    private XrayServerService xrayServerService;
+    private XrayInstallService xrayInstallService;
     @Resource
-    private XrayConfigService xrayConfigService;
+    private XrayInboundService xrayInboundService;
     @Resource
-    private XrayServerValidator xrayServerValidator;
+    private XrayInstallValidator xrayInstallValidator;
     @Resource
     private OpOrchestrator opOrchestrator;
     @Resource
@@ -93,10 +93,10 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     private TransactionTemplate transactionTemplate;
 
     @Override
-    public void installStreaming(String serverId, XrayServerInstallReqVO reqVO, Consumer<String> lineSink) {
+    public void installStreaming(String serverId, XrayInstallReqVO reqVO, Consumer<String> lineSink) {
         // fail-fast 校验全交给 validator 层 (跨字段 + 跟现有客户冲突)
-        xrayServerValidator.validateInstallReq(reqVO);
-        xrayServerValidator.validateAgainstActiveClients(serverId, reqVO);
+        xrayInstallValidator.validateInstallReq(reqVO);
+        xrayInstallValidator.validateAgainstActiveClients(serverId, reqVO);
         boolean useTls = Boolean.TRUE.equals(reqVO.getUseTls());
 
         // 部署前加 A 记录: 仅走域名路径需要; 失败不阻断, 用户可手动在 CF 面板加
@@ -133,7 +133,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
                     + reqVO.getXrayVersion() + ")\n");
         }
 
-        // 部署完成 → 同事务写 xray_server + xray_config (两表 1:1)
+        // 部署完成 → 同事务写 xray_install + xray_inbound (两表 1:1)
         // 用 TransactionTemplate 而非 @Transactional self-invocation, 避免 AOP 代理失效
         try {
             transactionTemplate.executeWithoutResult(txStatus -> persistDeployment(serverId, reqVO, resolvedVersion, useTls));
@@ -147,21 +147,21 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     }
 
     /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. */
-    private void persistDeployment(String serverId, XrayServerInstallReqVO r, String resolvedVersion, boolean useTls) {
-        XrayServerDO srv = new XrayServerDO();
+    private void persistDeployment(String serverId, XrayInstallReqVO r, String resolvedVersion, boolean useTls) {
+        XrayInstallDO srv = new XrayInstallDO();
         srv.setServerId(serverId);
         srv.setXrayVersion(resolvedVersion);
         srv.setXrayApiPort(r.getXrayApiPort());
         srv.setXrayInstallDir(r.getInstallDir());
         srv.setXrayBinaryPath(r.getXrayBinaryPath());
-        srv.setXrayConfigPath(r.getXrayConfigPath());
+        srv.setXrayInboundPath(r.getXrayInboundPath());
         srv.setXrayShareDir(r.getXrayShareDir());
         srv.setXrayLogDir(r.getLogDir());
         srv.setXraySystemdUnitPath(r.getXraySystemdUnitPath());
         srv.setInstalledAt(LocalDateTime.now());
-        xrayServerService.upsert(srv);
+        xrayInstallService.upsert(srv);
 
-        XrayConfigDO cfg = new XrayConfigDO();
+        XrayInboundDO cfg = new XrayInboundDO();
         cfg.setServerId(serverId);
         cfg.setProtocol(r.getProtocol());
         cfg.setTransport(r.getTransport());
@@ -172,7 +172,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         cfg.setDomain(useTls ? r.getDomain() : null);
         cfg.setTlsCertPath(useTls ? r.getTlsCertPath() : null);
         cfg.setTlsKeyPath(useTls ? r.getTlsKeyPath() : null);
-        xrayConfigService.upsert(cfg);
+        xrayInboundService.upsert(cfg);
     }
 
     @Override
@@ -189,7 +189,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     public ServiceLogRespVO getXrayLogFile(String serverId, String variant, Integer lines, String keyword) {
         // variant 限定白名单: access / error; 防前端瞎传, 也兼任路径拼装
         String safeVariant = "error".equalsIgnoreCase(variant) ? "error" : "access";
-        XrayServerDO server = xrayServerValidator.validateExists(serverId);
+        XrayInstallDO server = xrayInstallValidator.validateExists(serverId);
         if (StrUtil.isBlank(server.getXrayLogDir())) {
             // 没填 logDir 时返回空日志, 不抛错 (前端能识别空状态)
             ServiceLogRespVO empty = new ServiceLogRespVO();
@@ -231,7 +231,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
      * <p>必装: 00-prepare-env / 50-xray / 99-finalize.
      * 可选: 10-timezone (setTimezone=true) / 40-ufw (installUfw=true) / 45-acme-tls (useTls=true).
      */
-    private String assembleInstallScript(XrayServerInstallReqVO r, Map<String, String> vars) {
+    private String assembleInstallScript(XrayInstallReqVO r, Map<String, String> vars) {
         List<ScriptModule> modules = new ArrayList<>();
         modules.add(NookScripts.MODULE_PREPARE_ENV);
         if (Boolean.TRUE.equals(r.getSetTimezone())) modules.add(NookScripts.MODULE_TIMEZONE);
@@ -248,7 +248,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     /**
      * 部署模板渲染变量表; reqVO 字段已被 jakarta @Valid 校验, 这里只做拆箱 + 转 string, 零派生.
      */
-    private Map<String, String> buildInstallVars(String serverId, XrayServerInstallReqVO r) {
+    private Map<String, String> buildInstallVars(String serverId, XrayInstallReqVO r) {
         boolean useTls = Boolean.TRUE.equals(r.getUseTls());
         Map<String, String> vars = new LinkedHashMap<>();
         vars.put("SERVER_NAME", StrUtil.blankToDefault(serverId, "<unset>"));
@@ -266,7 +266,7 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
         vars.put("SHARED_INBOUND_PORT", String.valueOf(r.getSharedInboundPort()));
         vars.put("WS_PATH", r.getWsPath());
         vars.put("XRAY_BINARY_PATH",       r.getXrayBinaryPath());
-        vars.put("XRAY_CONFIG_PATH",       r.getXrayConfigPath());
+        vars.put("XRAY_CONFIG_PATH",       r.getXrayInboundPath());
         vars.put("XRAY_SHARE_DIR",         r.getXrayShareDir());
         vars.put("XRAY_SYSTEMD_UNIT_PATH", r.getXraySystemdUnitPath());
         vars.put("USE_TLS", String.valueOf(useTls));
@@ -278,18 +278,18 @@ public class XrayServerManageServiceImpl implements XrayServerManageService {
     }
 
     @Override
-    public XrayServerRespVO getXrayServerDetail(String serverId) {
-        XrayServerDO entity = xrayServerValidator.validateExists(serverId);
-        XrayServerRespVO vo = XrayServerConvert.INSTANCE.convert(entity);
+    public XrayInstallRespVO getXrayInstallDetail(String serverId) {
+        XrayInstallDO entity = xrayInstallValidator.validateExists(serverId);
+        XrayInstallRespVO vo = XrayInstallConvert.INSTANCE.convert(entity);
         Set<String> ids = Set.of(serverId);
         Map<String, ResourceServerDO> serverMap = resourceServerService.getServerMap(ids);
         Map<String, String> hostMap = resourceServerService.getIpAddressMap(ids);
-        XrayServerConvert.fillServer(vo, serverMap, hostMap);
+        XrayInstallConvert.fillServer(vo, serverMap, hostMap);
         return vo;
     }
 
     @Override
-    public ResponseBodyEmitter installXrayStream(String serverId, XrayServerInstallReqVO reqVO) {
+    public ResponseBodyEmitter installXrayStream(String serverId, XrayInstallReqVO reqVO) {
         resourceServerValidator.validateExists(serverId);
         int installTimeout = resourceServerCredentialService.requireByServerId(serverId).getInstallTimeoutSeconds();
         Duration emitterTimeout = Duration.ofSeconds(installTimeout)

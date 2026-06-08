@@ -1,10 +1,10 @@
 package com.nook.biz.node.controller.xray;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.controller.xray.vo.XrayConfigRespVO;
-import com.nook.biz.node.convert.xray.XrayConfigConvert;
-import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
-import com.nook.biz.node.service.xray.config.XrayConfigService;
+import com.nook.biz.node.controller.xray.vo.XrayInboundRespVO;
+import com.nook.biz.node.convert.xray.XrayInboundConvert;
+import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
+import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -19,12 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
  * @author nook
  */
 @RestController
-@RequestMapping("/admin/xray/config")
+@RequestMapping("/admin/xray/inbound")
 @Validated
-public class XrayConfigController {
+public class XrayInboundController {
 
     @Resource
-    private XrayConfigService xrayConfigService;
+    private XrayInboundService xrayInboundService;
 
     /**
      * 获得 inbound 共享配置 (未装机时返 null)
@@ -33,11 +33,11 @@ public class XrayConfigController {
      * @return inbound 共享配置
      */
     @GetMapping("/get-xray-config")
-    public Result<XrayConfigRespVO> getXrayConfig(@RequestParam("serverId") String serverId) {
-        XrayConfigDO entity = xrayConfigService.get(serverId);
+    public Result<XrayInboundRespVO> getXrayInbound(@RequestParam("serverId") String serverId) {
+        XrayInboundDO entity = xrayInboundService.get(serverId);
         if (ObjectUtil.isNull(entity)) {
             return Result.ok(null);
         }
-        return Result.ok(XrayConfigConvert.INSTANCE.convert(entity));
+        return Result.ok(XrayInboundConvert.INSTANCE.convert(entity));
     }
 }

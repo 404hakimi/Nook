@@ -2,14 +2,14 @@
 import { onMounted, ref, watch } from 'vue'
 import { Activity, Calendar, FileText, FolderOpen, Info, Lock, Network, Rocket, RotateCcw } from 'lucide-vue-next'
 import { NAlert, NButton, NCard, NDescriptions, NDescriptionsItem, NIcon, NSpin, NTag, useDialog, useMessage } from 'naive-ui'
-import { getXrayServer, type XrayServer } from '@/api/xray/xray-server'
-import { getXrayConfig, type XrayConfig } from '@/api/xray/xray-config'
+import { getXrayInstall, type XrayInstall } from '@/api/xray/xray-server'
+import { getXrayInbound, type XrayInbound } from '@/api/xray/xray-config'
 import { xrayRestart } from '@/api/xray/server'
 import type { ServerFrontlineListItem } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
-import XrayServerInstallInfoDialog from '@/views/xray/XrayServerInstallInfoDialog.vue'
-import XrayServerStatusDialog from '@/views/xray/XrayServerStatusDialog.vue'
-import XrayServerLogDialog from '@/views/xray/XrayServerLogDialog.vue'
+import XrayInstallInstallInfoDialog from '@/views/xray/XrayInstallInstallInfoDialog.vue'
+import XrayInstallStatusDialog from '@/views/xray/XrayInstallStatusDialog.vue'
+import XrayInstallLogDialog from '@/views/xray/XrayInstallLogDialog.vue'
 import ServerInstallDialog from '@/views/resource/ServerInstallDialog.vue'
 
 const props = defineProps<{
@@ -21,19 +21,19 @@ const props = defineProps<{
 const message = useMessage()
 const dialog = useDialog()
 
-const server = ref<XrayServer | null>(null)
-const config = ref<XrayConfig | null>(null)
+const server = ref<XrayInstall | null>(null)
+const config = ref<XrayInbound | null>(null)
 const loading = ref(false)
 
 async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    // 并发拉 xray_server + xray_config; xray_server 不存在 → 进 "未装" 分支; xray_config 缺失独立兜 null.
+    // 并发拉 xray_install + xray_inbound; xray_install 不存在 → 进 "未装" 分支; xray_inbound 缺失独立兜 null.
     // resource_server (id/name) 给装机 dialog 用, 不再独立拉, 走父组件 agentInfo prop.
     const [srv, cfg] = await Promise.all([
-      getXrayServer(props.serverId).catch(() => null),
-      getXrayConfig(props.serverId).catch(() => null)
+      getXrayInstall(props.serverId).catch(() => null),
+      getXrayInbound(props.serverId).catch(() => null)
     ])
     server.value = srv
     config.value = cfg
@@ -108,7 +108,7 @@ function onRestart() {
         </NButton>
       </div>
 
-      <!-- === Section 1: 运行参数 (xray_server 元数据 + xray_config inbound) === -->
+      <!-- === Section 1: 运行参数 (xray_install 元数据 + xray_inbound inbound) === -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
           <div class="section-header">
@@ -164,7 +164,7 @@ function onRestart() {
         </NDescriptions>
       </NCard>
 
-      <!-- === Section 3: 文件路径 (xray_server) === -->
+      <!-- === Section 3: 文件路径 (xray_install) === -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
           <div class="section-header">
@@ -178,7 +178,7 @@ function onRestart() {
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="config">
-            <code v-if="server.xrayConfigPath" class="kbd">{{ server.xrayConfigPath }}</code>
+            <code v-if="server.xrayInboundPath" class="kbd">{{ server.xrayInboundPath }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="share 目录">
@@ -212,9 +212,9 @@ function onRestart() {
         </NDescriptions>
       </NCard>
 
-      <XrayServerInstallInfoDialog v-model="installInfoOpen" :server="server" :config="config" />
-      <XrayServerStatusDialog v-model="statusOpen" :server="server" />
-      <XrayServerLogDialog v-model="logOpen" :server="server" />
+      <XrayInstallInstallInfoDialog v-model="installInfoOpen" :server="server" :config="config" />
+      <XrayInstallStatusDialog v-model="statusOpen" :server="server" />
+      <XrayInstallLogDialog v-model="logOpen" :server="server" />
     </div>
 
     <ServerInstallDialog

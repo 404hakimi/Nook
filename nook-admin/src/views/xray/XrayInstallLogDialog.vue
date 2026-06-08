@@ -20,14 +20,14 @@ import {
   type XrayLogFileVariant,
   type XrayLogLevel
 } from '@/api/xray/server'
-import type { XrayServer } from '@/api/xray/xray-server'
+import type { XrayInstall } from '@/api/xray/xray-server'
 
 /** 日志源切换: file (xray 自己的 access/error.log, 默认) vs journal (systemctl 启停 / 启动报错). */
 type LogSource = 'file' | 'journal'
 
 interface Props {
   modelValue: boolean
-  server?: XrayServer | null
+  server?: XrayInstall | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{

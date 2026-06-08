@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { NDescriptions, NDescriptionsItem, NModal, NSpace, NButton, NTag } from 'naive-ui'
-import type { XrayServer } from '@/api/xray/xray-server'
-import type { XrayConfig } from '@/api/xray/xray-config'
+import type { XrayInstall } from '@/api/xray/xray-server'
+import type { XrayInbound } from '@/api/xray/xray-config'
 import { formatDateTime } from '@/utils/date'
 
 interface Props {
   modelValue: boolean
-  server?: XrayServer | null
-  config?: XrayConfig | null
+  server?: XrayInstall | null
+  config?: XrayInbound | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -16,7 +16,7 @@ const emit = defineEmits<{
 }>()
 
 /**
- * 全部路径来自后端 RespVO 字段: xray_binary_path / xray_config_path / xray_share_dir / xray_log_dir
+ * 全部路径来自后端 RespVO 字段: xray_binary_path / xray_inbound_path / xray_share_dir / xray_log_dir
  * 由装机流程落库, systemd_unit_path 是后端常量回填.
  */
 const installPaths = computed(() => {
@@ -25,7 +25,7 @@ const installPaths = computed(() => {
   const logSuffix = '{access,error}.log'
   const rows = [
     { label: '二进制包', value: s.xrayBinaryPath },
-    { label: 'config', value: s.xrayConfigPath },
+    { label: 'config', value: s.xrayInboundPath },
     { label: 'share', value: s.xrayShareDir },
     { label: 'log', value: s.xrayLogDir ? `${s.xrayLogDir.replace(/\/+$/, '')}/${logSuffix}` : '' },
     { label: 'systemd', value: s.xraySystemdUnitPath }
@@ -60,7 +60,7 @@ function close() {
     </template>
 
     <div v-if="server" class="space-y-4">
-      <!-- 实例元数据 (xray_server) -->
+      <!-- 实例元数据 (xray_install) -->
       <NDescriptions
         :column="2"
         size="small"
@@ -88,7 +88,7 @@ function close() {
         </NDescriptionsItem>
       </NDescriptions>
 
-      <!-- 安装路径 (xray_server) -->
+      <!-- 安装路径 (xray_install) -->
       <div>
         <div class="text-xs font-semibold text-zinc-500 mb-2">安装路径</div>
         <div class="rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/40 p-3 grid grid-cols-1 gap-y-1">
@@ -106,7 +106,7 @@ function close() {
         </div>
       </div>
 
-      <!-- TLS / 域名 (xray_config, 走域名时才显示) -->
+      <!-- TLS / 域名 (xray_inbound, 走域名时才显示) -->
       <div v-if="hasTls && config">
         <div class="text-xs font-semibold text-zinc-500 mb-2">TLS / 域名</div>
         <NDescriptions :column="1" size="small" bordered label-placement="left" label-align="left">
@@ -122,7 +122,7 @@ function close() {
         </NDescriptions>
       </div>
 
-      <!-- 时间戳 (xray_server) -->
+      <!-- 时间戳 (xray_install) -->
       <NDescriptions :column="1" size="small" bordered label-placement="left" label-align="left">
         <NDescriptionsItem label="最近一次部署">
           <span class="text-xs">{{ server.installedAt ? formatDateTime(server.installedAt) : '-' }}</span>

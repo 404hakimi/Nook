@@ -163,7 +163,7 @@ function afterEdit() { load(); emit('refresh') }
               删除 server
             </NButton>
           </template>
-          软删主记录, 保留 xray_server / xray_config / op_log 历史, 不可撤销.
+          软删主记录, 保留 xray_install / xray_inbound / op_log 历史, 不可撤销.
         </NPopconfirm>
       </div>
 

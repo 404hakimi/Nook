@@ -1,8 +1,8 @@
 package com.nook.biz.node.service.xray.server;
 
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
+import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.function.Consumer;
@@ -12,7 +12,7 @@ import java.util.function.Consumer;
  *
  * @author nook
  */
-public interface XrayServerManageService {
+public interface XrayInstallManageService {
 
     /**
      * 流式装机 / 重装 xray
@@ -21,7 +21,7 @@ public interface XrayServerManageService {
      * @param reqVO    装机入参
      * @param lineSink 每行 stdout 的消费回调
      */
-    void installStreaming(String serverId, XrayServerInstallReqVO reqVO, Consumer<String> lineSink);
+    void installStreaming(String serverId, XrayInstallReqVO reqVO, Consumer<String> lineSink);
 
     /**
      * 重启 xray 服务
@@ -57,7 +57,7 @@ public interface XrayServerManageService {
      * @param serverId 服务器编号
      * @return xray 实例详情 VO
      */
-    XrayServerRespVO getXrayServerDetail(String serverId);
+    XrayInstallRespVO getXrayInstallDetail(String serverId);
 
     /**
      * 流式装机 / 重装 xray
@@ -66,5 +66,5 @@ public interface XrayServerManageService {
      * @param reqVO    装机入参
      * @return 流式响应
      */
-    ResponseBodyEmitter installXrayStream(String serverId, XrayServerInstallReqVO reqVO);
+    ResponseBodyEmitter installXrayStream(String serverId, XrayInstallReqVO reqVO);
 }

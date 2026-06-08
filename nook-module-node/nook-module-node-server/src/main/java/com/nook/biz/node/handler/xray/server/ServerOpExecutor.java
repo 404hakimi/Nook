@@ -1,9 +1,9 @@
 package com.nook.biz.node.handler.xray.server;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
+import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
-import com.nook.biz.node.validator.XrayServerValidator;
+import com.nook.biz.node.validator.XrayInstallValidator;
 import com.nook.biz.operation.api.OpProgressSink;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 /**
  * Xray 服务器操作执行体 (操作队列处理器调本类干活).
  *
- * <p>从 XrayServerManageServiceImpl 拆出来; service 只留对 controller 的入队接口.
+ * <p>从 XrayInstallManageServiceImpl 拆出来; service 只留对 controller 的入队接口.
  * 包级私有, 防跨包绕过队列直接调用.
  *
  * <p>这里是 xray 守护进程级命令式操作 (重启 / 开机自启), 刻意保留后端 SSH 下发: 它们不是 xray
@@ -31,12 +31,12 @@ public class ServerOpExecutor {
     @Resource
     private XrayDaemonProbe xrayDaemonProbe;
     @Resource
-    private XrayServerValidator xrayServerValidator;
+    private XrayInstallValidator xrayInstallValidator;
 
     /** XRAY_RESTART 实际执行体. */
     String doRestart(String serverId, OpProgressSink progress) {
         OpProgressSink sink = ObjectUtil.isNull(progress) ? OpProgressSink.noop() : progress;
-        XrayServerDO server = xrayServerValidator.validateExists(serverId);
+        XrayInstallDO server = xrayInstallValidator.validateExists(serverId);
         sink.report("连接服务器", 40);
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
         sink.report("重启 Xray 服务", 60);

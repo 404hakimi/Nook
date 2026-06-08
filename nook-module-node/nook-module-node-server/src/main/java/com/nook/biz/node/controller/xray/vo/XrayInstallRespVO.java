@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * @author nook
  */
 @Data
-public class XrayServerRespVO {
+public class XrayInstallRespVO {
 
     /** 服务器编号 (线路机). */
     private String serverId;
@@ -35,7 +35,7 @@ public class XrayServerRespVO {
     private String xrayBinaryPath;
 
     /** xray config.json 绝对路径; 装机时落库. */
-    private String xrayConfigPath;
+    private String xrayInboundPath;
 
     /** xray share 目录 (geo*.dat); 装机时落库. */
     private String xrayShareDir;

@@ -1,8 +1,8 @@
 package com.nook.biz.node.convert.xray;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
-import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
+import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
+import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.factory.Mappers;
@@ -15,14 +15,14 @@ import java.util.Map;
  * @author nook
  */
 @Mapper
-public interface XrayServerConvert {
+public interface XrayInstallConvert {
 
-    XrayServerConvert INSTANCE = Mappers.getMapper(XrayServerConvert.class);
+    XrayInstallConvert INSTANCE = Mappers.getMapper(XrayInstallConvert.class);
 
-    XrayServerRespVO convert(XrayServerDO entity);
+    XrayInstallRespVO convert(XrayInstallDO entity);
 
     /** host 与 name 分两 map 注入 */
-    static void fillServer(XrayServerRespVO vo,
+    static void fillServer(XrayInstallRespVO vo,
                            Map<String, ResourceServerDO> serverMap,
                            Map<String, String> hostMap) {
         if (ObjectUtil.isNull(vo)) return;

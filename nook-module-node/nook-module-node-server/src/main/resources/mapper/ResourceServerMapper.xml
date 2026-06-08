@@ -42,7 +42,7 @@
           LEFT JOIN resource_server_runtime rt ON rt.server_id = rs.id
           LEFT JOIN resource_server_quota q ON q.server_id = rs.id
           LEFT JOIN resource_server_traffic t ON t.server_id = rs.id AND t.end_time IS NULL
-          LEFT JOIN xray_server x ON x.server_id = rs.id
+          LEFT JOIN xray_install x ON x.server_id = rs.id
     </sql>
 
     <!-- 线路机分页: 连表出列表项视图, 按创建倒序 -->

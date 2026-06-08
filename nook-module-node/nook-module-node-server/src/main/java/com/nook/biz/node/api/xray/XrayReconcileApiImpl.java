@@ -3,12 +3,12 @@ package com.nook.biz.node.api.xray;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
-import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
+import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerLandingDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerLandingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
-import com.nook.biz.node.dal.mysql.mapper.XrayConfigMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayInboundMapper;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
@@ -37,7 +37,7 @@ import java.util.Set;
 public class XrayReconcileApiImpl implements XrayReconcileApi {
 
     @Resource
-    private XrayConfigMapper xrayConfigMapper;
+    private XrayInboundMapper xrayInboundMapper;
     @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
@@ -54,7 +54,7 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
     @Override
     public List<XrayReconcileClientDTO> getDesiredClients(String serverId) {
         // 该线路机未装 xray (无共享 inbound 配置) → 没有任何接入点能挂上去, 直接空
-        XrayConfigDO cfg = xrayConfigMapper.selectById(serverId);
+        XrayInboundDO cfg = xrayInboundMapper.selectById(serverId);
         if (ObjectUtil.isNull(cfg)) {
             return List.of();
         }

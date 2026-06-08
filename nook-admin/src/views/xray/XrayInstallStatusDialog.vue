@@ -18,14 +18,14 @@ import {
   xrayAutostart,
   type SystemdStatus
 } from '@/api/xray/server'
-import type { XrayServer } from '@/api/xray/xray-server'
+import type { XrayInstall } from '@/api/xray/xray-server'
 
 /** Xray 走公共 systemd 接口的固定 unit 名. */
 const XRAY_UNIT = 'xray'
 
 interface Props {
   modelValue: boolean
-  server?: XrayServer | null
+  server?: XrayInstall | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{

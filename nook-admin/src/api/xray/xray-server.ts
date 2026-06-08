@@ -1,7 +1,7 @@
 import request from '@/api/request'
 
 /** Xray 实例元数据 (装机契约 / 部署事实); 跟 resource_server 1:1 */
-export interface XrayServer {
+export interface XrayInstall {
   serverId: string
   /** 服务器别名 (后端 enrich) */
   serverName?: string
@@ -13,7 +13,7 @@ export interface XrayServer {
   /** xray binary 绝对路径; 装机时落库 */
   xrayBinaryPath?: string
   /** xray config.json 绝对路径; 装机时落库 */
-  xrayConfigPath?: string
+  xrayInboundPath?: string
   /** xray share 目录 (geo*.dat); 装机时落库 */
   xrayShareDir?: string
   xrayLogDir?: string
@@ -28,6 +28,6 @@ export interface XrayServer {
 }
 
 /** 按 serverId 取 xray 实例元数据 (server detail tab 用); 不存在抛 SERVER_STATE_NOT_FOUND */
-export function getXrayServer(serverId: string) {
-  return request.get<unknown, XrayServer>('/admin/xray/server/get-xray-server', { params: { serverId } })
+export function getXrayInstall(serverId: string) {
+  return request.get<unknown, XrayInstall>('/admin/xray/install/get-xray-server', { params: { serverId } })
 }

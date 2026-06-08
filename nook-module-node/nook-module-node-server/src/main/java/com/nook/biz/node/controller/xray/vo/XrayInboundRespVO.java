@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * @author nook
  */
 @Data
-public class XrayConfigRespVO {
+public class XrayInboundRespVO {
 
     /** 服务器编号. */
     private String serverId;

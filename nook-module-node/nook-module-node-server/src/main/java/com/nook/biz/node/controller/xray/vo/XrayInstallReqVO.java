@@ -14,7 +14,7 @@ import lombok.Data;
  * @author nook
  */
 @Data
-public class XrayServerInstallReqVO {
+public class XrayInstallReqVO {
 
     /** xray 内置 api server 端口 (loopback). */
     @NotNull(message = "xrayApiPort 必填")
@@ -34,17 +34,17 @@ public class XrayServerInstallReqVO {
     @Size(max = 255)
     private String installDir;
 
-    /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray, 落到 xray_server.xrayBinaryPath. */
+    /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray, 落到 xray_install.xrayBinaryPath. */
     @NotBlank(message = "xrayBinaryPath 必填")
     @Pattern(regexp = "^/.+", message = "xrayBinaryPath 必须是绝对路径")
     @Size(max = 255)
     private String xrayBinaryPath;
 
     /** xray config.json 绝对路径; 前端默认 <installDir>/etc/xray/config.json. */
-    @NotBlank(message = "xrayConfigPath 必填")
-    @Pattern(regexp = "^/.+", message = "xrayConfigPath 必须是绝对路径")
+    @NotBlank(message = "xrayInboundPath 必填")
+    @Pattern(regexp = "^/.+", message = "xrayInboundPath 必须是绝对路径")
     @Size(max = 255)
-    private String xrayConfigPath;
+    private String xrayInboundPath;
 
     /** xray share 目录 (geo*.dat); 前端默认 <installDir>/share/xray. */
     @NotBlank(message = "xrayShareDir 必填")

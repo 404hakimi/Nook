@@ -2,9 +2,9 @@ package com.nook.biz.node.api.xray;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.api.xray.dto.XrayServerRespDTO;
-import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
-import com.nook.biz.node.dal.mysql.mapper.XrayServerMapper;
+import com.nook.biz.node.api.xray.dto.XrayInstallRespDTO;
+import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
+import com.nook.biz.node.dal.mysql.mapper.XrayInstallMapper;
 import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -18,29 +18,29 @@ import java.util.Map;
  * @author nook
  */
 @Service
-public class XrayServerApiImpl implements XrayServerApi {
+public class XrayInstallApiImpl implements XrayInstallApi {
 
     @Resource
-    private XrayServerMapper xrayServerMapper;
+    private XrayInstallMapper xrayInstallMapper;
 
     @Override
-    public XrayServerRespDTO getByServerId(String serverId) {
-        XrayServerDO row = xrayServerMapper.selectById(serverId);
+    public XrayInstallRespDTO getByServerId(String serverId) {
+        XrayInstallDO row = xrayInstallMapper.selectById(serverId);
         return ObjectUtil.isNull(row) ? null : toDto(row);
     }
 
     @Override
-    public Map<String, XrayServerRespDTO> listByServerIds(Collection<String> serverIds) {
+    public Map<String, XrayInstallRespDTO> listByServerIds(Collection<String> serverIds) {
         if (CollUtil.isEmpty(serverIds)) {
             return Map.of();
         }
         return CollectionUtils.convertMap(
-                xrayServerMapper.selectBatchIds(serverIds), XrayServerDO::getServerId, XrayServerApiImpl::toDto);
+                xrayInstallMapper.selectBatchIds(serverIds), XrayInstallDO::getServerId, XrayInstallApiImpl::toDto);
     }
 
     /** Api 仅暴露 binary / apiPort / version (跨模块刚需); inbound 配置等模块私有, 不外发 */
-    private static XrayServerRespDTO toDto(XrayServerDO row) {
-        XrayServerRespDTO dto = new XrayServerRespDTO();
+    private static XrayInstallRespDTO toDto(XrayInstallDO row) {
+        XrayInstallRespDTO dto = new XrayInstallRespDTO();
         dto.setServerId(row.getServerId());
         dto.setXrayBinaryPath(row.getXrayBinaryPath());
         dto.setXrayApiPort(row.getXrayApiPort());

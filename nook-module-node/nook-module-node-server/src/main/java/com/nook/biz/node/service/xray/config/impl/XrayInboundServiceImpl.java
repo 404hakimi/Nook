@@ -1,9 +1,9 @@
 package com.nook.biz.node.service.xray.config.impl;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
-import com.nook.biz.node.dal.mysql.mapper.XrayConfigMapper;
-import com.nook.biz.node.service.xray.config.XrayConfigService;
+import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
+import com.nook.biz.node.dal.mysql.mapper.XrayInboundMapper;
+import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -20,35 +20,35 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-public class XrayConfigServiceImpl implements XrayConfigService {
+public class XrayInboundServiceImpl implements XrayInboundService {
 
     @Resource
-    private XrayConfigMapper xrayConfigMapper;
+    private XrayInboundMapper xrayInboundMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void upsert(XrayConfigDO entity) {
-        XrayConfigDO existing = xrayConfigMapper.selectById(entity.getServerId());
+    public void upsert(XrayInboundDO entity) {
+        XrayInboundDO existing = xrayInboundMapper.selectById(entity.getServerId());
         if (ObjectUtil.isNull(existing)) {
-            xrayConfigMapper.insert(entity);
+            xrayInboundMapper.insert(entity);
         } else {
-            xrayConfigMapper.updateById(entity);
+            xrayInboundMapper.updateById(entity);
         }
         log.info("[xray-config] upsert server={} protocol={} port={} domain={}",
                 entity.getServerId(), entity.getProtocol(), entity.getSharedInboundPort(), entity.getDomain());
     }
 
     @Override
-    public XrayConfigDO get(String serverId) {
-        return xrayConfigMapper.selectById(serverId);
+    public XrayInboundDO get(String serverId) {
+        return xrayInboundMapper.selectById(serverId);
     }
 
     @Override
-    public Map<String, XrayConfigDO> listByServerIds(Collection<String> serverIds) {
+    public Map<String, XrayInboundDO> listByServerIds(Collection<String> serverIds) {
         if (CollectionUtils.isAnyEmpty(serverIds)) {
             return Map.of();
         }
         return CollectionUtils.convertMap(
-                xrayConfigMapper.selectBatchIds(serverIds), XrayConfigDO::getServerId);
+                xrayInboundMapper.selectBatchIds(serverIds), XrayInboundDO::getServerId);
     }
 }

@@ -1,7 +1,7 @@
 import request from '@/api/request'
 
 /** Xray inbound 共享配置 (业务可热改); 跟 resource_server 1:1 */
-export interface XrayConfig {
+export interface XrayInbound {
   serverId: string
   /** 共享 inbound 协议 (vmess/trojan/...) */
   protocol?: string
@@ -22,6 +22,6 @@ export interface XrayConfig {
 }
 
 /** 按 serverId 取 inbound 共享配置 (server detail tab 用); 未装时返 null */
-export function getXrayConfig(serverId: string) {
-  return request.get<unknown, XrayConfig | null>('/admin/xray/config/get-xray-config', { params: { serverId } })
+export function getXrayInbound(serverId: string) {
+  return request.get<unknown, XrayInbound | null>('/admin/xray/inbound/get-xray-config', { params: { serverId } })
 }

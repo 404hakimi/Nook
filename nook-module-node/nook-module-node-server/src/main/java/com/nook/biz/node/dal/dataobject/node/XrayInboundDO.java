@@ -17,8 +17,8 @@ import java.time.LocalDateTime;
  * @author nook
  */
 @Data
-@TableName("xray_config")
-public class XrayConfigDO implements Serializable {
+@TableName("xray_inbound")
+public class XrayInboundDO implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;

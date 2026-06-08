@@ -10,7 +10,7 @@ import java.util.Map;
  *
  * @author nook
  */
-public interface XrayConfigApi {
+public interface XrayInboundApi {
 
     /**
      * 批量取线路机的 xray 接入连接参数

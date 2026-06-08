@@ -17,8 +17,8 @@ import java.time.LocalDateTime;
  * @author nook
  */
 @Data
-@TableName("xray_server")
-public class XrayServerDO implements Serializable {
+@TableName("xray_install")
+public class XrayInstallDO implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -40,7 +40,7 @@ public class XrayServerDO implements Serializable {
     private String xrayBinaryPath;
 
     /** 远端 xray config.json 绝对路径. */
-    private String xrayConfigPath;
+    private String xrayInboundPath;
 
     /** 远端 xray share 目录 (geo*.dat). */
     private String xrayShareDir;

@@ -1,7 +1,7 @@
 package com.nook.biz.node.dal.mysql.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
+import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
@@ -10,5 +10,5 @@ import org.apache.ibatis.annotations.Mapper;
  * @author nook
  */
 @Mapper
-public interface XrayConfigMapper extends BaseMapper<XrayConfigDO> {
+public interface XrayInboundMapper extends BaseMapper<XrayInboundDO> {
 }

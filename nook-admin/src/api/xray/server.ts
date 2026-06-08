@@ -112,7 +112,7 @@ export function getXrayLogFile(
   serverId: string,
   opts?: { variant?: XrayLogFileVariant; lines?: number; keyword?: string }
 ) {
-  return request.get<unknown, XrayLog>('/admin/xray/server/get-xray-log-file', {
+  return request.get<unknown, XrayLog>('/admin/xray/install/get-xray-log-file', {
     params: {
       id: serverId,
       variant: opts?.variant,
@@ -122,16 +122,16 @@ export function getXrayLogFile(
   })
 }
 
-// ===== 后端 XrayServerManageController @ /admin/xray/server =====
+// ===== 后端 XrayInstallManageController @ /admin/xray/install =====
 
 /** 重启 Xray 服务; 客户连接会断 1-2 秒. */
 export function xrayRestart(serverId: string) {
-  return request.post<unknown, string>('/admin/xray/server/restart-xray', null, { params: { id: serverId } })
+  return request.post<unknown, string>('/admin/xray/install/restart-xray', null, { params: { id: serverId } })
 }
 
 /** 开/关 Xray 开机自启 (systemctl enable/disable); 末尾返回 is-enabled 结果给前端确认. */
 export function xrayAutostart(serverId: string, enabled: boolean) {
-  return request.post<unknown, string>('/admin/xray/server/set-xray-autostart', null, { params: { id: serverId, enabled } })
+  return request.post<unknown, string>('/admin/xray/install/set-xray-autostart', null, { params: { id: serverId, enabled } })
 }
 
 /**
@@ -149,7 +149,7 @@ export interface LineServerInstallDTO {
   /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray. */
   xrayBinaryPath: string
   /** xray config.json 绝对路径; 前端默认 <installDir>/etc/xray/config.json. */
-  xrayConfigPath: string
+  xrayInboundPath: string
   /** xray share 目录 (geo*.dat); 前端默认 <installDir>/share/xray. */
   xrayShareDir: string
   /** Xray 内置 api server 端口 (loopback); xray api adi/rmi 用. */
@@ -256,7 +256,7 @@ export function xrayInstallStream(
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  return streamPost(`/api/admin/xray/server/install-xray?id=${encodeURIComponent(serverId)}`, dto, onChunk, signal)
+  return streamPost(`/api/admin/xray/install/install-xray?id=${encodeURIComponent(serverId)}`, dto, onChunk, signal)
 }
 
 // ===== 后端 ResourceServerOpsController @ /admin/resource/server =====

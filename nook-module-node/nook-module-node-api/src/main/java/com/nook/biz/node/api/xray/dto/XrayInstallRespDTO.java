@@ -8,7 +8,7 @@ import lombok.Data;
  * @author nook
  */
 @Data
-public class XrayServerRespDTO {
+public class XrayInstallRespDTO {
 
     /** server 主键 (= ResourceServer.id). */
     private String serverId;

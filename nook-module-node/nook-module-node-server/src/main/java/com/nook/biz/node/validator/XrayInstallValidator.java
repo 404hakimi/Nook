@@ -4,11 +4,11 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.XrayErrorCode;
-import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
-import com.nook.biz.node.dal.dataobject.node.XrayConfigDO;
-import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
-import com.nook.biz.node.service.xray.config.XrayConfigService;
-import com.nook.biz.node.service.xray.server.XrayServerService;
+import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
+import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
+import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
+import com.nook.biz.node.service.xray.config.XrayInboundService;
+import com.nook.biz.node.service.xray.server.XrayInstallService;
 import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
@@ -23,12 +23,12 @@ import java.util.List;
  * @author nook
  */
 @Component
-public class XrayServerValidator {
+public class XrayInstallValidator {
 
     @Resource
-    private XrayServerService xrayServerService;
+    private XrayInstallService xrayInstallService;
     @Resource
-    private XrayConfigService xrayConfigService;
+    private XrayInboundService xrayInboundService;
     @Resource
     private SubscriptionCertApi subscriptionCertApi;
 
@@ -36,10 +36,10 @@ public class XrayServerValidator {
      * 校验 xray 实例存在并返回
      *
      * @param serverId 服务器ID
-     * @return XrayServerDO
+     * @return XrayInstallDO
      */
-    public XrayServerDO validateExists(String serverId) {
-        XrayServerDO row = xrayServerService.get(serverId);
+    public XrayInstallDO validateExists(String serverId) {
+        XrayInstallDO row = xrayInstallService.get(serverId);
         if (ObjectUtil.isNull(row)) {
             throw new BusinessException(XrayErrorCode.SERVER_STATE_NOT_FOUND, serverId);
         }
@@ -51,7 +51,7 @@ public class XrayServerValidator {
      *
      * @param reqVO 装机入参
      */
-    public void validateInstallReq(XrayServerInstallReqVO reqVO) {
+    public void validateInstallReq(XrayInstallReqVO reqVO) {
         if (!Boolean.TRUE.equals(reqVO.getUseTls())) return;
         if (StrUtil.isBlank(reqVO.getDomain())) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "useTls=true 时 domain 必填");
@@ -69,13 +69,13 @@ public class XrayServerValidator {
      * @param serverId 服务器ID
      * @param reqVO    装机入参
      */
-    public void validateAgainstActiveClients(String serverId, XrayServerInstallReqVO reqVO) {
+    public void validateAgainstActiveClients(String serverId, XrayInstallReqVO reqVO) {
         long activeCount = subscriptionCertApi.listActiveByServer(serverId).size();
 
-        XrayServerDO existingServer = xrayServerService.get(serverId);
+        XrayInstallDO existingServer = xrayInstallService.get(serverId);
         if (ObjectUtil.isNull(existingServer) || activeCount == 0) return;
 
-        XrayConfigDO existingConfig = xrayConfigService.get(serverId);
+        XrayInboundDO existingConfig = xrayInboundService.get(serverId);
         if (ObjectUtil.isNull(existingConfig)) return;
 
         List<String> mismatches = new ArrayList<>();

@@ -1,9 +1,9 @@
 package com.nook.biz.node.service.xray.server.impl;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.dal.dataobject.node.XrayServerDO;
-import com.nook.biz.node.dal.mysql.mapper.XrayServerMapper;
-import com.nook.biz.node.service.xray.server.XrayServerService;
+import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
+import com.nook.biz.node.dal.mysql.mapper.XrayInstallMapper;
+import com.nook.biz.node.service.xray.server.XrayInstallService;
 import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -21,48 +21,48 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-public class XrayServerServiceImpl implements XrayServerService {
+public class XrayInstallServiceImpl implements XrayInstallService {
 
     @Resource
-    private XrayServerMapper xrayServerMapper;
+    private XrayInstallMapper xrayInstallMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void upsert(XrayServerDO entity) {
-        XrayServerDO existing = xrayServerMapper.selectById(entity.getServerId());
+    public void upsert(XrayInstallDO entity) {
+        XrayInstallDO existing = xrayInstallMapper.selectById(entity.getServerId());
         if (ObjectUtil.isNull(existing)) {
-            xrayServerMapper.insert(entity);
+            xrayInstallMapper.insert(entity);
             log.info("[xray-server] insert server={} version={} apiPort={}",
                     entity.getServerId(), entity.getXrayVersion(), entity.getXrayApiPort());
         } else {
             // 重装时清零上次启动时间, 由对账任务后续重新探测
             entity.setLastXrayUptime(null);
-            xrayServerMapper.updateById(entity);
+            xrayInstallMapper.updateById(entity);
             log.info("[xray-server] update server={} version={} apiPort={}",
                     entity.getServerId(), entity.getXrayVersion(), entity.getXrayApiPort());
         }
     }
 
     @Override
-    public XrayServerDO get(String serverId) {
-        return xrayServerMapper.selectById(serverId);
+    public XrayInstallDO get(String serverId) {
+        return xrayInstallMapper.selectById(serverId);
     }
 
     @Override
-    public Map<String, XrayServerDO> listByServerIds(Collection<String> serverIds) {
+    public Map<String, XrayInstallDO> listByServerIds(Collection<String> serverIds) {
         if (CollectionUtils.isAnyEmpty(serverIds)) {
             return Map.of();
         }
         return CollectionUtils.convertMap(
-                xrayServerMapper.selectBatchIds(serverIds), XrayServerDO::getServerId);
+                xrayInstallMapper.selectBatchIds(serverIds), XrayInstallDO::getServerId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void markReplayDone(String serverId, LocalDateTime xrayUptime) {
-        int affected = xrayServerMapper.updateXrayUptime(serverId, xrayUptime);
+        int affected = xrayInstallMapper.updateXrayUptime(serverId, xrayUptime);
         if (affected == 0) {
-            log.warn("[xray-server] markReplayDone 没匹配到行 server={} (xray_server 缺失?)", serverId);
+            log.warn("[xray-server] markReplayDone 没匹配到行 server={} (xray_install 缺失?)", serverId);
         }
     }
 }

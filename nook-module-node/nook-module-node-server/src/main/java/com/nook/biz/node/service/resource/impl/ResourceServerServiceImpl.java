@@ -16,8 +16,8 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
-import com.nook.biz.node.dal.mysql.mapper.XrayConfigMapper;
-import com.nook.biz.node.dal.mysql.mapper.XrayServerMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayInboundMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayInstallMapper;
 import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
@@ -80,9 +80,9 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Resource
     private ResourceServerTrafficMapper resourceServerTrafficMapper;
     @Resource
-    private XrayServerMapper xrayServerMapper;
+    private XrayInstallMapper xrayInstallMapper;
     @Resource
-    private XrayConfigMapper xrayConfigMapper;
+    private XrayInboundMapper xrayInboundMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -165,8 +165,8 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         resourceServerRuntimeMapper.deleteById(id);
         resourceServerQuotaMapper.deleteById(id);
         int trafficRows = resourceServerTrafficMapper.deleteByServerId(id);
-        xrayServerMapper.deleteById(id);
-        xrayConfigMapper.deleteById(id);
+        xrayInstallMapper.deleteById(id);
+        xrayInboundMapper.deleteById(id);
         resourceServerMapper.deleteById(id);
         log.info("[server] DELETE CASCADE id={} type={} ip={} (子表 credential/billing/landing/frontline/runtime/quota/traffic({})/xray 已清)",
                 id, srv.getServerType(), srv.getIpAddress(), trafficRows);

@@ -13,7 +13,7 @@ import com.nook.biz.member.api.MemberUserApi;
 import com.nook.biz.member.api.dto.MemberSubscriberDTO;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
-import com.nook.biz.node.api.xray.XrayConfigApi;
+import com.nook.biz.node.api.xray.XrayInboundApi;
 import com.nook.biz.node.api.xray.dto.XrayInboundDTO;
 import com.nook.biz.trade.api.enums.TradeCertSourceEnum;
 import com.nook.biz.trade.api.enums.TradeCertStatusEnum;
@@ -92,7 +92,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Resource
     private TransactionTemplate transactionTemplate;
     @Resource
-    private XrayConfigApi xrayConfigApi;
+    private XrayInboundApi xrayInboundApi;
     @Resource
     private ResourceServerLandingApi landingApi;
     @Resource
@@ -305,7 +305,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         }
         // 只缺 node 侧的线路机接入参数 (host/端口/协议/传输/path/tls); 凭证密钥 trade 自己有
         Set<String> serverIds = CollectionUtils.convertSet(certs, TradeSubscriptionCertificateDO::getServerId);
-        Map<String, XrayInboundDTO> inboundMap = xrayConfigApi.listInboundByServerIds(serverIds);
+        Map<String, XrayInboundDTO> inboundMap = xrayInboundApi.listInboundByServerIds(serverIds);
         // 套餐名只用于节点备注展示, 批量查一次避免逐订阅查库
         Set<String> planIds = CollectionUtils.convertSet(subs, TradeSubscriptionDO::getPlanId);
         Map<String, String> planNameMap = CollectionUtils.convertMap(

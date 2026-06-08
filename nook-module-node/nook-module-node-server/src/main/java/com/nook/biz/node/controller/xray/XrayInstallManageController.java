@@ -1,9 +1,9 @@
 package com.nook.biz.node.controller.xray;
 
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
-import com.nook.biz.node.controller.xray.vo.XrayServerInstallReqVO;
-import com.nook.biz.node.controller.xray.vo.XrayServerRespVO;
-import com.nook.biz.node.service.xray.server.XrayServerManageService;
+import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
+import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
+import com.nook.biz.node.service.xray.server.XrayInstallManageService;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
@@ -23,12 +23,12 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
  * @author nook
  */
 @RestController
-@RequestMapping("/admin/xray/server")
+@RequestMapping("/admin/xray/install")
 @Validated
-public class XrayServerManageController {
+public class XrayInstallManageController {
 
     @Resource
-    private XrayServerManageService xrayServerManageService;
+    private XrayInstallManageService xrayInstallManageService;
 
     /**
      * 获得 xray 实例详情
@@ -37,8 +37,8 @@ public class XrayServerManageController {
      * @return xray 实例详情
      */
     @GetMapping("/get-xray-server")
-    public Result<XrayServerRespVO> getXrayServer(@RequestParam("serverId") String serverId) {
-        return Result.ok(xrayServerManageService.getXrayServerDetail(serverId));
+    public Result<XrayInstallRespVO> getXrayInstall(@RequestParam("serverId") String serverId) {
+        return Result.ok(xrayInstallManageService.getXrayInstallDetail(serverId));
     }
 
     /**
@@ -49,7 +49,7 @@ public class XrayServerManageController {
      */
     @PostMapping("/restart-xray")
     public Result<String> restartXray(@RequestParam("id") String id) {
-        return Result.ok(xrayServerManageService.restart(id));
+        return Result.ok(xrayInstallManageService.restart(id));
     }
 
     /**
@@ -62,7 +62,7 @@ public class XrayServerManageController {
     @PostMapping("/set-xray-autostart")
     public Result<String> setAutostart(@RequestParam("id") String id,
                                        @RequestParam("enabled") boolean enabled) {
-        return Result.ok(xrayServerManageService.setAutostart(id, enabled));
+        return Result.ok(xrayInstallManageService.setAutostart(id, enabled));
     }
 
     /**
@@ -79,7 +79,7 @@ public class XrayServerManageController {
                                                    @RequestParam(value = "variant", required = false) String variant,
                                                    @RequestParam(value = "lines", required = false) Integer lines,
                                                    @RequestParam(value = "keyword", required = false) String keyword) {
-        return Result.ok(xrayServerManageService.getXrayLogFile(id, variant, lines, keyword));
+        return Result.ok(xrayInstallManageService.getXrayLogFile(id, variant, lines, keyword));
     }
 
     /**
@@ -91,7 +91,7 @@ public class XrayServerManageController {
      */
     @PostMapping(value = "/install-xray", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public ResponseBodyEmitter installXray(@RequestParam("id") String id,
-                                           @Valid @RequestBody XrayServerInstallReqVO reqVO) {
-        return xrayServerManageService.installXrayStream(id, reqVO);
+                                           @Valid @RequestBody XrayInstallReqVO reqVO) {
+        return xrayInstallManageService.installXrayStream(id, reqVO);
     }
 }
