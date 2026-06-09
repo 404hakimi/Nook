@@ -20,6 +20,8 @@ import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.XrayInstallValidator;
+import com.nook.biz.system.api.domain.SystemDomainApi;
+import com.nook.biz.system.api.domain.dto.SystemDomainRespDTO;
 import com.nook.framework.web.StreamingEndpointSupport;
 import com.nook.framework.web.WebStreamingProperties;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
@@ -79,6 +81,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     @Resource
     private CloudflareApiClient cloudflareApiClient;
     @Resource
+    private SystemDomainApi systemDomainApi;
+    @Resource
     private ResourceServerValidator resourceServerValidator;
     @Resource
     private ResourceServerCredentialService resourceServerCredentialService;
@@ -97,25 +101,27 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         // fail-fast 校验全交给 validator 层 (跨字段 + 跟现有客户冲突)
         xrayInstallValidator.validateInstallReq(reqVO);
         xrayInstallValidator.validateAgainstActiveClients(serverId, reqVO);
-        boolean useTls = Boolean.TRUE.equals(reqVO.getUseTls());
+        // 域名绑定 → 走 TLS; domain / cfApiToken 从 system_domain 取
+        boolean useTls = StrUtil.isNotBlank(reqVO.getDomainId());
+        SystemDomainRespDTO domain = useTls ? systemDomainApi.getById(reqVO.getDomainId()) : null;
 
         // 部署前加 A 记录: 仅走域名路径需要; 失败不阻断, 用户可手动在 CF 面板加
-        if (useTls && StrUtil.isNotBlank(reqVO.getCfApiToken())) {
+        if (useTls && StrUtil.isNotBlank(domain.getCfApiToken())) {
             try {
                 String serverHost = resourceServerValidator.validateExists(serverId).getIpAddress();
-                cloudflareApiClient.ensureARecord(reqVO.getCfApiToken(), reqVO.getDomain(), serverHost, false);
-                lineSink.accept("[nook] ✔ Cloudflare A 记录已加: " + reqVO.getDomain() + " → " + serverHost + "\n");
+                cloudflareApiClient.ensureARecord(domain.getCfApiToken(), domain.getDomain(), serverHost, false);
+                lineSink.accept("[nook] ✔ Cloudflare A 记录已加: " + domain.getDomain() + " → " + serverHost + "\n");
             } catch (Exception cfe) {
                 lineSink.accept("[nook] ⚠ Cloudflare A 记录创建失败 (" + cfe.getMessage()
                         + "), 请手动在 CF 面板加 A 记录\n");
-                log.warn("[install] CF API 失败 server={} domain={}: {}",
-                        serverId, reqVO.getDomain(), cfe.getMessage());
+                log.warn("[install] CF API 失败 server={} domainId={}: {}",
+                        serverId, reqVO.getDomainId(), cfe.getMessage());
             }
         }
 
         // 长任务 (1-10 min) 用 INSTALL scope, 跟短任务 SHARED 隔离 cache, 防被 invalidate 半路打断
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.INSTALL);
-        Map<String, String> vars = buildInstallVars(serverId, reqVO);
+        Map<String, String> vars = buildInstallVars(serverId, reqVO, domain);
         String script = assembleInstallScript(reqVO, vars);
         Duration installTimeout = Duration.ofSeconds(session.cred().getInstallTimeoutSeconds());
         remoteScriptRunner.runScriptStreaming(
@@ -136,7 +142,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         // 部署完成 → 同事务写 xray_install + xray_inbound (两表 1:1)
         // 用 TransactionTemplate 而非 @Transactional self-invocation, 避免 AOP 代理失效
         try {
-            transactionTemplate.executeWithoutResult(txStatus -> persistDeployment(serverId, reqVO, resolvedVersion, useTls));
+            transactionTemplate.executeWithoutResult(txStatus -> persistDeployment(serverId, reqVO, resolvedVersion, domain));
             lineSink.accept("[nook] ✔ DB 已写入\n");
         } catch (RuntimeException e) {
             log.error("[install] xray 部署成功但 DB 状态初始化失败 server={}, 已自动回滚", serverId, e);
@@ -146,8 +152,9 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         }
     }
 
-    /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. */
-    private void persistDeployment(String serverId, XrayInstallReqVO r, String resolvedVersion, boolean useTls) {
+    /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. domain 为 null = 未绑域名 / 不用 TLS. */
+    private void persistDeployment(String serverId, XrayInstallReqVO r, String resolvedVersion, SystemDomainRespDTO domain) {
+        boolean useTls = domain != null;
         XrayInstallDO srv = new XrayInstallDO();
         srv.setServerId(serverId);
         srv.setXrayVersion(resolvedVersion);
@@ -158,6 +165,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         srv.setXrayShareDir(r.getXrayShareDir());
         srv.setXrayLogDir(r.getLogDir());
         srv.setXraySystemdUnitPath(r.getXraySystemdUnitPath());
+        srv.setDomainId(r.getDomainId());
         srv.setInstalledAt(LocalDateTime.now());
         xrayInstallService.upsert(srv);
 
@@ -168,8 +176,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         cfg.setListenIp(r.getListenIp());
         cfg.setSharedInboundPort(r.getSharedInboundPort());
         cfg.setWsPath(r.getWsPath());
-        // useTls=false 时 cert/key/domain 全 NULL; useTls=true 才写
-        cfg.setDomain(useTls ? r.getDomain() : null);
+        // 未绑域名 (useTls=false) 时 cert/key/domain 全 NULL; 绑了才写 (domain 取自 system_domain)
+        cfg.setDomain(useTls ? domain.getDomain() : null);
         cfg.setTlsCertPath(useTls ? r.getTlsCertPath() : null);
         cfg.setTlsKeyPath(useTls ? r.getTlsKeyPath() : null);
         xrayInboundService.upsert(cfg);
@@ -236,7 +244,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         modules.add(NookScripts.MODULE_PREPARE_ENV);
         if (Boolean.TRUE.equals(r.getSetTimezone())) modules.add(NookScripts.MODULE_TIMEZONE);
         if (Boolean.TRUE.equals(r.getInstallUfw()))  modules.add(NookScripts.MODULE_UFW);
-        if (Boolean.TRUE.equals(r.getUseTls()))      modules.add(NookScripts.MODULE_ACME_TLS);
+        if (StrUtil.isNotBlank(r.getDomainId()))     modules.add(NookScripts.MODULE_ACME_TLS);
         if (Boolean.TRUE.equals(r.getLogRotate()))   modules.add(NookScripts.MODULE_LOGROTATE);
         // journald 容量上限是系统级安全网, 防 service stderr/启停日志撑爆磁盘; 无条件加
         modules.add(NookScripts.MODULE_JOURNALD_CAP);
@@ -248,8 +256,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     /**
      * 部署模板渲染变量表; reqVO 字段已被 jakarta @Valid 校验, 这里只做拆箱 + 转 string, 零派生.
      */
-    private Map<String, String> buildInstallVars(String serverId, XrayInstallReqVO r) {
-        boolean useTls = Boolean.TRUE.equals(r.getUseTls());
+    private Map<String, String> buildInstallVars(String serverId, XrayInstallReqVO r, SystemDomainRespDTO domain) {
+        boolean useTls = domain != null;
         Map<String, String> vars = new LinkedHashMap<>();
         vars.put("SERVER_NAME", StrUtil.blankToDefault(serverId, "<unset>"));
         vars.put("RENDER_AT", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
@@ -270,8 +278,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         vars.put("XRAY_SHARE_DIR",         r.getXrayShareDir());
         vars.put("XRAY_SYSTEMD_UNIT_PATH", r.getXraySystemdUnitPath());
         vars.put("USE_TLS", String.valueOf(useTls));
-        vars.put("DOMAIN", useTls ? StrUtil.blankToDefault(r.getDomain(), "") : "");
-        vars.put("CF_API_TOKEN", useTls ? StrUtil.blankToDefault(r.getCfApiToken(), "") : "");
+        vars.put("DOMAIN", useTls ? StrUtil.blankToDefault(domain.getDomain(), "") : "");
+        vars.put("CF_API_TOKEN", useTls ? StrUtil.blankToDefault(domain.getCfApiToken(), "") : "");
         vars.put("TLS_CERT_PATH",  useTls ? StrUtil.blankToDefault(r.getTlsCertPath(), "") : "");
         vars.put("TLS_KEY_PATH",   useTls ? StrUtil.blankToDefault(r.getTlsKeyPath(),  "") : "");
         return vars;

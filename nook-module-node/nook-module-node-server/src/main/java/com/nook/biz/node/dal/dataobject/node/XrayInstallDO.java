@@ -51,6 +51,9 @@ public class XrayInstallDO implements Serializable {
     /** systemd unit 文件绝对路径; 装机时前端定义, 后端透传到 50-xray.sh.tmpl 写文件 + 入库. */
     private String xraySystemdUnitPath;
 
+    /** 绑定的域名 system_domain.id; 空 = 未绑 / 不用 TLS. */
+    private String domainId;
+
     /** 最近一次部署完成时间; 重装时也会覆写, 不是单纯的"首次"语义. */
     private LocalDateTime installedAt;
 

@@ -1,7 +1,5 @@
 package com.nook.biz.node.dal.mysql.mapper;
 
-import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -161,10 +159,15 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
      */
     ServerFrontlineListItemRespVO selectServerRuntimeDetail(@Param("serverId") String serverId);
 
-    /** 切换生命周期; Wrapper 更新须显式 set updated_at. */
-    default int updateLifecycleState(String id, String newState) {
-        return update(null, Wrappers.<ResourceServerDO>lambdaUpdate()
-                .set(ResourceServerDO::getLifecycleState, newState)
+    /**
+     * 切换生命周期
+     *
+     * @param id             服务器编号
+     * @param lifecycleState 生命周期状态
+     */
+    default void updateLifecycleState(String id, String lifecycleState) {
+        update(null, Wrappers.<ResourceServerDO>lambdaUpdate()
+                .set(ResourceServerDO::getLifecycleState, lifecycleState)
                 .set(ResourceServerDO::getUpdatedAt, LocalDateTime.now())
                 .eq(ResourceServerDO::getId, id));
     }

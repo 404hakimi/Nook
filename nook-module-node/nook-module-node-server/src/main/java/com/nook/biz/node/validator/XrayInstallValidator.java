@@ -9,6 +9,7 @@ import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
 import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
+import com.nook.biz.system.api.domain.SystemDomainApi;
 import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
@@ -31,6 +32,8 @@ public class XrayInstallValidator {
     private XrayInboundService xrayInboundService;
     @Resource
     private SubscriptionCertApi subscriptionCertApi;
+    @Resource
+    private SystemDomainApi systemDomainApi;
 
     /**
      * 校验 xray 实例存在并返回
@@ -47,17 +50,15 @@ public class XrayInstallValidator {
     }
 
     /**
-     * 装机入参跨字段校验: useTls=true 时 domain / tls 路径必填
+     * 装机入参跨字段校验: 绑定域名 (domainId 非空) 时域名须存在 + tls 路径必填
      *
      * @param reqVO 装机入参
      */
     public void validateInstallReq(XrayInstallReqVO reqVO) {
-        if (!Boolean.TRUE.equals(reqVO.getUseTls())) return;
-        if (StrUtil.isBlank(reqVO.getDomain())) {
-            throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "useTls=true 时 domain 必填");
-        }
+        if (StrUtil.isBlank(reqVO.getDomainId())) return; // 未绑域名 = 不用 TLS, 跳过
+        systemDomainApi.getById(reqVO.getDomainId()); // 域名必须存在 (不存在抛)
         if (StrUtil.isBlank(reqVO.getTlsCertPath()) || StrUtil.isBlank(reqVO.getTlsKeyPath())) {
-            throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "useTls=true 时 tlsCertPath / tlsKeyPath 必填");
+            throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "绑定域名时 tlsCertPath / tlsKeyPath 必填");
         }
     }
 
@@ -95,8 +96,9 @@ public class XrayInstallValidator {
         if (!ObjectUtil.equal(existingConfig.getWsPath(), reqVO.getWsPath())) {
             mismatches.add("wsPath: " + existingConfig.getWsPath() + " → " + reqVO.getWsPath());
         }
-        // useTls=false 时 domain 应落库为 null; useTls=true 时落 reqVO.domain
-        String newDomain = Boolean.TRUE.equals(reqVO.getUseTls()) ? reqVO.getDomain() : null;
+        // 未绑域名 (domainId 空) 时 domain 落 null; 绑了取 system_domain.domain
+        String newDomain = StrUtil.isBlank(reqVO.getDomainId()) ? null
+                : systemDomainApi.getById(reqVO.getDomainId()).getDomain();
         if (!ObjectUtil.equal(existingConfig.getDomain(), newDomain)) {
             mismatches.add("domain: " + existingConfig.getDomain() + " → " + newDomain);
         }

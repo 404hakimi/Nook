@@ -127,22 +127,10 @@ public class XrayInstallReqVO {
     private String wsPath;
 
     /**
-     * 是否走域名 + TLS (生产路径): true 时 domain / cfApiToken 必填, 安装链路会跑 CF A 记录 + 45-acme-tls 模块 + xray inbound 渲染 TLS 块; false 时这三项全部跳过, xray inbound 退化成纯 vmess+ws, 客户端走 IP:port 直连.
+     * 绑定的域名 system_domain.id (生产路径): 非空时安装链路跑 CF A 记录 + 45-acme-tls + xray inbound 渲染 TLS; 空时退化成纯 vmess+ws, 客户端走 IP:port 直连. domain / cfApiToken 由后端按此 id 从 system_domain 取.
      */
-    @NotNull(message = "useTls 必填")
-    private Boolean useTls;
-
-    /** 对外域名; useTls=true 时必填, useTls=false 时忽略. */
-    @Pattern(regexp = "^$|^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$",
-            message = "domain 格式非法")
-    @Size(max = 255)
-    private String domain;
-
-    /**
-     * Cloudflare API Token; useTls=true 且远端 cert 需新签时必填. 远端 ~/.acme.sh 保存供续期, 不入 nook DB.
-     */
-    @Size(max = 255)
-    private String cfApiToken;
+    @Size(max = 32)
+    private String domainId;
 
     /** TLS 证书路径; useTls=true 时必填, useTls=false 时前端可送空串. 前端默认 <installDir>/tls/cert.pem. */
     @Pattern(regexp = "^$|^/.+", message = "tlsCertPath 必须是绝对路径或空串")
