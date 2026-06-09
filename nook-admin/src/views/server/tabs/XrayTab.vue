@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Activity, Calendar, FileText, FolderOpen, Info, Lock, Network, Rocket, RotateCcw } from 'lucide-vue-next'
 import { NAlert, NButton, NCard, NDescriptions, NDescriptionsItem, NIcon, NSpin, NTag, useDialog, useMessage } from 'naive-ui'
 import { getXrayInstall, xrayRestart, type XrayInstall } from '@/api/xray/xray-install'
@@ -49,6 +49,31 @@ const installInfoOpen = ref(false)
 const statusOpen = ref(false)
 const logOpen = ref(false)
 const installOpen = ref(false)
+
+/** 重装预填: 用当前 xray_install + xray_inbound 把表单填成「当前配置」, 避免重装时 wsPath/端口 被随机重置而误触客户面变更校验 (6017). */
+const reinstallPrefill = computed<Record<string, unknown> | null>(() => {
+  const s = server.value
+  if (!s) return null
+  const c = config.value
+  return {
+    xrayVersion: s.xrayVersion,
+    installDir: s.xrayInstallDir,
+    xrayBinaryPath: s.xrayBinaryPath,
+    xrayConfigPath: s.xrayConfigPath,
+    xrayShareDir: s.xrayShareDir,
+    logDir: s.xrayLogDir,
+    xrayApiPort: s.xrayApiPort,
+    xraySystemdUnitPath: s.xraySystemdUnitPath,
+    domainId: s.domainId,
+    protocol: c?.protocol,
+    transport: c?.transport,
+    listenIp: c?.listenIp,
+    sharedInboundPort: c?.sharedInboundPort,
+    wsPath: c?.wsPath,
+    tlsCertPath: c?.tlsCertPath,
+    tlsKeyPath: c?.tlsKeyPath
+  }
+})
 
 function onInstalled() {
   message.success('xray 装机成功')
@@ -223,7 +248,7 @@ function onRestart() {
     <ServerInstallDialog
       v-model="installOpen"
       :server="agentInfo"
-      :default-domain-id="server?.domainId"
+      :prefill="reinstallPrefill"
       @installed="onInstalled"
     />
   </NSpin>

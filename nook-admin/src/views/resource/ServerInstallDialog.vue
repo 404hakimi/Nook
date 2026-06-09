@@ -26,8 +26,8 @@ interface ServerTarget { id: string; name: string }
 interface Props {
   modelValue: boolean
   server?: ServerTarget | null
-  /** 重装时预选当前已绑域名 (system_domain.id); 新装传空. */
-  defaultDomainId?: string | null
+  /** 重装时用当前装机配置预填整张表单 (wsPath/端口/路径/协议/域名等); 新装传空走默认 + 随机. */
+  prefill?: Record<string, unknown> | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -206,6 +206,17 @@ const installPaths = computed(() => {
 
 const advancedOpen = ref(false)
 
+/** 重装: 用当前装机配置覆盖表单 (只覆盖有值的字段, 未持久化项保留默认); 新装无 prefill 保持默认 + 随机 wsPath. */
+function applyPrefill() {
+  const p = props.prefill
+  if (!p) return
+  const clean: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(p)) {
+    if (v !== undefined && v !== null && v !== '') clean[k] = v
+  }
+  Object.assign(form, clean)
+}
+
 watch(
   () => [props.modelValue, props.server?.id],
   ([open]) => {
@@ -214,7 +225,7 @@ watch(
     output.value = ''
     advancedOpen.value = false
     pickedServer.value = null
-    form.domainId = props.defaultDomainId ?? undefined
+    applyPrefill()
     loadDomains()
     // server 没传时, 进弹框先拉一次列表给 NSelect 用
     if (!props.server) {
