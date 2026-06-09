@@ -49,7 +49,10 @@ public class XrayInstallRespVO {
     /** 绑定的域名 system_domain.id; 空 = 未绑 / 不用 TLS. */
     private String domainId;
 
-    /** 绑定的域名 (据 domainId 从 system_domain 回填; 装机时渲染进 xray_inbound). */
+    /** 二级域名标签 (如 frontline-jp-1). */
+    private String subdomain;
+
+    /** 完整域名 FQDN (subdomain + 根域; 据 domainId + subdomain 回填). */
     private String domain;
 
     /** 装机完成时刻. */

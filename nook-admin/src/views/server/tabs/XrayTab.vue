@@ -65,6 +65,7 @@ const reinstallPrefill = computed<Record<string, unknown> | null>(() => {
     xrayApiPort: s.xrayApiPort,
     xraySystemdUnitPath: s.xraySystemdUnitPath,
     domainId: s.domainId,
+    subdomain: s.subdomain,
     protocol: c?.protocol,
     transport: c?.transport,
     listenIp: c?.listenIp,

@@ -162,8 +162,9 @@ const form = reactive<LineServerInstallDTO>({
   listenIp: '0.0.0.0',
   sharedInboundPort: 443,
   wsPath: randomWsPath(),
-  // 域名绑定 system_domain.id; 选了走 TLS, 留空则 xray 退化纯 vmess+ws
+  // 域名绑定: 根域 system_domain.id + 二级标签; 选了走 TLS, 留空则 xray 退化纯 vmess+ws
   domainId: undefined,
+  subdomain: '',
   tlsCertPath: '',
   tlsKeyPath: ''
 })
@@ -220,6 +221,13 @@ function applyPrefill() {
 /** 重装态 (有 prefill = 从已装机器进来); 用于提示客户面改动会要求在用客户重拉订阅. */
 const isReinstall = computed(() => !!props.prefill)
 
+/** 完整 FQDN 预览 = 二级标签 + 选中根域; 缺任一则空. */
+const fqdnPreview = computed(() => {
+  const sub = (form.subdomain || '').trim()
+  const root = domains.value.find((d) => d.id === form.domainId)?.domain
+  return form.domainId && root && sub ? `${sub}.${root}` : ''
+})
+
 watch(
   () => [props.modelValue, props.server?.id],
   ([open]) => {
@@ -256,7 +264,12 @@ function validate() {
   if (!form.wsPath || !form.wsPath.startsWith('/') || !/^\/[A-Za-z0-9_\-/]{0,127}$/.test(form.wsPath)) {
     errors.wsPath = '必须 / 开头, 仅字母数字_-/'
   }
-  // domainId 选填: 选了走域名 + TLS, 留空则 xray 退化纯 vmess+ws (后端 useTls = domainId 非空)
+  // 选了根域 (domainId) 则二级域名必填; 都不选则不走域名 + TLS
+  if (form.domainId && !form.subdomain?.trim()) {
+    errors.subdomain = '选了根域后, 二级域名必填'
+  } else if (form.subdomain?.trim() && !/^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$/.test(form.subdomain.trim())) {
+    errors.subdomain = '只能含字母数字与连字符 (可多级, 点分隔)'
+  }
   return Object.keys(errors).length === 0
 }
 
@@ -301,8 +314,9 @@ async function onSubmit() {
       listenIp: form.listenIp,
       sharedInboundPort: form.sharedInboundPort,
       wsPath: form.wsPath.trim(),
-      // 选了域名走 TLS (domain / CF Token 由 system_domain 提供); 留空则后端 useTls=false
+      // 选了根域走 TLS (根域 / CF Token 由 system_domain 提供, 二级标签拼 FQDN); 留空则后端 useTls=false
       domainId: form.domainId || undefined,
+      subdomain: form.domainId ? (form.subdomain?.trim() || undefined) : undefined,
       tlsCertPath: form.tlsCertPath?.trim() || d.tlsCertPath,
       tlsKeyPath: form.tlsKeyPath?.trim() || d.tlsKeyPath
     }
@@ -548,18 +562,18 @@ function close() {
         </NFormItem>
       </div>
 
-      <!-- ===== 域名绑定 (system_domain; 选了走 TLS, 留空纯 vmess+ws) ===== -->
+      <!-- ===== 域名绑定 (根域 system_domain + 二级标签; 选了走 TLS, 留空纯 vmess+ws) ===== -->
       <div class="text-sm font-semibold mt-4 mb-2 flex items-center gap-3">
         <span>域名 + TLS</span>
         <span class="text-xs text-zinc-400 font-normal">
-          选已登记的域名 = 走 CDN CNAME + acme.sh DNS-01 签发 LE 证书; 留空 = 不启用域名 (xray 退化纯 vmess+ws)
+          选根域 + 填二级标签 = 走 CDN + acme.sh DNS-01 签发 LE 证书; 根域留空 = 不启用域名 (xray 退化纯 vmess+ws)
         </span>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         <NFormItem>
           <template #label>
-            <span>对外域名</span>
-            <span class="text-xs text-zinc-400 ml-2">在「系统配置 → 域名」预先登记; 含 CF Token 供签发 / 续期</span>
+            <span>根域名 (一级域名)</span>
+            <span class="text-xs text-zinc-400 ml-2">在「系统配置 → 域名」预先登记; 含 CF Token</span>
           </template>
           <NSelect
             v-model:value="form.domainId"
@@ -568,9 +582,28 @@ function close() {
             :disabled="installing"
             clearable
             filterable
-            placeholder="选择域名 (留空 = 不启用 TLS)"
+            placeholder="选根域 (留空 = 不启用 TLS)"
           />
         </NFormItem>
+
+        <NFormItem
+          :validation-status="errors.subdomain ? 'error' : undefined"
+          :feedback="errors.subdomain"
+        >
+          <template #label>
+            <span>二级域名</span>
+            <span class="text-xs text-zinc-400 ml-2">本机专属, 如 frontline-jp-1</span>
+          </template>
+          <NInput
+            v-model:value="form.subdomain"
+            :disabled="installing || !form.domainId"
+            placeholder="frontline-jp-1"
+            :input-props="{ style: 'font-family: monospace' }"
+          />
+        </NFormItem>
+      </div>
+      <div v-if="form.domainId" class="-mt-1 mb-1 text-xs text-zinc-500">
+        完整域名: <code class="font-mono text-zinc-700 dark:text-zinc-300">{{ fqdnPreview || '（填二级域名）' }}</code>
       </div>
 
       <!-- ===== 安装路径只读展示 (跟随 installDir 实时联动) ===== -->

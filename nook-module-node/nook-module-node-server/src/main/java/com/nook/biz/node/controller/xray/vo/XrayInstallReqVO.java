@@ -132,6 +132,12 @@ public class XrayInstallReqVO {
     @Size(max = 32)
     private String domainId;
 
+    /** 二级域名标签 (如 frontline-jp-1); 绑定域名 (domainId 非空) 时必填, 完整 FQDN = subdomain + "." + 根域. */
+    @Pattern(regexp = "^$|^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$",
+            message = "subdomain 只能含字母数字与连字符 (可多级, 点分隔)")
+    @Size(max = 128)
+    private String subdomain;
+
     /** TLS 证书路径; useTls=true 时必填, useTls=false 时前端可送空串. 前端默认 <installDir>/tls/cert.pem. */
     @Pattern(regexp = "^$|^/.+", message = "tlsCertPath 必须是绝对路径或空串")
     @Size(max = 255)

@@ -54,6 +54,9 @@ public class XrayInstallDO implements Serializable {
     /** 绑定的域名 system_domain.id; 空 = 未绑 / 不用 TLS. */
     private String domainId;
 
+    /** 二级域名标签 (如 frontline-jp-1); 完整 FQDN = subdomain + "." + system_domain.domain(根域). */
+    private String subdomain;
+
     /** 最近一次部署完成时间; 重装时也会覆写, 不是单纯的"首次"语义. */
     private LocalDateTime installedAt;
 

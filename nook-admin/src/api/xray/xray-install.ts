@@ -21,9 +21,11 @@ export interface XrayInstall {
   xrayLogDir?: string
   /** 全节点固定常量, 后端回填 (/etc/systemd/system/xray.service) */
   xraySystemdUnitPath?: string
-  /** 绑定的域名 system_domain.id; 空 = 未绑 / 不用 TLS */
+  /** 绑定的根域 system_domain.id; 空 = 未绑 / 不用 TLS */
   domainId?: string
-  /** 绑定的域名 (据 domainId 回填) */
+  /** 二级域名标签 (如 frontline-jp-1) */
+  subdomain?: string
+  /** 完整域名 FQDN (subdomain + 根域; 后端回填) */
   domain?: string
   /** 最近一次部署完成时间 (重装覆写) */
   installedAt?: string
@@ -117,10 +119,12 @@ export interface LineServerInstallDTO {
   /** WebSocket transport path; 必须 / 开头. */
   wsPath: string
   /**
-   * 绑定的域名 system_domain.id; 选了 = 走域名 + TLS (生产路径: CF A 记录 + 45-acme-tls + xray inbound 渲染 TLS);
-   * 空 = 不走域名, xray inbound 退化成纯 vmess+ws. 域名 / CF Token 由 system_domain 提供, 不在装机入参里传.
+   * 绑定的根域 system_domain.id; 选了 = 走域名 + TLS (生产路径: CF A 记录 + 45-acme-tls + xray inbound 渲染 TLS);
+   * 空 = 不走域名, xray inbound 退化成纯 vmess+ws. 根域 / CF Token 由 system_domain 提供, 不在装机入参里传.
    */
   domainId?: string
+  /** 二级域名标签 (如 frontline-jp-1); 选了 domainId 时必填. 完整 FQDN = subdomain + "." + 根域. */
+  subdomain?: string
   /** TLS 证书路径; 选了域名必填, 否则送空串. 前端默认 <installDir>/tls/cert.pem. */
   tlsCertPath: string
   /** TLS 私钥路径; 选了域名必填, 否则送空串. 前端默认 <installDir>/tls/key.pem. */

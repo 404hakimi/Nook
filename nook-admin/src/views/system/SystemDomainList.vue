@@ -41,10 +41,10 @@ function doReset() {
 const dialogOpen = ref(false)
 const isEdit = ref(false)
 const saving = ref(false)
-const form = reactive<SystemDomainSaveDTO>({ id: undefined, domain: '', cfZoneId: '', cfRecordId: '', cfApiToken: '', remark: '' })
+const form = reactive<SystemDomainSaveDTO>({ id: undefined, domain: '', cfZoneId: '', cfApiToken: '', remark: '' })
 
 function resetForm() {
-  Object.assign(form, { id: undefined, domain: '', cfZoneId: '', cfRecordId: '', cfApiToken: '', remark: '' })
+  Object.assign(form, { id: undefined, domain: '', cfZoneId: '', cfApiToken: '', remark: '' })
 }
 function openCreate() {
   isEdit.value = false
@@ -54,7 +54,7 @@ function openCreate() {
 function openEdit(d: SystemDomain) {
   isEdit.value = true
   Object.assign(form, {
-    id: d.id, domain: d.domain, cfZoneId: d.cfZoneId ?? '', cfRecordId: d.cfRecordId ?? '',
+    id: d.id, domain: d.domain, cfZoneId: d.cfZoneId ?? '',
     cfApiToken: d.cfApiToken ?? '', remark: d.remark ?? ''
   })
   dialogOpen.value = true
@@ -71,7 +71,6 @@ async function onSave() {
       id: form.id,
       domain: form.domain.trim(),
       cfZoneId: form.cfZoneId?.trim() || undefined,
-      cfRecordId: form.cfRecordId?.trim() || undefined,
       cfApiToken: form.cfApiToken?.trim() || undefined,
       remark: form.remark?.trim() || undefined
     }
@@ -145,7 +144,6 @@ function maskToken(t?: string): string {
           <div v-for="d in list" :key="d.id" class="dl-row">
             <span class="dl-domain font-mono">{{ d.domain }}</span>
             <span class="dl-meta">Zone: {{ d.cfZoneId || '—' }}</span>
-            <span class="dl-meta">Record: {{ d.cfRecordId || '—' }}</span>
             <span class="dl-meta">Token: {{ maskToken(d.cfApiToken) }}</span>
             <span class="dl-remark">{{ d.remark || '' }}</span>
             <span class="flex-1"></span>
@@ -158,17 +156,12 @@ function maskToken(t?: string): string {
 
     <NModal v-model:show="dialogOpen" preset="card" :title="isEdit ? '编辑域名' : '新建域名'" style="width: 480px; max-width: 92vw">
       <NForm label-placement="top" size="small">
-        <NFormItem label="域名 (FQDN)" required>
-          <NInput v-model:value="form.domain" placeholder="如 node1.example.com" :input-props="{ style: 'font-family: monospace' }" />
+        <NFormItem label="根域名 (一级域名)" required>
+          <NInput v-model:value="form.domain" placeholder="如 karsu.cc (二级域名在装机时填)" :input-props="{ style: 'font-family: monospace' }" />
         </NFormItem>
-        <div class="grid grid-cols-2 gap-x-3">
-          <NFormItem label="Cloudflare Zone ID">
-            <NInput v-model:value="form.cfZoneId" placeholder="可空" :input-props="{ style: 'font-family: monospace' }" />
-          </NFormItem>
-          <NFormItem label="Cloudflare Record ID">
-            <NInput v-model:value="form.cfRecordId" placeholder="可空" :input-props="{ style: 'font-family: monospace' }" />
-          </NFormItem>
-        </div>
+        <NFormItem label="Cloudflare Zone ID">
+          <NInput v-model:value="form.cfZoneId" placeholder="可空 (装机按域名自动推导)" :input-props="{ style: 'font-family: monospace' }" />
+        </NFormItem>
         <NFormItem label="Cloudflare API Token">
           <NInput v-model:value="form.cfApiToken" type="password" show-password-on="click" placeholder="DNS-01 签发/续期用 (Zone:Read + DNS:Edit)" />
         </NFormItem>

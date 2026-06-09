@@ -7,6 +7,7 @@ import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
 import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
+import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
 import com.nook.biz.system.api.domain.SystemDomainApi;
@@ -58,7 +59,10 @@ public class XrayInstallValidator {
      */
     public void validateInstallReq(XrayInstallReqVO reqVO) {
         if (StrUtil.isBlank(reqVO.getDomainId())) return; // 未绑域名 = 不用 TLS, 跳过
-        systemDomainApi.getById(reqVO.getDomainId()); // 域名必须存在 (不存在抛)
+        systemDomainApi.getById(reqVO.getDomainId()); // 根域必须存在 (不存在抛)
+        if (StrUtil.isBlank(reqVO.getSubdomain())) {
+            throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "绑定域名时二级域名 (subdomain) 必填");
+        }
         if (StrUtil.isBlank(reqVO.getTlsCertPath()) || StrUtil.isBlank(reqVO.getTlsKeyPath())) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "绑定域名时 tlsCertPath / tlsKeyPath 必填");
         }
@@ -99,9 +103,9 @@ public class XrayInstallValidator {
         if (!ObjectUtil.equal(existingConfig.getWsPath(), reqVO.getWsPath())) {
             mismatches.add("wsPath: " + existingConfig.getWsPath() + " → " + reqVO.getWsPath());
         }
-        // 未绑域名 (domainId 空) 时 domain 落 null; 绑了取 system_domain.domain
+        // 未绑域名 (domainId 空) 时 domain 落 null; 绑了拼完整 FQDN (二级标签 + 根域)
         String newDomain = StrUtil.isBlank(reqVO.getDomainId()) ? null
-                : systemDomainApi.getById(reqVO.getDomainId()).getDomain();
+                : XrayConstants.fqdn(reqVO.getSubdomain(), systemDomainApi.getById(reqVO.getDomainId()).getDomain());
         if (!ObjectUtil.equal(existingConfig.getDomain(), newDomain)) {
             mismatches.add("domain: " + existingConfig.getDomain() + " → " + newDomain);
         }

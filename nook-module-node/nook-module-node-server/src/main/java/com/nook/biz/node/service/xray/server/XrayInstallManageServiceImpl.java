@@ -14,6 +14,7 @@ import com.nook.biz.node.framework.cloudflare.CloudflareApiClient;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
+import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
@@ -101,16 +102,17 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         // 跨字段 fail-fast 校验; 改客户面参数 (域名/wsPath 等) 仅告警留痕不阻断, 在用客户重拉订阅即可
         xrayInstallValidator.validateInstallReq(reqVO);
         xrayInstallValidator.warnIfClientFacingChange(serverId, reqVO);
-        // 域名绑定 → 走 TLS; domain / cfApiToken 从 system_domain 取
+        // 域名绑定 → 走 TLS; 根域 + cfApiToken 从 system_domain 取, 完整 FQDN = 二级标签 + 根域
         boolean useTls = StrUtil.isNotBlank(reqVO.getDomainId());
         SystemDomainRespDTO domain = useTls ? systemDomainApi.getById(reqVO.getDomainId()) : null;
+        String fullDomain = useTls ? XrayConstants.fqdn(reqVO.getSubdomain(), domain.getDomain()) : null;
 
         // 部署前加 A 记录: 仅走域名路径需要; 失败不阻断, 用户可手动在 CF 面板加
         if (useTls && StrUtil.isNotBlank(domain.getCfApiToken())) {
             try {
                 String serverHost = resourceServerValidator.validateExists(serverId).getIpAddress();
-                cloudflareApiClient.ensureARecord(domain.getCfApiToken(), domain.getDomain(), serverHost, false);
-                lineSink.accept("[nook] ✔ Cloudflare A 记录已加: " + domain.getDomain() + " → " + serverHost + "\n");
+                cloudflareApiClient.ensureARecord(domain.getCfApiToken(), fullDomain, serverHost, false);
+                lineSink.accept("[nook] ✔ Cloudflare A 记录已加: " + fullDomain + " → " + serverHost + "\n");
             } catch (Exception cfe) {
                 lineSink.accept("[nook] ⚠ Cloudflare A 记录创建失败 (" + cfe.getMessage()
                         + "), 请手动在 CF 面板加 A 记录\n");
@@ -121,7 +123,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
 
         // 长任务 (1-10 min) 用 INSTALL scope, 跟短任务 SHARED 隔离 cache, 防被 invalidate 半路打断
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.INSTALL);
-        Map<String, String> vars = buildInstallVars(serverId, reqVO, domain);
+        Map<String, String> vars = buildInstallVars(serverId, reqVO, domain, fullDomain);
         String script = assembleInstallScript(reqVO, vars);
         Duration installTimeout = Duration.ofSeconds(session.cred().getInstallTimeoutSeconds());
         remoteScriptRunner.runScriptStreaming(
@@ -142,7 +144,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         // 部署完成 → 同事务写 xray_install + xray_inbound (两表 1:1)
         // 用 TransactionTemplate 而非 @Transactional self-invocation, 避免 AOP 代理失效
         try {
-            transactionTemplate.executeWithoutResult(txStatus -> persistDeployment(serverId, reqVO, resolvedVersion, domain));
+            transactionTemplate.executeWithoutResult(txStatus -> persistDeployment(serverId, reqVO, resolvedVersion, fullDomain));
             lineSink.accept("[nook] ✔ DB 已写入\n");
         } catch (RuntimeException e) {
             log.error("[install] xray 部署成功但 DB 状态初始化失败 server={}, 已自动回滚", serverId, e);
@@ -152,9 +154,9 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         }
     }
 
-    /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. domain 为 null = 未绑域名 / 不用 TLS. */
-    private void persistDeployment(String serverId, XrayInstallReqVO r, String resolvedVersion, SystemDomainRespDTO domain) {
-        boolean useTls = domain != null;
+    /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. fullDomain 为空 = 未绑域名 / 不用 TLS. */
+    private void persistDeployment(String serverId, XrayInstallReqVO r, String resolvedVersion, String fullDomain) {
+        boolean useTls = StrUtil.isNotBlank(fullDomain);
         XrayInstallDO srv = new XrayInstallDO();
         srv.setServerId(serverId);
         srv.setXrayVersion(resolvedVersion);
@@ -165,7 +167,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         srv.setXrayShareDir(r.getXrayShareDir());
         srv.setXrayLogDir(r.getLogDir());
         srv.setXraySystemdUnitPath(r.getXraySystemdUnitPath());
-        srv.setDomainId(r.getDomainId());
+        srv.setDomainId(useTls ? r.getDomainId() : null);
+        srv.setSubdomain(useTls ? r.getSubdomain() : null);
         srv.setInstalledAt(LocalDateTime.now());
         xrayInstallService.upsert(srv);
 
@@ -176,8 +179,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         cfg.setListenIp(r.getListenIp());
         cfg.setSharedInboundPort(r.getSharedInboundPort());
         cfg.setWsPath(r.getWsPath());
-        // 未绑域名 (useTls=false) 时 cert/key/domain 全 NULL; 绑了才写 (domain 取自 system_domain)
-        cfg.setDomain(useTls ? domain.getDomain() : null);
+        // 未绑域名时 cert/key/domain 全 NULL; 绑了写完整 FQDN (二级标签 + 根域)
+        cfg.setDomain(fullDomain);
         cfg.setTlsCertPath(useTls ? r.getTlsCertPath() : null);
         cfg.setTlsKeyPath(useTls ? r.getTlsKeyPath() : null);
         xrayInboundService.upsert(cfg);
@@ -256,7 +259,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     /**
      * 部署模板渲染变量表; reqVO 字段已被 jakarta @Valid 校验, 这里只做拆箱 + 转 string, 零派生.
      */
-    private Map<String, String> buildInstallVars(String serverId, XrayInstallReqVO r, SystemDomainRespDTO domain) {
+    private Map<String, String> buildInstallVars(String serverId, XrayInstallReqVO r, SystemDomainRespDTO domain, String fullDomain) {
         boolean useTls = domain != null;
         Map<String, String> vars = new LinkedHashMap<>();
         vars.put("SERVER_NAME", StrUtil.blankToDefault(serverId, "<unset>"));
@@ -278,7 +281,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         vars.put("XRAY_SHARE_DIR",         r.getXrayShareDir());
         vars.put("XRAY_SYSTEMD_UNIT_PATH", r.getXraySystemdUnitPath());
         vars.put("USE_TLS", String.valueOf(useTls));
-        vars.put("DOMAIN", useTls ? StrUtil.blankToDefault(domain.getDomain(), "") : "");
+        vars.put("DOMAIN", useTls ? StrUtil.blankToDefault(fullDomain, "") : "");
         vars.put("CF_API_TOKEN", useTls ? StrUtil.blankToDefault(domain.getCfApiToken(), "") : "");
         vars.put("TLS_CERT_PATH",  useTls ? StrUtil.blankToDefault(r.getTlsCertPath(), "") : "");
         vars.put("TLS_KEY_PATH",   useTls ? StrUtil.blankToDefault(r.getTlsKeyPath(),  "") : "");
@@ -293,11 +296,11 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         Map<String, ResourceServerDO> serverMap = resourceServerService.getServerMap(ids);
         Map<String, String> hostMap = resourceServerService.getIpAddressMap(ids);
         XrayInstallConvert.fillServer(vo, serverMap, hostMap);
-        // 据 domain_id 回填绑定域名名 (域名被删则留空, 不阻断详情)
+        // 据 domain_id 回填根域并拼完整 FQDN (二级标签 + 根域); 根域被删则留空, 不阻断详情
         if (StrUtil.isNotBlank(vo.getDomainId())) {
-            String domainName = systemDomainApi.getDomainMap(Set.of(vo.getDomainId())).get(vo.getDomainId());
-            if (StrUtil.isNotBlank(domainName)) {
-                vo.setDomain(domainName);
+            String rootDomain = systemDomainApi.getDomainMap(Set.of(vo.getDomainId())).get(vo.getDomainId());
+            if (StrUtil.isNotBlank(rootDomain)) {
+                vo.setDomain(XrayConstants.fqdn(vo.getSubdomain(), rootDomain));
             }
         }
         return vo;

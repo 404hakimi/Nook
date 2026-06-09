@@ -15,14 +15,11 @@ public class SystemDomainRespVO {
 
     private String id;
 
-    /** 域名 (FQDN). */
+    /** 根域名 (一级域名, 如 karsu.cc). */
     private String domain;
 
     /** Cloudflare Zone ID. */
     private String cfZoneId;
-
-    /** Cloudflare DNS A 记录 ID. */
-    private String cfRecordId;
 
     /** Cloudflare API Token. */
     private String cfApiToken;

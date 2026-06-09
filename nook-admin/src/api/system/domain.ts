@@ -1,14 +1,12 @@
 import request from '@/api/request'
 
-/** 系统域名 (含 Cloudflare 配置); xray_install.domainId 绑定它. */
+/** 系统域名 = 一级域名 (根域 + Cloudflare 配置); xray_install.domainId 绑它, 二级域名在 xray_install.subdomain. */
 export interface SystemDomain {
   id: string
-  /** 域名 (FQDN). */
+  /** 根域名 (一级域名, 如 karsu.cc). */
   domain: string
   /** Cloudflare Zone ID. */
   cfZoneId?: string
-  /** Cloudflare DNS A 记录 ID. */
-  cfRecordId?: string
   /** Cloudflare API Token (DNS-01 签发/续期). */
   cfApiToken?: string
   remark?: string
@@ -21,7 +19,6 @@ export interface SystemDomainSaveDTO {
   id?: string
   domain: string
   cfZoneId?: string
-  cfRecordId?: string
   cfApiToken?: string
   remark?: string
 }

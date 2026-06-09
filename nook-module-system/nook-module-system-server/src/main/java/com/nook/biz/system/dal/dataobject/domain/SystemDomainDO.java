@@ -15,14 +15,11 @@ import lombok.EqualsAndHashCode;
 @TableName("system_domain")
 public class SystemDomainDO extends BaseEntity {
 
-    /** 域名 (FQDN). */
+    /** 根域名 (一级域名, 如 karsu.cc); 二级域名存在 xray_install.subdomain, 共用此根域 + CF 配置. */
     private String domain;
 
     /** Cloudflare Zone ID. */
     private String cfZoneId;
-
-    /** Cloudflare DNS A 记录 ID. */
-    private String cfRecordId;
 
     /** Cloudflare API Token (DNS-01 签发 / 续期). */
     private String cfApiToken;

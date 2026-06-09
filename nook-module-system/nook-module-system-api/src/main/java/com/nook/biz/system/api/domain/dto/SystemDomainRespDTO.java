@@ -12,14 +12,11 @@ public class SystemDomainRespDTO {
 
     private String id;
 
-    /** 域名 (FQDN). */
+    /** 根域名 (一级域名, 如 karsu.cc). */
     private String domain;
 
     /** Cloudflare Zone ID. */
     private String cfZoneId;
-
-    /** Cloudflare DNS A 记录 ID. */
-    private String cfRecordId;
 
     /** Cloudflare API Token (装机 DNS-01 签发 / 续期用). */
     private String cfApiToken;
