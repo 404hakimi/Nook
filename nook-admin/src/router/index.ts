@@ -32,6 +32,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '区域管理' }
       },
       {
+        path: 'system/domains',
+        name: 'system-domains',
+        component: () => import('@/views/system/SystemDomainList.vue'),
+        meta: { title: '域名管理' }
+      },
+      {
         path: 'member/accounts',
         name: 'member-accounts',
         component: () => import('@/views/member/AccountList.vue'),

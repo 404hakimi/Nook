@@ -71,7 +71,8 @@ const menuOptions: MenuOption[] = [
     label: '系统配置',
     icon: icon(Settings2),
     children: [
-      { key: '/system/regions', label: routerLabel('/system/regions', '区域'), icon: icon(MapPin) }
+      { key: '/system/regions', label: routerLabel('/system/regions', '区域'), icon: icon(MapPin) },
+      { key: '/system/domains', label: routerLabel('/system/domains', '域名'), icon: icon(Globe2) }
     ]
   },
   {
