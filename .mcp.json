@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "ssh-server": {
+    "ssh-mcp-server": {
       "type": "stdio",
       "command": "npx",
       "args": [
@@ -9,7 +9,7 @@
         "--config-file", ".mcp.ssh-config.json"
       ]
     },
-    "my-database": {
+    "universal-db-mcp": {
       "type": "stdio",
       "command": "npx",
       "args": [
