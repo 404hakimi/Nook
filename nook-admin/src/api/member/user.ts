@@ -46,3 +46,13 @@ export function enableMemberAccount(id: string) {
 export function updateMemberAccountRemark(id: string, remark: string) {
   return request.put<unknown, void>('/admin/member/users/update-remark', { remark }, { params: { id } })
 }
+
+/** 管理员指定新密码重置会员密码; 重置后后端踢出该会员已有会话. */
+export function resetMemberAccountPassword(id: string, password: string) {
+  return request.put<unknown, void>('/admin/member/users/reset-password', { password }, { params: { id } })
+}
+
+/** 会员订阅分享 URL (客户端导入; 后端用公网 base + sub_token 拼). */
+export function getMemberSubUrl(id: string) {
+  return request.get<unknown, string>('/admin/member/users/get-sub-url', { params: { id } })
+}

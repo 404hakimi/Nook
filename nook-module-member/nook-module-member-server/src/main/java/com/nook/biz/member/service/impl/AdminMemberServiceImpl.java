@@ -12,6 +12,7 @@ import com.nook.common.web.response.PageResult;
 import com.nook.framework.security.stp.StpMemberUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
 
     private final MemberUserMapper memberUserMapper;
     private final MemberUserValidator memberUserValidator;
+    private final BCryptPasswordEncoder bCryptPasswordEncoder;
 
     @Override
     public PageResult<MemberUser> page(AdminMemberPageReqVO reqVO) {
@@ -67,5 +69,19 @@ public class AdminMemberServiceImpl implements AdminMemberService {
                 .set(MemberUser::getRemark, remark)
                 .set(MemberUser::getUpdatedAt, LocalDateTime.now())
                 .eq(MemberUser::getId, id));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void resetPassword(String id, String password) {
+        memberUserValidator.validateExists(id);
+        memberUserValidator.validatePasswordStrength(password);
+        memberUserMapper.update(null, Wrappers.<MemberUser>lambdaUpdate()
+                .set(MemberUser::getPasswordHash, bCryptPasswordEncoder.encode(password))
+                .set(MemberUser::getUpdatedAt, LocalDateTime.now())
+                .eq(MemberUser::getId, id));
+        // 重置后踢出该会员所有会话, 旧 token 立即失效
+        StpMemberUtil.stpLogic().kickout(id);
+        log.info("[resetPassword] 管理员重置会员密码: memberId={}", id);
     }
 }

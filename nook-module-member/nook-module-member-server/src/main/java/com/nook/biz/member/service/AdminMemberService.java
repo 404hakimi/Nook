@@ -25,4 +25,7 @@ public interface AdminMemberService {
 
     /** 修改备注. */
     void updateRemark(String id, String remark);
+
+    /** 重置会员密码 (管理员指定新密码). */
+    void resetPassword(String id, String password);
 }

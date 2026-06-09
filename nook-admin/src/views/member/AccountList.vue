@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { Ban, CheckCircle2, Copy, Eye, Pencil, RefreshCcw, Search } from 'lucide-vue-next'
+import { Ban, CheckCircle2, Copy, Eye, KeyRound, Pencil, RefreshCcw, Search, Share2 } from 'lucide-vue-next'
 import {
   NButton,
   NCard,
@@ -24,11 +24,13 @@ import {
   enableMemberAccount,
   getMemberAccountDetail,
   pageMemberAccounts,
+  resetMemberAccountPassword,
   updateMemberAccountRemark,
   type MemberAccount,
   type MemberAccountQuery
 } from '@/api/member/user'
 import { formatDateTime } from '@/utils/date'
+import SubscriptionShareDialog from '@/views/member/SubscriptionShareDialog.vue'
 
 const STATUS_OPTIONS: { label: string; value: number | undefined }[] = [
   { label: '全部', value: undefined },
@@ -163,7 +165,7 @@ const columns = computed<DataTableColumns<MemberAccount>>(() => [
     title: '操作',
     key: 'actions',
     align: 'right',
-    width: 260,
+    width: 380,
     render: (row) =>
       h('div', { class: 'flex gap-1 justify-end flex-nowrap' }, [
         h(
@@ -173,8 +175,23 @@ const columns = computed<DataTableColumns<MemberAccount>>(() => [
         ),
         h(
           NButton,
+          { size: 'tiny', quaternary: true, type: 'primary', onClick: () => openShare(row), title: '分享订阅链接 (含二维码)' },
+          { icon: () => h(NIcon, null, { default: () => h(Share2) }), default: () => '分享' }
+        ),
+        h(
+          NButton,
           { size: 'tiny', quaternary: true, onClick: () => openRemark(row), title: '编辑备注' },
           { icon: () => h(NIcon, null, { default: () => h(Pencil) }), default: () => '备注' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'tiny',
+            quaternary: true,
+            onClick: () => openResetPwd(row),
+            title: '重置密码 (指定新密码, 踢出已有会话)'
+          },
+          { icon: () => h(NIcon, null, { default: () => h(KeyRound) }), default: () => '密码' }
         ),
         row.status === 1
           ? h(
@@ -220,6 +237,14 @@ const pagination = computed(() => ({
     loadList()
   }
 }))
+
+// ===== 订阅分享 =====
+const shareOpen = ref(false)
+const shareMember = ref<MemberAccount | null>(null)
+function openShare(row: MemberAccount) {
+  shareMember.value = row
+  shareOpen.value = true
+}
 
 // ===== 详情抽屉 =====
 const detailOpen = ref(false)
@@ -295,6 +320,35 @@ async function confirmRemark() {
     /* */
   } finally {
     remarkSubmitting.value = false
+  }
+}
+
+// ===== 重置密码 =====
+const resetPwdOpen = ref(false)
+const resetPwdTarget = ref<MemberAccount | null>(null)
+const resetPwdValue = ref('')
+const resetPwdSubmitting = ref(false)
+
+function openResetPwd(row: MemberAccount) {
+  resetPwdTarget.value = row
+  resetPwdValue.value = ''
+  resetPwdOpen.value = true
+}
+
+async function confirmResetPwd() {
+  if (!/^(?=.*[A-Za-z])(?=.*\d)[\w!@#$%^&*()\-+=,.?]{8,64}$/.test(resetPwdValue.value)) {
+    message.error('密码需 8-64 位且含字母和数字')
+    return
+  }
+  resetPwdSubmitting.value = true
+  try {
+    await resetMemberAccountPassword(resetPwdTarget.value!.id, resetPwdValue.value)
+    message.success('密码已重置, 该会员需用新密码重新登录')
+    resetPwdOpen.value = false
+  } catch {
+    /* */
+  } finally {
+    resetPwdSubmitting.value = false
   }
 }
 
@@ -408,6 +462,9 @@ onMounted(loadList)
       </NDescriptions>
     </NModal>
 
+    <!-- 订阅分享 (链接 + 二维码) -->
+    <SubscriptionShareDialog v-model="shareOpen" :member="shareMember" />
+
     <!-- 编辑备注 -->
     <NModal
       :show="remarkOpen"
@@ -445,6 +502,47 @@ onMounted(loadList)
             @click="confirmRemark"
           >
             保存
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
+
+    <!-- 重置密码 -->
+    <NModal
+      :show="resetPwdOpen"
+      preset="card"
+      title="重置会员密码"
+      style="max-width: 30rem"
+      :bordered="false"
+      :mask-closable="false"
+      @update:show="(v: boolean) => (resetPwdOpen = v)"
+    >
+      <NForm size="small" label-placement="top">
+        <p class="text-sm mb-3">
+          为会员
+          <span class="font-mono font-semibold">{{ resetPwdTarget?.email }}</span>
+          指定新密码; 重置后该会员已有登录会话会被踢出.
+        </p>
+        <NFormItem label="新密码">
+          <NInput
+            v-model:value="resetPwdValue"
+            type="password"
+            show-password-on="click"
+            placeholder="8-64 位, 含字母和数字"
+            maxlength="64"
+          />
+        </NFormItem>
+      </NForm>
+      <template #footer>
+        <NSpace justify="end">
+          <NButton size="small" @click="resetPwdOpen = false">取消</NButton>
+          <NButton
+            type="primary"
+            size="small"
+            :loading="resetPwdSubmitting"
+            @click="confirmResetPwd"
+          >
+            确认重置
           </NButton>
         </NSpace>
       </template>

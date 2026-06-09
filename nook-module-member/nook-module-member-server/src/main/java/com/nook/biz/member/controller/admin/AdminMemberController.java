@@ -1,6 +1,7 @@
 package com.nook.biz.member.controller.admin;
 
 import com.nook.biz.member.controller.admin.vo.AdminMemberPageReqVO;
+import com.nook.biz.member.controller.admin.vo.AdminMemberResetPasswordReqVO;
 import com.nook.biz.member.controller.admin.vo.AdminMemberRespVO;
 import com.nook.biz.member.controller.admin.vo.AdminMemberUpdateRemarkReqVO;
 import com.nook.biz.member.convert.MemberUserConvert;
@@ -8,8 +9,10 @@ import com.nook.biz.member.entity.MemberUser;
 import com.nook.biz.member.service.AdminMemberService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
+import cn.hutool.core.util.StrUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,6 +34,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminMemberController {
 
     private final AdminMemberService adminMemberService;
+
+    /** 订阅 URL 公网 base (= agent 回拉 backend 的公网地址; /portal/sub 也由它对外提供). */
+    @Value("${nook.agent.backend-public-url:}")
+    private String backendPublicUrl;
+
+    /** 会员订阅分享 URL (客户端导入; base + 会员 sub_token). */
+    @GetMapping("/get-sub-url")
+    public Result<String> getSubUrl(@RequestParam("id") String id) {
+        MemberUser member = adminMemberService.findById(id);
+        String base = StrUtil.removeSuffix(StrUtil.trimToEmpty(backendPublicUrl), "/");
+        return Result.ok(base + "/portal/sub/" + member.getSubToken());
+    }
 
     /** 会员列表分页. */
     @GetMapping("/page-user")
@@ -64,6 +79,14 @@ public class AdminMemberController {
     public Result<Void> updateRemark(@RequestParam("id") String id,
                                      @RequestBody @Valid AdminMemberUpdateRemarkReqVO reqVO) {
         adminMemberService.updateRemark(id, reqVO.getRemark());
+        return Result.ok();
+    }
+
+    /** 重置会员密码 (管理员指定新密码; 重置后踢出该会员已有会话). */
+    @PutMapping("/reset-password")
+    public Result<Void> resetPassword(@RequestParam("id") String id,
+                                      @RequestBody @Valid AdminMemberResetPasswordReqVO reqVO) {
+        adminMemberService.resetPassword(id, reqVO.getPassword());
         return Result.ok();
     }
 }
