@@ -10,7 +10,6 @@ import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerBillingMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerCredentialMapper;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
 import com.nook.biz.node.dal.mysql.mapper.Socks5InstallMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
@@ -21,7 +20,6 @@ import com.nook.biz.node.dal.mysql.mapper.XrayInstallMapper;
 import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
-import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
@@ -64,8 +62,6 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Resource
     private ResourceServerBillingService resourceServerBillingService;
     @Resource
-    private ResourceServerFrontlineService resourceServerFrontlineService;
-    @Resource
     private ResourceServerLandingService resourceServerLandingService;
     @Resource
     private AgentTokenApi agentTokenApi;
@@ -75,8 +71,6 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     private ResourceServerBillingMapper resourceServerBillingMapper;
     @Resource
     private Socks5InstallMapper socks5InstallMapper;
-    @Resource
-    private ResourceServerFrontlineMapper resourceServerFrontlineMapper;
     @Resource
     private ResourceServerTrafficMapper resourceServerTrafficMapper;
     @Resource
@@ -116,7 +110,6 @@ public class ResourceServerServiceImpl implements ResourceServerService {
             resourceServerLandingService.initSubtables(entity.getId(), createReqVO.getIpTypeId());
         } else {
             resourceServerBillingService.create(entity.getId(), null);
-            resourceServerFrontlineService.create(entity.getId(), null);
         }
         return entity.getId();
     }
@@ -161,14 +154,13 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         resourceServerCredentialMapper.deleteById(id);
         resourceServerBillingMapper.deleteById(id);
         socks5InstallMapper.deleteById(id);
-        resourceServerFrontlineMapper.deleteById(id);
         resourceServerRuntimeMapper.deleteById(id);
         resourceServerQuotaMapper.deleteById(id);
         int trafficRows = resourceServerTrafficMapper.deleteByServerId(id);
         xrayInstallMapper.deleteById(id);
         xrayInboundMapper.deleteById(id);
         resourceServerMapper.deleteById(id);
-        log.info("[server] DELETE CASCADE id={} type={} ip={} (子表 credential/billing/landing/frontline/runtime/quota/traffic({})/xray 已清)",
+        log.info("[server] DELETE CASCADE id={} type={} ip={} (子表 credential/billing/landing/runtime/quota/traffic({})/xray 已清)",
                 id, srv.getServerType(), srv.getIpAddress(), trafficRows);
         applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(id)); // 清 SSH 会话缓存
     }

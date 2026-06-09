@@ -4,9 +4,9 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
+import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
+import com.nook.biz.node.dal.mysql.mapper.XrayInstallMapper;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
@@ -22,7 +22,7 @@ import java.util.Set;
 public class ServerLifecycleValidator {
 
     @Resource
-    private ResourceServerFrontlineMapper resourceServerFrontlineMapper;
+    private XrayInstallMapper xrayInstallMapper;
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
 
@@ -47,10 +47,10 @@ public class ServerLifecycleValidator {
         }
     }
 
-    /** 线路机上线前必须先填域名. */
+    /** 线路机上线前必须先绑定域名 (xray_install.domain_id; 即已装 xray 且选了域名). */
     public void validateFrontlineDomainReady(String serverId) {
-        ResourceServerFrontlineDO frontline = resourceServerFrontlineMapper.selectById(serverId);
-        if (ObjectUtil.isNull(frontline) || StrUtil.isBlank(frontline.getDomain())) {
+        XrayInstallDO xray = xrayInstallMapper.selectById(serverId);
+        if (ObjectUtil.isNull(xray) || StrUtil.isBlank(xray.getDomainId())) {
             throw new BusinessException(ResourceErrorCode.SERVER_LIVE_DOMAIN_REQUIRED);
         }
     }

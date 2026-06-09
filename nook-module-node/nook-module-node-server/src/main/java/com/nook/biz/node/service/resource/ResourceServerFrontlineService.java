@@ -1,9 +1,7 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerFrontlineUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerPageReqVO;
 import com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
 import com.nook.common.web.response.PageResult;
 
 /**
@@ -12,30 +10,6 @@ import com.nook.common.web.response.PageResult;
  * @author nook
  */
 public interface ResourceServerFrontlineService {
-
-    /**
-     * 获得线路机扩展
-     *
-     * @param serverId 服务器编号
-     * @return 线路机扩展
-     */
-    ResourceServerFrontlineDO get(String serverId);
-
-    /**
-     * 创建线路机扩展
-     *
-     * @param serverId 服务器编号
-     * @param reqVO    入参
-     */
-    void create(String serverId, ResourceServerFrontlineUpdateReqVO reqVO);
-
-    /**
-     * 更新线路机扩展
-     *
-     * @param serverId 服务器编号
-     * @param reqVO    入参
-     */
-    void update(String serverId, ResourceServerFrontlineUpdateReqVO reqVO);
 
     /**
      * 线路机分页 (连表出运行时聚合视图: 在线态 / 版本 / 配额 / 流量 / xray)

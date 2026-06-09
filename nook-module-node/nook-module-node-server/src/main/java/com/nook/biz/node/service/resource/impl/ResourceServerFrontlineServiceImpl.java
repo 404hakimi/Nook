@@ -6,19 +6,14 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
-import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerFrontlineUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerPageReqVO;
 import com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.convert.resource.ResourceServerFrontlineConvert;
 import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerFrontlineDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerFrontlineMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
 import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
-import com.nook.biz.node.validator.ResourceServerFrontlineValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.ServerLifecycleValidator;
-import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 /**
- * 线路机扩展 Service 实现类
+ * 线路机 Service 实现类 (机器分页 / 详情 / 生命周期; 域名绑定见 xray_install.domain_id)
  *
  * @author nook
  */
@@ -37,45 +32,11 @@ import java.time.LocalDateTime;
 public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontlineService {
 
     @Resource
-    private ResourceServerFrontlineMapper resourceServerFrontlineMapper;
-    @Resource
-    private ResourceServerFrontlineValidator resourceServerFrontlineValidator;
-    @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
     private ResourceServerValidator resourceServerValidator;
     @Resource
     private ServerLifecycleValidator serverLifecycleValidator;
-
-    @Override
-    public ResourceServerFrontlineDO get(String serverId) {
-        return resourceServerFrontlineMapper.selectById(serverId);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void create(String serverId, ResourceServerFrontlineUpdateReqVO reqVO) {
-        resourceServerFrontlineValidator.validateDomainUnique(null,
-                ObjectUtil.isNull(reqVO) ? null : reqVO.getDomain());
-        ResourceServerFrontlineDO entity = ObjectUtil.isNull(reqVO)
-                ? new ResourceServerFrontlineDO()
-                : BeanUtils.toBean(reqVO, ResourceServerFrontlineDO.class);
-        entity.setServerId(serverId);
-        LocalDateTime now = LocalDateTime.now();
-        entity.setCreatedAt(now);
-        entity.setUpdatedAt(now);
-        resourceServerFrontlineMapper.insert(entity);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void update(String serverId, ResourceServerFrontlineUpdateReqVO reqVO) {
-        resourceServerFrontlineValidator.validateExists(serverId);
-        resourceServerFrontlineValidator.validateDomainUnique(serverId, reqVO.getDomain());
-        ResourceServerFrontlineDO patch = BeanUtils.toBean(reqVO, ResourceServerFrontlineDO.class);
-        patch.setServerId(serverId);
-        resourceServerFrontlineMapper.updateBySelective(patch);
-    }
 
     @Override
     public PageResult<ServerFrontlineListItemRespVO> getFrontlinePage(ResourceServerPageReqVO reqVO) {
@@ -105,7 +66,7 @@ public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontli
             return;
         }
         serverLifecycleValidator.validateTransitionTable(srv, newState);
-        // 线路机上线前置: 域名必填
+        // 线路机上线前置: 域名必填 (xray_install.domain_id)
         if (ResourceServerLifecycleEnum.LIVE.matches(newState)) {
             serverLifecycleValidator.validateFrontlineDomainReady(id);
         }
