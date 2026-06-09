@@ -100,7 +100,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     @Override
     public void installStreaming(String serverId, XrayInstallReqVO reqVO, Consumer<String> lineSink) {
         // 跨字段 fail-fast 校验; 改客户面参数 (域名/wsPath 等) 仅告警留痕不阻断, 在用客户重拉订阅即可
-        xrayInstallValidator.validateInstallReq(reqVO);
+        xrayInstallValidator.validateInstallReq(serverId, reqVO);
         xrayInstallValidator.warnIfClientFacingChange(serverId, reqVO);
         // 域名绑定 → 走 TLS; 根域 + cfApiToken 从 system_domain 取, 完整 FQDN = 二级标签 + 根域
         boolean useTls = StrUtil.isNotBlank(reqVO.getDomainId());

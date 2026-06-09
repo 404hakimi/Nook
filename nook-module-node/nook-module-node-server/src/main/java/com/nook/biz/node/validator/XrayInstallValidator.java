@@ -57,11 +57,16 @@ public class XrayInstallValidator {
      *
      * @param reqVO 装机入参
      */
-    public void validateInstallReq(XrayInstallReqVO reqVO) {
+    public void validateInstallReq(String serverId, XrayInstallReqVO reqVO) {
         if (StrUtil.isBlank(reqVO.getDomainId())) return; // 未绑域名 = 不用 TLS, 跳过
         systemDomainApi.getById(reqVO.getDomainId()); // 根域必须存在 (不存在抛)
         if (StrUtil.isBlank(reqVO.getSubdomain())) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "绑定域名时二级域名 (subdomain) 必填");
+        }
+        // 同一根域下二级标签不能跟别的机器撞 (否则两台抢同一 FQDN / 证书 / A 记录)
+        if (xrayInstallService.isSubdomainTaken(reqVO.getDomainId(), reqVO.getSubdomain().trim(), serverId)) {
+            throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID,
+                    "该根域下二级域名 '" + reqVO.getSubdomain().trim() + "' 已被其他线路机占用, 请换一个");
         }
         if (StrUtil.isBlank(reqVO.getTlsCertPath()) || StrUtil.isBlank(reqVO.getTlsKeyPath())) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "绑定域名时 tlsCertPath / tlsKeyPath 必填");

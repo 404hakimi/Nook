@@ -1,6 +1,7 @@
 package com.nook.biz.node.service.xray.server.impl;
 
 import cn.hutool.core.util.ObjectUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayInstallMapper;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
@@ -46,6 +47,14 @@ public class XrayInstallServiceImpl implements XrayInstallService {
     @Override
     public XrayInstallDO get(String serverId) {
         return xrayInstallMapper.selectById(serverId);
+    }
+
+    @Override
+    public boolean isSubdomainTaken(String domainId, String subdomain, String excludeServerId) {
+        return xrayInstallMapper.selectCount(new LambdaQueryWrapper<XrayInstallDO>()
+                .eq(XrayInstallDO::getDomainId, domainId)
+                .eq(XrayInstallDO::getSubdomain, subdomain)
+                .ne(XrayInstallDO::getServerId, excludeServerId)) > 0;
     }
 
     @Override

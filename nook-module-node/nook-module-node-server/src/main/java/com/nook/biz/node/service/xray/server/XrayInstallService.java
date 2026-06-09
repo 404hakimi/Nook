@@ -37,6 +37,16 @@ public interface XrayInstallService {
     Map<String, XrayInstallDO> listByServerIds(Collection<String> serverIds);
 
     /**
+     * 同一根域下二级标签是否已被别的线路机占用 (重装时排除自身)
+     *
+     * @param domainId        根域 system_domain.id
+     * @param subdomain       二级标签
+     * @param excludeServerId 排除的服务器编号 (当前机)
+     * @return true = 已被其他机占用
+     */
+    boolean isSubdomainTaken(String domainId, String subdomain, String excludeServerId);
+
+    /**
      * 标记 replay 完成
      *
      * @param serverId   服务器编号
