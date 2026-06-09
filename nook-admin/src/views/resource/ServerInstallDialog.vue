@@ -18,6 +18,7 @@ import {
 import { useConfirm } from '@/composables/useConfirm'
 import { xrayInstallStream, type LineServerInstallDTO } from '@/api/xray/xray-install'
 import { pageServers } from '@/api/resource/server'
+import { listSystemDomain, type SystemDomain } from '@/api/system/domain'
 
 /** ServerInstallDialog 仅需 server.id + server.name; 实际可接受任何含 id/name 的形态 (ResourceServer / ServerFrontlineListItem). */
 interface ServerTarget { id: string; name: string }
@@ -75,6 +76,21 @@ function onPickServer(serverId: string | null) {
   }
   const opt = serverOptions.value.find((o) => o.value === serverId)
   pickedServer.value = opt ? opt.raw : null
+}
+
+// ===== 域名下拉 (system_domain; 选了 = 走 TLS, 留空 = 纯 vmess+ws) =====
+const domains = ref<SystemDomain[]>([])
+const domainsLoading = ref(false)
+const domainOptions = computed(() => domains.value.map((d) => ({ label: d.domain, value: d.id })))
+async function loadDomains() {
+  domainsLoading.value = true
+  try {
+    domains.value = await listSystemDomain()
+  } catch {
+    domains.value = []
+  } finally {
+    domainsLoading.value = false
+  }
 }
 
 /** 项目认可的 Xray 稳定版; 升级时改这里. (后端不再有 fallback, 必须前端传值) */
@@ -144,10 +160,8 @@ const form = reactive<LineServerInstallDTO>({
   listenIp: '0.0.0.0',
   sharedInboundPort: 443,
   wsPath: randomWsPath(),
-  // 域名 + TLS 是当前唯一支持模式; 后端 useTls 字段恒为 true, UI 不再暴露开关
-  useTls: true,
-  domain: '',
-  cfApiToken: '',
+  // 域名绑定 system_domain.id; 选了走 TLS, 留空则 xray 退化纯 vmess+ws
+  domainId: undefined,
   tlsCertPath: '',
   tlsKeyPath: ''
 })
@@ -198,6 +212,7 @@ watch(
     output.value = ''
     advancedOpen.value = false
     pickedServer.value = null
+    loadDomains()
     // server 没传时, 进弹框先拉一次列表给 NSelect 用
     if (!props.server) {
       loadServerOptions()
@@ -224,15 +239,7 @@ function validate() {
   if (!form.wsPath || !form.wsPath.startsWith('/') || !/^\/[A-Za-z0-9_\-/]{0,127}$/.test(form.wsPath)) {
     errors.wsPath = '必须 / 开头, 仅字母数字_-/'
   }
-  // 走域名 + TLS 是当前唯一支持模式, domain / cfApiToken 必填
-  if (!form.domain?.trim()) {
-    errors.domain = '必填 (CDN CNAME 指向; 部署后申请 LE 证书走 CF DNS-01)'
-  } else if (!/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(form.domain.trim())) {
-    errors.domain = '域名格式非法'
-  }
-  if (!form.cfApiToken?.trim()) {
-    errors.cfApiToken = '必填 (acme.sh DNS-01 签发证书用; 远端 cert 仍有效时脚本会自动跳过 acme)'
-  }
+  // domainId 选填: 选了走域名 + TLS, 留空则 xray 退化纯 vmess+ws (后端 useTls = domainId 非空)
   return Object.keys(errors).length === 0
 }
 
@@ -277,10 +284,8 @@ async function onSubmit() {
       listenIp: form.listenIp,
       sharedInboundPort: form.sharedInboundPort,
       wsPath: form.wsPath.trim(),
-      // 当前只支持 useTls=true + domain + CF Token; 三者已在 validate 强制必填
-      useTls: true,
-      domain: form.domain?.trim() ?? '',
-      cfApiToken: form.cfApiToken?.trim() ?? '',
+      // 选了域名走 TLS (domain / CF Token 由 system_domain 提供); 留空则后端 useTls=false
+      domainId: form.domainId || undefined,
       tlsCertPath: form.tlsCertPath?.trim() || d.tlsCertPath,
       tlsKeyPath: form.tlsKeyPath?.trim() || d.tlsKeyPath
     }
@@ -518,47 +523,27 @@ function close() {
         </NFormItem>
       </div>
 
-      <!-- ===== 域名 + TLS (当前唯一支持模式) ===== -->
+      <!-- ===== 域名绑定 (system_domain; 选了走 TLS, 留空纯 vmess+ws) ===== -->
       <div class="text-sm font-semibold mt-4 mb-2 flex items-center gap-3">
         <span>域名 + TLS</span>
         <span class="text-xs text-zinc-400 font-normal">
-          走 CDN CNAME, acme.sh DNS-01 申请 LE 证书; 不再支持 IP:port 直连模式
+          选已登记的域名 = 走 CDN CNAME + acme.sh DNS-01 签发 LE 证书; 留空 = 不启用域名 (xray 退化纯 vmess+ws)
         </span>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-        <NFormItem
-          required
-          :validation-status="errors.domain ? 'error' : undefined"
-          :feedback="errors.domain"
-        >
+        <NFormItem>
           <template #label>
             <span>对外域名</span>
-            <span class="text-xs text-zinc-400 ml-2">CDN CNAME 指向</span>
+            <span class="text-xs text-zinc-400 ml-2">在「系统配置 → 域名」预先登记; 含 CF Token 供签发 / 续期</span>
           </template>
-          <NInput
-            v-model:value="form.domain"
-            placeholder="server01.example.com"
+          <NSelect
+            v-model:value="form.domainId"
+            :options="domainOptions"
+            :loading="domainsLoading"
             :disabled="installing"
-            :input-props="{ style: 'font-family: monospace' }"
-          />
-        </NFormItem>
-
-        <NFormItem
-          required
-          :validation-status="errors.cfApiToken ? 'error' : undefined"
-          :feedback="errors.cfApiToken || 'acme.sh DNS-01 签发证书用; 远端 cert 仍有效时脚本会自动跳过 acme 不烧 LE 周配额'"
-        >
-          <template #label>
-            <span>Cloudflare API Token</span>
-            <span class="text-xs text-zinc-400 ml-2">Zone:Read + DNS:Edit</span>
-          </template>
-          <NInput
-            v-model:value="form.cfApiToken"
-            type="password"
-            show-password-on="click"
-            placeholder="CF API Token"
-            :disabled="installing"
-            :input-props="{ autocomplete: 'new-password' }"
+            clearable
+            filterable
+            placeholder="选择域名 (留空 = 不启用 TLS)"
           />
         </NFormItem>
       </div>

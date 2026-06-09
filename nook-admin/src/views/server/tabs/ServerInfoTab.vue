@@ -5,7 +5,6 @@ import {
   CircleDollarSign,
   Edit3,
   FileText,
-  Globe,
   Power,
   Server,
   Trash2
@@ -28,20 +27,17 @@ import {
   getServerBilling,
   getServerQuota,
   getServerDetail,
-  getServerFrontline,
   SERVER_LIFECYCLE_LABELS,
   SERVER_LIFECYCLE_TAG_TYPE,
   transitionFrontlineLifecycle,
   type ResourceServer,
   type ServerBilling,
-  type ServerQuota,
-  type ServerFrontline
+  type ServerQuota
 } from '@/api/resource/server'
 import { formatDateTime } from '@/utils/date'
 import ServerCoreEditDialog from '@/views/server/dialogs/ServerCoreEditDialog.vue'
 import ServerBillingEditDialog from '@/views/server/dialogs/ServerBillingEditDialog.vue'
 import ServerQuotaEditDialog from '@/views/server/dialogs/ServerQuotaEditDialog.vue'
-import ServerFrontlineEditDialog from '@/views/server/dialogs/ServerFrontlineEditDialog.vue'
 
 const props = defineProps<{
   serverId: string
@@ -53,7 +49,6 @@ const dialog = useDialog()
 
 const detail = ref<ResourceServer | null>(null)
 const billing = ref<ServerBilling | null>(null)
-const frontline = ref<ServerFrontline | null>(null)
 const capacity = ref<ServerQuota | null>(null)
 const loading = ref(false)
 
@@ -61,15 +56,13 @@ async function load() {
   if (!props.serverId) return
   loading.value = true
   try {
-    const [d, b, n, c] = await Promise.all([
+    const [d, b, c] = await Promise.all([
       getServerDetail(props.serverId),
       getServerBilling(props.serverId),
-      getServerFrontline(props.serverId),
       getServerQuota(props.serverId)
     ])
     detail.value = d
     billing.value = b
-    frontline.value = n
     capacity.value = c
   } catch { /* */ } finally {
     loading.value = false
@@ -133,7 +126,6 @@ const expiresTagType = computed(() => {
 const coreEditOpen = ref(false)
 const billingEditOpen = ref(false)
 const quotaEditOpen = ref(false)
-const frontlineEditOpen = ref(false)
 
 function afterEdit() { load(); emit('refresh') }
 </script>
@@ -282,35 +274,6 @@ function afterEdit() { load(); emit('refresh') }
         </NDescriptions>
       </NCard>
 
-      <!-- === Section 3: DNS 绑定 === -->
-      <NCard size="small" :bordered="false" class="info-section">
-        <template #header>
-          <div class="section-header">
-            <NIcon class="section-icon"><Globe :size="14" /></NIcon>
-            <span>线路机扩展</span>
-            <span class="flex-1"></span>
-            <NButton size="tiny" quaternary type="primary" @click="frontlineEditOpen = true">
-              <template #icon><NIcon><Edit3 :size="12" /></NIcon></template>
-              编辑
-            </NButton>
-          </div>
-        </template>
-        <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 9rem">
-          <NDescriptionsItem label="线路机域名">
-            <code v-if="frontline?.domain" class="kbd">{{ frontline.domain }}</code>
-            <span v-else class="muted">未配置 (LIVE 前置必填)</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="Cloudflare Zone ID">
-            <code v-if="frontline?.cfZoneId" class="kbd text-xs">{{ frontline.cfZoneId }}</code>
-            <span v-else class="muted">未配置</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="Cloudflare Record ID">
-            <code v-if="frontline?.cfRecordId" class="kbd text-xs">{{ frontline.cfRecordId }}</code>
-            <span v-else class="muted">未配置</span>
-          </NDescriptionsItem>
-        </NDescriptions>
-      </NCard>
-
       <!-- === Section 4: 时间 + 备注 === -->
       <NCard size="small" :bordered="false" class="info-section">
         <template #header>
@@ -336,7 +299,6 @@ function afterEdit() { load(); emit('refresh') }
     <ServerCoreEditDialog v-if="detail" v-model="coreEditOpen" :server="detail" @saved="afterEdit" />
     <ServerBillingEditDialog v-model="billingEditOpen" :server-id="serverId" @saved="afterEdit" />
     <ServerQuotaEditDialog v-model="quotaEditOpen" :server-id="serverId" @saved="afterEdit" />
-    <ServerFrontlineEditDialog v-model="frontlineEditOpen" :server-id="serverId" :lifecycle-state="detail?.lifecycleState" @saved="afterEdit" />
   </NSpin>
 </template>
 

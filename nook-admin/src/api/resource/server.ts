@@ -76,14 +76,6 @@ export interface ServerBilling {
   expiresAt?: string
 }
 
-/** 线路机扩展 (1:1, /admin/resource/server-frontline/frontline?id=...). */
-export interface ServerFrontline {
-  serverId?: string
-  domain?: string
-  cfZoneId?: string
-  cfRecordId?: string
-}
-
 /** 创建参数 (frontline / landing 共用; 按 serverType 分发). */
 export interface ResourceServerCreateDTO {
   /** frontline / landing; 决定主表 server_type 与是否走 landing 子表初始化. */
@@ -275,11 +267,6 @@ export function getServerBilling(id: string) {
   return request.get<unknown, ServerBilling | null>('/admin/resource/server/get-billing', { params: { id } })
 }
 
-/** 取线路机扩展. */
-export function getServerFrontline(id: string) {
-  return request.get<unknown, ServerFrontline | null>('/admin/resource/server-frontline/get-frontline', { params: { id } })
-}
-
 export function createServer(dto: ResourceServerCreateDTO) {
   return request.post<unknown, ResourceServer>('/admin/resource/server/create-server', dto)
 }
@@ -297,11 +284,6 @@ export function updateServerCredential(id: string, dto: ServerCredential) {
 /** 更新账面. */
 export function updateServerBilling(id: string, dto: ServerBilling) {
   return request.put<unknown, boolean>('/admin/resource/server/update-billing', dto, { params: { id } })
-}
-
-/** 更新线路机扩展. */
-export function updateServerFrontline(id: string, dto: ServerFrontline) {
-  return request.put<unknown, boolean>('/admin/resource/server-frontline/update-frontline', dto, { params: { id } })
 }
 
 export function deleteServer(id: string) {

@@ -113,17 +113,13 @@ export interface LineServerInstallDTO {
   /** WebSocket transport path; 必须 / 开头. */
   wsPath: string
   /**
-   * true = 走域名 + TLS (生产路径): domain 必填, 安装链路跑 CF A 记录 + 45-acme-tls 模块 + xray inbound 渲染 TLS;
-   * false = 不走域名, xray inbound 退化成纯 vmess+ws, domain / cfApiToken 字段被忽略.
+   * 绑定的域名 system_domain.id; 选了 = 走域名 + TLS (生产路径: CF A 记录 + 45-acme-tls + xray inbound 渲染 TLS);
+   * 空 = 不走域名, xray inbound 退化成纯 vmess+ws. 域名 / CF Token 由 system_domain 提供, 不在装机入参里传.
    */
-  useTls: boolean
-  /** 对外域名; useTls=true 时必填. */
-  domain?: string
-  /** Cloudflare API Token; useTls=true 且远端 cert 需新签时必填. 远端保存供续期, 不入 nook DB. */
-  cfApiToken?: string
-  /** TLS 证书路径; useTls=true 必填, useTls=false 送空串. 前端默认 <installDir>/tls/cert.pem. */
+  domainId?: string
+  /** TLS 证书路径; 选了域名必填, 否则送空串. 前端默认 <installDir>/tls/cert.pem. */
   tlsCertPath: string
-  /** TLS 私钥路径; useTls=true 必填, useTls=false 送空串. 前端默认 <installDir>/tls/key.pem. */
+  /** TLS 私钥路径; 选了域名必填, 否则送空串. 前端默认 <installDir>/tls/key.pem. */
   tlsKeyPath: string
 }
 
