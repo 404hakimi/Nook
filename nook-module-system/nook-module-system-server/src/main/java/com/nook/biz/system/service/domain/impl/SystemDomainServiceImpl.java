@@ -2,7 +2,6 @@ package com.nook.biz.system.service.domain.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.nook.biz.system.constant.SystemErrorCode;
 import com.nook.biz.system.controller.domain.vo.SystemDomainSaveReqVO;
 import com.nook.biz.system.dal.dataobject.domain.SystemDomainDO;
@@ -19,7 +18,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 系统域名 Service 实现类
@@ -49,7 +47,6 @@ public class SystemDomainServiceImpl implements SystemDomainService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String createDomain(SystemDomainSaveReqVO reqVO) {
-        this.validateApexDomain(reqVO.getDomain());
         this.validateDomainUnique(null, reqVO.getDomain());
         SystemDomainDO entity = BeanUtils.toBean(reqVO, SystemDomainDO.class);
         entity.setId(null); // 由 ASSIGN_UUID 生成
@@ -61,7 +58,6 @@ public class SystemDomainServiceImpl implements SystemDomainService {
     @Transactional(rollbackFor = Exception.class)
     public void updateDomain(SystemDomainSaveReqVO reqVO) {
         this.getDomain(reqVO.getId());
-        this.validateApexDomain(reqVO.getDomain());
         this.validateDomainUnique(reqVO.getId(), reqVO.getDomain());
         SystemDomainDO patch = BeanUtils.toBean(reqVO, SystemDomainDO.class);
         systemDomainMapper.updateById(patch);
@@ -88,21 +84,6 @@ public class SystemDomainServiceImpl implements SystemDomainService {
         SystemDomainDO existing = systemDomainMapper.selectByDomain(domain);
         if (ObjectUtil.isNotNull(existing) && !existing.getId().equals(excludeId)) {
             throw new BusinessException(SystemErrorCode.DOMAIN_DUPLICATE, domain);
-        }
-    }
-
-    /** 常见复合后缀; 末两段命中时 3 段也算一级域 (如 example.com.cn / example.co.uk). */
-    private static final Set<String> TWO_PART_TLDS = Set.of(
-            "com.cn", "net.cn", "org.cn", "gov.cn", "edu.cn",
-            "co.uk", "org.uk", "me.uk", "com.hk", "com.tw", "com.au", "co.jp", "co.kr");
-
-    /** 校验是一级域名 (apex): 恰 2 段, 或 3 段且末两段是常见复合后缀; 挡运营误把子域名填成根域. */
-    private void validateApexDomain(String domain) {
-        String[] parts = StrUtil.trimToEmpty(domain).toLowerCase().split("\\.");
-        boolean apex = parts.length == 2
-                || (parts.length == 3 && TWO_PART_TLDS.contains(parts[1] + "." + parts[2]));
-        if (!apex) {
-            throw new BusinessException(SystemErrorCode.DOMAIN_NOT_APEX, domain);
         }
     }
 }

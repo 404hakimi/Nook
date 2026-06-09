@@ -18,7 +18,8 @@ public class SystemDomainSaveReqVO {
 
     /** 根域名 (一级域名, 如 karsu.cc); 二级域名装机时填, 共用此根域 + CF 配置. */
     @NotBlank(message = "根域名必填")
-    @Pattern(regexp = "^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$", message = "域名格式非法")
+    @Pattern(regexp = "^[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.[a-zA-Z]{2,}$",
+            message = "请填一级域名 (如 karsu.cc), 不要带子域名")
     @Size(max = 255)
     private String domain;
 

@@ -31,7 +31,6 @@ public enum SystemErrorCode implements ErrorCode {
 
     DOMAIN_NOT_FOUND(2120, "域名 %s 不存在"),
     DOMAIN_DUPLICATE(2121, "域名 %s 已存在"),
-    DOMAIN_NOT_APEX(2122, "%s 不是一级域名 (请填根域如 karsu.cc, 不要带子域名)"),
     ;
 
     private final int code;

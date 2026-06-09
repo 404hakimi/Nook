@@ -117,18 +117,9 @@ function maskToken(t?: string): string {
   return t.length <= 8 ? '••••' : t.slice(0, 4) + '••••' + t.slice(-4)
 }
 
-/** 常见复合后缀; 末两段命中时 3 段也算一级域. */
-const TWO_PART_TLDS = new Set([
-  'com.cn', 'net.cn', 'org.cn', 'gov.cn', 'edu.cn',
-  'co.uk', 'org.uk', 'me.uk', 'com.hk', 'com.tw', 'com.au', 'co.jp', 'co.kr'
-])
-/** 是否一级域名 (apex): 恰 2 段, 或 3 段且末两段是常见复合后缀; 跟后端校验对齐. */
+/** 是否一级域名: 恰 label.tld 两段 (跟后端 @Pattern 同一条正则); 不做复合后缀精细判断. */
 function isApexDomain(d: string): boolean {
-  const s = d.trim().replace(/\.+$/, '').toLowerCase()
-  if (!/^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(s)) return false
-  const parts = s.split('.')
-  if (parts.length === 2) return true
-  return parts.length === 3 && TWO_PART_TLDS.has(parts.slice(-2).join('.'))
+  return /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.[a-zA-Z]{2,}$/.test(d.trim())
 }
 </script>
 
