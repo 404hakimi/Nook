@@ -13,6 +13,7 @@ import com.nook.biz.system.api.domain.SystemDomainApi;
 import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import java.util.List;
  *
  * @author nook
  */
+@Slf4j
 @Component
 public class XrayInstallValidator {
 
@@ -63,14 +65,15 @@ public class XrayInstallValidator {
     }
 
     /**
-     * 校验装机入参不与现有客户端的客户面参数冲突
+     * 重装改客户面参数时记审计日志 (不阻断)
      *
-     * <p>存在客户端且共享端口 / ws 路径 / 域名等客户面参数变更时拒绝; 首次部署或无客户端则跳过.
+     * <p>共享端口 / ws 路径 / 域名等变更会让在用客户连不上, 需各自重新拉取订阅才能恢复;
+     * 是否变更 (如域名轮换) 由运营自行决策, 故这里只告警留痕不拒绝。首次部署或无客户端则跳过。
      *
      * @param serverId 服务器ID
      * @param reqVO    装机入参
      */
-    public void validateAgainstActiveClients(String serverId, XrayInstallReqVO reqVO) {
+    public void warnIfClientFacingChange(String serverId, XrayInstallReqVO reqVO) {
         long activeCount = subscriptionCertApi.listActiveByServer(serverId).size();
 
         XrayInstallDO existingServer = xrayInstallService.get(serverId);
@@ -103,7 +106,7 @@ public class XrayInstallValidator {
             mismatches.add("domain: " + existingConfig.getDomain() + " → " + newDomain);
         }
         if (CollUtil.isNotEmpty(mismatches)) {
-            throw new BusinessException(XrayErrorCode.NODE_PARAM_CHANGE_BLOCKED,
+            log.warn("[xray-reinstall] server={} 改动客户面参数, {} 个在用客户需重新拉取订阅: {}",
                     serverId, activeCount, String.join("; ", mismatches));
         }
     }

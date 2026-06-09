@@ -217,6 +217,9 @@ function applyPrefill() {
   Object.assign(form, clean)
 }
 
+/** 重装态 (有 prefill = 从已装机器进来); 用于提示客户面改动会要求在用客户重拉订阅. */
+const isReinstall = computed(() => !!props.prefill)
+
 watch(
   () => [props.modelValue, props.server?.id],
   ([open]) => {
@@ -371,6 +374,14 @@ function close() {
       require-mark-placement="right-hanging"
       size="small"
     >
+      <!-- 重装提示: 已预填当前配置; 改客户面参数会要求在用客户重拉订阅 -->
+      <div
+        v-if="isReinstall"
+        class="mb-3 px-3 py-2 rounded text-xs border bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800"
+      >
+        重装已沿用当前装机配置,只改你需要改的。变更域名 / 端口 / wsPath 等客户面参数后,该机在用客户需<strong>重新拉取订阅</strong>才能恢复连接。
+      </div>
+
       <!-- ===== 目标服务器 (没传 server prop 时显示选择器) ===== -->
       <NFormItem v-if="!server" required>
         <template #label>
