@@ -31,6 +31,7 @@ public enum SystemErrorCode implements ErrorCode {
 
     DOMAIN_NOT_FOUND(2120, "域名 %s 不存在"),
     DOMAIN_DUPLICATE(2121, "域名 %s 已存在"),
+    DOMAIN_RENAME_BOUND(2122, "根域 %s 已被线路机绑定, 不能改域名串; 请改 CF 配置或新建域名"),
     ;
 
     private final int code;

@@ -27,4 +27,12 @@ public interface XrayInstallApi {
      * @return 服务器ID → xray 实例 DTO (未安装的不在 map 内)
      */
     Map<String, XrayInstallRespDTO> listByServerIds(Collection<String> serverIds);
+
+    /**
+     * 该根域 (system_domain.id) 是否已被任意线路机的 xray 实例绑定
+     *
+     * @param domainId 根域 id
+     * @return true = 有线路机绑定 (改根域串会致已部署机器 FQDN 漂移, 应拒绝)
+     */
+    boolean isDomainBound(String domainId);
 }

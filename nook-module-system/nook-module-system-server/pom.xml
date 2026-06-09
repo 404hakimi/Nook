@@ -37,5 +37,11 @@
             <groupId>com.nook</groupId>
             <artifactId>nook-module-operation-api</artifactId>
         </dependency>
+
+        <!-- 改根域串前查 xray_install 是否已被线路机绑定 (禁止部署漂移) -->
+        <dependency>
+            <groupId>com.nook</groupId>
+            <artifactId>nook-module-node-api</artifactId>
+        </dependency>
     </dependencies>
 </project>

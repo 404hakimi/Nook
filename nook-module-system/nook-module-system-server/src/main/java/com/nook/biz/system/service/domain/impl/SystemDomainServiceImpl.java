@@ -2,6 +2,8 @@ package com.nook.biz.system.service.domain.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.StrUtil;
+import com.nook.biz.node.api.xray.XrayInstallApi;
 import com.nook.biz.system.constant.SystemErrorCode;
 import com.nook.biz.system.controller.domain.vo.SystemDomainSaveReqVO;
 import com.nook.biz.system.dal.dataobject.domain.SystemDomainDO;
@@ -29,6 +31,7 @@ import java.util.Map;
 public class SystemDomainServiceImpl implements SystemDomainService {
 
     private final SystemDomainMapper systemDomainMapper;
+    private final XrayInstallApi xrayInstallApi;
 
     @Override
     public List<SystemDomainDO> getDomainList() {
@@ -57,7 +60,11 @@ public class SystemDomainServiceImpl implements SystemDomainService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateDomain(SystemDomainSaveReqVO reqVO) {
-        this.getDomain(reqVO.getId());
+        SystemDomainDO existing = this.getDomain(reqVO.getId());
+        // 已被线路机绑定时禁止改根域串 (已装机的 cert / xray inbound 仍用旧 FQDN, 改串会致部署漂移); CF 配置 / 备注仍可改
+        if (!StrUtil.equals(existing.getDomain(), reqVO.getDomain()) && xrayInstallApi.isDomainBound(reqVO.getId())) {
+            throw new BusinessException(SystemErrorCode.DOMAIN_RENAME_BOUND, existing.getDomain());
+        }
         this.validateDomainUnique(reqVO.getId(), reqVO.getDomain());
         SystemDomainDO patch = BeanUtils.toBean(reqVO, SystemDomainDO.class);
         systemDomainMapper.updateById(patch);

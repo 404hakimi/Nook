@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.xray.dto.XrayInstallRespDTO;
 import com.nook.biz.node.convert.xray.XrayInstallConvert;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
 import com.nook.biz.node.dal.mysql.mapper.XrayInstallMapper;
 import com.nook.common.utils.collection.CollectionUtils;
@@ -38,5 +39,11 @@ public class XrayInstallApiImpl implements XrayInstallApi {
         return CollectionUtils.convertMap(
                 xrayInstallMapper.selectBatchIds(serverIds), XrayInstallDO::getServerId,
                 XrayInstallConvert.INSTANCE::toRespDTO);
+    }
+
+    @Override
+    public boolean isDomainBound(String domainId) {
+        return xrayInstallMapper.selectCount(new LambdaQueryWrapper<XrayInstallDO>()
+                .eq(XrayInstallDO::getDomainId, domainId)) > 0;
     }
 }
