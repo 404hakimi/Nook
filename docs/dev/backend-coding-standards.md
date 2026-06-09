@@ -237,7 +237,7 @@ int physicalDeleteByXxx(@Param("xxx") String xxx);
 
 **正确流程**:
 1. 先跟用户说明本次结构变更需要执行什么 SQL (DDL + 数据迁移 + 字典清理等)
-2. 用户确认后通过 **MCP 数据库工具** (`mcp__my-database__execute_query`) 直接执行 → 校验最终状态
+2. 用户确认后通过 **MCP 数据库工具** (`mcp__universal-db-mcp__execute_query`) 直接执行 → 校验最终状态
 3. 仓库里只保留主表结构定义 (后续如有 `script/sql/nook.sql` 主文件再考虑), 不留迁移脚本
 
 理由: 迁移脚本沉淀在仓库会被误以为是部署流程的一部分; 实际部署用 MCP 同步生产环境, 本地 SQL 文件反而是噪音.
@@ -1325,7 +1325,7 @@ Set<String> ok = filterAllocatable(serverIds);
 
 1. **不要**直接生成 `.sql` 迁移文件丢仓库
 2. 设计完 DDL → 跟用户说明 (展示要执行的 CREATE / ALTER / INSERT) → 等用户确认
-3. 用户 OK 后通过 `mcp__my-database__execute_query` 执行
-4. 执行后用 `mcp__my-database__get_table_info` 校验结果
+3. 用户 OK 后通过 `mcp__universal-db-mcp__execute_query` 执行
+4. 执行后用 `mcp__universal-db-mcp__get_table_info` 校验结果
 5. 仓库里只在 README / 设计文档里描述表结构, 不留迁移脚本
 
