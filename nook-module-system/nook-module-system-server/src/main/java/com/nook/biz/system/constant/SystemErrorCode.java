@@ -28,6 +28,9 @@ public enum SystemErrorCode implements ErrorCode {
 
     REGION_NOT_FOUND(2110, "区域 %s 不存在"),
     REGION_CODE_EXISTS(2111, "区域码 %s 已存在"),
+
+    DOMAIN_NOT_FOUND(2120, "域名 %s 不存在"),
+    DOMAIN_DUPLICATE(2121, "域名 %s 已存在"),
     ;
 
     private final int code;
