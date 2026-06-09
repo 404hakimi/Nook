@@ -21,6 +21,10 @@ export interface XrayInstall {
   xrayLogDir?: string
   /** 全节点固定常量, 后端回填 (/etc/systemd/system/xray.service) */
   xraySystemdUnitPath?: string
+  /** 绑定的域名 system_domain.id; 空 = 未绑 / 不用 TLS */
+  domainId?: string
+  /** 绑定的域名 (据 domainId 回填) */
+  domain?: string
   /** 最近一次部署完成时间 (重装覆写) */
   installedAt?: string
   /** 上次探测到的 xray 启动时间; 重装清零 */

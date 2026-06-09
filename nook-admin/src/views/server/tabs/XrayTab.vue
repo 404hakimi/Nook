@@ -101,6 +101,10 @@ function onRestart() {
           日志
         </NButton>
         <div class="flex-1"></div>
+        <NButton size="small" :disabled="!agentInfo" @click="installOpen = true">
+          <template #icon><NIcon><Rocket /></NIcon></template>
+          重装 xray
+        </NButton>
         <NButton size="small" type="warning" @click="onRestart">
           <template #icon><NIcon><RotateCcw /></NIcon></template>
           重启 xray
@@ -127,9 +131,9 @@ function onRestart() {
             <span v-if="config?.sharedInboundPort != null" class="num">{{ config.sharedInboundPort }}</span>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="domain">
-            <code v-if="config?.domain" class="kbd">{{ config.domain }}</code>
-            <span v-else class="muted">—</span>
+          <NDescriptionsItem label="绑定域名">
+            <code v-if="server.domain || config?.domain" class="kbd">{{ server.domain || config?.domain }}</code>
+            <span v-else class="muted">未绑定 (无 TLS)</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="协议 / 传输">
             <NTag v-if="config?.protocol" size="tiny">{{ config.protocol }}</NTag>
@@ -219,6 +223,7 @@ function onRestart() {
     <ServerInstallDialog
       v-model="installOpen"
       :server="agentInfo"
+      :default-domain-id="server?.domainId"
       @installed="onInstalled"
     />
   </NSpin>

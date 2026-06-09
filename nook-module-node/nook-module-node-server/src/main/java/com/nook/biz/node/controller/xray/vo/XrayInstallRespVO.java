@@ -46,6 +46,12 @@ public class XrayInstallRespVO {
     /** 远端 systemd unit 文件路径; 全节点固定常量, 后端回填. */
     private String xraySystemdUnitPath;
 
+    /** 绑定的域名 system_domain.id; 空 = 未绑 / 不用 TLS. */
+    private String domainId;
+
+    /** 绑定的域名 (据 domainId 从 system_domain 回填; 装机时渲染进 xray_inbound). */
+    private String domain;
+
     /** 装机完成时刻. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime installedAt;

@@ -155,7 +155,7 @@ function afterEdit() { load(); emit('refresh') }
               删除 server
             </NButton>
           </template>
-          软删主记录, 保留 xray_install / xray_inbound / op_log 历史, 不可撤销.
+          级联硬删主记录 + 全部子表 (凭据 / 账面 / 配额 / 流量 / xray_install / xray_inbound 等), 不可撤销; 仍被生效凭证绑定的机器会被拒绝删除.
         </NPopconfirm>
       </div>
 

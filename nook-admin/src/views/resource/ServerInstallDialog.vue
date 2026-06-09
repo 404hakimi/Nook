@@ -26,6 +26,8 @@ interface ServerTarget { id: string; name: string }
 interface Props {
   modelValue: boolean
   server?: ServerTarget | null
+  /** 重装时预选当前已绑域名 (system_domain.id); 新装传空. */
+  defaultDomainId?: string | null
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{
@@ -212,6 +214,7 @@ watch(
     output.value = ''
     advancedOpen.value = false
     pickedServer.value = null
+    form.domainId = props.defaultDomainId ?? undefined
     loadDomains()
     // server 没传时, 进弹框先拉一次列表给 NSelect 用
     if (!props.server) {

@@ -293,6 +293,13 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         Map<String, ResourceServerDO> serverMap = resourceServerService.getServerMap(ids);
         Map<String, String> hostMap = resourceServerService.getIpAddressMap(ids);
         XrayInstallConvert.fillServer(vo, serverMap, hostMap);
+        // 据 domain_id 回填绑定域名名 (域名被删则留空, 不阻断详情)
+        if (StrUtil.isNotBlank(vo.getDomainId())) {
+            String domainName = systemDomainApi.getDomainMap(Set.of(vo.getDomainId())).get(vo.getDomainId());
+            if (StrUtil.isNotBlank(domainName)) {
+                vo.setDomain(domainName);
+            }
+        }
         return vo;
     }
 
