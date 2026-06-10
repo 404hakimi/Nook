@@ -122,6 +122,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         quota.setServerId(serverId);
         quota.setResetPolicy(ResourceServerQuotaResetPolicyEnum.MONTHLY.getState());
         quota.setResetDay(1); // 默认每月 1 号重置, admin 可改
+        quota.setUsablePercent(90); // 默认留 10% 冗余给换机延迟 / 装机流量, admin 可改
         quota.setCreatedAt(now);
         quota.setUpdatedAt(now);
         resourceServerQuotaMapper.insert(quota);

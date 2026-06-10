@@ -9,7 +9,6 @@ import com.nook.biz.node.dal.mysql.mapper.ResourceServerQuotaMapper;
 import com.nook.biz.node.dal.mysql.mapper.ResourceServerTrafficMapper;
 import com.nook.biz.node.service.rules.ResourceServerRules;
 import com.nook.biz.node.service.resource.ResourceServerTrafficService;
-import com.nook.common.utils.unit.TrafficUnitUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -132,10 +131,11 @@ public class ResourceServerTrafficServiceImpl implements ResourceServerTrafficSe
         row.setLastCounterTxBytes(cumTx);
     }
 
-    /** 配额到顶置已限流 (停分新用户 + 触发同地区切换, 上层消费); 不限额则不动. */
+    /** 用量达限流阈值 (配额 × 可用比例) 置已限流 (停分新用户 + 触发同地区切换, 上层消费); 不限额则不动. */
     private void markQuotaReached(ResourceServerQuotaDO quota, ResourceServerTrafficDO row) {
         Integer totalGb = quota.getTotalGb();
-        if (ObjectUtil.isNotNull(totalGb) && totalGb > 0 && nz(row.getUsedBytes()) >= TrafficUnitUtils.gbToBytes(totalGb)) {
+        if (ObjectUtil.isNotNull(totalGb) && totalGb > 0
+                && nz(row.getUsedBytes()) >= ResourceServerRules.usableBytes(totalGb, quota.getUsablePercent())) {
             row.setThrottleState(ResourceServerThrottleStateEnum.THROTTLED.getState());
         }
     }

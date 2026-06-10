@@ -25,6 +25,7 @@ public interface ResourceServerQuotaConvert {
         }
         vo.setServerId(quota.getServerId());
         vo.setTotalGb(quota.getTotalGb());
+        vo.setUsablePercent(quota.getUsablePercent());
         vo.setBandwidthMbps(quota.getBandwidthMbps());
         vo.setResetPolicy(quota.getResetPolicy());
         vo.setResetDay(quota.getResetDay());

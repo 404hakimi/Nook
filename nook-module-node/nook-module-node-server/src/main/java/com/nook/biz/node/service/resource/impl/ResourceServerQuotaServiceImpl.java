@@ -27,7 +27,7 @@ public class ResourceServerQuotaServiceImpl implements ResourceServerQuotaServic
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateQuota(String serverId, ResourceServerQuotaUpdateReqVO reqVO) {
-        resourceServerQuotaMapper.updateQuota(serverId, reqVO.getTotalGb(), reqVO.getBandwidthMbps(),
-                reqVO.getResetPolicy(), reqVO.getResetDay());
+        resourceServerQuotaMapper.updateQuota(serverId, reqVO.getTotalGb(), reqVO.getUsablePercent(),
+                reqVO.getBandwidthMbps(), reqVO.getResetPolicy(), reqVO.getResetDay());
     }
 }

@@ -16,6 +16,9 @@ public class ResourceServerQuotaRespVO {
     /** 总流量配额 GB; 0/null = 不限. */
     private Integer totalGb;
 
+    /** 月配额实际可用比例%; 限流阈值 = total_gb × usable_percent/100. */
+    private Integer usablePercent;
+
     /** 出站带宽上限 Mbps; 0/空=不参与分配, 不整形. */
     private Integer bandwidthMbps;
 

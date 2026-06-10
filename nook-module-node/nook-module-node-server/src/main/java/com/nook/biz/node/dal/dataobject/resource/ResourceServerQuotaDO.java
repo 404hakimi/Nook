@@ -20,8 +20,11 @@ public class ResourceServerQuotaDO {
     @TableId
     private String serverId;
 
-    /** 总流量配额 GB; 建议填机房配额的 ~90% 留余量, 0/null=不限. */
+    /** 总流量配额 GB; 照抄厂商面板原值(单向计费厂商 ×2), 0/null=不限. */
     private Integer totalGb;
+
+    /** 月配额实际可用比例%; 限流阈值 = total_gb × usable_percent/100. */
+    private Integer usablePercent;
 
     /** 出站带宽上限 Mbps. 落地机真实限速(取 min(套餐,本值), 0=不限); 线路机供分配不超卖, 0/空=不参与分配. */
     private Integer bandwidthMbps;

@@ -75,6 +75,7 @@ public interface ResourceServerLandingConvert {
         vo.setServerId(quota.getServerId());
         vo.setBandwidthMbps(quota.getBandwidthMbps());
         vo.setTotalGb(quota.getTotalGb());
+        vo.setUsablePercent(quota.getUsablePercent());
         vo.setResetPolicy(quota.getResetPolicy());
         vo.setResetDay(quota.getResetDay());
         if (ObjectUtil.isNotNull(traffic)) {

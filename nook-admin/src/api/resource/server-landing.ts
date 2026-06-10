@@ -141,8 +141,10 @@ export interface ServerLandingQuota {
   serverId?: string
   /** dante 实际限速 Mbps; 0=不限. */
   bandwidthMbps: number
-  /** 总流量配额 GB; null/0=不限. */
+  /** 总流量配额 GB; 照抄厂商面板原值 (单向计费厂商 ×2), null/0=不限. */
   totalGb?: number
+  /** 月配额实际可用比例 % (1-100); 限流阈值 = totalGb × 本比例/100, 空按 90. */
+  usablePercent?: number
   /** 当周期累计已用 byte (agent push). */
   usedBytes?: number
   rxBytes?: number

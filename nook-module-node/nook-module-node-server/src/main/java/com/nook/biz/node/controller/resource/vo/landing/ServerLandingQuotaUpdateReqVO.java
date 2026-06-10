@@ -9,7 +9,7 @@ import lombok.Data;
 /**
  * 管理后台 - SOCKS5 落地节点配额上限 Update Request VO
  *
- * <p>仅允许 admin 改 3 个配额上限; 运行统计由 agent / 状态机维护.
+ * <p>仅允许 admin 改配额上限; 运行统计由 agent / 状态机维护.
  *
  * @author nook
  */
@@ -20,9 +20,14 @@ public class ServerLandingQuotaUpdateReqVO {
     @Min(value = 0)
     private Integer bandwidthMbps;
 
-    /** 总流量配额 GB; null/0=不限. */
+    /** 总流量配额 GB; 照抄厂商面板原值(单向计费厂商 ×2), null/0=不限. */
     @Min(value = 0)
     private Integer totalGb;
+
+    /** 月配额实际可用比例% (1-100); 空=不改. */
+    @Min(value = 1)
+    @Max(value = 100)
+    private Integer usablePercent;
 
     /** 重置策略 {@link ResourceServerQuotaResetPolicyEnum} */
     @Size(max = 32)

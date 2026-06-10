@@ -148,8 +148,8 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     public void updateQuota(String id, ServerLandingQuotaUpdateReqVO reqVO) {
         resourceServerValidator.validateExists(id);
         // 配额配置行装机时已 insert 占位, 这里只走 update 上限
-        resourceServerQuotaMapper.updateQuota(id, reqVO.getTotalGb(), reqVO.getBandwidthMbps(),
-                reqVO.getResetPolicy(), reqVO.getResetDay());
+        resourceServerQuotaMapper.updateQuota(id, reqVO.getTotalGb(), reqVO.getUsablePercent(),
+                reqVO.getBandwidthMbps(), reqVO.getResetPolicy(), reqVO.getResetDay());
     }
 
     @Override

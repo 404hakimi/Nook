@@ -21,6 +21,9 @@ public class ServerLandingQuotaRespVO {
     /** 总流量配额 GB; null/0=不限. */
     private Integer totalGb;
 
+    /** 月配额实际可用比例%; 限流阈值 = total_gb × usable_percent/100. */
+    private Integer usablePercent;
+
     /** 当周期机器已用字节 = rx + tx. */
     private Long usedBytes;
 

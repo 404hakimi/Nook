@@ -166,8 +166,10 @@ export function getServerDetailWithRuntime(id: string) {
 /** Server 配额上限 + 当周期已用 (监控面板用); 未上报过 NIC 时返 null. */
 export interface ServerQuota {
   serverId: string
-  /** 总流量配额 GB; 0/null = 不限. throttle 状态机触发基数 (建议填机房配额的 ~90%). */
+  /** 总流量配额 GB; 照抄厂商面板原值 (单向计费厂商 ×2), 0/null = 不限. */
   totalGb?: number
+  /** 月配额实际可用比例 % (1-100); 限流阈值 = totalGb × 本比例/100, 空按 90. */
+  usablePercent?: number
   /** 出站带宽上限 Mbps; 供套餐分配不超卖, 0/空=不参与分配; 不做 tc 整形 (真实限速在落地机). */
   bandwidthMbps?: number
   rxBytes?: number
@@ -182,6 +184,8 @@ export interface ServerQuota {
 /** 配额上限编辑入参 (PUT /admin/resource/server/update-quota?id=...). */
 export interface ServerQuotaUpdateDTO {
   totalGb?: number
+  /** 月配额实际可用比例 % (1-100); 空 = 不改. */
+  usablePercent?: number
   bandwidthMbps?: number
   /** 重置策略: MONTHLY / FIXED. */
   resetPolicy?: string

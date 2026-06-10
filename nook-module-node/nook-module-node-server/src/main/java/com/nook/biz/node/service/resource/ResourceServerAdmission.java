@@ -41,7 +41,7 @@ import java.util.Set;
  * 服务器选址 + 准入核心.
  *
  * <p>一处收口三类决策, 其它 service 只调用、不重复实现:
- * 准入判定 (生命周期 + 流量限流 + 心跳 + 套餐规格达标) / 按套餐选候选落地机 / 算套餐落地机库存.
+ * 准入判定 (生命周期 + 流量限流 + 心跳 + 套餐预算/带宽达标) / 按套餐选候选落地机 / 算套餐落地机库存.
  *
  * @author nook
  */
@@ -112,11 +112,11 @@ public class ResourceServerAdmission {
     }
 
     /**
-     * 查匹配套餐的运行中落地机 (同区域 + 同 IP 类型 + 健康可分配 + 规格达标)
+     * 查匹配套餐的运行中落地机 (同区域 + 同 IP 类型 + 健康可分配 + 预算/带宽达标)
      *
      * @param region           区域码
      * @param ipTypeId         IP 类型编号
-     * @param minTrafficGb     套餐月流量 (落地机配额须 ≥)
+     * @param minTrafficGb     套餐月流量 (落地机本月剩余预算须撑得起)
      * @param minBandwidthMbps 套餐带宽 (落地机带宽须 ≥)
      * @return 匹配的落地机概要
      */
@@ -137,18 +137,18 @@ public class ResourceServerAdmission {
         if (CollUtil.isEmpty(landings)) {
             return List.of();
         }
-        // ③ 容量子表 + 健康准入 + 规格达标 → 候选概要
+        // ③ 容量 + 当周期用量子表 + 健康准入 + 预算/带宽达标 → 候选概要
+        Set<String> landingServerIds = CollectionUtils.convertSet(landings, Socks5InstallDO::getServerId);
         Map<String, ResourceServerQuotaDO> capMap = CollectionUtils.convertMap(
-                resourceServerQuotaMapper.selectBatchIds(CollectionUtils.convertSet(landings, Socks5InstallDO::getServerId)),
-                ResourceServerQuotaDO::getServerId);
+                resourceServerQuotaMapper.selectBatchIds(landingServerIds), ResourceServerQuotaDO::getServerId);
+        Map<String, ResourceServerTrafficDO> trafficMap = CollectionUtils.convertMap(
+                resourceServerTrafficMapper.selectCurrentByServerIds(landingServerIds), ResourceServerTrafficDO::getServerId);
         Set<String> allocatable = this.filterAllocatable(serverMap.keySet());
         List<LandingSummaryDTO> matched = new ArrayList<>();
         for (Socks5InstallDO landing : landings) {
-            ResourceServerQuotaDO quota = capMap.get(landing.getServerId());
-            Integer totalGb = ObjectUtil.isNull(quota) ? null : quota.getTotalGb();
-            Integer bandwidthMbps = ObjectUtil.isNull(quota) ? null : quota.getBandwidthMbps();
             if (!allocatable.contains(landing.getServerId())
-                    || !ResourceServerRules.meetsPlanSpec(totalGb, bandwidthMbps, minTrafficGb, minBandwidthMbps)) {
+                    || !this.meetsPlanBudget(capMap.get(landing.getServerId()), trafficMap.get(landing.getServerId()),
+                            minTrafficGb, minBandwidthMbps)) {
                 continue;
             }
             matched.add(ResourceServerLandingConvert.INSTANCE.toSummary(serverMap.get(landing.getServerId()), landing));
@@ -166,21 +166,22 @@ public class ResourceServerAdmission {
         if (CollUtil.isEmpty(specs)) {
             return Map.of();
         }
-        // ① 批量捞 (固定 3 查询, 不随套餐数增长): 涉及区域的运行中落地机 → 这批机器里涉及 IP 类型的落地子表 → 容量子表
+        // ① 批量捞 (固定查询数, 不随套餐数增长): 涉及区域的运行中落地机 → 这批机器里涉及 IP 类型的落地子表 → 容量 + 当周期用量子表
         Set<String> regions = CollectionUtils.convertSet(specs, PlanSpecDTO::getRegionCode);
         Set<String> ipTypeIds = CollectionUtils.convertSet(specs, PlanSpecDTO::getIpTypeId);
         Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(
                 resourceServerMapper.selectLiveLandingsByRegions(regions), ResourceServerDO::getId);
         List<Socks5InstallDO> landings = MapUtil.isEmpty(serverMap) ? List.of()
                 : socks5InstallMapper.selectByServerIdsAndIpTypes(serverMap.keySet(), ipTypeIds);
-        Map<String, ResourceServerQuotaDO> capMap = CollUtil.isEmpty(landings) ? Map.of()
-                : CollectionUtils.convertMap(resourceServerQuotaMapper.selectBatchIds(
-                        CollectionUtils.convertSet(landings, Socks5InstallDO::getServerId)),
+        Set<String> landingServerIds = CollectionUtils.convertSet(landings, Socks5InstallDO::getServerId);
+        Map<String, ResourceServerQuotaDO> capMap = CollUtil.isEmpty(landingServerIds) ? Map.of()
+                : CollectionUtils.convertMap(resourceServerQuotaMapper.selectBatchIds(landingServerIds),
                         ResourceServerQuotaDO::getServerId);
+        Map<String, ResourceServerTrafficDO> trafficMap = CollectionUtils.convertMap(
+                resourceServerTrafficMapper.selectCurrentByServerIds(landingServerIds), ResourceServerTrafficDO::getServerId);
         Set<String> allocatable = this.filterAllocatable(serverMap.keySet());
         // cert.ip_id 派生占用 (含 ACTIVE/SUSPENDED); 落地机占用真相收口到凭证, 不再读 landing.status
-        Set<String> boundIds = subscriptionCertApi.filterBoundIpIds(
-                CollectionUtils.convertSet(landings, Socks5InstallDO::getServerId));
+        Set<String> boundIds = subscriptionCertApi.filterBoundIpIds(landingServerIds);
         // ② 落地机按 (区域 + IP 类型) 分桶, 让每个套餐 O(1) 命中自己的候选
         Map<String, List<Socks5InstallDO>> bucket = new HashMap<>();
         for (Socks5InstallDO landing : landings) {
@@ -203,12 +204,10 @@ public class ResourceServerAdmission {
                     occupied++;
                     continue;
                 }
-                // 空闲机器需健康可分配 + 达标 才算"可售"
-                ResourceServerQuotaDO quota = capMap.get(landing.getServerId());
-                Integer totalGb = ObjectUtil.isNull(quota) ? null : quota.getTotalGb();
-                Integer bandwidthMbps = ObjectUtil.isNull(quota) ? null : quota.getBandwidthMbps();
+                // 空闲机器需健康可分配 + 本月剩余预算/带宽达标 才算"可售"
                 if (!allocatable.contains(landing.getServerId())
-                        || !ResourceServerRules.meetsPlanSpec(totalGb, bandwidthMbps, spec.getTrafficGb(), spec.getBandwidthMbps())) {
+                        || !this.meetsPlanBudget(capMap.get(landing.getServerId()), trafficMap.get(landing.getServerId()),
+                                spec.getTrafficGb(), spec.getBandwidthMbps())) {
                     continue;
                 }
                 total++;
@@ -252,6 +251,17 @@ public class ResourceServerAdmission {
             }
         }
         return result;
+    }
+
+    /** 空闲落地机能否再接一个套餐: 本月剩余预算撑得起 + 带宽达标 (quota / traffic 行可空, 规则在 Rules). */
+    private boolean meetsPlanBudget(ResourceServerQuotaDO quota, ResourceServerTrafficDO traffic,
+                                    int planTrafficGb, int planBandwidthMbps) {
+        Integer totalGb = ObjectUtil.isNull(quota) ? null : quota.getTotalGb();
+        Integer usablePercent = ObjectUtil.isNull(quota) ? null : quota.getUsablePercent();
+        Integer bandwidthMbps = ObjectUtil.isNull(quota) ? null : quota.getBandwidthMbps();
+        Long usedBytes = ObjectUtil.isNull(traffic) ? null : traffic.getUsedBytes();
+        return ResourceServerRules.hasTrafficBudget(totalGb, usablePercent, usedBytes, planTrafficGb)
+                && ResourceServerRules.meetsBandwidthSpec(bandwidthMbps, planBandwidthMbps);
     }
 
     /** (区域 + IP 类型) 复合 key; 把落地机按套餐匹配维度分桶. */

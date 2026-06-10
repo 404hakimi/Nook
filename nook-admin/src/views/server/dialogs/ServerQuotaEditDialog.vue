@@ -42,6 +42,7 @@ const loading = ref(false)
 
 const form = reactive({
   totalGb: null as number | null,
+  usablePercent: 90 as number | null,
   bandwidthMbps: null as number | null,
   resetPolicy: 'MONTHLY',
   resetDay: 1 as number | null
@@ -57,6 +58,7 @@ const runtime = reactive({
 
 function fill(c: ServerQuota | null) {
   form.totalGb = c?.totalGb ?? null
+  form.usablePercent = c?.usablePercent ?? 90
   form.bandwidthMbps = c?.bandwidthMbps ?? null
   form.resetPolicy = c?.resetPolicy ?? 'MONTHLY'
   form.resetDay = c?.resetDay ?? 1
@@ -97,6 +99,7 @@ async function onSubmit() {
   try {
     await updateServerQuota(props.serverId, {
       totalGb: form.totalGb ?? 0,
+      usablePercent: form.usablePercent ?? undefined,
       bandwidthMbps: form.bandwidthMbps ?? 0,
       resetPolicy: form.resetPolicy,
       resetDay: form.resetPolicy === 'MONTHLY' ? (form.resetDay ?? undefined) : undefined
@@ -135,15 +138,18 @@ async function onSubmit() {
         </NTag>
       </div>
       <NAlert type="info" :show-icon="false" size="small" class="mb-3">
-        <strong>带宽容量</strong>: 线路机出站带宽, 供套餐分配不超卖 (预留 ~10%), 不做真实限速 (限速在落地机 egress); <strong>月流量阈值</strong>: 月用量达 90% 触发限流的基数. 0 = 不限.
+        <strong>带宽容量</strong>: 线路机出站带宽, 供套餐分配不超卖 (预留 ~10%), 不做真实限速 (限速在落地机 egress); <strong>月流量配额</strong>: 照抄厂商面板原值 (单向计费厂商 ×2), 0 = 不限; 月用量达 配额 × 可用比例 触发限流.
       </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
           <NFormItem label="带宽容量 Mbps (供分配, 须 >0)">
             <NInputNumber v-model:value="form.bandwidthMbps" :min="0" :max="100000" class="w-full" />
           </NFormItem>
-          <NFormItem label="月流量阈值 GB (0=不限)">
+          <NFormItem label="月流量配额 GB (0=不限)">
             <NInputNumber v-model:value="form.totalGb" :min="0" :max="1000000" class="w-full" />
+          </NFormItem>
+          <NFormItem label="可用比例 % (留冗余给换机延迟/装机流量)">
+            <NInputNumber v-model:value="form.usablePercent" :min="1" :max="100" class="w-full" />
           </NFormItem>
           <NFormItem label="周期重置策略">
             <NSelect v-model:value="form.resetPolicy" :options="SERVER_QUOTA_RESET_POLICY_OPTIONS as any" />

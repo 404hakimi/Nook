@@ -18,10 +18,11 @@ public interface ResourceServerQuotaMapper extends BaseMapper<ResourceServerQuot
     /**
      * 额度上限增量更新; null 字段不动 (Wrapper.set 显式写 null 会落库, 故按条件跳过).
      */
-    default int updateQuota(String serverId, Integer totalGb, Integer bandwidthMbps,
+    default int updateQuota(String serverId, Integer totalGb, Integer usablePercent, Integer bandwidthMbps,
                             String resetPolicy, Integer resetDay) {
         return update(null, Wrappers.<ResourceServerQuotaDO>lambdaUpdate()
                 .set(totalGb != null, ResourceServerQuotaDO::getTotalGb, totalGb)
+                .set(usablePercent != null, ResourceServerQuotaDO::getUsablePercent, usablePercent)
                 .set(bandwidthMbps != null, ResourceServerQuotaDO::getBandwidthMbps, bandwidthMbps)
                 .set(resetPolicy != null, ResourceServerQuotaDO::getResetPolicy, resetPolicy)
                 .set(resetDay != null, ResourceServerQuotaDO::getResetDay, resetDay)

@@ -46,6 +46,7 @@ const errors = reactive<Record<string, string>>({})
 const form = reactive({
   bandwidthMbps: 0,
   totalGb: null as number | null,
+  usablePercent: 90 as number | null,
   resetPolicy: 'MONTHLY',
   resetDay: 1 as number | null
 })
@@ -60,6 +61,7 @@ const runtime = reactive({
 function fill(c: ServerLandingQuota | null) {
   form.bandwidthMbps = c?.bandwidthMbps ?? 0
   form.totalGb = c?.totalGb ?? null
+  form.usablePercent = c?.usablePercent ?? 90
   form.resetPolicy = c?.resetPolicy ?? 'MONTHLY'
   form.resetDay = c?.resetDay ?? 1
   runtime.usedBytes = c?.usedBytes ?? 0
@@ -103,6 +105,9 @@ function validate(): boolean {
   if (form.totalGb != null && form.totalGb < 0) {
     errors.totalGb = '月流量上限 ≥ 0'
   }
+  if (form.usablePercent != null && (form.usablePercent < 1 || form.usablePercent > 100)) {
+    errors.usablePercent = '可用比例 1-100'
+  }
   return Object.keys(errors).length === 0
 }
 
@@ -113,6 +118,7 @@ async function onSubmit() {
     await updateServerLandingQuota(props.serverId, {
       bandwidthMbps: form.bandwidthMbps,
       totalGb: form.totalGb ?? undefined,
+      usablePercent: form.usablePercent ?? undefined,
       resetPolicy: form.resetPolicy,
       resetDay: form.resetPolicy === 'MONTHLY' ? (form.resetDay ?? undefined) : undefined
     })
@@ -150,7 +156,7 @@ async function onSubmit() {
       </div>
       <NAlert type="info" :show-icon="false" size="small" class="mb-3">
         <strong>实际限速</strong>: 落地机出口带宽限速值, 修改后需重装才在远端生效;
-        <strong>月流量上限</strong>: 达到上限后该落地机自动停止参与新订阅分配. 0 = 不限.
+        <strong>月流量上限</strong>: 照抄厂商面板原值 (单向计费厂商 ×2), 0 = 不限; 月用量达 上限 × 可用比例 即限流并停止参与新订阅分配.
       </NAlert>
       <NForm :model="form" label-placement="top" size="small">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
@@ -167,6 +173,13 @@ async function onSubmit() {
             :validation-status="errors.totalGb ? 'error' : undefined"
           >
             <NInputNumber v-model:value="form.totalGb" :min="0" :max="10000000" class="w-full" />
+          </NFormItem>
+          <NFormItem
+            label="可用比例 % (留冗余给换机延迟/装机流量)"
+            :feedback="errors.usablePercent"
+            :validation-status="errors.usablePercent ? 'error' : undefined"
+          >
+            <NInputNumber v-model:value="form.usablePercent" :min="1" :max="100" class="w-full" />
           </NFormItem>
           <NFormItem label="周期重置策略">
             <NSelect v-model:value="form.resetPolicy" :options="QUOTA_RESET_OPTIONS" />
