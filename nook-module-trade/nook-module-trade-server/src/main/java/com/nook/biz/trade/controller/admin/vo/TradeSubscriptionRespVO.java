@@ -1,4 +1,4 @@
-package com.nook.biz.trade.controller.vo;
+package com.nook.biz.trade.controller.admin.vo;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;

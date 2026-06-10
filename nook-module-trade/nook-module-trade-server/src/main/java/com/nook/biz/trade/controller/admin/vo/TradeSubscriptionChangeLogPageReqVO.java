@@ -1,4 +1,4 @@
-package com.nook.biz.trade.controller.vo;
+package com.nook.biz.trade.controller.admin.vo;
 
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeReasonEnum;
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeTypeEnum;

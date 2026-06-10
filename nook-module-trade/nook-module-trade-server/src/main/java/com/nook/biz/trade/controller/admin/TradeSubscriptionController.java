@@ -1,10 +1,10 @@
-package com.nook.biz.trade.controller;
+package com.nook.biz.trade.controller.admin;
 
-import com.nook.biz.trade.controller.vo.SubscriptionCreateReqVO;
-import com.nook.biz.trade.controller.vo.TradeSubscriptionChangeLogPageReqVO;
-import com.nook.biz.trade.controller.vo.TradeSubscriptionChangeLogRespVO;
-import com.nook.biz.trade.controller.vo.TradeSubscriptionPageReqVO;
-import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
+import com.nook.biz.trade.controller.admin.vo.SubscriptionCreateReqVO;
+import com.nook.biz.trade.controller.admin.vo.TradeSubscriptionChangeLogPageReqVO;
+import com.nook.biz.trade.controller.admin.vo.TradeSubscriptionChangeLogRespVO;
+import com.nook.biz.trade.controller.admin.vo.TradeSubscriptionPageReqVO;
+import com.nook.biz.trade.controller.admin.vo.TradeSubscriptionRespVO;
 import com.nook.biz.trade.convert.TradeSubscriptionConvert;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.service.TradeSubscriptionChangeLogService;

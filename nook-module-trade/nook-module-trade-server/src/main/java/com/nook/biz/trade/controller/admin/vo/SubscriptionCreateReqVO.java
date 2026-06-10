@@ -1,4 +1,4 @@
-package com.nook.biz.trade.controller.vo;
+package com.nook.biz.trade.controller.admin.vo;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;

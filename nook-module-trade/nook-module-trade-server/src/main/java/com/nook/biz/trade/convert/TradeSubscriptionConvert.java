@@ -1,7 +1,7 @@
 package com.nook.biz.trade.convert;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
+import com.nook.biz.trade.controller.admin.vo.TradeSubscriptionRespVO;
 import com.nook.biz.trade.dal.dataobject.TradePlanDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.common.utils.collection.CollectionUtils;

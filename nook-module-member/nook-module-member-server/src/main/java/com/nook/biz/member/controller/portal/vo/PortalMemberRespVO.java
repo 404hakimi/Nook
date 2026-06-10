@@ -13,7 +13,6 @@ import java.time.LocalDateTime;
 @Data
 public class PortalMemberRespVO {
 
-    private String id;
     private String email;
 
     /** 用户级聚合订阅 URL token; 用户拼接 https://<host>/portal/sub/{subToken} 拿订阅. */

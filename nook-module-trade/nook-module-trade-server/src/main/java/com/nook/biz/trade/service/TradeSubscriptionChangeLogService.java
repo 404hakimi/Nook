@@ -1,7 +1,7 @@
 package com.nook.biz.trade.service;
 
-import com.nook.biz.trade.controller.vo.TradeSubscriptionChangeLogPageReqVO;
-import com.nook.biz.trade.controller.vo.TradeSubscriptionChangeLogRespVO;
+import com.nook.biz.trade.controller.admin.vo.TradeSubscriptionChangeLogPageReqVO;
+import com.nook.biz.trade.controller.admin.vo.TradeSubscriptionChangeLogRespVO;
 import com.nook.biz.trade.event.SubscriptionMachineChangeEvent;
 import com.nook.common.web.response.PageResult;
 

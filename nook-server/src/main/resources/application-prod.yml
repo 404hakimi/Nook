@@ -26,6 +26,10 @@ sa-token:
   is-print: false
 
 nook:
+  # 客户端 (/portal/**) 请求验签; secret 与 nook-client 内置值一致
+  portal-sign:
+    enabled: ${NOOK_PORTAL_SIGN_ENABLED:true}
+    secret: ${NOOK_PORTAL_SIGN_SECRET:}
   agent:
     src-dir: nook-agent
     # Agent 装机 / 升级回拉 backend binary 的公网 URL; 生产用真实域名 (e.g. https://api.nook.example.com)

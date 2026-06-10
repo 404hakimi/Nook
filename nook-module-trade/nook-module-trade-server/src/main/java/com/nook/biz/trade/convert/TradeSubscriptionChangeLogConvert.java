@@ -1,6 +1,6 @@
 package com.nook.biz.trade.convert;
 
-import com.nook.biz.trade.controller.vo.TradeSubscriptionChangeLogRespVO;
+import com.nook.biz.trade.controller.admin.vo.TradeSubscriptionChangeLogRespVO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionChangeLogDO;
 import com.nook.common.utils.collection.CollectionUtils;
 import org.mapstruct.Mapper;

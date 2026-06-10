@@ -1,12 +1,14 @@
 package com.nook.biz.trade.service;
 
-import com.nook.biz.trade.controller.vo.SubscriptionCreateReqVO;
-import com.nook.biz.trade.controller.vo.TradeSubscriptionPageReqVO;
-import com.nook.biz.trade.controller.vo.TradeSubscriptionRespVO;
+import com.nook.biz.trade.controller.admin.vo.SubscriptionCreateReqVO;
+import com.nook.biz.trade.controller.admin.vo.TradeSubscriptionPageReqVO;
+import com.nook.biz.trade.controller.portal.vo.PortalSubscriptionRespVO;
+import com.nook.biz.trade.controller.admin.vo.TradeSubscriptionRespVO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.common.web.response.PageResult;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -66,7 +68,16 @@ public interface TradeSubscriptionService {
      * 渲染会员聚合订阅内容
      *
      * @param subToken 订阅 token
-     * @return Base64 编码的订阅正文; token 无效返 null
+     * @param format   输出格式; clash = Clash YAML, 其它/空 = Base64 vmess 列表
+     * @return 订阅正文; token 无效返 null
      */
-    String renderSubscription(String subToken);
+    String renderSubscription(String subToken, String format);
+
+    /**
+     * 查会员当前订阅 (含套餐 + 剩余额度); 客户端个人中心用
+     *
+     * @param memberUserId 会员ID
+     * @return 订阅列表
+     */
+    List<PortalSubscriptionRespVO> listMemberSubscriptions(String memberUserId);
 }
