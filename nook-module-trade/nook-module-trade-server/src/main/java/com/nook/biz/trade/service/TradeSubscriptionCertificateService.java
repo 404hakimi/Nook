@@ -33,6 +33,23 @@ public interface TradeSubscriptionCertificateService {
     void setAllocation(String certId, String serverId, String ipId);
 
     /**
+     * 写入备用线路机 (落地机不变)
+     *
+     * @param certId           凭证ID
+     * @param standbyServerIds 有序备机ID列表, 空集合即清空
+     */
+    void setStandbyServers(String certId, List<String> standbyServerIds);
+
+    /**
+     * 写入候选组: 主线路机 + 备用线路机一次更新 (落地机不变, 故障换血用)
+     *
+     * @param certId           凭证ID
+     * @param primaryServerId  主线路机ID
+     * @param standbyServerIds 有序备机ID列表, 空集合即清空备机
+     */
+    void setFrontlineGroup(String certId, String primaryServerId, List<String> standbyServerIds);
+
+    /**
      * 清空资源分配
      *
      * @param certId 凭证ID

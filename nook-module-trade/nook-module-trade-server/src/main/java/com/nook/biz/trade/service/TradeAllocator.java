@@ -52,11 +52,41 @@ public class TradeAllocator {
      *
      * @param region            区域码
      * @param planBandwidthMbps 套餐带宽 (要占用的)
+     * @return 最优线路机ID; 无候选返 null
      */
     public String pickFrontline(String region, int planBandwidthMbps) {
+        List<String> top = this.pickFrontlines(region, planBandwidthMbps, 1);
+        return CollUtil.isEmpty(top) ? null : top.get(0);
+    }
+
+    /**
+     * 选同区域、带宽准入通过的 LIVE 线路机候选组, 按剩余带宽降序取前 n 台 (主在前).
+     *
+     * @param region            区域码
+     * @param planBandwidthMbps 套餐带宽 (要占用的)
+     * @param n                 取前几台
+     * @return 有序候选组; 区域不足 n 台则有几台返几台, 一台没有返空
+     */
+    public List<String> pickFrontlines(String region, int planBandwidthMbps, int n) {
+        return this.pickFrontlines(region, planBandwidthMbps, n, Set.of());
+    }
+
+    /**
+     * 选候选组, 排除指定线路机 (故障换血时排掉故障机 + 组内已有的).
+     *
+     * @param region            区域码
+     * @param planBandwidthMbps 套餐带宽 (要占用的)
+     * @param n                 取前几台
+     * @param excludeServerIds  不参与选址的线路机ID集合
+     * @return 有序候选组; 不足 n 台则有几台返几台
+     */
+    public List<String> pickFrontlines(String region, int planBandwidthMbps, int n, Set<String> excludeServerIds) {
+        if (n <= 0) {
+            return List.of();
+        }
         List<ResourceServerRespDTO> frontlines = serverApi.findLiveFrontlinesByRegion(region);
         if (CollUtil.isEmpty(frontlines)) {
-            return null;
+            return List.of();
         }
         Set<String> fIds = CollectionUtils.convertSet(frontlines, ResourceServerRespDTO::getId);
         // 健康准入: 非 LIVE / 到顶 / 心跳不健康 一处判定 (node 侧 ResourceServerAdmission)
@@ -64,10 +94,10 @@ public class TradeAllocator {
         Map<String, ResourceServerQuotaRespDTO> capMap = resourceServerQuotaApi.listByServerIds(fIds);
         Map<String, Integer> committed = committedBandwidthByFrontline(fIds);
 
-        String best = null;
-        int bestHeadroom = Integer.MIN_VALUE;
+        // 同一打分口径: 算出每台剩余带宽, 按其降序排, 取前 n
+        List<Scored> scored = new ArrayList<>();
         for (ResourceServerRespDTO f : frontlines) {
-            if (!allocatable.contains(f.getId())) {
+            if (!allocatable.contains(f.getId()) || excludeServerIds.contains(f.getId())) {
                 continue;
             }
             ResourceServerQuotaRespDTO cap = capMap.get(f.getId());
@@ -81,12 +111,14 @@ public class TradeAllocator {
             if (headroom < 0) {
                 continue;
             }
-            if (headroom > bestHeadroom) {
-                bestHeadroom = headroom;
-                best = f.getId();
-            }
+            scored.add(new Scored(f.getId(), headroom));
         }
-        return best;
+        scored.sort((a, b) -> Integer.compare(b.headroom, a.headroom));
+        return scored.stream().limit(n).map(Scored::id).toList();
+    }
+
+    /** 单台线路机打分中间结果: 线路机ID + 剩余带宽. */
+    private record Scored(String id, int headroom) {
     }
 
     /**

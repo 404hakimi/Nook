@@ -2,6 +2,7 @@ package com.nook.biz.trade.job;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.api.resource.ResourceServerApi;
 import com.nook.biz.trade.api.enums.TradeSubscriptionChangeReasonEnum;
@@ -23,6 +24,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +38,9 @@ import java.util.Set;
 @Slf4j
 @Component
 public class FrontlineFailoverJob {
+
+    /** 候选组目标大小: 一主两备 (决策 1); 区域不足则有几台用几台. */
+    private static final int FRONTLINE_GROUP_SIZE = 3;
 
     @Resource
     private TradeJobProperties tradeJobProperties;
@@ -69,11 +75,11 @@ public class FrontlineFailoverJob {
         }
     }
 
-    /** 把故障线路机上的接入点逐个迁到同区域健康线路机; 无目标则留原机 + 告警. */
+    /** 故障机退出每个受影响接入点的候选组, 组内换血补足; 主挂又补不到机则留原机 + 告警. */
     private void evacuate(String faultedServer, String reason) {
-        // 该线路机上应运行的凭证(每个=一个接入点); 故障源后续被准入网关自动排除
+        // 候选组含该机的应运行凭证 (组口径: 故障机可能是某接入点的主或备, 都要处理)
         List<TradeSubscriptionCertificateDO> certs =
-                tradeSubscriptionCertificateService.listActiveByServer(faultedServer);
+                tradeSubscriptionCertificateService.listActiveByServerInGroup(faultedServer);
         if (CollUtil.isEmpty(certs)) {
             return;
         }
@@ -107,25 +113,58 @@ public class FrontlineFailoverJob {
                 continue;
             }
             int bw = ObjectUtil.isNull(plan.getBandwidthMbps()) ? 0 : plan.getBandwidthMbps();
-            // 复用分配策略选目标; 故障源已被统一准入网关排除(到顶/掉线), 不会被选回; 逐个迁→各线路机已挂载量实时变→自然分散
-            String target = allocator.pickFrontline(plan.getRegionCode(), bw);
-            if (ObjectUtil.isNull(target)) {
-                // 无目标兜底: 留原机 + 告警 (不硬塞/不跨区, 决策见 docs 11 §9)
-                log.error("[failover] 无同区健康线路机可迁, 订阅留原机告警: sub={} member={} region={} faulted={} reason={}",
+            List<String> newGroup = this.rebuildGroup(cert, faultedServer, plan.getRegionCode(), bw);
+            if (CollUtil.isEmpty(newGroup)) {
+                // 主挂又一个备都没有、还补不到新机: 留原机 + 告警 (置空会让接入点彻底无入口)
+                log.error("[failover] 主线路机故障且无备无补, 接入点留原机告警: sub={} member={} region={} faulted={} reason={}",
                         sub.getId(), sub.getMemberUserId(), plan.getRegionCode(), faultedServer, reason);
                 continue;
             }
-            // 只换线路机, 落地机不变; 远端由 agent 对账两端收敛
-            tradeSubscriptionCertificateService.setAllocation(cert.getId(), target, cert.getIpId());
+            String newPrimary = newGroup.get(0);
+            List<String> newStandby = newGroup.subList(1, newGroup.size());
+            // 主 + 备一次写回, 落地机不变; 远端由 agent 对账组内每台收敛
+            tradeSubscriptionCertificateService.setFrontlineGroup(cert.getId(), newPrimary, newStandby);
             eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(
                     sub.getId(), sub.getMemberUserId(), TradeSubscriptionChangeTypeEnum.FRONTLINE,
-                    faultedServer, target, chgReason, "system-failover"));
+                    faultedServer, newPrimary, chgReason, "system-failover"));
             moved++;
-            log.warn("[failover] 迁移接入点 sub={} cert={} 线路机 {} → {} reason={}",
-                    sub.getId(), cert.getId(), faultedServer, target, reason);
+            log.warn("[failover] 接入点候选组换血 sub={} cert={} 移除={} 新主={} 备={} reason={}",
+                    sub.getId(), cert.getId(), faultedServer, newPrimary, newStandby, reason);
         }
         if (moved > 0) {
-            log.info("[failover] 线路机 {} 疏散: reason={} 迁移={}/{}", faultedServer, reason, moved, certs.size());
+            log.info("[failover] 线路机 {} 疏散: reason={} 换血={}/{}", faultedServer, reason, moved, certs.size());
         }
+    }
+
+    /**
+     * 算出移除故障机后的新候选组 (有序, 下标 0 = 主). 主挂则提第一个备升主, 是备则删掉它,
+     * 再补足到组大小, 新机入备位队尾. 主挂且无备无补返空 (调用方留原机告警).
+     */
+    private List<String> rebuildGroup(TradeSubscriptionCertificateDO cert, String faultedServer, String region, int bw) {
+        // 当前组: 主 + 备 (备存 CSV)
+        List<String> survivors = new ArrayList<>();
+        boolean primaryFaulted = ObjectUtil.equal(cert.getServerId(), faultedServer);
+        if (!primaryFaulted && StrUtil.isNotBlank(cert.getServerId())) {
+            survivors.add(cert.getServerId());
+        }
+        for (String standby : this.splitCsv(cert.getStandbyServerIds())) {
+            if (!ObjectUtil.equal(standby, faultedServer)) {
+                survivors.add(standby);
+            }
+        }
+        // 补足: 排除幸存者 + 故障机, 选址自身的准入网关再排到顶/掉线机
+        int need = FRONTLINE_GROUP_SIZE - survivors.size();
+        if (need > 0) {
+            Set<String> exclude = new HashSet<>(survivors);
+            exclude.add(faultedServer);
+            survivors.addAll(allocator.pickFrontlines(region, bw, need, exclude));
+        }
+        // 主挂时第一个幸存者(原备升主或新补机)即新主; 一个都没有 = 无法换血
+        return survivors;
+    }
+
+    /** 备机 CSV 拆成有序列表; 空返空列表. */
+    private List<String> splitCsv(String csv) {
+        return StrUtil.isBlank(csv) ? List.of() : StrUtil.split(csv, ',');
     }
 }

@@ -1,5 +1,6 @@
 package com.nook.biz.trade.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.IdUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nook.biz.trade.api.enums.TradeCertStatusEnum;
@@ -49,6 +50,30 @@ public class TradeSubscriptionCertificateServiceImpl implements TradeSubscriptio
         cert.setServerId(serverId);
         cert.setIpId(ipId);
         tradeSubscriptionCertificateMapper.updateById(cert);
+    }
+
+    @Override
+    public void setStandbyServers(String certId, List<String> standbyServerIds) {
+        // 备机空时置 null 需显式 set (updateById 跳过 null); Wrapper 更新不自动填 updated_at, 显式写
+        tradeSubscriptionCertificateMapper.update(null, Wrappers.<TradeSubscriptionCertificateDO>lambdaUpdate()
+                .set(TradeSubscriptionCertificateDO::getStandbyServerIds, this.joinCsv(standbyServerIds))
+                .set(TradeSubscriptionCertificateDO::getUpdatedAt, LocalDateTime.now())
+                .eq(TradeSubscriptionCertificateDO::getId, certId));
+    }
+
+    @Override
+    public void setFrontlineGroup(String certId, String primaryServerId, List<String> standbyServerIds) {
+        // 主 + 备一次更新; 备机空时置 null, Wrapper 更新显式写 updated_at
+        tradeSubscriptionCertificateMapper.update(null, Wrappers.<TradeSubscriptionCertificateDO>lambdaUpdate()
+                .set(TradeSubscriptionCertificateDO::getServerId, primaryServerId)
+                .set(TradeSubscriptionCertificateDO::getStandbyServerIds, this.joinCsv(standbyServerIds))
+                .set(TradeSubscriptionCertificateDO::getUpdatedAt, LocalDateTime.now())
+                .eq(TradeSubscriptionCertificateDO::getId, certId));
+    }
+
+    /** 备机ID列表拼成有序 CSV; 空返 null (= 无备机). */
+    private String joinCsv(List<String> serverIds) {
+        return CollUtil.isEmpty(serverIds) ? null : String.join(",", serverIds);
     }
 
     @Override

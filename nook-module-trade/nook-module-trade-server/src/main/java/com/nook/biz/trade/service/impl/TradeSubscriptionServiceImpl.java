@@ -75,6 +75,8 @@ import java.util.Set;
 public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
     private static final int DEFAULT_PORT = 443;
+    /** 线路机候选组大小: 一主两备, 客户端在组内自动容灾 (决策 1). */
+    private static final int FRONTLINE_GROUP_SIZE = 3;
     private static final DateTimeFormatter EXPIRE_FMT = DateTimeFormatter.ofPattern("MM-dd");
     /**
      * 当前订阅只生成 vmess 链接; 其它协议待协议适配阶段放开 (node 侧已留 InboundProtocolMapping).
@@ -117,10 +119,13 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         TradePlanDO plan = planValidator.validateEnabled(req.getPlanId());
         int planBw = ObjectUtil.isNull(plan.getBandwidthMbps()) ? 0 : plan.getBandwidthMbps();
         int planTraffic = ObjectUtil.isNull(plan.getTrafficGb()) ? 0 : plan.getTrafficGb();
-        String frontlineId = allocator.pickFrontline(plan.getRegionCode(), planBw);
-        if (ObjectUtil.isNull(frontlineId)) {
+        // 候选组: 主 + 备一次选齐 (区域不足 3 台有几台用几台); 主在前
+        List<String> frontlineGroup = allocator.pickFrontlines(plan.getRegionCode(), planBw, FRONTLINE_GROUP_SIZE);
+        if (CollUtil.isEmpty(frontlineGroup)) {
             throw new BusinessException(TradeErrorCode.NO_AVAILABLE_FRONTLINE, plan.getRegionCode());
         }
+        String frontlineId = frontlineGroup.get(0);
+        List<String> standbyServerIds = frontlineGroup.subList(1, frontlineGroup.size());
         // 候选落地机(同区域 + IP类型 + 规格达标 + 健康可分配)一次取全; 准入判定全在 node ResourceServerAdmission
         List<String> candidates = allocator.matchLandings(plan.getRegionCode(), plan.getIpTypeId(), planTraffic, planBw);
         if (CollUtil.isEmpty(candidates)) {
@@ -133,7 +138,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
             TradeSubscriptionDO sub;
             try {
                 sub = transactionTemplate.execute(status ->
-                        this.openOne(req, plan, frontlineId, landingId, planTraffic, startedAt, expiresAt));
+                        this.openOne(req, plan, frontlineId, standbyServerIds, landingId, planTraffic, startedAt, expiresAt));
             } catch (DuplicateKeyException e) {
                 // 落地机被并发占 (cert.ip_id 撞 uk_cert_ip), 事务已回滚, 试下一台
                 log.warn("[adminCreate] 落地机 {} 被并发抢占, 试下一台", landingId);
@@ -152,7 +157,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
      * 一次开通的全部库内写入, 由调用方事务包裹: 签发凭证(带分配) → 建订阅 → 发基础额度; 落地机被并发占时 setAllocation 撞 uk_cert_ip 抛 DuplicateKeyException.
      */
     private TradeSubscriptionDO openOne(SubscriptionCreateReqVO req, TradePlanDO plan, String frontlineId,
-                                        String landingId, int planTraffic,
+                                        List<String> standbyServerIds, String landingId, int planTraffic,
                                         LocalDateTime startedAt, LocalDateTime expiresAt) {
         // 先生成订阅 id: 凭证按 subscription_id 反向关联它
         String subId = IdUtil.simpleUUID();
@@ -160,6 +165,10 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
                 subId, req.getMemberUserId(), TradeCertSourceEnum.BASE.getSource());
         // 占位即 claim: 写 ip_id 撞 uk_cert_ip 唯一键 = 被并发占 → DuplicateKeyException, 上层换下一台
         tradeSubscriptionCertificateService.setAllocation(cert.getId(), frontlineId, landingId);
+        // 备机另写一笔 (有备机才写); 主机 claim 成功后再补, 失败回滚同一事务
+        if (CollUtil.isNotEmpty(standbyServerIds)) {
+            tradeSubscriptionCertificateService.setStandbyServers(cert.getId(), standbyServerIds);
+        }
         TradeSubscriptionDO sub = new TradeSubscriptionDO();
         sub.setId(subId);
         sub.setMemberUserId(req.getMemberUserId());
