@@ -19,20 +19,20 @@ public final class XrayConstants {
     /** 1:N 模型下共享 inbound 的固定 tag, 与 50-xray.sh.tmpl 里 inbound 对齐. */
     public static final String SHARED_INBOUND_TAG = "in_shared";
 
-    /** 业务 outbound tag 前缀; 完整 tag = OUTBOUND_TAG_PREFIX + clientId. */
+    /** 业务 outbound tag 前缀; 完整 tag = OUTBOUND_TAG_PREFIX + clientId + "_" + ipId. */
     public static final String OUTBOUND_TAG_PREFIX = "out_";
 
-    /** 业务 routing rule tag 前缀; 完整 tag = RULE_TAG_PREFIX + clientId. */
+    /** 业务 routing rule tag 前缀; 完整 tag = RULE_TAG_PREFIX + clientId + "_" + ipId. */
     public static final String RULE_TAG_PREFIX = "rule_";
 
-    /** 由 clientId 派生 outbound tag. */
-    public static String outboundTagOf(String clientId) {
-        return OUTBOUND_TAG_PREFIX + clientId;
+    /** 由 clientId + 落地机 ipId 派生 outbound tag; 编入 ipId 使换落地机即 tag 变, agent 靠旧删新建收敛. */
+    public static String outboundTagOf(String clientId, String ipId) {
+        return OUTBOUND_TAG_PREFIX + clientId + "_" + ipId;
     }
 
-    /** 由 clientId 派生 routing rule tag. */
-    public static String ruleTagOf(String clientId) {
-        return RULE_TAG_PREFIX + clientId;
+    /** 由 clientId + 落地机 ipId 派生 routing rule tag; 与 outbound tag 同步编入 ipId(rule 引用 outbound). */
+    public static String ruleTagOf(String clientId, String ipId) {
+        return RULE_TAG_PREFIX + clientId + "_" + ipId;
     }
 
     /** 拼完整 FQDN: 二级标签 + 根域 (如 frontline-jp-1 + karsu.cc → frontline-jp-1.karsu.cc); 标签空则直接用根域. */

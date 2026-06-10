@@ -87,8 +87,8 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
                 continue;
             }
             // 出站 / 路由 tag 按凭证 id 取, 一个接入点一套, 故障切换/轮换都不变 → agent 据 tag 比对增删
-            String outboundTag = XrayConstants.outboundTagOf(cert.getId());
-            String ruleTag = XrayConstants.ruleTagOf(cert.getId());
+            String outboundTag = XrayConstants.outboundTagOf(cert.getId(), cert.getIpId());
+            String ruleTag = XrayConstants.ruleTagOf(cert.getId(), cert.getIpId());
             InboundUserSpec spec = InboundUserSpec.builder()
                     .email(cert.getAuthUser())
                     .uuid(cert.getAuthSecret())
