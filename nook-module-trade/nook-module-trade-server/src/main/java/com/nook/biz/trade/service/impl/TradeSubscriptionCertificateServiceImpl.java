@@ -91,6 +91,11 @@ public class TradeSubscriptionCertificateServiceImpl implements TradeSubscriptio
     }
 
     @Override
+    public List<TradeSubscriptionCertificateDO> listActiveByServerInGroup(String serverId) {
+        return tradeSubscriptionCertificateMapper.selectActiveByServerIdInGroup(serverId);
+    }
+
+    @Override
     public List<TradeSubscriptionCertificateDO> listBySubscription(String subscriptionId) {
         return tradeSubscriptionCertificateMapper.selectBySubscriptionId(subscriptionId);
     }

@@ -63,12 +63,20 @@ public interface TradeSubscriptionCertificateService {
     TradeSubscriptionCertificateDO get(String certId);
 
     /**
-     * 查某线路机上应运行的凭证
+     * 查主线路机为该机的应运行凭证 (主口径: 备机不算, 容量核算用这个)
      *
      * @param serverId 线路机ID
      * @return 凭证列表
      */
     List<TradeSubscriptionCertificateDO> listActiveByServer(String serverId);
+
+    /**
+     * 查候选组含该机的应运行凭证 (组口径: 主备都算, 对账下发 / 疏散用这个)
+     *
+     * @param serverId 线路机ID
+     * @return 凭证列表
+     */
+    List<TradeSubscriptionCertificateDO> listActiveByServerInGroup(String serverId);
 
     /**
      * 查某订阅的全部凭证

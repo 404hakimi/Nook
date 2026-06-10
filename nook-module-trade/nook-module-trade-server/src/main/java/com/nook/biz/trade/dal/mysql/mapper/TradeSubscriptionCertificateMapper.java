@@ -33,10 +33,19 @@ public interface TradeSubscriptionCertificateMapper extends BaseMapper<TradeSubs
                 .in(TradeSubscriptionCertificateDO::getSubscriptionId, subscriptionIds));
     }
 
-    /** 某线路机上应运行的凭证 (agent 对账拉取用). */
+    /** 主线路机为该机的应运行凭证 (主口径: 备机不算). */
     default List<TradeSubscriptionCertificateDO> selectActiveByServerId(String serverId) {
         return selectList(Wrappers.<TradeSubscriptionCertificateDO>lambdaQuery()
                 .eq(TradeSubscriptionCertificateDO::getServerId, serverId)
+                .eq(TradeSubscriptionCertificateDO::getCertStatus, TradeCertStatusEnum.ACTIVE.getState()));
+    }
+
+    /** 候选组含该机的应运行凭证 (组口径: 主备都算). */
+    default List<TradeSubscriptionCertificateDO> selectActiveByServerIdInGroup(String serverId) {
+        return selectList(Wrappers.<TradeSubscriptionCertificateDO>lambdaQuery()
+                // 备机存 CSV, FIND_IN_SET 按成员精确匹配
+                .and(q -> q.eq(TradeSubscriptionCertificateDO::getServerId, serverId)
+                        .or().apply("FIND_IN_SET({0}, standby_server_ids)", serverId))
                 .eq(TradeSubscriptionCertificateDO::getCertStatus, TradeCertStatusEnum.ACTIVE.getState()));
     }
 

@@ -26,6 +26,9 @@ public class TradeSubscriptionCertificateDO extends BaseEntity {
     /** 分配的线路机; 故障切换改此, 未分配为空. */
     private String serverId;
 
+    /** 备用线路机; 有序 CSV, 空 = 无备机. */
+    private String standbyServerIds;
+
     /** 分配的落地机; 已释放为空. */
     private String ipId;
 
