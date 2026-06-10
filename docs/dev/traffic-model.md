@@ -85,7 +85,8 @@
 | 字段 | 作用 |
 |---|---|
 | `server_id` | 主键, 跟服务器 1:1 |
-| `total_gb` | 总流量配额 GB; **建议填机房配额的 ~90% 留余量**, 0=不限 |
+| `total_gb` | 总流量配额 GB; **照抄厂商面板原值**(单向计费厂商 ×2), 0=不限 |
+| `usable_percent` | 月配额实际可用比例(默认 90); 限流阈值 = `total_gb × usable_percent`, 冗余给换机反应延迟 / agent 流量 / 口径误差(见 landing-budget 闸一) |
 | `bandwidth_mbps` | 出站带宽上限; 落地机真实限速, 线路机供分配不超卖 |
 | `reset_day` | 月度重置日 1–28 |
 | `reset_policy` | 重置策略: 按月 / 固定不重置 |
@@ -151,7 +152,7 @@
 | `total_bytes` | `trade_subscription_quota.total_bytes` | Σ(生效未过期) |
 | `remaining_bytes` | `trade_subscription_quota` | Σ `max(total_bytes − used_bytes, 0)` |
 
-> 视图**不存数**, 每次查现拼; 只聚 trade 自己的表, 不跨 node。
+> 视图**不存数**, 每次查现拼; 只聚 trade 自己的表, 不跨 node。(现状:**视图未建**, portal 余量端点由 service 直查 quota 现拼;视图留到 admin 报表需要时再建。)
 > ⚠️ `used_bytes`(本周期)与 `remaining_bytes`(全部生效额度)**是两个口径**:无流量包时一致(已用+剩余=配额);有流量包后(包跨周期),本周期已用 + 剩余 ≠ 总配额(包的历史用量不在本周期)。上线流量包前需定义"已用"展示的是本周期还是累计。
 > 这是**汇总**视图(每订阅 1 行)。要看**每笔分配明细**(基础 + 各流量包,各自额度/已扣/到期),直接查 `trade_subscription_quota`(它本就是每笔一行),无需另建。
 
@@ -193,7 +194,7 @@
 
 - **抗归零**:增量 = `本次 ≥ 上次 ? 本次−上次 : 本次`。计数器变小(重启)就按"从 0 重算", 不会负数、不暴增。
 - **状态全在后端**:游标 + 累计都存后端 DB, 不在服务器上。服务器重启、被厂商重装都不影响——后端做差识别归零、重新起算即可;只丢"最后一次上报到重置那一刻"的尾巴, 采样勤就小。
-- **留余量**:`total_gb` 填机房的 ~90%, 把丢的尾巴和口径差吃掉, 永远先于机房到顶。**(注:现有代码是 100% 触发, 落地时改成留余量。)**
+- **留余量**:`total_gb` 照抄厂商面板原值(单向厂商 ×2); 限流阈值 = `total_gb × usable_percent`(配额表字段, 管理端默认 90, 现状 100% 触发待改), 冗余把上报尾巴、agent/装机流量、口径差吃掉, 永远先于机房到顶。(定案见 [landing-budget.md](landing-budget.md) 闸一。)
 - **不对账机房**:我方数定位是保守阈值, 不追求等于机房账面; 要精确对账须调机房 API(暂不做)。
 
 ## 十、为什么这套够"成熟平台"
@@ -206,16 +207,12 @@
 
 可后做的补强(表已留位, 不阻塞): **对账 job**(周期性核对 Σ`quota.used_bytes` 与 Σ`traffic`当周期, 漂移告警)。用量历史已内建(`traffic` 旧周期行)。
 
-## 十一、相对现状的改动
+## 十一、落地状态
 
-- **agent(Go)**:防火墙计数器按方向拆(上行/下行)后上报当前累计值; 不需要本地持久化(状态全在后端)。
-- **node**:`resource_server_capacity` → `resource_server_quota`(退成纯上限, `monthly_traffic_gb`→`total_gb`、`bandwidth_limit_mbps`→`bandwidth_mbps`、`quota_reset_policy`→`reset_policy`);运行统计搬到 `resource_server_traffic`(当周期+历史, 加 `last_counter_rx_bytes/last_counter_tx_bytes`、`counter_up_bytes/counter_down_bytes`、`throttle_state`、`end_time`、`last_sampled_at`);`used_traffic_bytes`→`used_bytes`、`period_start/period_end`→`start_time/end_time`。
-- **跨模块 API**:`ResourceServerCapacityApi` / `ResourceServerCapacityRespDTO` 拆成两个出口——配额侧(`total_gb`/`bandwidth_mbps`,分配读)+ 测量侧(`counter_up/down`、`throttle_state`、`rx/tx/used`,trade 计量/分配读);随表改名(`ResourceServerQuotaApi` + traffic 读取口)。
-- **trade**:新建 `trade_subscription_traffic`(每接入点·每周期+历史);`trade_traffic_grant` → `trade_subscription_quota`;删 `member_plan_traffic`;计量改上下行 + 按接入点;周期翻篇移到生命周期。
-- **视图**:新建 `v_subscription_usage`(等接前端时建)。
-- **分配**:线路机增加"剩余流量"准入(不只看带宽)。
-- **类名同步**:`ResourceServerCapacity*` → `ResourceServerQuota*`;新 `TradeSubscriptionTrafficDO`、`TradeSubscriptionQuotaDO`(原 grant)。
-- 前后端:配置服务器/套餐处加大白话说明(机器双向计费、用户按实际上下行)。
+本文设计已落地运行(表 / 字段 / API / 计量 / 翻篇均按上文定稿), 余两项:
+
+- `v_subscription_usage` 视图未建(见 §五.5 注):portal 余量已由 service 直查 quota 现拼, 视图留到 admin 报表需要时再建。
+- 「线路机分配增加剩余流量准入」做了一半:到顶(THROTTLED)已被准入排除, 但选址打分仍只按带宽余量;优先级低(到顶有渐进疏散兜底), 与 [landing-budget.md](landing-budget.md) 闸二同型, 要做时一并。
 
 ## 十二、暂不做
 
