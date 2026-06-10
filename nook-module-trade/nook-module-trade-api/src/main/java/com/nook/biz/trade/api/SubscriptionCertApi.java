@@ -14,12 +14,12 @@ import java.util.Set;
 public interface SubscriptionCertApi {
 
     /**
-     * 查某线路机上应运行的凭证
+     * 查候选组含该线路机的应运行凭证 (主或备含该机都算; 对账下发、删机守卫、重装告警共用)
      *
      * @param serverId 线路机ID
      * @return 凭证列表
      */
-    List<SubscriptionCertRespDTO> listActiveByServer(String serverId);
+    List<SubscriptionCertRespDTO> listActiveByServerInGroup(String serverId);
 
     /**
      * 按ID查凭证

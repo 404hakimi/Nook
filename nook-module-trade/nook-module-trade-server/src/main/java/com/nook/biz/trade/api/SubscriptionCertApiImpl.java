@@ -23,9 +23,9 @@ public class SubscriptionCertApiImpl implements SubscriptionCertApi {
     private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
 
     @Override
-    public List<SubscriptionCertRespDTO> listActiveByServer(String serverId) {
+    public List<SubscriptionCertRespDTO> listActiveByServerInGroup(String serverId) {
         return CollectionUtils.convertList(
-                tradeSubscriptionCertificateService.listActiveByServer(serverId),
+                tradeSubscriptionCertificateService.listActiveByServerInGroup(serverId),
                 TradeSubscriptionCertificateConvert.INSTANCE::toRespDTO);
     }
 

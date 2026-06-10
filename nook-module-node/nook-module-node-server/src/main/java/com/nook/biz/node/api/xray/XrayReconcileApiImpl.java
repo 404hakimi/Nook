@@ -59,7 +59,7 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
             return List.of();
         }
         // 凭证已按 server_id + 应运行(ACTIVE) 过滤; 停服/已吊销的不下发, 让 agent 把它们从远端收敛掉
-        List<SubscriptionCertRespDTO> certs = subscriptionCertApi.listActiveByServer(serverId);
+        List<SubscriptionCertRespDTO> certs = subscriptionCertApi.listActiveByServerInGroup(serverId);
         if (CollUtil.isEmpty(certs)) {
             return List.of();
         }

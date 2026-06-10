@@ -83,7 +83,7 @@ public class XrayInstallValidator {
      * @param reqVO    装机入参
      */
     public void warnIfClientFacingChange(String serverId, XrayInstallReqVO reqVO) {
-        long activeCount = subscriptionCertApi.listActiveByServer(serverId).size();
+        long activeCount = subscriptionCertApi.listActiveByServerInGroup(serverId).size();
 
         XrayInstallDO existingServer = xrayInstallService.get(serverId);
         if (ObjectUtil.isNull(existingServer) || activeCount == 0) return;

@@ -78,12 +78,12 @@ public class ResourceServerValidator {
     }
 
     /**
-     * 校验服务器未被生效凭证绑定 (线路机看 server_id 的生效凭证, 落地机看 ip_id); 删服务器前置守卫.
+     * 校验服务器未被生效凭证绑定 (线路机看候选组含该机的凭证含备机, 落地机看 ip_id); 删服务器前置守卫.
      *
      * @param serverId 服务器ID
      */
     public void validateNoBoundClient(String serverId) {
-        boolean bound = CollUtil.isNotEmpty(subscriptionCertApi.listActiveByServer(serverId))
+        boolean bound = CollUtil.isNotEmpty(subscriptionCertApi.listActiveByServerInGroup(serverId))
                 || ObjectUtil.isNotNull(subscriptionCertApi.getByIp(serverId));
         if (bound) {
             throw new BusinessException(ResourceErrorCode.SERVER_HAS_BOUND_CLIENT, serverId);
