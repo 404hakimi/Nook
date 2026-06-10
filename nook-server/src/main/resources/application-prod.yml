@@ -49,6 +49,11 @@ nook:
         cron: "45 * * * * ?"
         # 单轮每机最多迁移的 THROTTLED(到顶)订阅数; OFFLINE 紧急迁移不限
         throttled-batch: 5
+      # 落地机故障自动切换 (到顶/掉线立刻整迁有量新机)
+      landing-failover:
+        # 总开关; 默认关, 确认无误再开
+        enabled: false
+        cron: "50 * * * * ?"
   # 落地机流量月度重置所用时区
   traffic:
     reset-zone: Asia/Shanghai

@@ -226,18 +226,33 @@ public class ResourceServerAdmission {
      * @return 服务器ID → 切换原因 (已触发限流 / 掉线)
      */
     public Map<String, String> findFrontlinesNeedingFailover() {
-        List<ResourceServerDO> frontlines = resourceServerMapper.selectLiveFrontlines();
-        if (CollUtil.isEmpty(frontlines)) {
+        return this.findServersNeedingFailover(resourceServerMapper.selectLiveFrontlines());
+    }
+
+    /**
+     * 查运行中落地机里需要故障切换的 (已触发限流或掉线)
+     *
+     * <p>短时心跳抖动不触发迁移, 只暂停分配新客户.
+     *
+     * @return 服务器ID → 切换原因 (已触发限流 / 掉线)
+     */
+    public Map<String, String> findLandingsNeedingFailover() {
+        return this.findServersNeedingFailover(resourceServerMapper.selectLiveLandings());
+    }
+
+    /** 从这批运行中机器里挑出需故障切换的; 限流优先判, 否则判掉线 (线路机/落地机判定一致). */
+    private Map<String, String> findServersNeedingFailover(List<ResourceServerDO> servers) {
+        if (CollUtil.isEmpty(servers)) {
             return Map.of();
         }
-        Set<String> ids = CollectionUtils.convertSet(frontlines, ResourceServerDO::getId);
+        Set<String> ids = CollectionUtils.convertSet(servers, ResourceServerDO::getId);
         Map<String, ResourceServerTrafficDO> trafficMap = CollectionUtils.convertMap(
                 resourceServerTrafficMapper.selectCurrentByServerIds(ids), ResourceServerTrafficDO::getServerId);
         Map<String, ResourceServerRuntimeDO> rtMap = CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(ids), ResourceServerRuntimeDO::getServerId);
         LocalDateTime now = LocalDateTime.now();
         Map<String, String> result = new HashMap<>();
-        for (ResourceServerDO srv : frontlines) {
+        for (ResourceServerDO srv : servers) {
             ResourceServerTrafficDO traffic = trafficMap.get(srv.getId());
             if (ResourceServerRules.isThrottled(ObjectUtil.isNull(traffic) ? null : traffic.getThrottleState())) {
                 result.put(srv.getId(), ResourceServerThrottleStateEnum.THROTTLED.getState());

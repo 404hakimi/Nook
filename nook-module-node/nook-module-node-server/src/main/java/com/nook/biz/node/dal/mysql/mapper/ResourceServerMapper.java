@@ -84,6 +84,13 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .eq(ResourceServerDO::getLifecycleState, ResourceServerLifecycleEnum.LIVE.getState()));
     }
 
+    /** 全部运行中落地机 (故障切换巡检用). */
+    default List<ResourceServerDO> selectLiveLandings() {
+        return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
+                .eq(ResourceServerDO::getServerType, ResourceServerTypeEnum.LANDING.getState())
+                .eq(ResourceServerDO::getLifecycleState, ResourceServerLifecycleEnum.LIVE.getState()));
+    }
+
     /** 区域内运行中线路机 (选线路机用). */
     default List<ResourceServerDO> selectLiveFrontlinesByRegion(String region) {
         return selectList(Wrappers.<ResourceServerDO>lambdaQuery()
