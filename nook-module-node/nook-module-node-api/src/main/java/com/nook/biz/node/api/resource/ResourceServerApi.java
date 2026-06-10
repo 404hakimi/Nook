@@ -82,13 +82,6 @@ public interface ResourceServerApi {
     Map<String, String> findFrontlinesNeedingFailover();
 
     /**
-     * 查需要故障切换的运行中落地机 (已触发限流或掉线)
-     *
-     * @return 服务器ID → 切换原因
-     */
-    Map<String, String> findLandingsNeedingFailover();
-
-    /**
      * 列出全部运行中服务器 (线路机 + 落地机)
      *
      * @return 运行中服务器列表

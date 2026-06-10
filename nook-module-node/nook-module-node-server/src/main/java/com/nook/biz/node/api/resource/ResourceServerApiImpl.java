@@ -86,11 +86,6 @@ public class ResourceServerApiImpl implements ResourceServerApi {
     }
 
     @Override
-    public Map<String, String> findLandingsNeedingFailover() {
-        return resourceServerAdmission.findLandingsNeedingFailover();
-    }
-
-    @Override
     public List<ResourceServerRespDTO> listLive() {
         return ResourceServerConvert.INSTANCE.toRespDTOList(
                 resourceServerMapper.selectByLifecycleState(ResourceServerLifecycleEnum.LIVE.getState()));

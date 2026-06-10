@@ -23,9 +23,6 @@ public class TradeJobProperties {
     /** 线路机故障切换. */
     private Failover failover = new Failover();
 
-    /** 落地机故障切换. */
-    private LandingFailover landingFailover = new LandingFailover();
-
     @Data
     public static class Failover {
         /** 总开关; 默认关, 确认无误再开. */
@@ -34,13 +31,5 @@ public class TradeJobProperties {
         private String cron;
         /** THROTTLED(到顶) 每轮每机迁移条数上限; OFFLINE 不限. */
         private int throttledBatch;
-    }
-
-    @Data
-    public static class LandingFailover {
-        /** 总开关; 默认关, 确认无误再开. */
-        private boolean enabled;
-        /** 巡检 cron. */
-        private String cron;
     }
 }
