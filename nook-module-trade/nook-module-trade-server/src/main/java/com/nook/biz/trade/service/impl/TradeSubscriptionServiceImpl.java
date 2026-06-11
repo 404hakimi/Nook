@@ -75,8 +75,6 @@ import java.util.Set;
 public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
     private static final int DEFAULT_PORT = 443;
-    /** 线路机候选组大小: 一主两备, 客户端在组内自动容灾 (决策 1). */
-    private static final int FRONTLINE_GROUP_SIZE = 3;
     private static final DateTimeFormatter EXPIRE_FMT = DateTimeFormatter.ofPattern("MM-dd");
     /**
      * 当前订阅只生成 vmess 链接; 其它协议待协议适配阶段放开 (node 侧已留 InboundProtocolMapping).
@@ -120,7 +118,7 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         int planBw = ObjectUtil.isNull(plan.getBandwidthMbps()) ? 0 : plan.getBandwidthMbps();
         int planTraffic = ObjectUtil.isNull(plan.getTrafficGb()) ? 0 : plan.getTrafficGb();
         // 候选组: 主 + 备一次选齐 (区域不足 3 台有几台用几台); 主在前
-        List<String> frontlineGroup = allocator.pickFrontlines(plan.getRegionCode(), planBw, FRONTLINE_GROUP_SIZE);
+        List<String> frontlineGroup = allocator.pickFrontlines(plan.getRegionCode(), planBw, TradeAllocator.FRONTLINE_GROUP_SIZE);
         if (CollUtil.isEmpty(frontlineGroup)) {
             throw new BusinessException(TradeErrorCode.NO_AVAILABLE_FRONTLINE, plan.getRegionCode());
         }

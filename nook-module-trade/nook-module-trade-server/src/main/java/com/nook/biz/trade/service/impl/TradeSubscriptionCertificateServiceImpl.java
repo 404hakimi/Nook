@@ -78,9 +78,10 @@ public class TradeSubscriptionCertificateServiceImpl implements TradeSubscriptio
 
     @Override
     public void clearAllocation(String certId) {
-        // 置 null 需显式 set (updateById 跳过 null 字段); Wrapper 更新不自动填 updated_at, 显式写
+        // 置 null 需显式 set (updateById 跳过 null 字段); Wrapper 更新不自动填 updated_at, 显式写; 备机一并清, 不留残值
         tradeSubscriptionCertificateMapper.update(null, Wrappers.<TradeSubscriptionCertificateDO>lambdaUpdate()
                 .set(TradeSubscriptionCertificateDO::getServerId, null)
+                .set(TradeSubscriptionCertificateDO::getStandbyServerIds, null)
                 .set(TradeSubscriptionCertificateDO::getIpId, null)
                 .set(TradeSubscriptionCertificateDO::getUpdatedAt, LocalDateTime.now())
                 .eq(TradeSubscriptionCertificateDO::getId, certId));
@@ -96,10 +97,11 @@ public class TradeSubscriptionCertificateServiceImpl implements TradeSubscriptio
 
     @Override
     public void revoke(String certId) {
-        // 置应移除 + 清空分配; server/ip 置 null 需显式 set, updated_at 显式写
+        // 置应移除 + 清空分配; server/ip/备机 置 null 需显式 set, updated_at 显式写
         tradeSubscriptionCertificateMapper.update(null, Wrappers.<TradeSubscriptionCertificateDO>lambdaUpdate()
                 .set(TradeSubscriptionCertificateDO::getCertStatus, TradeCertStatusEnum.REVOKED.getState())
                 .set(TradeSubscriptionCertificateDO::getServerId, null)
+                .set(TradeSubscriptionCertificateDO::getStandbyServerIds, null)
                 .set(TradeSubscriptionCertificateDO::getIpId, null)
                 .set(TradeSubscriptionCertificateDO::getUpdatedAt, LocalDateTime.now())
                 .eq(TradeSubscriptionCertificateDO::getId, certId));

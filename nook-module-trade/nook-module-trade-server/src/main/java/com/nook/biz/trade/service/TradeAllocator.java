@@ -34,6 +34,9 @@ public class TradeAllocator {
     /** 带宽预留率: 不超卖, 线路机留 10% 余量. */
     private static final double RESERVE_RATIO = 0.10;
 
+    /** 接入点候选组目标大小: 一主两备; 区域不足则有几台用几台. */
+    public static final int FRONTLINE_GROUP_SIZE = 3;
+
     @Resource
     private ResourceServerApi serverApi;
     @Resource

@@ -66,13 +66,8 @@ public final class ResourceServerRules {
         return TrafficUnitUtils.gbToBytes(totalGb) * resolveUsablePercent(usablePercent) / 100;
     }
 
-    /**
-     * 可用比例归一 (1..100); 空值 / 越界用缺省 90
-     *
-     * @param usablePercent 配额配置的可用比例% (可空)
-     * @return 归一后的可用比例 (1..100)
-     */
-    public static int resolveUsablePercent(Integer usablePercent) {
+    /** 可用比例归一 (1..100); 空值 / 越界用缺省 90 (仅本类 usableBytes 用). */
+    private static int resolveUsablePercent(Integer usablePercent) {
         return (ObjectUtil.isNull(usablePercent) || usablePercent < 1 || usablePercent > 100)
                 ? DEFAULT_USABLE_PERCENT : usablePercent;
     }

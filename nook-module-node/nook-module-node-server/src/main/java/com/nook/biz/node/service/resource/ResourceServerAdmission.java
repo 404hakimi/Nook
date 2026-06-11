@@ -73,10 +73,18 @@ public class ResourceServerAdmission {
         if (CollUtil.isEmpty(serverIds)) {
             return Set.of();
         }
-        Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(
-                resourceServerMapper.selectBatchIds(serverIds), ResourceServerDO::getId);
         Map<String, ResourceServerTrafficDO> trafficMap = CollectionUtils.convertMap(
                 resourceServerTrafficMapper.selectCurrentByServerIds(serverIds), ResourceServerTrafficDO::getServerId);
+        return this.filterAllocatable(serverIds, trafficMap);
+    }
+
+    /** 同上, 复用调用方已查的当周期 traffic (选址路径上预算判定本就捞过同批), 省一次重复查. */
+    private Set<String> filterAllocatable(Collection<String> serverIds, Map<String, ResourceServerTrafficDO> trafficMap) {
+        if (CollUtil.isEmpty(serverIds)) {
+            return Set.of();
+        }
+        Map<String, ResourceServerDO> serverMap = CollectionUtils.convertMap(
+                resourceServerMapper.selectBatchIds(serverIds), ResourceServerDO::getId);
         Map<String, ResourceServerRuntimeDO> rtMap = CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(serverIds), ResourceServerRuntimeDO::getServerId);
         LocalDateTime now = LocalDateTime.now();
@@ -141,9 +149,10 @@ public class ResourceServerAdmission {
         Set<String> landingServerIds = CollectionUtils.convertSet(landings, Socks5InstallDO::getServerId);
         Map<String, ResourceServerQuotaDO> capMap = CollectionUtils.convertMap(
                 resourceServerQuotaMapper.selectBatchIds(landingServerIds), ResourceServerQuotaDO::getServerId);
+        // 当周期 traffic 查一次, 既判健康(filterAllocatable)又判预算(meetsPlanBudget); 按全量在线落地机捞, 覆盖候选子集
         Map<String, ResourceServerTrafficDO> trafficMap = CollectionUtils.convertMap(
-                resourceServerTrafficMapper.selectCurrentByServerIds(landingServerIds), ResourceServerTrafficDO::getServerId);
-        Set<String> allocatable = this.filterAllocatable(serverMap.keySet());
+                resourceServerTrafficMapper.selectCurrentByServerIds(serverMap.keySet()), ResourceServerTrafficDO::getServerId);
+        Set<String> allocatable = this.filterAllocatable(serverMap.keySet(), trafficMap);
         List<LandingSummaryDTO> matched = new ArrayList<>();
         for (Socks5InstallDO landing : landings) {
             if (!allocatable.contains(landing.getServerId())
@@ -177,9 +186,10 @@ public class ResourceServerAdmission {
         Map<String, ResourceServerQuotaDO> capMap = CollUtil.isEmpty(landingServerIds) ? Map.of()
                 : CollectionUtils.convertMap(resourceServerQuotaMapper.selectBatchIds(landingServerIds),
                         ResourceServerQuotaDO::getServerId);
+        // 当周期 traffic 查一次, 既判健康(filterAllocatable)又判预算(meetsPlanBudget); 按全量在线落地机捞, 覆盖候选子集
         Map<String, ResourceServerTrafficDO> trafficMap = CollectionUtils.convertMap(
-                resourceServerTrafficMapper.selectCurrentByServerIds(landingServerIds), ResourceServerTrafficDO::getServerId);
-        Set<String> allocatable = this.filterAllocatable(serverMap.keySet());
+                resourceServerTrafficMapper.selectCurrentByServerIds(serverMap.keySet()), ResourceServerTrafficDO::getServerId);
+        Set<String> allocatable = this.filterAllocatable(serverMap.keySet(), trafficMap);
         // cert.ip_id 派生占用 (含 ACTIVE/SUSPENDED); 落地机占用真相收口到凭证, 不再读 landing.status
         Set<String> boundIds = subscriptionCertApi.filterBoundIpIds(landingServerIds);
         // ② 落地机按 (区域 + IP 类型) 分桶, 让每个套餐 O(1) 命中自己的候选

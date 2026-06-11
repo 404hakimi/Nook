@@ -39,9 +39,6 @@ import java.util.Set;
 @Component
 public class FrontlineFailoverJob {
 
-    /** 候选组目标大小: 一主两备 (决策 1); 区域不足则有几台用几台. */
-    private static final int FRONTLINE_GROUP_SIZE = 3;
-
     @Resource
     private TradeJobProperties tradeJobProperties;
     @Resource
@@ -153,7 +150,7 @@ public class FrontlineFailoverJob {
             }
         }
         // 补足: 排除幸存者 + 故障机, 选址自身的准入网关再排到顶/掉线机
-        int need = FRONTLINE_GROUP_SIZE - survivors.size();
+        int need = TradeAllocator.FRONTLINE_GROUP_SIZE - survivors.size();
         if (need > 0) {
             Set<String> exclude = new HashSet<>(survivors);
             exclude.add(faultedServer);
