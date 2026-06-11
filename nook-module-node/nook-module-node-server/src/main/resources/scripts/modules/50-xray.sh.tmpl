@@ -183,6 +183,14 @@ $(gen_outbounds)
 }
 XRAYCONF
 
+# Go 软内存上限: 1C1G 小机挂多用户跑大流量(speedtest)时, 防 xray 堆冲高被内核 OOM 杀掉.
+# 按本机实际内存的 70% 自适应 (留 OS + nook-agent 余量); 堆接近上限时 Go 主动狠 GC 而非崩溃.
+# 单核机不设 GOGC=20 (会跟代理抢 CPU), GOMEMLIMIT 自身已是"接近上限才频繁 GC"的自适应策略.
+MEM_TOTAL_KB=$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo 0)
+GO_MEM_LIMIT_MIB=$(( MEM_TOTAL_KB * 70 / 100 / 1024 ))
+[[ "$GO_MEM_LIMIT_MIB" -lt 128 ]] && GO_MEM_LIMIT_MIB=128
+log "GOMEMLIMIT = ${GO_MEM_LIMIT_MIB}MiB (本机内存 $(( MEM_TOTAL_KB / 1024 ))MiB × 70%)"
+
 # XRAY_LOCATION_ASSET 指向自定义 share 目录 (geo*.dat); 不在默认路径必须显式声明
 cat > "$SYSTEMD_UNIT" <<UNITEOF
 [Unit]
@@ -197,6 +205,7 @@ Restart=$RESTART_POLICY
 RestartSec=5
 LimitNOFILE=65535
 Environment=XRAY_LOCATION_ASSET=$XRAY_SHARE
+Environment=GOMEMLIMIT=${GO_MEM_LIMIT_MIB}MiB
 
 [Install]
 WantedBy=multi-user.target
