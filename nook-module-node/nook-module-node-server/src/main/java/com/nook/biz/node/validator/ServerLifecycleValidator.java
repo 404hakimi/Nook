@@ -23,6 +23,8 @@ public class ServerLifecycleValidator {
     private XrayInstallMapper xrayInstallMapper;
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
+    @Resource
+    private ResourceServerValidator resourceServerValidator;
 
     /**
      * 校验生命周期流转合法性 (流转表见 {@link ResourceServerLifecycleEnum}); 各类型上下线前置守卫由对应 service 另行调用
@@ -61,5 +63,20 @@ public class ServerLifecycleValidator {
         if (resourceServerLandingValidator.hasBoundClient(serverId)) {
             throw new BusinessException(ResourceErrorCode.LANDING_IN_USE_CANNOT_RETIRE);
         }
+    }
+
+    /**
+     * 校验服务器可删: 装机中 / 待上线可直接删; 运行中 / 已退役须未被订阅占用或绑定
+     *
+     * @param server 当前服务器
+     */
+    public void validateDeletable(ResourceServerDO server) {
+        // 装机中 / 待上线: 未进选址池, 不会被套餐绑定或订阅占用, 直接放行
+        if (ResourceServerLifecycleEnum.INSTALLING.matches(server.getLifecycleState())
+                || ResourceServerLifecycleEnum.READY.matches(server.getLifecycleState())) {
+            return;
+        }
+        // 运行中 / 已退役: 仍被生效凭证占用 / 绑定则拒绝
+        resourceServerValidator.validateNoBoundClient(server.getId());
     }
 }

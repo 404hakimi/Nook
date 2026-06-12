@@ -157,7 +157,7 @@ function afterEdit() { load(); emit('refresh') }
               删除线路机
             </NButton>
           </template>
-          级联硬删主记录 + 全部子表 (凭据 / 账面 / 配额 / 流量 / xray_install / xray_inbound 等), 不可撤销; 仍被生效凭证绑定的机器会被拒绝删除.
+          级联删除主记录与全部子表 (凭据 / 账面 / 配额 / 流量 / xray 等), 不可撤销; 装机中 / 待上线可直接删, 运行中 / 已退役若仍被占用则拒绝.
         </NPopconfirm>
       </div>
 

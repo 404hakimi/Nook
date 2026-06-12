@@ -25,6 +25,7 @@ import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.rules.ResourceServerRules;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
+import com.nook.biz.node.validator.ServerLifecycleValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.framework.ssh.core.SshSessions;
@@ -56,6 +57,8 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     private ResourceServerValidator resourceServerValidator;
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
+    @Resource
+    private ServerLifecycleValidator serverLifecycleValidator;
     @Resource
     private ResourceServerCredentialService resourceServerCredentialService;
     @Resource
@@ -150,8 +153,8 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteServer(String id) {
         ResourceServerDO srv = resourceServerValidator.validateExists(id);
-        // 守卫: 仍被生效凭证绑定(线路机看 server_id, 落地机看 ip_id)不允许删, 防误删在用资源
-        resourceServerValidator.validateNoBoundClient(id);
+        // 删除分级守卫: 装机中/待上线直接删, 运行中/已退役须未被占用绑定 (防误删在用资源)
+        serverLifecycleValidator.validateDeletable(srv);
         // 级联删全部子表 + 主表, 同一事务原子; 防遗留孤儿行破坏装机/计量/对账
         resourceServerCredentialMapper.deleteById(id);
         resourceServerBillingMapper.deleteById(id);

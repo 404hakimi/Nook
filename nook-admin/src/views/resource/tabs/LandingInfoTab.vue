@@ -142,7 +142,7 @@ const trafficUsagePercent = computed(() => {
             删除落地机
           </NButton>
         </template>
-        软删主记录, 保留装机历史 / op_log, 不可撤销.
+        级联删除主记录与全部子表 (凭据 / 账面 / 配额 / 流量 / 装机 等), 不可撤销; 装机中 / 待上线可直接删, 运行中 / 已退役若仍被占用则拒绝.
       </NPopconfirm>
     </div>
 
