@@ -72,8 +72,8 @@ const targetLifecycle = ref<string | null>(null)
 async function doTransition() {
   if (!targetLifecycle.value) return
   dialog.warning({
-    title: '确认切换 lifecycle',
-    content: `${props.detail.lifecycleState} → ${targetLifecycle.value} ?`,
+    title: '确认切换状态',
+    content: `${SERVER_LANDING_LIFECYCLE_LABELS[props.detail.lifecycleState] || props.detail.lifecycleState} → ${SERVER_LANDING_LIFECYCLE_LABELS[targetLifecycle.value] || targetLifecycle.value} ?`,
     positiveText: '切换', negativeText: '取消',
     onPositiveClick: async () => {
       try {
@@ -119,20 +119,22 @@ const trafficUsagePercent = computed(() => {
 
 <template>
   <div class="space-y-3">
-    <!-- 操作栏: lifecycle 切换 + 删除 -->
-    <div class="action-bar">
+    <!-- 状态管理: 切换生命周期 + 删除 -->
+    <div class="lifecycle-bar">
+      <NIcon class="lifecycle-bar-icon"><Power :size="16" /></NIcon>
+      <span class="lifecycle-bar-title">状态管理</span>
+      <span class="flex-1"></span>
       <NSelect
         v-model:value="targetLifecycle"
         :options="lifecycleOptions"
         size="small"
-        placeholder="切换 lifecycle"
+        placeholder="切换状态"
         class="w-32"
       />
-      <NButton size="small" :disabled="!targetLifecycle" @click="doTransition">
+      <NButton type="primary" size="small" :disabled="!targetLifecycle" @click="doTransition">
         <template #icon><NIcon><Power :size="14" /></NIcon></template>
         切换
       </NButton>
-      <div class="flex-1"></div>
       <NPopconfirm @positive-click="onDelete">
         <template #trigger>
           <NButton size="small" type="error" quaternary>
@@ -316,6 +318,26 @@ const trafficUsagePercent = computed(() => {
 </template>
 
 <style scoped>
+/* 状态管理操作条: 与线路机详情一致, 浅色卡片条 + 左标题右操作 */
+.lifecycle-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 6px;
+}
+.lifecycle-bar-icon {
+  color: #6366f1;
+}
+.lifecycle-bar-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #52525b;
+}
+
 .remark-block {
   margin-top: 8px;
   padding: 8px 10px;

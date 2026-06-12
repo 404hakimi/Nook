@@ -11,8 +11,6 @@ export interface ResourceServer {
   /** 装机生命周期; 取值 INSTALLING / READY / LIVE / RETIRED. */
   lifecycleState: string
 
-  totalIpCount?: number
-
   /** 区域码 (FK → resource_region.code). */
   region?: string
 
@@ -96,7 +94,6 @@ export interface ResourceServerCreateDTO {
 export interface ResourceServerCoreUpdateDTO {
   name: string
   region: string
-  totalIpCount?: number
   remark?: string
 }
 
@@ -275,7 +272,7 @@ export function createServer(dto: ResourceServerCreateDTO) {
   return request.post<unknown, ResourceServer>('/admin/resource/server/create-server', dto)
 }
 
-/** 更新核心 (name/region/totalIp/remark; lifecycle 走 /transition-lifecycle). */
+/** 更新核心 (name/region/remark; lifecycle 走 /transition-lifecycle). */
 export function updateServerCore(id: string, dto: ResourceServerCoreUpdateDTO) {
   return request.put<unknown, void>('/admin/resource/server/update-core', dto, { params: { id } })
 }

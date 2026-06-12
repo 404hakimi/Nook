@@ -83,8 +83,8 @@ const targetLifecycle = ref<string | null>(null)
 async function doTransition() {
   if (!targetLifecycle.value || !detail.value) return
   dialog.warning({
-    title: '确认切换 lifecycle',
-    content: `${detail.value.lifecycleState} → ${targetLifecycle.value} ?`,
+    title: '确认切换状态',
+    content: `${SERVER_LIFECYCLE_LABELS[detail.value.lifecycleState] || detail.value.lifecycleState} → ${SERVER_LIFECYCLE_LABELS[targetLifecycle.value] || targetLifecycle.value} ?`,
     positiveText: '切换', negativeText: '取消',
     onPositiveClick: async () => {
       try {
@@ -134,25 +134,27 @@ function afterEdit() { load(); emit('refresh') }
   <NSpin :show="loading">
     <div v-if="detail" class="space-y-3">
 
-      <!-- 操作栏: lifecycle 切换 + 删除 -->
-      <div class="action-bar">
+      <!-- 状态管理: 切换生命周期 + 删除 -->
+      <div class="lifecycle-bar">
+        <NIcon class="lifecycle-bar-icon"><Power :size="16" /></NIcon>
+        <span class="lifecycle-bar-title">状态管理</span>
+        <span class="flex-1"></span>
         <NSelect
           v-model:value="targetLifecycle"
           :options="lifecycleOptions"
           size="small"
-          placeholder="切换 lifecycle"
+          placeholder="切换状态"
           class="w-32"
         />
-        <NButton size="small" :disabled="!targetLifecycle" @click="doTransition">
+        <NButton type="primary" size="small" :disabled="!targetLifecycle" @click="doTransition">
           <template #icon><NIcon><Power :size="14" /></NIcon></template>
           切换
         </NButton>
-        <div class="flex-1"></div>
         <NPopconfirm @positive-click="onDelete">
           <template #trigger>
             <NButton size="small" type="error" quaternary>
               <template #icon><NIcon><Trash2 :size="14" /></NIcon></template>
-              删除 server
+              删除线路机
             </NButton>
           </template>
           级联硬删主记录 + 全部子表 (凭据 / 账面 / 配额 / 流量 / xray_install / xray_inbound 等), 不可撤销; 仍被生效凭证绑定的机器会被拒绝删除.
@@ -182,10 +184,6 @@ function afterEdit() { load(); emit('refresh') }
           <NDescriptionsItem label="区域">
             <NTag v-if="detail.region" size="small">{{ detail.region }}</NTag>
             <span v-else class="muted">—</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="IP 总数">
-            <span class="num">{{ detail.totalIpCount ?? '—' }}</span>
-            <span class="unit">个</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="机器 ID">
             <code class="kbd text-xs">{{ detail.id }}</code>
@@ -304,6 +302,26 @@ function afterEdit() { load(); emit('refresh') }
 
 <style scoped>
 /* 字体 / 数值 / 段头 走 main.scss 全局 tokens */
+
+/* 状态管理操作条: 浅色卡片条 + 左标题右操作, 区别于普通 action-bar, 更显眼 */
+.lifecycle-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 6px;
+}
+.lifecycle-bar-icon {
+  color: #6366f1;
+}
+.lifecycle-bar-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #52525b;
+}
 
 .traffic-block {
   margin-top: 10px;

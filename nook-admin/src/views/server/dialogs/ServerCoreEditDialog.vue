@@ -4,13 +4,15 @@ import {
   NButton,
   NForm,
   NFormItem,
+  NIcon,
   NInput,
-  NInputNumber,
   NModal,
   NSelect,
   NSpace,
+  NTooltip,
   useMessage
 } from 'naive-ui'
+import { HelpCircle } from 'lucide-vue-next'
 import {
   updateServerCore,
   type ResourceServer,
@@ -33,6 +35,11 @@ const message = useMessage()
 const submitting = ref(false)
 const errors = reactive<Record<string, string>>({})
 
+// 仅装机中 / 待上线可改区域; 上线后区域是套餐与机器的匹配依据, 锁定
+const regionLocked = computed(() =>
+  props.server?.lifecycleState !== 'INSTALLING' && props.server?.lifecycleState !== 'READY'
+)
+
 const regionStore = useRegionStore()
 const { list: regions } = storeToRefs(regionStore)
 const regionOptions = computed(() => regions.value.map((r) => ({
@@ -52,14 +59,12 @@ function renderRegionLabel(o: { label: string; countryCode?: string; flagEmoji?:
 const form = reactive<ResourceServerCoreUpdateDTO>({
   name: '',
   region: '',
-  totalIpCount: 0,
   remark: ''
 })
 
 function fill(s: ResourceServer) {
   form.name = s.name
   form.region = s.region ?? ''
-  form.totalIpCount = s.totalIpCount ?? 0
   form.remark = s.remark ?? ''
 }
 
@@ -85,7 +90,6 @@ async function onSubmit() {
     await updateServerCore(props.server.id, {
       name: form.name.trim(),
       region: form.region,
-      totalIpCount: form.totalIpCount ?? 0,
       remark: form.remark?.trim() || undefined
     })
     message.success('已保存')
@@ -110,19 +114,25 @@ async function onSubmit() {
       <NFormItem label="别名" required :feedback="errors.name" :validation-status="errors.name ? 'error' : undefined">
         <NInput v-model:value="form.name" />
       </NFormItem>
-      <NFormItem label="区域" required :feedback="errors.region" :validation-status="errors.region ? 'error' : undefined">
+      <NFormItem required :feedback="errors.region" :validation-status="errors.region ? 'error' : undefined">
+        <template #label>
+          <span style="display:inline-flex;align-items:center;gap:4px">
+            区域
+            <NTooltip>
+              <template #trigger>
+                <NIcon :size="15" style="cursor:help;color:#999"><HelpCircle /></NIcon>
+              </template>
+              区域是套餐与线路机 / 落地机的匹配依据; 仅装机中 / 待上线可改, 服务器上线后锁定
+            </NTooltip>
+          </span>
+        </template>
         <NSelect
           v-model:value="form.region"
           :options="regionOptions"
           :render-label="renderRegionLabel as any"
+          :disabled="regionLocked"
           filterable
         />
-      </NFormItem>
-      <NFormItem label="IP 总数">
-        <NInputNumber :value="form.totalIpCount" disabled class="w-full" />
-        <template #feedback>
-          <span class="text-zinc-400 text-xs">由 xray 落地 IP 统计带回 (待接入), 编辑不可改</span>
-        </template>
       </NFormItem>
       <NFormItem label="备注">
         <NInput v-model:value="form.remark" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
