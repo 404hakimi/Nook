@@ -24,7 +24,8 @@ public class AgentTokenApiImpl implements AgentTokenApi {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(md.digest(raw.getBytes()));
         } catch (Exception e) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "SHA-256 不可用: " + e.getMessage());
+            // INTERNAL_ERROR 消息模板无 %s 占位, 详情走 cause 保留堆栈
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, e);
         }
     }
 }

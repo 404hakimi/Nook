@@ -274,6 +274,7 @@ public enum SomeErrorCode implements ErrorCode {
 | 6xxx | node Xray (`XrayErrorCode`) |
 | 7xxx | framework SSH (`SshErrorCode` 70xx / `ScriptErrorCode` 71xx) |
 | 8xxx | operation (`OpErrorCode`) |
+| 9xxx | agent (`AgentErrorCode`) |
 
 抛异常: `throw new BusinessException(SomeErrorCode.NAME_EXISTS, name);` 全局异常处理器 (nook-framework) 自动转 `Result.fail(code, msg)`. **禁止**直接 `throw new RuntimeException(...)`.
 

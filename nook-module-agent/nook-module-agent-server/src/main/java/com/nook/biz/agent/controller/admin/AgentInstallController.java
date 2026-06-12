@@ -44,16 +44,18 @@ public class AgentInstallController {
     }
 
     /**
-     * 装机元信息 (前端 prefill 用)
+     * 获得装机元信息 (前端表单预填用)
      *
-     * @param role     frontline / landing (默认 frontline)
-     * @param sourceId resource_server.id; 可空
-     * @return meta
+     * @param role     角色 frontline / landing (默认 frontline)
+     * @param sourceId 装机源服务器ID; 可空
+     * @return 装机元信息
      */
     @GetMapping("/get-install-meta")
     public Result<AgentInstallMetaRespVO> installMeta(
             @RequestParam(value = "role", defaultValue = AgentRole.Codes.FRONTLINE) String role,
             @RequestParam(value = "sourceId", required = false) String sourceId) {
-        return Result.ok(agentInstallScriptService.getInstallMeta(AgentRole.fromCode(role), sourceId));
+        // 解析角色
+        AgentRole agentRole = AgentRole.fromCode(role);
+        return Result.ok(agentInstallScriptService.getInstallMeta(agentRole, sourceId));
     }
 }

@@ -34,6 +34,16 @@ public enum AgentRole {
     }
 
     /**
+     * 当前枚举值是否匹配给定 code
+     *
+     * @param code 待比较字符串
+     * @return 是否匹配
+     */
+    public boolean matches(String code) {
+        return this.code.equals(code);
+    }
+
+    /**
      * 检查 code 是否合法.
      *
      * @param code 待检查字符串

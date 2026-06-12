@@ -45,7 +45,10 @@ public class AgentController {
     public Result<Boolean> heartbeat(@AuthenticatedAgent String serverId,
                                      @RequestBody @Valid AgentHeartbeatReqVO reqVO,
                                      HttpServletRequest httpReq) {
-        agentReportService.receiveHeartbeat(serverId, reqVO, ClientIpResolver.resolve(httpReq));
+        // 解析客户端 IP
+        String clientIp = ClientIpResolver.resolve(httpReq);
+        // 落心跳
+        agentReportService.receiveHeartbeat(serverId, reqVO, clientIp);
         return Result.ok(true);
     }
 
@@ -64,11 +67,10 @@ public class AgentController {
     }
 
     /**
-     * Agent reconcile 拉本机应存在的全部 xray 客户端期望态 (每 5min + 下单立即推).
-     * agent 跟本地实际 diff → adu/rmu/ado/rmo/adrules 收敛。
+     * Agent reconcile 拉本机应存在的全部 xray 客户端期望态 (每 5min + 下单立即推); agent 据此与本地实际差异收敛
      *
      * @param serverId 已认证 server id
-     * @return 期望态列表 (含预拼 adu/ado/adrules JSON)
+     * @return 期望态列表 (含预拼接的 xray 操作 JSON)
      */
     @GetMapping("/reconcile/desired")
     public Result<List<XrayReconcileClientDTO>> reconcileDesired(@AuthenticatedAgent String serverId) {
@@ -76,10 +78,10 @@ public class AgentController {
     }
 
     /**
-     * 落地机Agent获取 (出口限速 Mbps + socks5 端口)
+     * 落地机 agent 拉期望配置 (出口限速 + socks5 端口)
      *
      * @param serverId 已认证 server id (落地机)
-     * @return Result<LandingDesiredRespVO>
+     * @return 落地机期望配置
      */
     @GetMapping("/landing/desired")
     public Result<LandingDesiredRespVO> landingDesired(@AuthenticatedAgent String serverId) {

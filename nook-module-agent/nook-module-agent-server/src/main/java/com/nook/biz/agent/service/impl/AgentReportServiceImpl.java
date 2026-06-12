@@ -47,35 +47,32 @@ public class AgentReportServiceImpl implements AgentReportService {
 
     @Override
     public void receiveHeartbeat(String serverId, AgentHeartbeatReqVO req, String clientIp) {
-        int affected = resourceServerRuntimeApi.onHeartbeat(
-                serverId, LocalDateTime.now(),
-                StrUtil.blankToDefault(req.getAgentVersion(), null),
-                clientIp);
+        String agentVersion = StrUtil.blankToDefault(req.getAgentVersion(), null);
+        int affected = resourceServerRuntimeApi.onHeartbeat(serverId, LocalDateTime.now(), agentVersion, clientIp);
         if (affected == 0) {
-            log.warn("[receiveHeartbeat] runtime 行不存在 serverId={}, 装机流程异常", serverId);
+            log.warn("[receiveHeartbeat] runtime 行不存在: serverId={}, 装机流程异常", serverId);
         }
     }
 
     @Override
     public void receiveNicTraffic(String serverId, AgentNicTrafficReqVO req) {
-        // 获取服务器信息
+        // 查服务器
         ResourceServerRespDTO server = resourceServerApi.getServer(serverId);
         if (ObjectUtil.isNull(server)) {
-            log.warn("[Agent流量上报] 服务器信息不存在 serverId={}", serverId);
+            log.warn("[receiveNicTraffic] 服务器不存在: serverId={}", serverId);
             return;
         }
-        String ipAddress = StrUtil.isBlank(server.getIpAddress()) ? "-" : server.getIpAddress();
         // 写入网卡累计 + 用户业务上下行累计
         resourceServerQuotaApi.applyNicTraffic(serverId, req.getRxBytes(), req.getTxBytes(),
                 req.getBizUpBytes(), req.getBizDownBytes());
-        // 根据服务器类型进行输出对应的日志
-        if (ResourceServerTypeEnum.FRONTLINE.getState().equals(server.getServerType())) {
-            log.info("[Agent流量上报] {}>>>[{}]({}) 入站={}GB 出站={}GB", ResourceServerTypeEnum.FRONTLINE.getState(), server.getName(), ipAddress,
+        String ipAddress = StrUtil.blankToDefault(server.getIpAddress(), "-");
+        if (ResourceServerTypeEnum.FRONTLINE.matches(server.getServerType())) {
+            log.info("[receiveNicTraffic] 线路机 {}({}): 入站={}GB, 出站={}GB", server.getName(), ipAddress,
                     TrafficUnitUtils.toGb(req.getRxBytes()), TrafficUnitUtils.toGb(req.getTxBytes()));
         } else {
             String upText = ObjectUtil.isNull(req.getBizUpBytes()) ? "0MB" : TrafficUnitUtils.toMb(req.getBizUpBytes()) + "MB";
             String downText = ObjectUtil.isNull(req.getBizDownBytes()) ? "0MB" : TrafficUnitUtils.toMb(req.getBizDownBytes()) + "MB";
-            log.info("[Agent流量上报] {}>>>[{}]({}) 入站={}GB 出站={}GB 用户流量(上行={},下行={})", ResourceServerTypeEnum.LANDING.getState(), server.getName(), ipAddress,
+            log.info("[receiveNicTraffic] 落地机 {}({}): 入站={}GB, 出站={}GB, 用户上行={}, 用户下行={}", server.getName(), ipAddress,
                     TrafficUnitUtils.toGb(req.getRxBytes()), TrafficUnitUtils.toGb(req.getTxBytes()), upText, downText);
         }
     }

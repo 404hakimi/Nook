@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Agent 心跳监控 / 告警 Job (仅在状态变化时打日志, 不每分钟刷屏; 真故障的存量迁移由 FrontlineFailoverJob 负责)
+ * Agent 心跳监控 / 告警 Job
  *
  * @author nook
  */

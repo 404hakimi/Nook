@@ -4,7 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 /**
- * 落地机期望配置 Resp VO; agent 一轮 reconcile 拉一次, 分发给 tc 整形 + nft 业务流量计数器维护.
+ * 落地机期望配置 Response VO
  *
  * @author nook
  */

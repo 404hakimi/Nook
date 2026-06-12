@@ -62,21 +62,26 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
 
     @Override
     public ResponseBodyEmitter installStream(String sourceId, AgentInstallReqVO reqVO) {
-        AgentRole.fromCode(reqVO.getRole());
+        // 校验角色与装机源存在
+        agentInstallValidator.validateRole(reqVO.getRole());
         resourceServerApi.validateExists(sourceId);
+        // 按凭据装机超时推流式响应超时
         ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(sourceId);
         Duration emitterTimeout = Duration.ofSeconds(cred.getInstallTimeoutSeconds())
                 .plus(webStreamingProperties.getEmitterBuffer());
+        // 流式执行装机
         return streamingSupport.stream("agent-install:" + sourceId, emitterTimeout,
                 lineSink -> installStreaming(sourceId, reqVO, lineSink));
     }
 
     @Override
     public void installStreaming(String sourceId, AgentInstallReqVO reqVO, Consumer<String> lineSink) {
+        // 校验角色 / 装机源 / 服务器类型
         agentInstallValidator.validateRole(reqVO.getRole());
         AgentRole role = AgentRole.fromCode(reqVO.getRole());
         ResourceServerRespDTO srv = resourceServerApi.validateExists(sourceId);
         agentInstallValidator.validateServerType(srv, role);
+        // 取 SSH 凭据并按角色校验装机前置
         ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(sourceId);
         if (role == AgentRole.FRONTLINE) {
             agentInstallValidator.validateFrontlinePrerequisite(srv, reqVO);
@@ -84,13 +89,13 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         } else {
             agentInstallValidator.validateLandingPrerequisite(srv);
         }
-
+        // 渲染 agent 配置
         String token = srv.getAgentToken();
         String configYaml = buildYaml(reqVO, token);
         lineSink.accept("[nook] agent_token: " + StrUtil.subPre(token, 12) + "… (复用 server 入库时签发)\n");
         lineSink.accept("[nook] role: " + reqVO.getRole() + " / server: " + srv.getName() + "\n");
         lineSink.accept("[nook] 渲染 yaml: " + configYaml.length() + " 字节\n");
-
+        // 组 SSH 凭据并执行装机脚本
         SessionCredential sshCred = SessionCredential.builder()
                 .serverId(srv.getId())
                 .sshHost(srv.getIpAddress())
@@ -167,13 +172,13 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         sb.append("  interface: ").append(r.getNicInterface()).append("\n\n");
         int reconcileInterval = r.getReconcileIntervalSeconds() == null
                 ? DEFAULT_RECONCILE_INTERVAL_SECONDS : r.getReconcileIntervalSeconds();
-        if (AgentRole.FRONTLINE.getCode().equals(r.getRole())) {
+        if (AgentRole.FRONTLINE.matches(r.getRole())) {
             sb.append("xray:\n");
             sb.append("  bin: ").append(r.getXrayBin()).append("\n");
             sb.append("  api_port: ").append(r.getXrayApiPort()).append("\n");
             sb.append("  stats_interval_seconds: ").append(XRAY_STATS_INTERVAL_SECONDS).append("\n");
             sb.append("  reconcile_interval_seconds: ").append(reconcileInterval).append("\n\n");
-        } else if (AgentRole.LANDING.getCode().equals(r.getRole())) {
+        } else if (AgentRole.LANDING.matches(r.getRole())) {
             // 落地机 tc 限速 reconcile 周期; 复用部署表单的"对账间隔"
             sb.append("landing:\n");
             sb.append("  bandwidth_reconcile_interval_seconds: ").append(reconcileInterval).append("\n\n");
