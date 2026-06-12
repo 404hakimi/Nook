@@ -5,7 +5,7 @@ import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 import java.util.List;
 
 /**
- * Xray 期望态查询契约 (某线路机应存在的全部接入点 / xray inbound 客户端).
+ * Xray 期望态对账 Api 接口
  *
  * @author nook
  */

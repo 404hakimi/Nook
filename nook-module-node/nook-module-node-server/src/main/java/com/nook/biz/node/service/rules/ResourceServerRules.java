@@ -12,10 +12,10 @@ import com.nook.common.utils.unit.TrafficUnitUtils;
 public final class ResourceServerRules {
 
     /** 重置日缺省值; 取不到账单日时用 1 号. */
-    private static final int DEFAULT_RESET_DAY = 1;
+    public static final int DEFAULT_RESET_DAY = 1;
 
     /** 可用比例缺省值%; 默认留 10% 冗余吃换机延迟 / 装机流量 / 口径误差. */
-    private static final int DEFAULT_USABLE_PERCENT = 90;
+    public static final int DEFAULT_USABLE_PERCENT = 90;
 
     private ResourceServerRules() {}
 
@@ -50,7 +50,12 @@ public final class ResourceServerRules {
         return usableBytes(totalGb, usablePercent) - used >= TrafficUnitUtils.gbToBytes(planTrafficGb * 2L);
     }
 
-    /** 测量行是否已置限流 (值入参). */
+    /**
+     * 是否已置限流
+     *
+     * @param throttleState 限流状态
+     * @return 是否限流中
+     */
     public static boolean isThrottled(String throttleState) {
         return ResourceServerThrottleStateEnum.THROTTLED.matches(throttleState);
     }

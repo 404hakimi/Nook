@@ -8,8 +8,6 @@ import java.time.Duration;
 /**
  * 服务器运维参数 (yaml 前缀 nook.node.server)
  *
- * <p>scriptCleanupTimeout 已搬到 nook-spring-boot-starter-ssh 的 ScriptProperties (前缀 nook.ssh.script).
- *
  * @author nook
  */
 @Data

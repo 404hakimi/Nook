@@ -56,9 +56,7 @@ public interface ResourceServerLandingService {
     void updateBilling(String id, ServerLandingBillingUpdateReqVO reqVO);
 
     /**
-     * 更新容量阈值 (限速 / 月流量上限 / 重置策略)
-     *
-     * <p>实际用量与限流状态由 agent 与状态机维护, 不在此更新.
+     * 更新容量阈值 (限速 / 月流量上限 / 重置策略; 实际用量与限流状态不在此更新)
      *
      * @param id    落地节点ID
      * @param reqVO 容量入参

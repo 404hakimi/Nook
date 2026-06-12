@@ -3,7 +3,7 @@ package com.nook.biz.node.api.xray.dto;
 import lombok.Data;
 
 /**
- * Xray 接入连接参数 (拼订阅链接用; host 已按"域名优先, 否则出网 IP"解析).
+ * Xray 接入连接参数 DTO
  *
  * @author nook
  */

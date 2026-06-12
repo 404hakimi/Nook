@@ -23,7 +23,6 @@ import com.nook.biz.node.entity.ResourceServerQuotaDO;
 import com.nook.biz.node.entity.ResourceServerRuntimeDO;
 import com.nook.biz.node.entity.ResourceServerTrafficDO;
 import com.nook.biz.node.entity.Socks5InstallDO;
-import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.resource.ResourceServerLandingSocksOpsService;
 import com.nook.biz.node.service.resource.ResourceServerService;
@@ -239,7 +238,7 @@ public class ResourceServerLandingController {
      */
     @PutMapping("/update-quota")
     public Result<Void> updateQuota(@RequestParam("id") String id,
-                                       @Valid @RequestBody ServerLandingQuotaUpdateReqVO reqVO) {
+                                    @Valid @RequestBody ServerLandingQuotaUpdateReqVO reqVO) {
         resourceServerLandingService.updateQuota(id, reqVO);
         return Result.ok();
     }
@@ -252,7 +251,7 @@ public class ResourceServerLandingController {
      */
     @PostMapping("/set-socks5-autostart")
     public Result<Void> setSocks5Autostart(@RequestParam("id") String id,
-                                              @RequestParam("enabled") boolean enabled) {
+                                           @RequestParam("enabled") boolean enabled) {
         resourceServerLandingSocksOpsService.setAutostart(id, enabled);
         return Result.ok();
     }
@@ -299,18 +298,9 @@ public class ResourceServerLandingController {
     @PostMapping("/test-socks5-dial")
     public Result<Socks5TestRespVO> testSocks5(@RequestParam("id") String id,
                                                @Valid @RequestBody Socks5TestReqVO reqVO) {
-        Socks5ProbeSnapshot snap = resourceServerLandingSocksOpsService.testSocks5(id, reqVO.getEchoUrl(),
+        Socks5TestRespVO respVO = resourceServerLandingSocksOpsService.testSocks5(id, reqVO.getEchoUrl(),
                 reqVO.getConnectTimeoutMs(), reqVO.getReadTimeoutMs());
-        Socks5TestRespVO vo = new Socks5TestRespVO();
-        vo.setSuccess(snap.isSuccess());
-        vo.setElapsedMs(snap.getElapsedMs());
-        vo.setEchoUrl(snap.getEchoUrl());
-        vo.setConnectTimeoutMs(snap.getConnectTimeoutMs());
-        vo.setReadTimeoutMs(snap.getReadTimeoutMs());
-        vo.setHttpStatus(snap.getHttpStatus());
-        vo.setRawResponse(snap.getRawResponse());
-        vo.setError(snap.getErrorMessage());
-        return Result.ok(vo);
+        return Result.ok(respVO);
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.nook.biz.node.api.resource;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.convert.resource.ResourceServerCredentialConvert;
@@ -40,7 +41,7 @@ public class ResourceServerCredentialApiImpl implements ResourceServerCredential
 
     @Override
     public Map<String, ResourceServerCredentialRespDTO> listByServerIds(Collection<String> serverIds) {
-        if (CollectionUtils.isAnyEmpty(serverIds)) {
+        if (CollUtil.isEmpty(serverIds)) {
             return Map.of();
         }
         return CollectionUtils.convertMap(

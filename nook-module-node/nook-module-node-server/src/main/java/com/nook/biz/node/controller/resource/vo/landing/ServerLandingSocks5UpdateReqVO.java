@@ -14,17 +14,20 @@ import lombok.Data;
 @Data
 public class ServerLandingSocks5UpdateReqVO {
 
+    /** SOCKS5 监听端口. */
     @NotNull(message = "socks5Port 不能为空")
     @Min(value = 1) @Max(value = 65535)
     private Integer socks5Port;
 
+    /** SOCKS5 认证用户名. */
     @Size(max = 64)
     private String socks5Username;
 
-    /** 留空 = 保留原值. */
+    /** SOCKS5 认证密码; 留空 = 保留原值. */
     @Size(max = 128)
     private String socks5Password;
 
+    /** dante 日志级别. */
     @Size(max = 64)
     private String logLevel;
 
@@ -32,12 +35,15 @@ public class ServerLandingSocks5UpdateReqVO {
     @Size(max = 255)
     private String logPath;
 
+    /** 是否开机自启: 1=是 0=否. */
     @Min(value = 0) @Max(value = 1)
     private Integer autostartEnabled;
 
+    /** 是否启用防火墙: 1=是 0=否. */
     @Min(value = 0) @Max(value = 1)
     private Integer firewallEnabled;
 
+    /** dante 安装目录. */
     @Size(max = 255)
     private String installDir;
 }

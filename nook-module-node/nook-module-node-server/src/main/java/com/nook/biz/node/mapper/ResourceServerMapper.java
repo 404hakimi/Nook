@@ -102,13 +102,6 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
         return result;
     }
 
-    default int migrateRegion(String oldRegion, String newRegion) {
-        return update(null, Wrappers.<ResourceServerDO>lambdaUpdate()
-                .set(ResourceServerDO::getRegion, newRegion)
-                .set(ResourceServerDO::getUpdatedAt, LocalDateTime.now())
-                .eq(ResourceServerDO::getRegion, oldRegion));
-    }
-
     IPage<ServerLandingListItemRespVO> selectLandingPage(IPage<ServerLandingListItemRespVO> page,
             @Param("keyword") String keyword, @Param("lifecycleState") String lifecycleState,
             @Param("ipTypeId") String ipTypeId,
@@ -125,5 +118,12 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .set(ResourceServerDO::getLifecycleState, lifecycleState)
                 .set(ResourceServerDO::getUpdatedAt, LocalDateTime.now())
                 .eq(ResourceServerDO::getId, id));
+    }
+
+    default int migrateRegion(String oldRegion, String newRegion) {
+        return update(null, Wrappers.<ResourceServerDO>lambdaUpdate()
+                .set(ResourceServerDO::getRegion, newRegion)
+                .set(ResourceServerDO::getUpdatedAt, LocalDateTime.now())
+                .eq(ResourceServerDO::getRegion, oldRegion));
     }
 }

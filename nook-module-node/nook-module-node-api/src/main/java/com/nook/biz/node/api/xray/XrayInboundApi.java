@@ -13,9 +13,7 @@ import java.util.Map;
 public interface XrayInboundApi {
 
     /**
-     * 批量取线路机的 xray 接入连接参数
-     *
-     * <p>未装 xray / 拼不出 host 的线路机不入返回 map.
+     * 批量取线路机的 xray 接入连接参数 (未装 xray / 无 host 的不在 map 内)
      *
      * @param serverIds 线路机ID集合
      * @return 线路机ID → 接入连接参数

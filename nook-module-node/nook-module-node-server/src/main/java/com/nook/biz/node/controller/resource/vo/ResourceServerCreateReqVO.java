@@ -29,6 +29,7 @@ public class ResourceServerCreateReqVO {
     @Size(max = 128, message = "IP 地址长度不能超过 128")
     private String ipAddress;
 
+    /** 区域码. */
     @NotBlank(message = "区域不能为空")
     @Size(max = 32, message = "区域码长度不能超过 32")
     @Pattern(regexp = "^[A-Z][A-Z0-9\\-]+$", message = "区域码须大写, e.g., JP-TYO / US-LAX / HK")
@@ -38,6 +39,7 @@ public class ResourceServerCreateReqVO {
     @Size(max = 32, message = "ipTypeId 长度不能超过 32")
     private String ipTypeId;
 
+    /** 备注. */
     @Size(max = 512)
     private String remark;
 

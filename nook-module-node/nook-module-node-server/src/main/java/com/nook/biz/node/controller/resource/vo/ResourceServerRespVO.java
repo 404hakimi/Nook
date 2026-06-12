@@ -22,9 +22,6 @@ public class ResourceServerRespVO {
     /** 装机生命周期; 取值见 {@link ResourceServerLifecycleEnum}. */
     private String lifecycleState;
 
-    /** IP 总数. */
-    private Integer totalIpCount;
-
     /** 区域码. */
     private String region;
 

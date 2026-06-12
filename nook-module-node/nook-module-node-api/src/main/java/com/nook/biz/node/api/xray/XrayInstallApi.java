@@ -13,18 +13,18 @@ import java.util.Map;
 public interface XrayInstallApi {
 
     /**
-     * 获取 Xray安装信息
+     * 获取 xray 安装信息; 未装 xray 返 null
      *
      * @param serverId 服务器ID
-     * @return XrayInstallRespDTO
+     * @return xray 安装信息
      */
     XrayInstallRespDTO getXrayInstall(String serverId);
 
     /**
-     * 检查是否有绑定该域名的 Xray
+     * 该域名是否已被任意线路机的 xray 绑定
      *
      * @param domainId 域名ID
-     * @return boolean
+     * @return 是否已绑定
      */
     boolean isDomainBound(String domainId);
 }

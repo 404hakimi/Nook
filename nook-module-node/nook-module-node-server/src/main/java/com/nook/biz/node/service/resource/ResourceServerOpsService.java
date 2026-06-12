@@ -1,10 +1,10 @@
 package com.nook.biz.node.service.resource;
 
+import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.controller.resource.vo.ops.ConnectivityTestRespVO;
 import com.nook.biz.node.controller.resource.vo.ops.EnableSwapReqVO;
-import com.nook.biz.node.framework.server.snapshot.ConnectivitySnapshot;
-import com.nook.biz.node.framework.server.snapshot.HostInfoSnapshot;
-import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
-import com.nook.biz.node.framework.server.snapshot.SystemdStatusSnapshot;
+import com.nook.biz.node.controller.resource.vo.ops.ServerSystemInfoRespVO;
+import com.nook.biz.node.controller.resource.vo.ops.SystemdStatusRespVO;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.List;
@@ -37,17 +37,17 @@ public interface ResourceServerOpsService {
      * 探活服务器
      *
      * @param serverId 服务器编号
-     * @return 探活快照
+     * @return 探活结果
      */
-    ConnectivitySnapshot testConnectivity(String serverId);
+    ConnectivityTestRespVO testConnectivity(String serverId);
 
     /**
      * 获得操作系统级基本信息
      *
      * @param serverId 服务器编号
-     * @return 主机信息快照
+     * @return 系统信息
      */
-    HostInfoSnapshot getSystemInfo(String serverId);
+    ServerSystemInfoRespVO getSystemInfo(String serverId);
 
     /**
      * 获得 UFW 防火墙状态
@@ -62,9 +62,9 @@ public interface ResourceServerOpsService {
      *
      * @param serverId 服务器编号
      * @param unit     systemd unit 名
-     * @return systemd 状态快照
+     * @return systemd 状态
      */
-    SystemdStatusSnapshot getSystemdStatus(String serverId, String unit);
+    SystemdStatusRespVO getSystemdStatus(String serverId, String unit);
 
     /**
      * 获得 systemd unit journalctl 日志
@@ -74,9 +74,9 @@ public interface ResourceServerOpsService {
      * @param lines    读取行数
      * @param level    级别过滤
      * @param keyword  关键字过滤
-     * @return 日志快照
+     * @return 日志内容
      */
-    JournalLogSnapshot getServiceLog(String serverId, String unit, Integer lines, String level, String keyword);
+    ServiceLogRespVO getServiceLog(String serverId, String unit, Integer lines, String level, String keyword);
 
     /**
      * 获得远端网卡列表

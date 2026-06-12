@@ -3,8 +3,9 @@ package com.nook.biz.node.service.resource.impl;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
-import com.nook.biz.node.controller.resource.vo.landing.ServerLandingDeployReqVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingDeployReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.Socks5TestRespVO;
 import com.nook.biz.node.convert.resource.LandingSocksOpsConvert;
 import com.nook.biz.node.entity.ResourceServerCredentialDO;
 import com.nook.biz.node.entity.ResourceServerDO;
@@ -94,17 +95,22 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
     }
 
     @Override
-    public Socks5ProbeSnapshot testSocks5(String serverId, String echoUrl, int connectTimeoutMs, int readTimeoutMs) {
+    public Socks5TestRespVO testSocks5(String serverId, String echoUrl, int connectTimeoutMs, int readTimeoutMs) {
+        // 校验服务器与装机子表存在
         ResourceServerDO server = resourceServerValidator.validateExists(serverId);
         Socks5InstallDO landing = resourceServerLandingValidator.validateExists(serverId);
+        // IP / 端口未配置无法拨号, 转结构化失败
         if (StrUtil.isBlank(server.getIpAddress()) || ObjectUtil.isNull(landing.getSocks5Port())) {
-            return new Socks5ProbeSnapshot(false, 0L, echoUrl, connectTimeoutMs, readTimeoutMs,
+            Socks5ProbeSnapshot failed = new Socks5ProbeSnapshot(false, 0L, echoUrl, connectTimeoutMs, readTimeoutMs,
                     0, null, "SOCKS5 IP 或端口未配置");
+            return LandingSocksOpsConvert.INSTANCE.toSocks5TestVO(failed);
         }
-        return socks5Prober.probe(
+        // 拨号探测并转换返回
+        Socks5ProbeSnapshot snapshot = socks5Prober.probe(
                 server.getIpAddress(), landing.getSocks5Port(),
                 landing.getSocks5Username(), landing.getSocks5Password(),
                 echoUrl, connectTimeoutMs, readTimeoutMs);
+        return LandingSocksOpsConvert.INSTANCE.toSocks5TestVO(snapshot);
     }
 
     @Override

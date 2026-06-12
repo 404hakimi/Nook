@@ -3,6 +3,7 @@ package com.nook.biz.node.validator;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
+import com.nook.biz.node.api.enums.ResourceServerProvisionModeEnum;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.biz.node.entity.ResourceServerCredentialDO;
 import com.nook.biz.node.entity.ResourceServerDO;
@@ -55,7 +56,7 @@ public class ResourceServerLandingValidator {
     public void validateIpTypeExists(String ipTypeId) {
         SystemIpTypeRespDTO type = systemIpTypeApi.getById(ipTypeId);
         if (ObjectUtil.isNull(type)) {
-            throw new BusinessException(ResourceErrorCode.LANDING_NOT_FOUND, ipTypeId);
+            throw new BusinessException(ResourceErrorCode.LANDING_IP_TYPE_INVALID, ipTypeId);
         }
     }
 
@@ -87,6 +88,17 @@ public class ResourceServerLandingValidator {
         }
         this.validateIpTypeExists(ipTypeId);
         this.validateIpAddressUnique(null, ipAddress);
+    }
+
+    /**
+     * 校验部署模式取值合法
+     *
+     * @param provisionMode 部署模式
+     */
+    public void validateProvisionMode(Integer provisionMode) {
+        if (ObjectUtil.isNull(ResourceServerProvisionModeEnum.fromCode(provisionMode))) {
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "未知 provisionMode: " + provisionMode);
+        }
     }
 
     /**

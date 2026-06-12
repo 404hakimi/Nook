@@ -12,9 +12,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * 服务器 SSH 凭据业务校验.
- *
- * <p>仅校验凭据本身 (端口 / 账号 / 密码 / 超时); 主机地址在服务器主表. 运行中后 SSH 端口锁定, 防止断开 agent 心跳.
+ * 服务器 SSH 凭据业务校验
  *
  * @author nook
  */

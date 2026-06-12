@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.resource.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import com.nook.biz.agent.api.AgentTokenApi;
 import com.nook.biz.node.api.enums.ResourceServerQuotaResetPolicyEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
@@ -17,18 +18,18 @@ import com.nook.biz.node.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.mapper.ResourceServerTrafficMapper;
 import com.nook.biz.node.mapper.XrayInboundMapper;
 import com.nook.biz.node.mapper.XrayInstallMapper;
-import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.resource.ResourceServerService;
+import com.nook.biz.node.service.rules.ResourceServerRules;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
+import com.nook.framework.ssh.core.SshSessions;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,8 +52,6 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     private ResourceServerQuotaMapper resourceServerQuotaMapper;
     @Resource
     private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
-    @Resource
-    private ApplicationEventPublisher applicationEventPublisher;
     @Resource
     private ResourceServerValidator resourceServerValidator;
     @Resource
@@ -81,16 +80,17 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String createServer(ResourceServerCreateReqVO createReqVO) {
+        // 校验类型 / 生命周期取值 + 名称唯一; 落地机另查 IP 类型与出网 IP
         resourceServerValidator.validateServerType(createReqVO.getServerType());
         resourceServerValidator.validateLifecycleState(createReqVO.getLifecycleState());
         resourceServerValidator.validateNameUnique(null, createReqVO.getName());
-
         boolean isLanding = ResourceServerTypeEnum.LANDING.matches(createReqVO.getServerType());
         if (isLanding) {
             resourceServerLandingValidator.validateForCreate(createReqVO.getIpTypeId(), createReqVO.getIpAddress());
         }
-
-        // 主表 (id + agentToken; ipAddress 作为 SSH 主机地址)
+        // 签发 agent 鉴权 token
+        String agentToken = agentTokenApi.generateToken();
+        // 主表 (ipAddress 作为 SSH 主机地址)
         ResourceServerDO entity = new ResourceServerDO();
         entity.setServerType(createReqVO.getServerType());
         entity.setName(createReqVO.getName());
@@ -98,7 +98,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         entity.setRegion(createReqVO.getRegion());
         entity.setRemark(createReqVO.getRemark());
         entity.setLifecycleState(createReqVO.getLifecycleState());
-        entity.setAgentToken(agentTokenApi.generateToken());
+        entity.setAgentToken(agentToken);
         resourceServerMapper.insert(entity);
 
         // 共用子表
@@ -121,8 +121,8 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         ResourceServerQuotaDO quota = new ResourceServerQuotaDO();
         quota.setServerId(serverId);
         quota.setResetPolicy(ResourceServerQuotaResetPolicyEnum.MONTHLY.getState());
-        quota.setResetDay(1); // 默认每月 1 号重置, admin 可改
-        quota.setUsablePercent(90); // 默认留 10% 冗余给换机延迟 / 装机流量, admin 可改
+        quota.setResetDay(ResourceServerRules.DEFAULT_RESET_DAY);
+        quota.setUsablePercent(ResourceServerRules.DEFAULT_USABLE_PERCENT);
         quota.setCreatedAt(now);
         quota.setUpdatedAt(now);
         resourceServerQuotaMapper.insert(quota);
@@ -135,11 +135,12 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void updateCore(String id, ResourceServerCoreUpdateReqVO reqVO) {
-        resourceServerValidator.validateExists(id);
+    public void updateResourceServer(String id, ResourceServerCoreUpdateReqVO reqVO) {
+        // 校验存在 + 名称唯一 + 区域可改性 (上线后锁定)
+        ResourceServerDO existing = resourceServerValidator.validateExists(id);
         resourceServerValidator.validateNameUnique(id, reqVO.getName());
-
+        resourceServerValidator.validateRegionMutable(existing, reqVO.getRegion());
+        // 更新核心字段; null 字段由 MP NOT_NULL 策略跳过
         ResourceServerDO updateObj = BeanUtils.toBean(reqVO, ResourceServerDO.class);
         updateObj.setId(id);
         resourceServerMapper.updateById(updateObj);
@@ -161,9 +162,10 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         xrayInstallMapper.deleteById(id);
         xrayInboundMapper.deleteById(id);
         resourceServerMapper.deleteById(id);
-        log.info("[server] DELETE CASCADE id={} type={} ip={} (子表 credential/billing/landing/runtime/quota/traffic({})/xray 已清)",
+        log.info("[deleteServer] 级联删除服务器: id={}, type={}, ip={}, trafficRows={}",
                 id, srv.getServerType(), srv.getIpAddress(), trafficRows);
-        applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(id)); // 清 SSH 会话缓存
+        // 服务器已删, 清掉缓存的 SSH 会话防止下次 acquire 命中失效连接
+        SshSessions.invalidate(id);
     }
 
     @Override
@@ -178,14 +180,14 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public Map<String, ResourceServerDO> getServerMap(Collection<String> ids) {
-        if (CollectionUtils.isAnyEmpty(ids)) return Map.of();
+        if (CollUtil.isEmpty(ids)) return Map.of();
         return CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(ids), ResourceServerDO::getId);
     }
 
     @Override
     public Map<String, String> getServerNameMap(Collection<String> ids) {
-        if (CollectionUtils.isAnyEmpty(ids)) return Map.of();
+        if (CollUtil.isEmpty(ids)) return Map.of();
         return CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(ids),
                 ResourceServerDO::getId,
@@ -194,7 +196,7 @@ public class ResourceServerServiceImpl implements ResourceServerService {
 
     @Override
     public Map<String, String> getIpAddressMap(Collection<String> ids) {
-        if (CollectionUtils.isAnyEmpty(ids)) return Map.of();
+        if (CollUtil.isEmpty(ids)) return Map.of();
         return CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(ids),
                 ResourceServerDO::getId,

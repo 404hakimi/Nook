@@ -4,12 +4,11 @@ import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialUpdateReqVO;
 import com.nook.biz.node.entity.ResourceServerCredentialDO;
 import com.nook.biz.node.mapper.ResourceServerCredentialMapper;
-import com.nook.biz.node.event.ServerCredentialChangedEvent;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.validator.ResourceServerCredentialValidator;
 import com.nook.common.utils.object.BeanUtils;
+import com.nook.framework.ssh.core.SshSessions;
 import jakarta.annotation.Resource;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -26,8 +25,6 @@ public class ResourceServerCredentialServiceImpl implements ResourceServerCreden
     private ResourceServerCredentialMapper resourceServerCredentialMapper;
     @Resource
     private ResourceServerCredentialValidator resourceServerCredentialValidator;
-    @Resource
-    private ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     public ResourceServerCredentialDO getServerCredential(String serverId) {
@@ -60,6 +57,7 @@ public class ResourceServerCredentialServiceImpl implements ResourceServerCreden
             patch.setSshPassword(null);
         }
         resourceServerCredentialMapper.updateBySelective(patch);
-        applicationEventPublisher.publishEvent(new ServerCredentialChangedEvent(serverId));
+        // 凭据变更后清掉缓存的 SSH 会话, 下次 acquire 用最新凭据重建
+        SshSessions.invalidate(serverId);
     }
 }

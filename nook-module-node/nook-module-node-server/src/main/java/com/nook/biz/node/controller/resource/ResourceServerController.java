@@ -121,7 +121,7 @@ public class ResourceServerController {
     @PutMapping("/update-core")
     public Result<Void> updateCore(@RequestParam("id") String id,
                                       @Valid @RequestBody ResourceServerCoreUpdateReqVO reqVO) {
-        resourceServerService.updateCore(id, reqVO);
+        resourceServerService.updateResourceServer(id, reqVO);
         return Result.ok();
     }
 

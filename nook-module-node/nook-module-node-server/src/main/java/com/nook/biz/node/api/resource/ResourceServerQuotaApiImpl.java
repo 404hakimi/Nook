@@ -1,5 +1,6 @@
 package com.nook.biz.node.api.resource;
 
+import cn.hutool.core.collection.CollUtil;
 import com.nook.biz.node.api.resource.dto.ResourceServerQuotaRespDTO;
 import com.nook.biz.node.entity.ResourceServerQuotaDO;
 import com.nook.biz.node.entity.ResourceServerTrafficDO;
@@ -36,33 +37,18 @@ public class ResourceServerQuotaApiImpl implements ResourceServerQuotaApi {
 
     @Override
     public Map<String, ResourceServerQuotaRespDTO> listByServerIds(Collection<String> serverIds) {
-        if (CollectionUtils.isAnyEmpty(serverIds)) {
+        if (CollUtil.isEmpty(serverIds)) {
             return Map.of();
         }
-        // 配额配置(每机 1 行)+ 当周期测量行(可能未上报)现拼成 DTO
+        // 批量查当周期测量行 (可能未上报)
         Map<String, ResourceServerTrafficDO> trafficMap = CollectionUtils.convertMap(
                 resourceServerTrafficMapper.selectCurrentByServerIds(serverIds), ResourceServerTrafficDO::getServerId);
+        // 配额配置逐机拼对外 DTO
         Map<String, ResourceServerQuotaRespDTO> result = new HashMap<>();
         for (ResourceServerQuotaDO quota : resourceServerQuotaMapper.selectBatchIds(serverIds)) {
-            result.put(quota.getServerId(), this.toDTO(quota, trafficMap.get(quota.getServerId())));
+            ResourceServerTrafficDO traffic = trafficMap.get(quota.getServerId());
+            result.put(quota.getServerId(), ResourceServerQuotaApiConvert.INSTANCE.toRespDTO(quota, traffic));
         }
         return result;
-    }
-
-    /** 配额配置 + 当周期测量(可空)拼成对外 DTO. */
-    private ResourceServerQuotaRespDTO toDTO(ResourceServerQuotaDO quota, ResourceServerTrafficDO traffic) {
-        ResourceServerQuotaRespDTO dto = new ResourceServerQuotaRespDTO();
-        dto.setServerId(quota.getServerId());
-        dto.setTotalGb(quota.getTotalGb());
-        dto.setBandwidthMbps(quota.getBandwidthMbps());
-        if (traffic != null) {
-            dto.setRxBytes(traffic.getRxBytes());
-            dto.setTxBytes(traffic.getTxBytes());
-            dto.setUsedBytes(traffic.getUsedBytes());
-            dto.setCounterUpBytes(traffic.getCounterUpBytes());
-            dto.setCounterDownBytes(traffic.getCounterDownBytes());
-            dto.setThrottleState(traffic.getThrottleState());
-        }
-        return dto;
     }
 }

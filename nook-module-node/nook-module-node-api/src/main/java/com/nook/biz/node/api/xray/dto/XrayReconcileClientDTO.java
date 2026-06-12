@@ -3,28 +3,26 @@ package com.nook.biz.node.api.xray.dto;
 import lombok.Data;
 
 /**
- * 单个 xray 客户端的期望态; agent 拿去与本地实际比对后应用.
- *
- * <p>后端把 3 段 xray api 请求 JSON 预拼好下发, agent 只按 email / tag 比对差异后把 JSON 喂给 xray, 不在 Go 侧重复拼协议。
+ * 单个 xray 客户端期望态 DTO; 含后端预拼好的 xray api JSON, agent 比对差异后直接应用, 不在 agent 侧重复拼协议
  *
  * @author nook
  */
 @Data
 public class XrayReconcileClientDTO {
 
-    /** inbound 用户邮箱 (身份键; 对账按 email 比对存在性). */
+    /** inbound 用户邮箱; 对账身份键, 按它比对存在性. */
     private String clientEmail;
 
-    /** inbound 用户的 UUID; 对账时比对远端账号 id, 不一致(已轮换)则摘旧装新. */
+    /** inbound 用户 UUID; 与远端不一致 (已轮换) 则摘旧装新. */
     private String clientUuid;
 
     /** 共享 inbound 标签 (删用户用). */
     private String inboundTag;
 
-    /** 业务 outbound 标签 = out_&lt;clientId&gt; (按标签比对; 删出站用). */
+    /** 该接入点专属 outbound 标签 (按标签比对; 删出站用). */
     private String outboundTag;
 
-    /** 业务路由规则标签 = rule_&lt;clientId&gt; (按标签比对; 删路由用). */
+    /** 该接入点专属路由规则标签 (按标签比对; 删路由用). */
     private String ruleTag;
 
     /** 预拼: 喂 {@code xray api adu} 的 {"inbounds":[...]} JSON. */

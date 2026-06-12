@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 套餐规格 DTO (算落地机池容量的入参; 与 trade 解耦, 只描述匹配维度)
+ * 套餐规格 DTO
  *
  * @author nook
  */
@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PlanSpecDTO {
 
-    /** 业务侧 key (planId), 容量结果按此回填. */
+    /** 套餐ID; 容量结果按此回填. */
     private String planId;
 
     /** 区域码. */

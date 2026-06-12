@@ -89,11 +89,14 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateCore(String id, ServerLandingCoreUpdateReqVO reqVO) {
-        resourceServerValidator.validateExists(id);
+        // 校验存在 + IP 类型 / IP 唯一 / 部署模式取值 + 区域可改性 (上线后锁定)
+        ResourceServerDO existing = resourceServerValidator.validateExists(id);
         resourceServerLandingValidator.validateExists(id);
         resourceServerLandingValidator.validateIpTypeExists(reqVO.getIpTypeId());
         resourceServerLandingValidator.validateIpAddressUnique(id, reqVO.getIpAddress());
-
+        resourceServerLandingValidator.validateProvisionMode(reqVO.getProvisionMode());
+        resourceServerValidator.validateRegionMutable(existing, reqVO.getRegion());
+        // 主表与 landing 子表分别更新
         ResourceServerDO srvPatch = new ResourceServerDO();
         srvPatch.setId(id);
         srvPatch.setRegion(reqVO.getRegion());
@@ -109,14 +112,13 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void updateSocks5(String id, ServerLandingSocks5UpdateReqVO reqVO) {
+        // 校验存在
         resourceServerValidator.validateExists(id);
         resourceServerLandingValidator.validateExists(id);
-
+        // 更新 dante 配置; 密码留空 = 保留原值
         Socks5InstallDO patch = BeanUtils.toBean(reqVO, Socks5InstallDO.class);
         patch.setServerId(id);
-        // 密码留空 = 保留原值
         if (StrUtil.isBlank(patch.getSocks5Password())) {
             patch.setSocks5Password(null);
         }
@@ -124,13 +126,13 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void updateBilling(String id, ServerLandingBillingUpdateReqVO reqVO) {
+        // 校验存在
         resourceServerValidator.validateExists(id);
-        LocalDateTime now = LocalDateTime.now();
-
+        // 账面子表不存在则插入, 否则按非空字段更新
         ResourceServerBillingDO old = resourceServerBillingMapper.selectById(id);
         if (ObjectUtil.isNull(old)) {
+            LocalDateTime now = LocalDateTime.now();
             ResourceServerBillingDO bill = BeanUtils.toBean(reqVO, ResourceServerBillingDO.class);
             bill.setServerId(id);
             bill.setCreatedAt(now);
@@ -144,8 +146,8 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void updateQuota(String id, ServerLandingQuotaUpdateReqVO reqVO) {
+        // 校验存在
         resourceServerValidator.validateExists(id);
         // 配额配置行装机时已 insert 占位, 这里只走 update 上限
         resourceServerQuotaMapper.updateQuota(id, reqVO.getTotalGb(), reqVO.getUsablePercent(),
@@ -231,19 +233,20 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void transitionLifecycle(String id, String newState) {
+        // 校验存在; 状态未变直接幂等返回
         ResourceServerDO srv = resourceServerValidator.validateExists(id);
         if (StrUtil.equals(srv.getLifecycleState(), newState)) {
             return;
         }
+        // 校验流转表; 停用另查未被客户端占用
         serverLifecycleValidator.validateTransitionTable(srv, newState);
-        // 落地机停用前置: 在用 (占用 / 预占 / 绑定客户端) 不可停
         if (ResourceServerLifecycleEnum.RETIRED.matches(newState)) {
             serverLifecycleValidator.validateLandingNotInUse(id);
         }
+        // 落新状态
         resourceServerMapper.updateLifecycleState(id, newState);
-        log.info("[landing] LIFECYCLE id={} {} → {}", id, srv.getLifecycleState(), newState);
+        log.info("[transitionLifecycle] 落地机生命周期切换: id={}, {} → {}", id, srv.getLifecycleState(), newState);
     }
 
 }

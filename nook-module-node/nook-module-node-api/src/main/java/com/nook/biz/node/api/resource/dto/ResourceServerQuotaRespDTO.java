@@ -1,16 +1,17 @@
 package com.nook.biz.node.api.resource.dto;
 
+import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import lombok.Data;
 
 /**
- * 服务器额度 + 当周期测量 RespDTO; 配额配置与当周期统计现拼给跨模块消费(分配/计量)
+ * 服务器额度 + 当周期测量 Response DTO
  *
  * @author nook
  */
 @Data
 public class ResourceServerQuotaRespDTO {
 
-    /** server 主键. */
+    /** 服务器ID. */
     private String serverId;
 
     /** 总流量配额 GB; 0/null = 不限. */
@@ -28,12 +29,12 @@ public class ResourceServerQuotaRespDTO {
     /** 当周期机器已用字节 = rx + tx. */
     private Long usedBytes;
 
-    /** 用户上行最新累计字节 (给 trade 差分; null 表示未上报). */
+    /** 用户上行最新累计字节; null = 未上报. */
     private Long counterUpBytes;
 
-    /** 用户下行最新累计字节 (给 trade 差分; null 表示未上报). */
+    /** 用户下行最新累计字节; null = 未上报. */
     private Long counterDownBytes;
 
-    /** 限流状态: 正常 / 已触发限流. */
+    /** 限流状态 {@link ResourceServerThrottleStateEnum} */
     private String throttleState;
 }

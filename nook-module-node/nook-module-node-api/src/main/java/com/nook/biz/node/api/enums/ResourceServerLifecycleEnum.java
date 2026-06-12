@@ -6,10 +6,7 @@ import lombok.Getter;
 import java.util.Arrays;
 
 /**
- * 服务器装机生命周期.
- *
- * <p>状态流转: INSTALLING → READY → LIVE → RETIRED.
- * 仅 LIVE 状态参与 allocator 候选; RETIRED 老客户走 §9.7 退役切换.
+ * 服务器装机生命周期; 流转: 装机中 → 待上线 → 运行中 → 已退役, 仅运行中参与选址候选
  *
  * @author nook
  */

@@ -89,4 +89,23 @@ public class ResourceServerValidator {
             throw new BusinessException(ResourceErrorCode.SERVER_HAS_BOUND_CLIENT, serverId);
         }
     }
+
+    /**
+     * 校验区域可改: 仅装机中 / 待上线允许改区域; 上线后区域是套餐与机器的匹配依据, 锁定
+     *
+     * @param server    当前服务器
+     * @param newRegion 目标区域码
+     */
+    public void validateRegionMutable(ResourceServerDO server, String newRegion) {
+        // 区域未变化直接放行
+        if (ObjectUtil.equal(server.getRegion(), newRegion)) {
+            return;
+        }
+        // 仅装机中 / 待上线可改区域; 运行中 / 已退役锁定
+        boolean mutable = ResourceServerLifecycleEnum.INSTALLING.matches(server.getLifecycleState())
+                || ResourceServerLifecycleEnum.READY.matches(server.getLifecycleState());
+        if (!mutable) {
+            throw new BusinessException(ResourceErrorCode.SERVER_REGION_LOCKED);
+        }
+    }
 }

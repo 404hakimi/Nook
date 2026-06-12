@@ -30,9 +30,6 @@ public class ResourceServerDO extends BaseEntity {
     /** 装机生命周期 {@link ResourceServerLifecycleEnum} */
     private String lifecycleState;
 
-    /** IP 总数. */
-    private Integer totalIpCount;
-
     /** 区域码. */
     private String region;
 

@@ -47,7 +47,11 @@ public class ServerLifecycleValidator {
         }
     }
 
-    /** 线路机上线前必须先绑定域名 (xray_install.domain_id; 即已装 xray 且选了域名). */
+    /**
+     * 校验线路机上线前置: 已装 xray 且已绑定域名
+     *
+     * @param serverId 服务器ID
+     */
     public void validateFrontlineDomainReady(String serverId) {
         XrayInstallDO xray = xrayInstallMapper.selectById(serverId);
         if (ObjectUtil.isNull(xray) || StrUtil.isBlank(xray.getDomainId())) {
@@ -55,7 +59,11 @@ public class ServerLifecycleValidator {
         }
     }
 
-    /** 落地机停用前: 仍有生效凭证绑定 (cert.ip_id, 含 ACTIVE/SUSPENDED) 则拒. */
+    /**
+     * 校验落地机停用前置: 仍有生效中或暂停中的凭证绑定则拒绝
+     *
+     * @param serverId 服务器ID
+     */
     public void validateLandingNotInUse(String serverId) {
         if (resourceServerLandingValidator.hasBoundClient(serverId)) {
             throw new BusinessException(ResourceErrorCode.LANDING_IN_USE_CANNOT_RETIRE);

@@ -28,7 +28,7 @@ public interface ResourceServerService {
      * @param id    服务器编号
      * @param reqVO 更新入参
      */
-    void updateCore(String id, ResourceServerCoreUpdateReqVO reqVO);
+    void updateResourceServer(String id, ResourceServerCoreUpdateReqVO reqVO);
 
     /**
      * 删除服务器
@@ -53,7 +53,7 @@ public interface ResourceServerService {
     ResourceServerDO getServer(String id);
 
     /**
-     * 获得服务器 (不存在抛 SERVER_NOT_FOUND)
+     * 获得服务器; 不存在则报错
      *
      * @param id 服务器编号
      * @return 服务器
@@ -77,12 +77,10 @@ public interface ResourceServerService {
     Map<String, String> getServerNameMap(Collection<String> ids);
 
     /**
-     * 批量获得服务器 IP / 域名 (替代老 credentialService.getHostMap;
-     * host 已经搬到 server.ip_address)
+     * 批量获得服务器出网 IP
      *
      * @param ids 服务器编号集合
-     * @return 服务器编号 → ip_address
+     * @return 服务器编号 → 出网 IP
      */
     Map<String, String> getIpAddressMap(Collection<String> ids);
-
 }

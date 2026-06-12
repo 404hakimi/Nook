@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.xray.config.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.entity.XrayInboundDO;
 import com.nook.biz.node.mapper.XrayInboundMapper;
@@ -45,7 +46,7 @@ public class XrayInboundServiceImpl implements XrayInboundService {
 
     @Override
     public Map<String, XrayInboundDO> listByServerIds(Collection<String> serverIds) {
-        if (CollectionUtils.isAnyEmpty(serverIds)) {
+        if (CollUtil.isEmpty(serverIds)) {
             return Map.of();
         }
         return CollectionUtils.convertMap(

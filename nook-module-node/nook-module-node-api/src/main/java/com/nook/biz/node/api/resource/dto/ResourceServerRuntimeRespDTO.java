@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Data
 public class ResourceServerRuntimeRespDTO {
 
-    /** server 主键. */
+    /** 服务器ID. */
     private String serverId;
 
     /** 上次心跳时间; null = 从未上报. */

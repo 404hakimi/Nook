@@ -7,9 +7,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 管理后台 - 服务器配额上限 Update Request VO
- *
- * <p>仅允许 admin 改配额上限; 运行统计由 agent / 状态机维护.
+ * 管理后台 - 服务器配额更新 Request VO (仅改上限; 运行统计由 agent 维护)
  *
  * @author nook
  */

@@ -23,12 +23,10 @@ public interface ResourceServerApi {
     ResourceServerRespDTO validateExists(String serverId);
 
     /**
-     * 按ID查服务器
-     *
-     * <p>不存在返 null; 需"不存在即报错"用 {@link #validateExists}.
+     * 按ID查服务器; 不存在返 null (需"不存在即报错"用 {@link #validateExists})
      *
      * @param serverId 服务器ID
-     * @return 服务器视图; 不存在返 null
+     * @return 服务器视图
      */
     ResourceServerRespDTO getServer(String serverId);
 
@@ -65,9 +63,7 @@ public interface ResourceServerApi {
     List<ResourceServerRespDTO> findLiveFrontlinesByRegion(String region);
 
     /**
-     * 从候选服务器中筛出健康可分配的子集
-     *
-     * <p>综合生命周期、流量配额、心跳一处判定.
+     * 从候选服务器中筛出健康可分配的子集 (综合生命周期 / 流量配额 / 心跳判定)
      *
      * @param serverIds 候选服务器ID集合
      * @return 可分配的服务器ID子集

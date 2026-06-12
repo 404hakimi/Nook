@@ -8,9 +8,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * 区域码更正监听: 把线路机 / 落地机的区域码从旧码迁到新码.
- *
- * <p>同步监听, 与 system 发布方同一事务; 抛异常即整体回滚.
+ * 区域码更正监听: 把线路机 / 落地机的区域码从旧码迁到新码; 同步监听与发布方同一事务, 抛异常整体回滚
  *
  * @author nook
  */
@@ -24,6 +22,6 @@ public class NodeRegionRecodeListener {
     @EventListener
     public void onRecode(RegionRecodedEvent e) {
         int n = resourceServerMapper.migrateRegion(e.getOldCode(), e.getNewCode());
-        log.info("[区域更正] {} → {}: 迁移 {} 台机器", e.getOldCode(), e.getNewCode(), n);
+        log.info("[onRecode] 区域码更正迁移: {} → {}, 迁移 {} 台机器", e.getOldCode(), e.getNewCode(), n);
     }
 }

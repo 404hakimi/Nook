@@ -5,7 +5,6 @@ import com.nook.biz.node.controller.resource.vo.ops.EnableSwapReqVO;
 import com.nook.biz.node.controller.resource.vo.ops.ServerSystemInfoRespVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.resource.vo.ops.SystemdStatusRespVO;
-import com.nook.biz.node.convert.server.ServerInspectorConvert;
 import com.nook.biz.node.service.resource.ResourceServerOpsService;
 import com.nook.common.web.response.Result;
 import jakarta.validation.Valid;
@@ -67,7 +66,7 @@ public class ResourceServerOpsController {
      */
     @PostMapping("/test-connectivity")
     public Result<ConnectivityTestRespVO> testConnectivity(@RequestParam("id") String id) {
-        return Result.ok(ServerInspectorConvert.INSTANCE.convert(resourceServerOpsService.testConnectivity(id)));
+        return Result.ok(resourceServerOpsService.testConnectivity(id));
     }
 
     /**
@@ -78,7 +77,7 @@ public class ResourceServerOpsController {
      */
     @GetMapping("/get-system-info")
     public Result<ServerSystemInfoRespVO> getSystemInfo(@RequestParam("id") String id) {
-        return Result.ok(ServerInspectorConvert.INSTANCE.convert(resourceServerOpsService.getSystemInfo(id)));
+        return Result.ok(resourceServerOpsService.getSystemInfo(id));
     }
 
     /**
@@ -102,7 +101,7 @@ public class ResourceServerOpsController {
     @GetMapping("/get-systemd-status")
     public Result<SystemdStatusRespVO> getSystemdStatus(@RequestParam("id") String id,
                                                         @RequestParam("unit") String unit) {
-        return Result.ok(ServerInspectorConvert.INSTANCE.convert(resourceServerOpsService.getSystemdStatus(id, unit)));
+        return Result.ok(resourceServerOpsService.getSystemdStatus(id, unit));
     }
 
     /**
@@ -121,8 +120,7 @@ public class ResourceServerOpsController {
                                                   @RequestParam(value = "lines", required = false) Integer lines,
                                                   @RequestParam(value = "level", required = false) String level,
                                                   @RequestParam(value = "keyword", required = false) String keyword) {
-        return Result.ok(ServerInspectorConvert.INSTANCE.convert(
-                resourceServerOpsService.getServiceLog(id, unit, lines, level, keyword)));
+        return Result.ok(resourceServerOpsService.getServiceLog(id, unit, lines, level, keyword));
     }
 
     /**

@@ -1,8 +1,8 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.controller.resource.vo.landing.ServerLandingDeployReqVO;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
-import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingDeployReqVO;
+import com.nook.biz.node.controller.resource.vo.landing.Socks5TestRespVO;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 /**
@@ -30,7 +30,7 @@ public interface ResourceServerLandingSocksOpsService {
      * @param readTimeoutMs    HTTP 读响应超时
      * @return 拨号探测结果
      */
-    Socks5ProbeSnapshot testSocks5(String serverId, String echoUrl, int connectTimeoutMs, int readTimeoutMs);
+    Socks5TestRespVO testSocks5(String serverId, String echoUrl, int connectTimeoutMs, int readTimeoutMs);
 
     /**
      * 切 SOCKS5 开机自启

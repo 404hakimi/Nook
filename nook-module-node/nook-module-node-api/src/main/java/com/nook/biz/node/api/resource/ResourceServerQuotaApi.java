@@ -13,9 +13,7 @@ import java.util.Map;
 public interface ResourceServerQuotaApi {
 
     /**
-     * 写入 agent 上报的网卡累计流量 + 用户业务上下行累计
-     *
-     * <p>上报为绝对累计值, 内部做差累加进当周期测量行.
+     * 写入 agent 上报的网卡累计流量 + 用户业务上下行累计 (入参为绝对累计值, 非增量)
      *
      * @param serverId     服务器ID
      * @param rxBytes      网卡入站累计字节

@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Xray入站 API
+ * Xray 入站 Api 实现类
  *
  * @author nook
  */
@@ -49,14 +49,7 @@ public class XrayInboundApiImpl implements XrayInboundApi {
             if (StrUtil.isBlank(host)) {
                 continue;
             }
-            XrayInboundDTO dto = new XrayInboundDTO();
-            dto.setHost(host);
-            dto.setPort(cfg.getSharedInboundPort());
-            dto.setProtocol(cfg.getProtocol());
-            dto.setTransport(cfg.getTransport());
-            dto.setWsPath(cfg.getWsPath());
-            dto.setTls(StrUtil.isNotBlank(cfg.getTlsCertPath()));
-            result.put(entry.getKey(), dto);
+            result.put(entry.getKey(), XrayInboundApiConvert.INSTANCE.toInboundDTO(cfg, host));
         }
         return result;
     }

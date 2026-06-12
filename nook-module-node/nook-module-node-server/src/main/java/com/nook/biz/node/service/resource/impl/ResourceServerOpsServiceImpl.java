@@ -2,7 +2,12 @@ package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.io.resource.ResourceUtil;
 import cn.hutool.core.util.StrUtil;
+import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.controller.resource.vo.ops.ConnectivityTestRespVO;
 import com.nook.biz.node.controller.resource.vo.ops.EnableSwapReqVO;
+import com.nook.biz.node.controller.resource.vo.ops.ServerSystemInfoRespVO;
+import com.nook.biz.node.controller.resource.vo.ops.SystemdStatusRespVO;
+import com.nook.biz.node.convert.server.ServerInspectorConvert;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
 import com.nook.biz.node.framework.server.script.config.ServerOsOp;
@@ -75,20 +80,25 @@ public class ResourceServerOpsServiceImpl implements ResourceServerOpsService {
     }
 
     @Override
-    public ConnectivitySnapshot testConnectivity(String serverId) {
+    public ConnectivityTestRespVO testConnectivity(String serverId) {
         SshSession session;
         try {
             session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
         } catch (BusinessException be) {
             // acquire 阶段抛错 (无凭据 / 网络断 / 鉴权失败) 转结构化失败
-            return new ConnectivitySnapshot(false, 0L, be.getMessage());
+            ConnectivitySnapshot failed = new ConnectivitySnapshot(false, 0L, be.getMessage());
+            return ServerInspectorConvert.INSTANCE.convert(failed);
         }
-        return serverProbe.probeConnectivity(session);
+        // 探活并转换返回
+        ConnectivitySnapshot snapshot = serverProbe.probeConnectivity(session);
+        return ServerInspectorConvert.INSTANCE.convert(snapshot);
     }
 
     @Override
-    public HostInfoSnapshot getSystemInfo(String serverId) {
-        return serverProbe.readHostInfo(SshSessions.acquire(serverId, SshSessionScope.SHARED));
+    public ServerSystemInfoRespVO getSystemInfo(String serverId) {
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
+        HostInfoSnapshot snapshot = serverProbe.readHostInfo(session);
+        return ServerInspectorConvert.INSTANCE.convert(snapshot);
     }
 
     @Override
@@ -97,16 +107,18 @@ public class ResourceServerOpsServiceImpl implements ResourceServerOpsService {
     }
 
     @Override
-    public SystemdStatusSnapshot getSystemdStatus(String serverId, String unit) {
-        return serverProbe.readSystemdStatus(
-                SshSessions.acquire(serverId, SshSessionScope.SHARED), unit);
+    public SystemdStatusRespVO getSystemdStatus(String serverId, String unit) {
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
+        SystemdStatusSnapshot snapshot = serverProbe.readSystemdStatus(session, unit);
+        return ServerInspectorConvert.INSTANCE.convert(snapshot);
     }
 
     @Override
-    public JournalLogSnapshot getServiceLog(String serverId, String unit,
-                                            Integer lines, String level, String keyword) {
-        return serverProbe.readJournalLog(
-                SshSessions.acquire(serverId, SshSessionScope.SHARED), unit, lines, level, keyword);
+    public ServiceLogRespVO getServiceLog(String serverId, String unit,
+                                          Integer lines, String level, String keyword) {
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
+        JournalLogSnapshot snapshot = serverProbe.readJournalLog(session, unit, lines, level, keyword);
+        return ServerInspectorConvert.INSTANCE.convert(snapshot);
     }
 
     @Override

@@ -3,14 +3,14 @@ package com.nook.biz.node.api.xray.dto;
 import lombok.Data;
 
 /**
- * Xray 实例元数据 Response DTO (跨模块对外契约)
+ * Xray 实例元数据 Response DTO
  *
  * @author nook
  */
 @Data
 public class XrayInstallRespDTO {
 
-    /** server 主键 (= ResourceServer.id). */
+    /** 服务器ID. */
     private String serverId;
 
     /** Xray binary 绝对路径 (e.g., /home/xray/bin/xray). */

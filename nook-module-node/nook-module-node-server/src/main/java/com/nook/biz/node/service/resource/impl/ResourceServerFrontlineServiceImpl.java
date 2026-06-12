@@ -18,12 +18,11 @@ import com.nook.common.web.response.PageResult;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
 /**
- * 线路机 Service 实现类 (机器分页 / 详情 / 生命周期; 域名绑定见 xray_install.domain_id)
+ * 线路机 Service 实现类
  *
  * @author nook
  */
@@ -40,10 +39,12 @@ public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontli
 
     @Override
     public PageResult<ServerFrontlineListItemRespVO> getFrontlinePage(ResourceServerPageReqVO reqVO) {
+        // 连表分页查列表项视图
         IPage<ServerFrontlineListItemRespVO> result = resourceServerMapper.selectFrontlinePage(
                 Page.of(reqVO.getPageNo(), reqVO.getPageSize()),
                 reqVO.getName(), reqVO.getHost(), reqVO.getLifecycleState(), reqVO.getRegionCodes(),
                 ResourceServerTypeEnum.FRONTLINE.getState());
+        // 按心跳推导在线态填充
         LocalDateTime now = LocalDateTime.now();
         result.getRecords().forEach(vo -> ResourceServerFrontlineConvert.fillOnlineState(vo, now));
         return PageResult.of(result.getTotal(), result.getRecords());
@@ -59,18 +60,19 @@ public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontli
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void transitionLifecycle(String id, String newState) {
+        // 校验存在; 状态未变直接幂等返回
         ResourceServerDO srv = resourceServerValidator.validateExists(id);
         if (StrUtil.equals(srv.getLifecycleState(), newState)) {
             return;
         }
+        // 校验流转表; 上线另查域名已绑定
         serverLifecycleValidator.validateTransitionTable(srv, newState);
-        // 线路机上线前置: 域名必填 (xray_install.domain_id)
         if (ResourceServerLifecycleEnum.LIVE.matches(newState)) {
             serverLifecycleValidator.validateFrontlineDomainReady(id);
         }
+        // 落新状态
         resourceServerMapper.updateLifecycleState(id, newState);
-        log.info("[frontline] LIFECYCLE id={} {} → {}", id, srv.getLifecycleState(), newState);
+        log.info("[transitionLifecycle] 线路机生命周期切换: id={}, {} → {}", id, srv.getLifecycleState(), newState);
     }
 }

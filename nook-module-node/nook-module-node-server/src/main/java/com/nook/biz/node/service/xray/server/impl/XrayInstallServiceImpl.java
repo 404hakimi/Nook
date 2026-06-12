@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.xray.server.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.nook.biz.node.entity.XrayInstallDO;
@@ -59,7 +60,7 @@ public class XrayInstallServiceImpl implements XrayInstallService {
 
     @Override
     public Map<String, XrayInstallDO> listByServerIds(Collection<String> serverIds) {
-        if (CollectionUtils.isAnyEmpty(serverIds)) {
+        if (CollUtil.isEmpty(serverIds)) {
             return Map.of();
         }
         return CollectionUtils.convertMap(

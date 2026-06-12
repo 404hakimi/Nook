@@ -38,10 +38,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 服务器选址 + 准入核心.
- *
- * <p>一处收口三类决策, 其它 service 只调用、不重复实现:
- * 准入判定 (生命周期 + 流量限流 + 心跳 + 套餐预算/带宽达标) / 按套餐选候选落地机 / 算套餐落地机库存.
+ * 服务器选址 + 准入核心; 收口准入判定 / 按套餐选候选落地机 / 套餐库存试算, 其它 service 只调用不重复实现
  *
  * @author nook
  */
@@ -104,7 +101,15 @@ public class ResourceServerAdmission {
         return allocatable;
     }
 
-    /** 单台服务器准入判定: 运行中 + 未触发限流 + 心跳健康 (值入参, 不依赖 DO). */
+    /**
+     * 单台服务器准入判定: 运行中 + 未触发限流 + 心跳健康 (值入参, 不依赖 DO)
+     *
+     * @param lifecycleState  生命周期状态
+     * @param throttleState   限流状态
+     * @param lastHeartbeatAt 最近心跳时间
+     * @param now             当前时间
+     * @return 是否可分配
+     */
     public boolean isAllocatable(String lifecycleState, String throttleState,
                                  LocalDateTime lastHeartbeatAt, LocalDateTime now) {
         if (!ResourceServerLifecycleEnum.LIVE.matches(lifecycleState)) {
