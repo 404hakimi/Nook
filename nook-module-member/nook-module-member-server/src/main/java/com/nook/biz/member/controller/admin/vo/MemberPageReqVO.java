@@ -1,8 +1,7 @@
 package com.nook.biz.member.controller.admin.vo;
 
+import com.nook.biz.member.api.enums.MemberUserStatusEnum;
 import com.nook.common.web.request.PageParam;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -14,13 +13,12 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class AdminMemberPageReqVO extends PageParam {
+public class MemberPageReqVO extends PageParam {
 
     /** 邮箱模糊匹配. */
     @Size(max = 128, message = "搜索关键字长度不能超过 128")
     private String keyword;
 
-    /** 状态过滤; null=不过滤. 1=正常 2=禁用 */
-    @Min(value = 1) @Max(value = 2)
+    /** 状态过滤 {@link MemberUserStatusEnum}; null=不过滤. */
     private Integer status;
 }

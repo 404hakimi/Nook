@@ -12,10 +12,12 @@ import lombok.Data;
 @Data
 public class PortalChangePasswordReqVO {
 
+    /** 原密码. */
     @NotBlank(message = "原密码不能为空")
     @Size(min = 1, max = 64, message = "原密码长度需在 1-64 之间")
     private String oldPassword;
 
+    /** 新密码. */
     @NotBlank(message = "新密码不能为空")
     @Size(min = 8, max = 64, message = "新密码长度需在 8-64 之间")
     private String newPassword;

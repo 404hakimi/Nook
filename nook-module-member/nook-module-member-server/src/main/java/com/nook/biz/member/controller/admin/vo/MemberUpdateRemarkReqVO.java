@@ -9,8 +9,9 @@ import lombok.Data;
  * @author nook
  */
 @Data
-public class AdminMemberUpdateRemarkReqVO {
+public class MemberUpdateRemarkReqVO {
 
+    /** 管理员备注. */
     @Size(max = 255, message = "备注长度不能超过 255")
     private String remark;
 }

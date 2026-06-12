@@ -10,8 +10,9 @@ import lombok.Data;
  * @author nook
  */
 @Data
-public class AdminMemberResetPasswordReqVO {
+public class MemberResetPasswordReqVO {
 
+    /** 新密码. */
     @NotBlank(message = "密码不能为空")
     @Size(min = 8, max = 64, message = "密码长度需在 8-64 之间")
     private String password;

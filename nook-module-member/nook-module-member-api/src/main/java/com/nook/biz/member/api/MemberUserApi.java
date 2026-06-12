@@ -6,17 +6,17 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * 会员 Api 接口 (跨模块契约).
+ * 会员 Api 接口
  *
  * @author nook
  */
 public interface MemberUserApi {
 
     /**
-     * 按订阅 token 查询启用会员(token 无效或会员禁用返 null)
+     * 按订阅 token 查询正常状态会员 (token 无效或会员禁用返 null)
      *
      * @param subToken 订阅 token
-     * @return MemberSubscriberDTO
+     * @return 订阅会员视图
      */
     MemberSubscriberDTO getActiveBySubToken(String subToken);
 

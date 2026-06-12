@@ -20,7 +20,6 @@ public enum MemberErrorCode implements ErrorCode {
     PASSWORD_TOO_WEAK(3004, "密码强度不足: 至少 8 位且需含字母 + 数字"),
     OLD_PASSWORD_MISMATCH(3005, "原密码不正确"),
     MEMBER_NOT_FOUND(3006, "会员不存在"),
-    SUB_TOKEN_GENERATE_FAILED(3007, "订阅 token 生成失败, 请重试"),
     ;
 
     private final int code;
