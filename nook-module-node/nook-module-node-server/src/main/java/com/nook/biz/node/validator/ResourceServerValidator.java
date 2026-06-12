@@ -62,7 +62,7 @@ public class ResourceServerValidator {
      */
     public void validateServerType(String serverType) {
         if (ObjectUtil.isNull(ResourceServerTypeEnum.fromState(serverType))) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "未知 serverType: " + serverType);
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "服务器类型不合法");
         }
     }
 
@@ -73,7 +73,7 @@ public class ResourceServerValidator {
      */
     public void validateLifecycleState(String state) {
         if (ObjectUtil.isNull(ResourceServerLifecycleEnum.fromState(state))) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "未知 lifecycleState: " + state);
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "生命周期状态不合法");
         }
     }
 

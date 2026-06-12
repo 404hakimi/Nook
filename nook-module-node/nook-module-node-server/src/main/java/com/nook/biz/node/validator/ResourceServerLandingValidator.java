@@ -97,7 +97,7 @@ public class ResourceServerLandingValidator {
      */
     public void validateProvisionMode(Integer provisionMode) {
         if (ObjectUtil.isNull(ResourceServerProvisionModeEnum.fromCode(provisionMode))) {
-            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "未知 provisionMode: " + provisionMode);
+            throw new BusinessException(CommonErrorCode.PARAM_INVALID, "部署模式不合法");
         }
     }
 

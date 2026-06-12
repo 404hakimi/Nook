@@ -18,6 +18,8 @@ import {
 } from '@/api/agent/agent'
 import {
   listAllFrontlineServers,
+  SERVER_LIFECYCLE_LABELS,
+  SERVER_LIFECYCLE_TAG_TYPE,
   type ServerFrontlineListItem
 } from '@/api/resource/server'
 import AgentDeployDialog from './AgentDeployDialog.vue'
@@ -93,7 +95,8 @@ const columns = computed<DataTableColumns<ServerFrontlineListItem>>(() => [
     title: '生命周期',
     key: 'lifecycleState',
     width: 100,
-    render: (row) => row.lifecycleState
+    render: (row) => h(NTag, { size: 'small', type: SERVER_LIFECYCLE_TAG_TYPE[row.lifecycleState] || 'default' },
+      { default: () => SERVER_LIFECYCLE_LABELS[row.lifecycleState] || row.lifecycleState })
   },
   {
     title: '角色 / 版本',
