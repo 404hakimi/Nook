@@ -1,6 +1,6 @@
 /**
  * 与后端 com.nook.common.web.error.CommonErrorCode 对齐。
- * 业务模块自有错误码（2xxx-7xxx）不在此处枚举，由各 view 按需处理。
+ * 业务模块自有错误码（2xxx-8xxx）不在此处枚举，由各 view 按需处理。
  */
 export const SUCCESS = 0
 
