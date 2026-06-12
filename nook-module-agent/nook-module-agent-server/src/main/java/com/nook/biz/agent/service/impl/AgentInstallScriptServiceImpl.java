@@ -141,7 +141,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
             vo.setInstallTimeoutSeconds(cred.getInstallTimeoutSeconds());
         }
         if (role == AgentRole.FRONTLINE) {
-            XrayInstallRespDTO xray = xrayInstallApi.getByServerId(sourceId);
+            XrayInstallRespDTO xray = xrayInstallApi.getXrayInstall(sourceId);
             if (xray != null) {
                 vo.setXrayBin(xray.getXrayBinaryPath());
                 vo.setXrayApiPort(xray.getXrayApiPort());

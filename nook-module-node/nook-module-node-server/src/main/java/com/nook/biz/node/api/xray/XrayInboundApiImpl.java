@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * {@link XrayInboundApi} 实现; 从 xray 共享配置 + 线路机拼接入连接参数.
+ * Xray入站 API
  *
  * @author nook
  */

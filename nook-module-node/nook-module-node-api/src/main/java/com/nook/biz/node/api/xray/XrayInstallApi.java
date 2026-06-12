@@ -13,26 +13,18 @@ import java.util.Map;
 public interface XrayInstallApi {
 
     /**
-     * 获取服务器的 xray 实例元数据
+     * 获取 Xray安装信息
      *
      * @param serverId 服务器ID
-     * @return xray 实例 DTO; 未安装 xray 返 null
+     * @return XrayInstallRespDTO
      */
-    XrayInstallRespDTO getByServerId(String serverId);
+    XrayInstallRespDTO getXrayInstall(String serverId);
 
     /**
-     * 批量取服务器的 xray 实例元数据
+     * 检查是否有绑定该域名的 Xray
      *
-     * @param serverIds 服务器ID集合
-     * @return 服务器ID → xray 实例 DTO (未安装的不在 map 内)
-     */
-    Map<String, XrayInstallRespDTO> listByServerIds(Collection<String> serverIds);
-
-    /**
-     * 该根域 (system_domain.id) 是否已被任意线路机的 xray 实例绑定
-     *
-     * @param domainId 根域 id
-     * @return true = 有线路机绑定 (改根域串会致已部署机器 FQDN 漂移, 应拒绝)
+     * @param domainId 域名ID
+     * @return boolean
      */
     boolean isDomainBound(String domainId);
 }
