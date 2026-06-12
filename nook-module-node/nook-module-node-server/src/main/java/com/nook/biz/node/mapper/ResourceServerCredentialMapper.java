@@ -1,8 +1,8 @@
-package com.nook.biz.node.dal.mysql.mapper;
+package com.nook.biz.node.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
+import com.nook.biz.node.entity.ResourceServerCredentialDO;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 @Mapper
 public interface ResourceServerCredentialMapper extends BaseMapper<ResourceServerCredentialDO> {
 
-    /** 部分字段更新; 显式 set updated_at. */
     default int updateBySelective(ResourceServerCredentialDO patch) {
         return update(patch, Wrappers.<ResourceServerCredentialDO>lambdaUpdate()
                 .set(ResourceServerCredentialDO::getUpdatedAt, LocalDateTime.now())

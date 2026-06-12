@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper">
+<mapper namespace="com.nook.biz.node.mapper.ResourceServerMapper">
 
     <!-- 落地机分页: 主表 LEFT JOIN landing/billing/quota/runtime 按需出列表项视图, 按账单到期 (空排末) → 创建倒序 -->
     <select id="selectLandingPage"

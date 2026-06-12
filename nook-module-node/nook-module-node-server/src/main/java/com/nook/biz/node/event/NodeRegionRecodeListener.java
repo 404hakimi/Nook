@@ -1,6 +1,6 @@
 package com.nook.biz.node.event;
 
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerMapper;
+import com.nook.biz.node.mapper.ResourceServerMapper;
 import com.nook.biz.system.api.region.event.RegionRecodedEvent;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;

@@ -4,8 +4,8 @@ import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.xray.dto.XrayInstallRespDTO;
 import com.nook.biz.node.convert.xray.XrayInstallConvert;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
-import com.nook.biz.node.dal.mysql.mapper.XrayInstallMapper;
+import com.nook.biz.node.entity.XrayInstallDO;
+import com.nook.biz.node.mapper.XrayInstallMapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 

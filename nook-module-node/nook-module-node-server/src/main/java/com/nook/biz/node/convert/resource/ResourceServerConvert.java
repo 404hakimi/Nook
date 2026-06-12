@@ -2,18 +2,13 @@ package com.nook.biz.node.convert.resource;
 
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerRespVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.common.web.response.PageResult;
 import org.mapstruct.Mapper;
 import org.mapstruct.factory.Mappers;
 
 import java.util.List;
 
-/**
- * 服务器资源 Convert
- *
- * @author nook
- */
 @Mapper
 public interface ResourceServerConvert {
 

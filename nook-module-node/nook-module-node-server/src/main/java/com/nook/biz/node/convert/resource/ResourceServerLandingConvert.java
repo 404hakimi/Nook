@@ -8,13 +8,14 @@ import com.nook.biz.agent.api.enums.AgentOnlineState;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingListItemRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingSocks5RespVO;
+import com.nook.biz.node.controller.resource.vo.landing.ServerLandingSummaryRespVO;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.Socks5InstallDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
+import com.nook.biz.node.entity.ResourceServerBillingDO;
+import com.nook.biz.node.entity.ResourceServerQuotaDO;
+import com.nook.biz.node.entity.ResourceServerDO;
+import com.nook.biz.node.entity.Socks5InstallDO;
+import com.nook.biz.node.entity.ResourceServerRuntimeDO;
+import com.nook.biz.node.entity.ResourceServerTrafficDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
@@ -26,21 +27,27 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-/**
- * SOCKS5 落地节点 Convert
- *
- * @author nook
- */
 @Mapper
 public interface ResourceServerLandingConvert {
 
     ResourceServerLandingConvert INSTANCE = Mappers.getMapper(ResourceServerLandingConvert.class);
 
+    default ServerLandingSummaryRespVO toSummaryRespVO(Map<String, Long> raw) {
+        ServerLandingSummaryRespVO vo = new ServerLandingSummaryRespVO();
+        vo.setTotal(raw.getOrDefault("total", 0L));
+        vo.setInstalling(raw.getOrDefault("lifecycle_INSTALLING", 0L));
+        vo.setReady(raw.getOrDefault("lifecycle_READY", 0L));
+        vo.setLive(raw.getOrDefault("lifecycle_LIVE", 0L));
+        vo.setRetired(raw.getOrDefault("lifecycle_RETIRED", 0L));
+        vo.setAvailable(raw.getOrDefault("status_AVAILABLE", 0L));
+        vo.setOccupied(raw.getOrDefault("status_OCCUPIED", 0L));
+        return vo;
+    }
+
     // 主表 + landing 子表 → 跨模块概要 DTO; serverId 取主表 id, landing 为 null 时 status/ipType 留空
     @Mapping(target = "serverId", source = "server.id")
     LandingSummaryDTO toSummary(ResourceServerDO server, Socks5InstallDO landing);
 
-    /** 批量拼概要: serverId 集合 + 主表 / landing 子表 Map → 概要列表 (主表不存在的跳过). */
     default List<LandingSummaryDTO> toSummaries(Collection<String> serverIds,
                                                Map<String, ResourceServerDO> serverMap,
                                                Map<String, Socks5InstallDO> landingMap) {
@@ -54,19 +61,14 @@ public interface ResourceServerLandingConvert {
         return list;
     }
 
-    /** 主表 → RespVO (仅主表字段; 子表字段需另行回填) */
     ServerLandingRespVO convert(ResourceServerDO bean);
 
-    /** landing 子表 → SOCKS5 配置 VO */
     ServerLandingSocks5RespVO toSocks5RespVO(Socks5InstallDO landing);
 
-    /** landing 子表 → 装机事实 VO */
     ServerLandingInstallRespVO toInstallRespVO(Socks5InstallDO landing);
 
-    /** billing 子表 → 账面 VO */
     ServerLandingBillingRespVO toBillingRespVO(ResourceServerBillingDO bill);
 
-    /** 配额配置 + 当周期测量 → 配额监控 VO. */
     default ServerLandingQuotaRespVO toQuotaRespVO(ResourceServerQuotaDO quota, ResourceServerTrafficDO traffic) {
         ServerLandingQuotaRespVO vo = new ServerLandingQuotaRespVO();
         if (ObjectUtil.isNull(quota)) {
@@ -87,7 +89,6 @@ public interface ResourceServerLandingConvert {
         return vo;
     }
 
-    /** 详情聚合: 主表 + 子表 → RespVO (SSH 凭据走公共 /get-credential, 不在此 VO) */
     default ServerLandingRespVO convertWithSubtables(ResourceServerDO main,
                                                     Socks5InstallDO landing,
                                                     ResourceServerBillingDO bill,
@@ -102,7 +103,6 @@ public interface ResourceServerLandingConvert {
         return vo;
     }
 
-    /** 回填落地机列表项 agent 在线态 (连表 SQL 只出原始字段). */
     static void fillOnlineState(ServerLandingListItemRespVO vo, LocalDateTime now) {
         Long elapsedSec = ObjectUtil.isNull(vo.getLastHeartbeatAt()) ? null
                 : Duration.between(vo.getLastHeartbeatAt(), now).getSeconds();

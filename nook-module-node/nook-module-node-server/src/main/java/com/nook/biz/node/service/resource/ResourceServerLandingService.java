@@ -6,11 +6,11 @@ import com.nook.biz.node.controller.resource.vo.landing.ServerLandingCoreUpdateR
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingListItemRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingPageReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.ServerLandingSocks5UpdateReqVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
-import com.nook.biz.node.dal.dataobject.resource.Socks5InstallDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerRuntimeDO;
+import com.nook.biz.node.entity.ResourceServerBillingDO;
+import com.nook.biz.node.entity.ResourceServerQuotaDO;
+import com.nook.biz.node.entity.ResourceServerDO;
+import com.nook.biz.node.entity.Socks5InstallDO;
+import com.nook.biz.node.entity.ResourceServerRuntimeDO;
 import com.nook.common.web.response.PageResult;
 
 import java.util.Collection;

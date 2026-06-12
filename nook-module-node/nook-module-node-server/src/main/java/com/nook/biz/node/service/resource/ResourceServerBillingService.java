@@ -1,7 +1,7 @@
 package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceServerBillingUpdateReqVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
+import com.nook.biz.node.entity.ResourceServerBillingDO;
 
 /**
  * 服务器账面 Service 接口

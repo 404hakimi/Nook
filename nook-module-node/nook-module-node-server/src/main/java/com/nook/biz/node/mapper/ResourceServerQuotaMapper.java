@@ -1,8 +1,8 @@
-package com.nook.biz.node.dal.mysql.mapper;
+package com.nook.biz.node.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
+import com.nook.biz.node.entity.ResourceServerQuotaDO;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
@@ -15,9 +15,6 @@ import java.time.LocalDateTime;
 @Mapper
 public interface ResourceServerQuotaMapper extends BaseMapper<ResourceServerQuotaDO> {
 
-    /**
-     * 额度上限增量更新; null 字段不动 (Wrapper.set 显式写 null 会落库, 故按条件跳过).
-     */
     default int updateQuota(String serverId, Integer totalGb, Integer usablePercent, Integer bandwidthMbps,
                             String resetPolicy, Integer resetDay) {
         return update(null, Wrappers.<ResourceServerQuotaDO>lambdaUpdate()

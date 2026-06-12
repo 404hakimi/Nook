@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 管理后台 - 线路机 Controller (机器分页 / 生命周期; 域名见域名管理页 + 装机绑定)
+ * 管理后台 - 线路机 Controller
  *
  * @author nook
  */
@@ -27,17 +27,27 @@ public class ResourceServerFrontlineController {
     @Resource
     private ResourceServerFrontlineService resourceServerFrontlineService;
 
-    /** 线路机分页 (连表出运行时聚合视图: 在线态 / 版本 / 配额 / 流量 / throttle). */
+    /**
+     * 获得线路机分页 (连表出运行时聚合视图)
+     *
+     * @param reqVO 分页条件
+     * @return 线路机列表项分页
+     */
     @GetMapping("/page-frontline")
     public Result<PageResult<ServerFrontlineListItemRespVO>> getPage(@ModelAttribute ResourceServerPageReqVO reqVO) {
         return Result.ok(resourceServerFrontlineService.getFrontlinePage(reqVO));
     }
 
-    /** 切换线路机生命周期 (上线 / 退役; 上线前置: xray_install 已绑域名). */
+    /**
+     * 切换线路机生命周期 (上线前置: 已绑域名)
+     *
+     * @param id    服务器ID
+     * @param state 目标生命周期
+     */
     @PostMapping("/transition-lifecycle")
-    public Result<Boolean> transitionLifecycle(@RequestParam("id") String id,
-                                               @RequestParam("state") String state) {
+    public Result<Void> transitionLifecycle(@RequestParam("id") String id,
+                                            @RequestParam("state") String state) {
         resourceServerFrontlineService.transitionLifecycle(id, state);
-        return Result.ok(true);
+        return Result.ok();
     }
 }

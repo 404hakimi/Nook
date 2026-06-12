@@ -3,18 +3,13 @@ package com.nook.biz.node.convert.xray;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.xray.dto.XrayInstallRespDTO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
-import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.entity.XrayInstallDO;
+import com.nook.biz.node.entity.ResourceServerDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.factory.Mappers;
 
 import java.util.Map;
 
-/**
- * Xray 实例元数据 Convert
- *
- * @author nook
- */
 @Mapper
 public interface XrayInstallConvert {
 
@@ -22,10 +17,8 @@ public interface XrayInstallConvert {
 
     XrayInstallRespVO convert(XrayInstallDO entity);
 
-    /** Api 仅暴露 binary / apiPort / version (跨模块刚需); inbound 配置等模块私有, 不外发. */
     XrayInstallRespDTO toRespDTO(XrayInstallDO entity);
 
-    /** host 与 name 分两 map 注入 */
     static void fillServer(XrayInstallRespVO vo,
                            Map<String, ResourceServerDO> serverMap,
                            Map<String, String> hostMap) {

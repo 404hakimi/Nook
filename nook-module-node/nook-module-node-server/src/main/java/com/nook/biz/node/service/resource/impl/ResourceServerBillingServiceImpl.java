@@ -2,13 +2,12 @@ package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.controller.resource.vo.ResourceServerBillingUpdateReqVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
-import com.nook.biz.node.dal.mysql.mapper.ResourceServerBillingMapper;
+import com.nook.biz.node.entity.ResourceServerBillingDO;
+import com.nook.biz.node.mapper.ResourceServerBillingMapper;
 import com.nook.biz.node.service.resource.ResourceServerBillingService;
 import com.nook.common.utils.object.BeanUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -29,7 +28,6 @@ public class ResourceServerBillingServiceImpl implements ResourceServerBillingSe
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void create(String serverId, ResourceServerBillingUpdateReqVO reqVO) {
         ResourceServerBillingDO entity = ObjectUtil.isNull(reqVO)
                 ? new ResourceServerBillingDO()
@@ -42,7 +40,6 @@ public class ResourceServerBillingServiceImpl implements ResourceServerBillingSe
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void update(String serverId, ResourceServerBillingUpdateReqVO reqVO) {
         ResourceServerBillingDO patch = BeanUtils.toBean(reqVO, ResourceServerBillingDO.class);
         patch.setServerId(serverId);

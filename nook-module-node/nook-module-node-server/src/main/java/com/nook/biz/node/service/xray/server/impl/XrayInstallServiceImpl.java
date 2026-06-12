@@ -2,8 +2,8 @@ package com.nook.biz.node.service.xray.server.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
-import com.nook.biz.node.dal.mysql.mapper.XrayInstallMapper;
+import com.nook.biz.node.entity.XrayInstallDO;
+import com.nook.biz.node.mapper.XrayInstallMapper;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
 import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;

@@ -1,7 +1,7 @@
 package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceServerCredentialUpdateReqVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
+import com.nook.biz.node.entity.ResourceServerCredentialDO;
 
 /**
  * 服务器 SSH 凭据 Service 接口

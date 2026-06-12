@@ -1,4 +1,4 @@
-package com.nook.biz.node.dal.dataobject.node;
+package com.nook.biz.node.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;

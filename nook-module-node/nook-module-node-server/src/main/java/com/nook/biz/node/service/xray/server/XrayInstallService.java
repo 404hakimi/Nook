@@ -1,6 +1,6 @@
 package com.nook.biz.node.service.xray.server;
 
-import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
+import com.nook.biz.node.entity.XrayInstallDO;
 
 import java.time.LocalDateTime;
 import java.util.Collection;

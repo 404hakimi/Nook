@@ -2,22 +2,16 @@ package com.nook.biz.node.convert.resource;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.controller.resource.vo.ResourceServerQuotaRespVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
+import com.nook.biz.node.entity.ResourceServerQuotaDO;
+import com.nook.biz.node.entity.ResourceServerTrafficDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.factory.Mappers;
 
-/**
- * 服务器配额 Convert
- *
- * @author nook
- */
 @Mapper
 public interface ResourceServerQuotaConvert {
 
     ResourceServerQuotaConvert INSTANCE = Mappers.getMapper(ResourceServerQuotaConvert.class);
 
-    /** 配额配置 + 当周期测量 → RespVO. */
     default ResourceServerQuotaRespVO convert(ResourceServerQuotaDO quota, ResourceServerTrafficDO traffic) {
         ResourceServerQuotaRespVO vo = new ResourceServerQuotaRespVO();
         if (ObjectUtil.isNull(quota)) {

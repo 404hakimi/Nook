@@ -1,4 +1,4 @@
-package com.nook.biz.node.dal.dataobject.resource;
+package com.nook.biz.node.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;

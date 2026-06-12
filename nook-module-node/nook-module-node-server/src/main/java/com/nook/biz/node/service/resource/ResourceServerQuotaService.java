@@ -1,7 +1,7 @@
 package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceServerQuotaUpdateReqVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerQuotaDO;
+import com.nook.biz.node.entity.ResourceServerQuotaDO;
 
 /**
  * 服务器容量 Service 接口

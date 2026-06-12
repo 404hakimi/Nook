@@ -1,7 +1,7 @@
 package com.nook.biz.node.framework.ssh;
 
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerCredentialDO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.entity.ResourceServerCredentialDO;
+import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.validator.ResourceServerCredentialValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.framework.ssh.core.SessionCredential;

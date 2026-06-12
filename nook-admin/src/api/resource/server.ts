@@ -211,7 +211,7 @@ export function getServerQuota(id: string) {
 
 /** 更新配额上限 (总流量配额 + 出站带宽); agent tc / throttle 状态机用. */
 export function updateServerQuota(id: string, dto: ServerQuotaUpdateDTO) {
-  return request.put<unknown, boolean>('/admin/resource/server/update-quota', dto, { params: { id } })
+  return request.put<unknown, void>('/admin/resource/server/update-quota', dto, { params: { id } })
 }
 
 /** SSH 列出远端网卡 (排除 lo); 失败返空 list, 前端 fallback 到 "auto". */
@@ -277,17 +277,17 @@ export function createServer(dto: ResourceServerCreateDTO) {
 
 /** 更新核心 (name/region/totalIp/remark; lifecycle 走 /transition-lifecycle). */
 export function updateServerCore(id: string, dto: ResourceServerCoreUpdateDTO) {
-  return request.put<unknown, boolean>('/admin/resource/server/update-core', dto, { params: { id } })
+  return request.put<unknown, void>('/admin/resource/server/update-core', dto, { params: { id } })
 }
 
 /** 更新 SSH 凭据 (LIVE 后 host/port 硬锁; 密码空保留原值). */
 export function updateServerCredential(id: string, dto: ServerCredential) {
-  return request.put<unknown, boolean>('/admin/resource/server/update-credential', dto, { params: { id } })
+  return request.put<unknown, void>('/admin/resource/server/update-credential', dto, { params: { id } })
 }
 
 /** 更新账面. */
 export function updateServerBilling(id: string, dto: ServerBilling) {
-  return request.put<unknown, boolean>('/admin/resource/server/update-billing', dto, { params: { id } })
+  return request.put<unknown, void>('/admin/resource/server/update-billing', dto, { params: { id } })
 }
 
 export function deleteServer(id: string) {
@@ -296,7 +296,7 @@ export function deleteServer(id: string) {
 
 /** 切换线路机 lifecycle_state (上线 / 退役). */
 export function transitionFrontlineLifecycle(id: string, state: string) {
-  return request.post<unknown, boolean>(
+  return request.post<unknown, void>(
     '/admin/resource/server-frontline/transition-lifecycle',
     null,
     { params: { id, state } }

@@ -1,8 +1,8 @@
-package com.nook.biz.node.dal.mysql.mapper;
+package com.nook.biz.node.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerBillingDO;
+import com.nook.biz.node.entity.ResourceServerBillingDO;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;

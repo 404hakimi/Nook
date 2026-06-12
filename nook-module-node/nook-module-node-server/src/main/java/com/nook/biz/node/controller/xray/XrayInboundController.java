@@ -3,7 +3,7 @@ package com.nook.biz.node.controller.xray;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.controller.xray.vo.XrayInboundRespVO;
 import com.nook.biz.node.convert.xray.XrayInboundConvert;
-import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
+import com.nook.biz.node.entity.XrayInboundDO;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;

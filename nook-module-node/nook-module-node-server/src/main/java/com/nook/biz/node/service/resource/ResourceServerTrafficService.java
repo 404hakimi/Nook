@@ -1,6 +1,6 @@
 package com.nook.biz.node.service.resource;
 
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
+import com.nook.biz.node.entity.ResourceServerTrafficDO;
 
 /**
  * 服务器流量计量 Service 接口

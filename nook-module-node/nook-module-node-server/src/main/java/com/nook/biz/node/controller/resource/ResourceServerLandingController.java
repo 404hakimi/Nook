@@ -17,6 +17,12 @@ import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.resource.vo.landing.Socks5TestReqVO;
 import com.nook.biz.node.controller.resource.vo.landing.Socks5TestRespVO;
 import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
+import com.nook.biz.node.entity.ResourceServerBillingDO;
+import com.nook.biz.node.entity.ResourceServerDO;
+import com.nook.biz.node.entity.ResourceServerQuotaDO;
+import com.nook.biz.node.entity.ResourceServerRuntimeDO;
+import com.nook.biz.node.entity.ResourceServerTrafficDO;
+import com.nook.biz.node.entity.Socks5InstallDO;
 import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.service.resource.ResourceServerLandingSocksOpsService;
@@ -78,16 +84,10 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-summary")
     public Result<ServerLandingSummaryRespVO> getSummary() {
+        // 查询统计
         Map<String, Long> raw = resourceServerLandingService.getSummary();
-        ServerLandingSummaryRespVO vo = new ServerLandingSummaryRespVO();
-        vo.setTotal(raw.getOrDefault("total", 0L));
-        vo.setInstalling(raw.getOrDefault("lifecycle_INSTALLING", 0L));
-        vo.setReady(raw.getOrDefault("lifecycle_READY", 0L));
-        vo.setLive(raw.getOrDefault("lifecycle_LIVE", 0L));
-        vo.setRetired(raw.getOrDefault("lifecycle_RETIRED", 0L));
-        vo.setAvailable(raw.getOrDefault("status_AVAILABLE", 0L));
-        vo.setOccupied(raw.getOrDefault("status_OCCUPIED", 0L));
-        return Result.ok(vo);
+        // 转换返回
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.toSummaryRespVO(raw));
     }
 
     /**
@@ -98,26 +98,28 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-landing")
     public Result<ServerLandingRespVO> getDetail(@RequestParam("id") String id) {
+        // 查询主表与各子表
+        ResourceServerDO server = resourceServerLandingService.getServer(id);
+        Socks5InstallDO landing = resourceServerLandingService.getLanding(id);
+        ResourceServerBillingDO billing = resourceServerLandingService.getBilling(id);
+        ResourceServerQuotaDO quota = resourceServerLandingService.getQuota(id);
+        ResourceServerTrafficDO traffic = resourceServerTrafficService.getCurrent(id);
+        ResourceServerRuntimeDO runtime = resourceServerLandingService.getRuntime(id);
+        // 拼装详情返回
         return Result.ok(ResourceServerLandingConvert.INSTANCE.convertWithSubtables(
-                resourceServerLandingService.getServer(id),
-                resourceServerLandingService.getLanding(id),
-                resourceServerLandingService.getBilling(id),
-                resourceServerLandingService.getQuota(id),
-                resourceServerTrafficService.getCurrent(id),
-                resourceServerLandingService.getRuntime(id)));
+                server, landing, billing, quota, traffic, runtime));
     }
 
     /**
      * 删除落地节点
      *
      * @param id 落地节点编号
-     * @return 是否成功
      */
     @DeleteMapping("/delete-landing")
-    public Result<Boolean> delete(@RequestParam("id") String id) {
+    public Result<Void> delete(@RequestParam("id") String id) {
         // 落地机也是一条 resource_server, 走统一的级联删 + 绑定守卫
         resourceServerService.deleteServer(id);
-        return Result.ok(true);
+        return Result.ok();
     }
 
     /**
@@ -125,13 +127,12 @@ public class ResourceServerLandingController {
      *
      * @param id    落地机编号
      * @param state 目标生命周期
-     * @return 是否成功
      */
     @PostMapping("/transition-lifecycle")
-    public Result<Boolean> transitionLifecycle(@RequestParam("id") String id,
+    public Result<Void> transitionLifecycle(@RequestParam("id") String id,
                                                @RequestParam("state") String state) {
         resourceServerLandingService.transitionLifecycle(id, state);
-        return Result.ok(true);
+        return Result.ok();
     }
 
     /**
@@ -139,13 +140,12 @@ public class ResourceServerLandingController {
      *
      * @param id    落地节点编号
      * @param reqVO 核心字段入参
-     * @return 是否成功
      */
     @PutMapping("/update-core")
-    public Result<Boolean> updateCore(@RequestParam("id") String id,
+    public Result<Void> updateCore(@RequestParam("id") String id,
                                       @Valid @RequestBody ServerLandingCoreUpdateReqVO reqVO) {
         resourceServerLandingService.updateCore(id, reqVO);
-        return Result.ok(true);
+        return Result.ok();
     }
 
     /**
@@ -156,7 +156,10 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-socks5")
     public Result<ServerLandingSocks5RespVO> getSocks5(@RequestParam("id") String id) {
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.toSocks5RespVO(resourceServerLandingService.getLanding(id)));
+        // 查询装机子表
+        Socks5InstallDO landing = resourceServerLandingService.getLanding(id);
+        // 转换返回
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.toSocks5RespVO(landing));
     }
 
     /**
@@ -164,13 +167,12 @@ public class ResourceServerLandingController {
      *
      * @param id    落地节点编号
      * @param reqVO dante 配置入参
-     * @return 是否成功
      */
     @PutMapping("/update-socks5")
-    public Result<Boolean> updateSocks5(@RequestParam("id") String id,
+    public Result<Void> updateSocks5(@RequestParam("id") String id,
                                         @Valid @RequestBody ServerLandingSocks5UpdateReqVO reqVO) {
         resourceServerLandingService.updateSocks5(id, reqVO);
-        return Result.ok(true);
+        return Result.ok();
     }
 
     /**
@@ -181,7 +183,10 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-install")
     public Result<ServerLandingInstallRespVO> getInstall(@RequestParam("id") String id) {
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.toInstallRespVO(resourceServerLandingService.getLanding(id)));
+        // 查询装机子表
+        Socks5InstallDO landing = resourceServerLandingService.getLanding(id);
+        // 转换返回
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.toInstallRespVO(landing));
     }
 
     /**
@@ -192,7 +197,10 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-billing")
     public Result<ServerLandingBillingRespVO> getBilling(@RequestParam("id") String id) {
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.toBillingRespVO(resourceServerLandingService.getBilling(id)));
+        // 查询账面子表
+        ResourceServerBillingDO billing = resourceServerLandingService.getBilling(id);
+        // 转换返回
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.toBillingRespVO(billing));
     }
 
     /**
@@ -200,13 +208,12 @@ public class ResourceServerLandingController {
      *
      * @param id    落地节点编号
      * @param reqVO 账面入参
-     * @return 是否成功
      */
     @PutMapping("/update-billing")
-    public Result<Boolean> updateBilling(@RequestParam("id") String id,
+    public Result<Void> updateBilling(@RequestParam("id") String id,
                                          @Valid @RequestBody ServerLandingBillingUpdateReqVO reqVO) {
         resourceServerLandingService.updateBilling(id, reqVO);
-        return Result.ok(true);
+        return Result.ok();
     }
 
     /**
@@ -217,8 +224,11 @@ public class ResourceServerLandingController {
      */
     @GetMapping("/get-quota")
     public Result<ServerLandingQuotaRespVO> getQuota(@RequestParam("id") String id) {
-        return Result.ok(ResourceServerLandingConvert.INSTANCE.toQuotaRespVO(
-                resourceServerLandingService.getQuota(id), resourceServerTrafficService.getCurrent(id)));
+        // 查询配额与当期流量
+        ResourceServerQuotaDO quota = resourceServerLandingService.getQuota(id);
+        ResourceServerTrafficDO traffic = resourceServerTrafficService.getCurrent(id);
+        // 转换返回
+        return Result.ok(ResourceServerLandingConvert.INSTANCE.toQuotaRespVO(quota, traffic));
     }
 
     /**
@@ -226,13 +236,12 @@ public class ResourceServerLandingController {
      *
      * @param id    落地节点编号
      * @param reqVO 配额入参
-     * @return 是否成功
      */
     @PutMapping("/update-quota")
-    public Result<Boolean> updateQuota(@RequestParam("id") String id,
+    public Result<Void> updateQuota(@RequestParam("id") String id,
                                        @Valid @RequestBody ServerLandingQuotaUpdateReqVO reqVO) {
         resourceServerLandingService.updateQuota(id, reqVO);
-        return Result.ok(true);
+        return Result.ok();
     }
 
     /**
@@ -240,13 +249,12 @@ public class ResourceServerLandingController {
      *
      * @param id      落地节点编号
      * @param enabled 是否启用
-     * @return 是否成功
      */
     @PostMapping("/set-socks5-autostart")
-    public Result<Boolean> setSocks5Autostart(@RequestParam("id") String id,
+    public Result<Void> setSocks5Autostart(@RequestParam("id") String id,
                                               @RequestParam("enabled") boolean enabled) {
         resourceServerLandingSocksOpsService.setAutostart(id, enabled);
-        return Result.ok(true);
+        return Result.ok();
     }
 
     /**

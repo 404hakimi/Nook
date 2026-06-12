@@ -1,4 +1,4 @@
-package com.nook.biz.node.dal.dataobject.resource;
+package com.nook.biz.node.entity;
 
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;

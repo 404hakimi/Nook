@@ -1,6 +1,6 @@
 package com.nook.biz.node.service.xray.config;
 
-import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
+import com.nook.biz.node.entity.XrayInboundDO;
 
 import java.util.Collection;
 import java.util.Map;

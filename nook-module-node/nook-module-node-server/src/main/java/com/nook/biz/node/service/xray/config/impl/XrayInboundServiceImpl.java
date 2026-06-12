@@ -1,8 +1,8 @@
 package com.nook.biz.node.service.xray.config.impl;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.dal.dataobject.node.XrayInboundDO;
-import com.nook.biz.node.dal.mysql.mapper.XrayInboundMapper;
+import com.nook.biz.node.entity.XrayInboundDO;
+import com.nook.biz.node.mapper.XrayInboundMapper;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;

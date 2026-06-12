@@ -1,7 +1,7 @@
 package com.nook.biz.node.handler.xray.server;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.dal.dataobject.node.XrayInstallDO;
+import com.nook.biz.node.entity.XrayInstallDO;
 import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.validator.XrayInstallValidator;
 import com.nook.biz.operation.api.OpProgressSink;

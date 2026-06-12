@@ -251,7 +251,7 @@ export function deleteServerLanding(id: string) {
 
 /** 切换落地机 lifecycle_state (上线 / 退役). */
 export function transitionLandingLifecycle(id: string, state: string) {
-  return request.post<unknown, boolean>(
+  return request.post<unknown, void>(
     '/admin/resource/server-landing/transition-lifecycle',
     null,
     { params: { id, state } }
@@ -262,7 +262,7 @@ export function transitionLandingLifecycle(id: string, state: string) {
 
 /** 更新核心字段 (region/ipTypeId/ipAddress/provisionMode/remark; lifecycle 走 /transition-lifecycle). */
 export function updateServerLandingCore(id: string, dto: ServerLandingCoreUpdateDTO) {
-  return request.put<unknown, boolean>('/admin/resource/server-landing/update-core', dto, { params: { id } })
+  return request.put<unknown, void>('/admin/resource/server-landing/update-core', dto, { params: { id } })
 }
 
 /** 取账面. */
@@ -272,7 +272,7 @@ export function getServerLandingBilling(id: string) {
 
 /** 更新账面. */
 export function updateServerLandingBilling(id: string, dto: ServerLandingBilling) {
-  return request.put<unknown, boolean>('/admin/resource/server-landing/update-billing', dto, { params: { id } })
+  return request.put<unknown, void>('/admin/resource/server-landing/update-billing', dto, { params: { id } })
 }
 
 /** 取 dante 配置 + 限速. */
@@ -282,7 +282,7 @@ export function getServerLandingSocks5(id: string) {
 
 /** 更新 dante 配置 (socks5Password 留空 = 保留原值; 限速走 quota endpoint). */
 export function updateServerLandingSocks5(id: string, dto: ServerLandingSocks5) {
-  return request.put<unknown, boolean>('/admin/resource/server-landing/update-socks5', dto, { params: { id } })
+  return request.put<unknown, void>('/admin/resource/server-landing/update-socks5', dto, { params: { id } })
 }
 
 /** 取装机事实 (路径/版本/systemd 名等; 装机完成后才有数据). */
@@ -297,7 +297,7 @@ export function getServerLandingQuota(id: string) {
 
 /** 更新配额配置 (限速 + 总流量配额 + 重置策略; rx/tx/throttle 由 agent / 状态机改不在此). */
 export function updateServerLandingQuota(id: string, dto: ServerLandingQuota) {
-  return request.put<unknown, boolean>('/admin/resource/server-landing/update-quota', dto, { params: { id } })
+  return request.put<unknown, void>('/admin/resource/server-landing/update-quota', dto, { params: { id } })
 }
 
 /** 周期重置策略选项. */
@@ -329,7 +329,7 @@ export interface Socks5Log {
 
 /** 切 SOCKS5 开机自启 (systemctl enable/disable + DB.autostart_enabled 同步). */
 export function setSocks5Autostart(id: string, enabled: boolean) {
-  return request.post<unknown, boolean>(
+  return request.post<unknown, void>(
     '/admin/resource/server-landing/set-socks5-autostart', null, { params: { id, enabled } })
 }
 

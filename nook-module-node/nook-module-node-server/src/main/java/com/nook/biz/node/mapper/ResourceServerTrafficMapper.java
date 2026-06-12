@@ -1,9 +1,9 @@
-package com.nook.biz.node.dal.mysql.mapper;
+package com.nook.biz.node.mapper;
 
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerTrafficDO;
+import com.nook.biz.node.entity.ResourceServerTrafficDO;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.Collection;
@@ -17,14 +17,12 @@ import java.util.List;
 @Mapper
 public interface ResourceServerTrafficMapper extends BaseMapper<ResourceServerTrafficDO> {
 
-    /** 某机当周期行(end_time 空); 无返 null. */
     default ResourceServerTrafficDO selectCurrentByServerId(String serverId) {
         return selectOne(Wrappers.<ResourceServerTrafficDO>lambdaQuery()
                 .eq(ResourceServerTrafficDO::getServerId, serverId)
                 .isNull(ResourceServerTrafficDO::getEndTime));
     }
 
-    /** 一批服务器的当周期行(end_time 空). */
     default List<ResourceServerTrafficDO> selectCurrentByServerIds(Collection<String> serverIds) {
         if (CollUtil.isEmpty(serverIds)) {
             return List.of();
@@ -34,7 +32,6 @@ public interface ResourceServerTrafficMapper extends BaseMapper<ResourceServerTr
                 .isNull(ResourceServerTrafficDO::getEndTime));
     }
 
-    /** 删某机全部周期行(删服务器级联用); 返回删除行数. */
     default int deleteByServerId(String serverId) {
         return delete(Wrappers.<ResourceServerTrafficDO>lambdaQuery()
                 .eq(ResourceServerTrafficDO::getServerId, serverId));

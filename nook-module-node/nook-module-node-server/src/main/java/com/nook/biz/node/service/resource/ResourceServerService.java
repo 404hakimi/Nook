@@ -2,7 +2,7 @@ package com.nook.biz.node.service.resource;
 
 import com.nook.biz.node.controller.resource.vo.ResourceServerCoreUpdateReqVO;
 import com.nook.biz.node.controller.resource.vo.ResourceServerCreateReqVO;
-import com.nook.biz.node.dal.dataobject.resource.ResourceServerDO;
+import com.nook.biz.node.entity.ResourceServerDO;
 
 import java.util.Collection;
 import java.util.Map;
