@@ -11,8 +11,6 @@ import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
-import java.util.Set;
-
 /**
  * 服务器生命周期流转校验
  *
@@ -26,24 +24,19 @@ public class ServerLifecycleValidator {
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
 
-    /** 允许的生命周期流转 (from→to); 未列出的组合一律拒. */
-    private static final Set<String> ALLOWED_TRANSITIONS = Set.of(
-            "INSTALLING→READY", "READY→INSTALLING",
-            "READY→LIVE", "LIVE→READY",
-            "LIVE→RETIRED", "READY→RETIRED",
-            "RETIRED→LIVE");
-
     /**
-     * 校验生命周期流转转移表 (from→to 是否允许); 各类型上下线前置守卫由对应 service 另行调用
+     * 校验生命周期流转合法性 (流转表见 {@link ResourceServerLifecycleEnum}); 各类型上下线前置守卫由对应 service 另行调用
      *
      * @param server   当前服务器
      * @param newState 目标生命周期
      */
     public void validateTransitionTable(ResourceServerDO server, String newState) {
-        String from = server.getLifecycleState();
-        if (ObjectUtil.isNull(ResourceServerLifecycleEnum.fromState(newState))
-                || !ALLOWED_TRANSITIONS.contains(from + "→" + newState)) {
-            throw new BusinessException(ResourceErrorCode.SERVER_LIFECYCLE_INVALID_TRANSITION, from, newState);
+        ResourceServerLifecycleEnum from = ResourceServerLifecycleEnum.fromState(server.getLifecycleState());
+        ResourceServerLifecycleEnum to = ResourceServerLifecycleEnum.fromState(newState);
+        if (from == null || to == null || !from.canTransitionTo(to)) {
+            throw new BusinessException(ResourceErrorCode.SERVER_LIFECYCLE_INVALID_TRANSITION,
+                    from == null ? server.getLifecycleState() : from.getLabel(),
+                    to == null ? newState : to.getLabel());
         }
     }
 
