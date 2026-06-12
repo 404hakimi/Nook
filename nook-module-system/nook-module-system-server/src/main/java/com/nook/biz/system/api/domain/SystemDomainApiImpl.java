@@ -1,9 +1,9 @@
 package com.nook.biz.system.api.domain;
 
 import com.nook.biz.system.api.domain.dto.SystemDomainRespDTO;
-import com.nook.biz.system.convert.SystemDomainConvert;
-import com.nook.biz.system.service.domain.SystemDomainService;
-import lombok.RequiredArgsConstructor;
+import com.nook.biz.system.entity.SystemDomainDO;
+import com.nook.biz.system.service.SystemDomainService;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -15,18 +15,21 @@ import java.util.Map;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class SystemDomainApiImpl implements SystemDomainApi {
 
-    private final SystemDomainService systemDomainService;
+    @Resource
+    private SystemDomainService systemDomainService;
 
     @Override
     public SystemDomainRespDTO getById(String id) {
-        return SystemDomainConvert.INSTANCE.toRespDTO(systemDomainService.getDomain(id));
+        // 查询域名
+        SystemDomainDO domain = systemDomainService.getDomain(id);
+        // 转换返回
+        return SystemDomainApiConvert.INSTANCE.toRespDTO(domain);
     }
 
     @Override
     public Map<String, String> getDomainMap(Collection<String> ids) {
-        return systemDomainService.loadDomainMap(ids);
+        return systemDomainService.getDomainMap(ids);
     }
 }

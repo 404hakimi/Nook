@@ -12,7 +12,8 @@ import lombok.Data;
 @Data
 public class SystemUserUpdatePasswordReqVO {
 
+    /** 新密码; 强度由 Validator 统一校验, 此处只做长度上下界. */
     @NotBlank(message = "新密码不能为空")
-    @Size(min = 6, max = 64, message = "密码长度需在 6-64 之间")
+    @Size(min = 8, max = 64, message = "密码长度需在 8-64 之间")
     private String newPassword;
 }

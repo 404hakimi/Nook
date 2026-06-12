@@ -228,7 +228,7 @@ async function onSave() {
       await recodeRegion({ ...dto, oldCode: originalCode.value } as SystemRegionRecodeDTO)
       message.success('已更正并迁移引用')
     } else if (isEdit.value) {
-      await updateRegion(dto)
+      await updateRegion(form.code, dto)
       message.success('已保存')
     } else {
       await createRegion(dto)

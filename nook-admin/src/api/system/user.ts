@@ -64,7 +64,7 @@ export function createSystemUser(dto: SystemUserSaveDTO) {
 }
 
 export function updateSystemUser(id: string, dto: SystemUserSaveDTO) {
-  return request.put<unknown, SystemUser>('/admin/system/user/update-user', dto, { params: { id } })
+  return request.put<unknown, void>('/admin/system/user/update-user', dto, { params: { id } })
 }
 
 export function deleteSystemUser(id: string) {

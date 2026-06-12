@@ -6,17 +6,14 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 管理后台 - 系统域名 保存 Request VO (创建 / 更新共用; 更新须带 id)
+ * 管理后台 - 系统域名更新 Request VO
  *
  * @author nook
  */
 @Data
-public class SystemDomainSaveReqVO {
+public class SystemDomainUpdateReqVO {
 
-    /** 主键; 创建留空, 更新必填. */
-    private String id;
-
-    /** 根域名 (一级域名, 如 karsu.cc); 二级域名装机时填, 共用此根域 + CF 配置. */
+    /** 根域名 (一级域名, 如 karsu.cc). */
     @NotBlank(message = "根域名必填")
     @Pattern(regexp = "^[a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.[a-zA-Z]{2,}$",
             message = "请填一级域名 (如 karsu.cc), 不要带子域名")

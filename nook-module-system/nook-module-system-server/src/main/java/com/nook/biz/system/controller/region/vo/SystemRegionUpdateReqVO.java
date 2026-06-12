@@ -4,16 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * 管理后台 - 区域字典 新增/编辑 Request VO
+ * 管理后台 - 区域字典更新 Request VO
  *
  * @author nook
  */
 @Data
-public class SystemRegionSaveReqVO {
-
-    /** 区域码: JP-TYO / US-LAX / HK 等 (主键, 编辑时不可改). */
-    @NotBlank(message = "区域码不能为空")
-    private String code;
+public class SystemRegionUpdateReqVO {
 
     /** ISO 3166-1 alpha-2 国家码. */
     @NotBlank(message = "国家码不能为空")

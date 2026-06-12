@@ -6,25 +6,25 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * 系统域名 Api 接口 (node 跨模块: 装机取 domain + CF 配置, 展示取域名)
+ * 系统域名 Api 接口
  *
  * @author nook
  */
 public interface SystemDomainApi {
 
     /**
-     * 按 id 获得域名配置 (含 cfApiToken, 装机用)
+     * 按 id 获得域名配置; 不存在抛异常
      *
-     * @param id 域名编号
-     * @return 域名配置; 不存在抛 BusinessException
+     * @param id 域名ID
+     * @return 域名配置
      */
     SystemDomainRespDTO getById(String id);
 
     /**
-     * 批量 id→域名 (展示用)
+     * 根据ID批量查询域名 (key=域名ID, value=根域名; 缺失不进 map)
      *
-     * @param ids 域名编号集合
-     * @return key=id, value=域名; 缺失 id 不在 map 里
+     * @param ids 域名ID集合
+     * @return Map<String, String>
      */
     Map<String, String> getDomainMap(Collection<String> ids);
 }

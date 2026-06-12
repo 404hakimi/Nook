@@ -1,14 +1,14 @@
-package com.nook.biz.system.service.iptype.impl;
+package com.nook.biz.system.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.system.constant.SystemErrorCode;
-import com.nook.biz.system.dal.dataobject.iptype.SystemIpTypeDO;
-import com.nook.biz.system.dal.mysql.mapper.iptype.SystemIpTypeMapper;
-import com.nook.biz.system.service.iptype.SystemIpTypeService;
+import com.nook.biz.system.entity.SystemIpTypeDO;
+import com.nook.biz.system.mapper.SystemIpTypeMapper;
+import com.nook.biz.system.service.SystemIpTypeService;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -22,10 +22,10 @@ import java.util.Map;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class SystemIpTypeServiceImpl implements SystemIpTypeService {
 
-    private final SystemIpTypeMapper systemIpTypeMapper;
+    @Resource
+    private SystemIpTypeMapper systemIpTypeMapper;
 
     @Override
     public List<SystemIpTypeDO> getIpTypeList() {
@@ -42,9 +42,13 @@ public class SystemIpTypeServiceImpl implements SystemIpTypeService {
     }
 
     @Override
-    public Map<String, String> loadNameMap(Collection<String> ids) {
-        if (CollUtil.isEmpty(ids)) return Collections.emptyMap();
-        List<SystemIpTypeDO> rows = systemIpTypeMapper.selectBatchIds(ids);
-        return CollectionUtils.convertMap(rows, SystemIpTypeDO::getId, SystemIpTypeDO::getName);
+    public Map<String, String> getNameMap(Collection<String> ids) {
+        if (CollUtil.isEmpty(ids)) {
+            return Collections.emptyMap();
+        }
+        // 批量查 IP 类型
+        List<SystemIpTypeDO> types = systemIpTypeMapper.selectBatchIds(ids);
+        // 提取ID → 展示名
+        return CollectionUtils.convertMap(types, SystemIpTypeDO::getId, SystemIpTypeDO::getName);
     }
 }

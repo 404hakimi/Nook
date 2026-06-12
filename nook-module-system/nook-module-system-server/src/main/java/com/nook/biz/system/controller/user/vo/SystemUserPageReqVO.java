@@ -1,5 +1,7 @@
 package com.nook.biz.system.controller.user.vo;
 
+import com.nook.biz.system.api.enums.SystemUserRoleEnum;
+import com.nook.biz.system.api.enums.SystemUserStatusEnum;
 import com.nook.common.web.request.PageParam;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -13,12 +15,12 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class SystemUserPageReqVO extends PageParam {
 
-    /** 模糊匹配 username / realName / email */
+    /** 模糊匹配 username / realName / email. */
     private String keyword;
 
-    /** 1=正常 2=禁用；不传则不过滤 */
+    /** 状态过滤 {@link SystemUserStatusEnum}; null=不过滤. */
     private Integer status;
 
-    /** super_admin / operator / devops；不传则不过滤 */
+    /** 角色过滤 {@link SystemUserRoleEnum}; null=不过滤. */
     private String role;
 }

@@ -17,74 +17,58 @@ import java.util.Map;
 public interface SystemUserService {
 
     /**
-     * 按用户名精确查找; 找不到返回 null (供 AuthService 登录态判定).
+     * 获得用户详情
      *
-     * @param username 用户名
-     * @return SystemUser
-     */
-    SystemUser findByUsername(String username);
-
-    /**
-     * 按 ID 查找; 找不到抛 USER_NOT_FOUND (与 list/page 列表读不同, 这里语义上必须存在).
-     *
-     * @param id system_user.id
-     * @return SystemUser
+     * @param id 用户ID
+     * @return 用户信息
      */
     SystemUser findById(String id);
 
     /**
-     * 更新最后登录时间和 IP, 登录成功时由 AuthService 调用.
+     * 获得用户分页列表
      *
-     * @param id      system_user.id
-     * @param loginIp 登录 IP
-     */
-    void updateLastLogin(String id, String loginIp);
-
-    /**
-     * 分页查询用户.
-     *
-     * @param reqVO 分页 + 过滤条件
-     * @return PageResult of SystemUser
+     * @param reqVO 分页条件
+     * @return 分页列表
      */
     PageResult<SystemUser> page(SystemUserPageReqVO reqVO);
 
     /**
-     * 新增用户; BCrypt 加密密码后落库; 用户名/邮箱重复抛 USERNAME_EXISTS / EMAIL_EXISTS.
+     * 创建用户
      *
-     * @param reqVO 新增入参
-     * @return SystemUser
+     * @param reqVO 创建信息
+     * @return 用户信息
      */
     SystemUser create(SystemUserCreateReqVO reqVO);
 
     /**
-     * 编辑用户基础信息; username/password 不在此修改 (密码走 resetPassword); null 字段保留原值.
+     * 修改用户基础信息 (用户名与密码不在此修改)
      *
-     * @param id    system_user.id
-     * @param reqVO 编辑入参
+     * @param id    用户ID
+     * @param reqVO 更新信息
      */
     void update(String id, SystemUserUpdateReqVO reqVO);
 
     /**
-     * 逻辑删除用户; 不能删除当前登录账号.
+     * 删除用户; 不能删除当前登录账号
      *
-     * @param id             system_user.id
-     * @param currentLoginId 当前登录 id
+     * @param id             用户ID
+     * @param currentLoginId 当前登录用户ID
      */
     void delete(String id, String currentLoginId);
 
     /**
-     * 重置密码; BCrypt 加密后写库; 不需要旧密码 (超管行为).
+     * 重置用户密码
      *
-     * @param id               system_user.id
-     * @param newPlainPassword 新密码明文
+     * @param id       用户ID
+     * @param password 新密码
      */
-    void resetPassword(String id, String newPlainPassword);
+    void resetPassword(String id, String password);
 
     /**
-     * 批量取 friendly name (realName 优先, 退回 username); 走 selectBatchIds 避免 N+1; 缺失 id 不进结果 map.
+     * 根据ID批量查询用户展示名 (key=用户ID, value=展示名, 真实姓名优先退回用户名; 缺失不进 map)
      *
-     * @param userIds id 集合; null / 空返空 map
-     * @return Map of userId → name
+     * @param userIds 用户ID集合
+     * @return Map<String, String>
      */
-    Map<String, String> loadUserNameMap(Collection<String> userIds);
+    Map<String, String> getUserNameMap(Collection<String> userIds);
 }

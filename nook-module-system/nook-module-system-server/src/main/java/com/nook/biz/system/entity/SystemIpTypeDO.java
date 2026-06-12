@@ -1,4 +1,4 @@
-package com.nook.biz.system.dal.dataobject.iptype;
+package com.nook.biz.system.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.nook.framework.mybatis.entity.BaseEntity;
@@ -15,13 +15,15 @@ import lombok.EqualsAndHashCode;
 @TableName("system_ip_type")
 public class SystemIpTypeDO extends BaseEntity {
 
-    /** 类型编码: isp / datacenter / residential */
+    /** 类型编码: isp / datacenter / residential. */
     private String code;
 
-    /** 展示名称 */
+    /** 展示名称. */
     private String name;
 
+    /** 描述. */
     private String description;
 
+    /** 排序值, 升序. */
     private Integer sortOrder;
 }

@@ -1,6 +1,6 @@
-package com.nook.biz.system.service.iptype;
+package com.nook.biz.system.service;
 
-import com.nook.biz.system.dal.dataobject.iptype.SystemIpTypeDO;
+import com.nook.biz.system.entity.SystemIpTypeDO;
 
 import java.util.Collection;
 import java.util.List;
@@ -23,16 +23,16 @@ public interface SystemIpTypeService {
     /**
      * 获得 IP 类型
      *
-     * @param id IP 类型编号
+     * @param id IP 类型ID
      * @return IP 类型信息
      */
     SystemIpTypeDO getIpType(String id);
 
     /**
-     * 按 id 批量拉 IP 类型展示名
+     * 根据ID批量查询 IP 类型展示名 (key=ID, value=展示名; 缺失不进 map)
      *
-     * @param ids IP 类型编号集合
-     * @return key=id, value=name
+     * @param ids IP 类型ID集合
+     * @return Map<String, String>
      */
-    Map<String, String> loadNameMap(Collection<String> ids);
+    Map<String, String> getNameMap(Collection<String> ids);
 }

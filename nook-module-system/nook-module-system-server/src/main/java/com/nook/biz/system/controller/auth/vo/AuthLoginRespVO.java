@@ -1,9 +1,7 @@
 package com.nook.biz.system.controller.auth.vo;
 
 import com.nook.biz.system.controller.user.vo.SystemUserRespVO;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 /**
  * 管理后台 - 后台登录 Response VO
@@ -11,13 +9,14 @@ import lombok.NoArgsConstructor;
  * @author nook
  */
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class AuthLoginRespVO {
 
+    /** 会话 token. */
     private String token;
 
+    /** token 剩余有效期 (秒). */
     private long expiresIn;
 
+    /** 当前用户信息. */
     private SystemUserRespVO user;
 }

@@ -19,32 +19,27 @@ import java.time.LocalDateTime;
 @Mapper
 public interface SystemUserMapper extends BaseMapper<SystemUser> {
 
-    /** 按用户名精确查找；找不到返回 null。 */
     default SystemUser selectByUsername(String username) {
         return selectOne(Wrappers.<SystemUser>lambdaQuery()
                 .eq(SystemUser::getUsername, username));
     }
 
-    /** 用户名是否已存在。 */
     default boolean existsByUsername(String username) {
         return exists(Wrappers.<SystemUser>lambdaQuery()
                 .eq(SystemUser::getUsername, username));
     }
 
-    /** 邮箱是否已被使用（用于新增前查重）。 */
     default boolean existsByEmail(String email) {
         return exists(Wrappers.<SystemUser>lambdaQuery()
                 .eq(SystemUser::getEmail, email));
     }
 
-    /** 邮箱是否被除指定 id 外的用户使用（用于更新时查重）。 */
     default boolean existsByEmailExcludingId(String email, String excludeId) {
         return exists(Wrappers.<SystemUser>lambdaQuery()
                 .eq(SystemUser::getEmail, email)
                 .ne(SystemUser::getId, excludeId));
     }
 
-    /** 更新登录时间与 IP；显式 set updated_at 因 wrapper 更新不走 MetaObjectHandler 自动 fill. */
     default int updateLastLogin(String id, String loginIp, LocalDateTime loginAt) {
         return update(null, Wrappers.<SystemUser>lambdaUpdate()
                 .set(SystemUser::getLastLoginAt, loginAt)
@@ -53,7 +48,6 @@ public interface SystemUserMapper extends BaseMapper<SystemUser> {
                 .eq(SystemUser::getId, id));
     }
 
-    /** 单独更新密码哈希；显式 set updated_at 同 updateLastLogin 原因. */
     default int updatePasswordHash(String id, String passwordHash) {
         return update(null, Wrappers.<SystemUser>lambdaUpdate()
                 .set(SystemUser::getPasswordHash, passwordHash)
@@ -61,7 +55,6 @@ public interface SystemUserMapper extends BaseMapper<SystemUser> {
                 .eq(SystemUser::getId, id));
     }
 
-    /** 列表分页查询；keyword 模糊匹配 username/realName/email。 */
     default IPage<SystemUser> selectPageByQuery(IPage<SystemUser> page, SystemUserPageReqVO reqVO) {
         return selectPage(page, Wrappers.<SystemUser>lambdaQuery()
                 .eq(ObjectUtil.isNotNull(reqVO.getStatus()), SystemUser::getStatus, reqVO.getStatus())

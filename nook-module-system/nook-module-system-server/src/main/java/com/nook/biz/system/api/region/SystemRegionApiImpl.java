@@ -1,7 +1,7 @@
 package com.nook.biz.system.api.region;
 
-import com.nook.biz.system.service.region.SystemRegionService;
-import lombok.RequiredArgsConstructor;
+import com.nook.biz.system.service.SystemRegionService;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -13,10 +13,10 @@ import java.util.Map;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class SystemRegionApiImpl implements SystemRegionApi {
 
-    private final SystemRegionService systemRegionService;
+    @Resource
+    private SystemRegionService systemRegionService;
 
     @Override
     public boolean exists(String code) {
@@ -25,6 +25,6 @@ public class SystemRegionApiImpl implements SystemRegionApi {
 
     @Override
     public Map<String, String> getRegionDisplayNameMap(Collection<String> codes) {
-        return systemRegionService.loadDisplayNameMap(codes);
+        return systemRegionService.getDisplayNameMap(codes);
     }
 }

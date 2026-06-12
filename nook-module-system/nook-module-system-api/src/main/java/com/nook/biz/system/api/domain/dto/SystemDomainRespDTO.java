@@ -10,6 +10,7 @@ import lombok.Data;
 @Data
 public class SystemDomainRespDTO {
 
+    /** 域名ID. */
     private String id;
 
     /** 根域名 (一级域名, 如 karsu.cc). */

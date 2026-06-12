@@ -1,7 +1,7 @@
 package com.nook.biz.system.api.user;
 
 import com.nook.biz.system.service.SystemUserService;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -13,13 +13,13 @@ import java.util.Map;
  * @author nook
  */
 @Service
-@RequiredArgsConstructor
 public class SystemUserApiImpl implements SystemUserApi {
 
-    private final SystemUserService systemUserService;
+    @Resource
+    private SystemUserService systemUserService;
 
     @Override
     public Map<String, String> getUserNameMap(Collection<String> userIds) {
-        return systemUserService.loadUserNameMap(userIds);
+        return systemUserService.getUserNameMap(userIds);
     }
 }

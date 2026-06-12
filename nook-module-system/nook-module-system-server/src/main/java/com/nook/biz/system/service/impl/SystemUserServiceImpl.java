@@ -1,8 +1,11 @@
 package com.nook.biz.system.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nook.biz.system.api.enums.SystemUserStatusEnum;
 import com.nook.biz.system.controller.user.vo.SystemUserCreateReqVO;
 import com.nook.biz.system.controller.user.vo.SystemUserPageReqVO;
 import com.nook.biz.system.controller.user.vo.SystemUserUpdateReqVO;
@@ -13,13 +16,14 @@ import com.nook.biz.system.validator.SystemUserValidator;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
 import com.nook.common.web.response.PageResult;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -27,27 +31,20 @@ import java.util.Map;
  *
  * @author nook
  */
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class SystemUserServiceImpl implements SystemUserService {
 
-    private final SystemUserMapper systemUserMapper;
-    private final BCryptPasswordEncoder bCryptPasswordEncoder;
-    private final SystemUserValidator systemUserValidator;
-
-    @Override
-    public SystemUser findByUsername(String username) {
-        return systemUserMapper.selectByUsername(username);
-    }
+    @Resource
+    private SystemUserMapper systemUserMapper;
+    @Resource
+    private SystemUserValidator systemUserValidator;
+    @Resource
+    private BCryptPasswordEncoder bCryptPasswordEncoder;
 
     @Override
     public SystemUser findById(String id) {
         return systemUserValidator.validateExists(id);
-    }
-
-    @Override
-    public void updateLastLogin(String id, String loginIp) {
-        systemUserMapper.updateLastLogin(id, loginIp, LocalDateTime.now());
     }
 
     @Override
@@ -59,56 +56,68 @@ public class SystemUserServiceImpl implements SystemUserService {
 
     @Override
     public SystemUser create(SystemUserCreateReqVO reqVO) {
-        // 校验用户名唯一
+        // 校验用户名 / 邮箱唯一 + 角色 / 状态取值 + 密码强度
         systemUserValidator.validateUsernameUnique(reqVO.getUsername());
-        // 校验邮箱唯一
         systemUserValidator.validateEmailUnique(null, reqVO.getEmail());
-
-        // 插入用户; 密码 BCrypt 加密, status 默认 1=正常
+        systemUserValidator.validateRole(reqVO.getRole());
+        systemUserValidator.validateStatus(reqVO.getStatus());
+        systemUserValidator.validatePasswordStrength(reqVO.getPassword());
+        // 加密密码
+        String passwordHash = bCryptPasswordEncoder.encode(reqVO.getPassword());
+        // 插入用户; 状态不传默认正常
         SystemUser entity = BeanUtils.toBean(reqVO, SystemUser.class);
-        entity.setPasswordHash(bCryptPasswordEncoder.encode(reqVO.getPassword()));
-        if (entity.getStatus() == null) {
-            entity.setStatus(1);
+        entity.setPasswordHash(passwordHash);
+        if (ObjectUtil.isNull(entity.getStatus())) {
+            entity.setStatus(SystemUserStatusEnum.NORMAL.getCode());
         }
         systemUserMapper.insert(entity);
+        log.info("[create] 创建后台用户: userId={}, username={}", entity.getId(), entity.getUsername());
         return entity;
     }
 
     @Override
     public void update(String id, SystemUserUpdateReqVO reqVO) {
-        // 校验用户存在
+        // 校验存在 + 邮箱唯一 (排除自身) + 角色 / 状态取值
         systemUserValidator.validateExists(id);
-        // 校验邮箱唯一 (排除自身)
         systemUserValidator.validateEmailUnique(id, reqVO.getEmail());
-
-        // 更新用户基础信息; null 字段由 MP NOT_NULL 策略跳过, 即"保留原值"
+        systemUserValidator.validateRole(reqVO.getRole());
+        systemUserValidator.validateStatus(reqVO.getStatus());
+        // 更新基础信息; null 字段由 MP NOT_NULL 策略跳过, 即"保留原值"
         SystemUser entity = BeanUtils.toBean(reqVO, SystemUser.class);
-        systemUserMapper.update(entity, Wrappers.<SystemUser>lambdaUpdate().eq(SystemUser::getId, id));
+        entity.setId(id);
+        systemUserMapper.updateById(entity);
     }
 
     @Override
     public void delete(String id, String currentLoginId) {
-        // 校验非自身
+        // 校验非自身 + 用户存在
         systemUserValidator.validateNotSelf(id, currentLoginId);
-        // 校验用户存在
         systemUserValidator.validateExists(id);
-        // 逻辑删除用户
+        // 逻辑删除
         systemUserMapper.deleteById(id);
+        log.info("[delete] 删除后台用户: userId={}, operatorId={}", id, currentLoginId);
     }
 
     @Override
-    public void resetPassword(String id, String newPlainPassword) {
-        // 校验用户存在
+    public void resetPassword(String id, String password) {
+        // 校验存在 + 新密码强度
         systemUserValidator.validateExists(id);
-        // 更新密码哈希
-        systemUserMapper.updatePasswordHash(id, bCryptPasswordEncoder.encode(newPlainPassword));
+        systemUserValidator.validatePasswordStrength(password);
+        // 加密并更新密码
+        String passwordHash = bCryptPasswordEncoder.encode(password);
+        systemUserMapper.updatePasswordHash(id, passwordHash);
+        log.info("[resetPassword] 重置后台用户密码: userId={}", id);
     }
 
     @Override
-    public Map<String, String> loadUserNameMap(Collection<String> userIds) {
-        if (CollectionUtils.isAnyEmpty(userIds)) return Collections.emptyMap();
-        return CollectionUtils.convertMap(systemUserMapper.selectBatchIds(userIds), SystemUser::getId,
-                // realName 优先, 缺失退回 username (登录账号)
-                u -> u.getRealName() != null && !u.getRealName().isEmpty() ? u.getRealName() : u.getUsername());
+    public Map<String, String> getUserNameMap(Collection<String> userIds) {
+        if (CollUtil.isEmpty(userIds)) {
+            return Collections.emptyMap();
+        }
+        // 批量查用户
+        List<SystemUser> users = systemUserMapper.selectBatchIds(userIds);
+        // 提取用户ID → 展示名 (真实姓名优先, 退回用户名)
+        return CollectionUtils.convertMap(users, SystemUser::getId,
+                u -> StrUtil.blankToDefault(u.getRealName(), u.getUsername()));
     }
 }

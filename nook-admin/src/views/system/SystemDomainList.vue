@@ -79,7 +79,7 @@ async function onSave() {
       remark: form.remark?.trim() || undefined
     }
     if (isEdit.value) {
-      await updateSystemDomain(dto)
+      await updateSystemDomain(form.id!, dto)
       message.success('已保存')
     } else {
       await createSystemDomain(dto)

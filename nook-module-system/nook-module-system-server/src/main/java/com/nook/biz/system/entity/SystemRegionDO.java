@@ -1,4 +1,4 @@
-package com.nook.biz.system.dal.dataobject.region;
+package com.nook.biz.system.entity;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -22,9 +22,10 @@ public class SystemRegionDO {
     @TableId(type = IdType.INPUT)
     private String code;
 
-    /** ISO 3166-1 alpha-2. */
+    /** ISO 3166-1 alpha-2 国家码. */
     private String countryCode;
 
+    /** 国家名. */
     private String countryName;
 
     /** 城市 (可空). */
@@ -39,9 +40,11 @@ public class SystemRegionDO {
     /** 1=启用 0=停用. */
     private Integer enabled;
 
+    /** 创建时间. */
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
+    /** 更新时间. */
     @TableField(value = "updated_at", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 }

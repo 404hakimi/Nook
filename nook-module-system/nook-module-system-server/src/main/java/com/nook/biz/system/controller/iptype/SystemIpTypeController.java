@@ -1,11 +1,11 @@
 package com.nook.biz.system.controller.iptype;
 
 import com.nook.biz.system.controller.iptype.vo.SystemIpTypeRespVO;
-import com.nook.biz.system.dal.dataobject.iptype.SystemIpTypeDO;
-import com.nook.biz.system.service.iptype.SystemIpTypeService;
-import com.nook.common.utils.object.BeanUtils;
+import com.nook.biz.system.convert.iptype.SystemIpTypeConvert;
+import com.nook.biz.system.entity.SystemIpTypeDO;
+import com.nook.biz.system.service.SystemIpTypeService;
 import com.nook.common.web.response.Result;
-import lombok.RequiredArgsConstructor;
+import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,10 +21,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/system/ip-type")
 @Validated
-@RequiredArgsConstructor
 public class SystemIpTypeController {
 
-    private final SystemIpTypeService systemIpTypeService;
+    @Resource
+    private SystemIpTypeService systemIpTypeService;
 
     /**
      * 获得 IP 类型列表
@@ -33,7 +33,9 @@ public class SystemIpTypeController {
      */
     @GetMapping("/list-ip-type")
     public Result<List<SystemIpTypeRespVO>> getIpTypeList() {
-        List<SystemIpTypeDO> list = systemIpTypeService.getIpTypeList();
-        return Result.ok(BeanUtils.toBean(list, SystemIpTypeRespVO.class));
+        // 查询列表
+        List<SystemIpTypeDO> types = systemIpTypeService.getIpTypeList();
+        // 转换返回
+        return Result.ok(SystemIpTypeConvert.INSTANCE.convertList(types));
     }
 }

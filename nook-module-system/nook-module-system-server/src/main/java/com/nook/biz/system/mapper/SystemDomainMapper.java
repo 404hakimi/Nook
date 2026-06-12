@@ -1,8 +1,8 @@
-package com.nook.biz.system.dal.mysql.mapper.domain;
+package com.nook.biz.system.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.nook.biz.system.dal.dataobject.domain.SystemDomainDO;
+import com.nook.biz.system.entity.SystemDomainDO;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;
@@ -15,16 +15,19 @@ import java.util.List;
 @Mapper
 public interface SystemDomainMapper extends BaseMapper<SystemDomainDO> {
 
-    /** 全量列出, 按创建倒序 (域名管理页 + 装机下拉用). */
     default List<SystemDomainDO> selectAllOrdered() {
         return selectList(Wrappers.<SystemDomainDO>lambdaQuery()
                 .orderByDesc(SystemDomainDO::getCreatedAt));
     }
 
-    /** 按域名查 (唯一校验); 无返 null. */
-    default SystemDomainDO selectByDomain(String domain) {
-        return selectOne(Wrappers.<SystemDomainDO>lambdaQuery()
+    default boolean existsByDomain(String domain) {
+        return exists(Wrappers.<SystemDomainDO>lambdaQuery()
+                .eq(SystemDomainDO::getDomain, domain));
+    }
+
+    default boolean existsByDomainExcludingId(String domain, String excludeId) {
+        return exists(Wrappers.<SystemDomainDO>lambdaQuery()
                 .eq(SystemDomainDO::getDomain, domain)
-                .last("LIMIT 1"));
+                .ne(SystemDomainDO::getId, excludeId));
     }
 }

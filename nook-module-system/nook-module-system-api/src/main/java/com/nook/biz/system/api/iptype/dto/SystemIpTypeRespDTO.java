@@ -10,12 +10,15 @@ import lombok.Data;
 @Data
 public class SystemIpTypeRespDTO {
 
+    /** IP 类型ID. */
     private String id;
 
-    /** 类型编码: isp / datacenter / residential */
+    /** 类型编码: isp / datacenter / residential. */
     private String code;
 
+    /** 展示名称. */
     private String name;
 
+    /** 排序值, 升序. */
     private Integer sortOrder;
 }

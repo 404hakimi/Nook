@@ -14,7 +14,7 @@ export interface SystemDomain {
   updatedAt?: string
 }
 
-/** 域名保存入参 (创建留空 id, 更新带 id). */
+/** 域名保存入参 (创建 / 更新共用容器; 更新时 id 走 query 参数). */
 export interface SystemDomainSaveDTO {
   id?: string
   domain: string
@@ -39,8 +39,8 @@ export function createSystemDomain(dto: SystemDomainSaveDTO) {
 }
 
 /** 更新域名. */
-export function updateSystemDomain(dto: SystemDomainSaveDTO) {
-  return request.put<unknown, boolean>('/admin/system/domain/update-domain', dto)
+export function updateSystemDomain(id: string, dto: SystemDomainSaveDTO) {
+  return request.put<unknown, void>('/admin/system/domain/update-domain', dto, { params: { id } })
 }
 
 /** 删除域名. */
