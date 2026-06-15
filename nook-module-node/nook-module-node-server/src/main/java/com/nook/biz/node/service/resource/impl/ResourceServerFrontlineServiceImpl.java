@@ -1,22 +1,19 @@
 package com.nook.biz.node.service.resource.impl;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
 import com.nook.biz.node.controller.resource.vo.frontline.ResourceServerPageReqVO;
 import com.nook.biz.node.controller.resource.vo.frontline.ServerFrontlineListItemRespVO;
 import com.nook.biz.node.convert.resource.ResourceServerFrontlineConvert;
 import com.nook.biz.node.entity.ResourceServerDO;
+import com.nook.biz.node.lifecycle.ServerLifecycleManager;
 import com.nook.biz.node.mapper.ResourceServerMapper;
 import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.biz.node.validator.ResourceServerValidator;
-import com.nook.biz.node.validator.ServerLifecycleValidator;
 import com.nook.common.web.response.PageResult;
 import jakarta.annotation.Resource;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -26,7 +23,6 @@ import java.time.LocalDateTime;
  *
  * @author nook
  */
-@Slf4j
 @Service
 public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontlineService {
 
@@ -35,7 +31,7 @@ public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontli
     @Resource
     private ResourceServerValidator resourceServerValidator;
     @Resource
-    private ServerLifecycleValidator serverLifecycleValidator;
+    private ServerLifecycleManager serverLifecycleManager;
 
     @Override
     public PageResult<ServerFrontlineListItemRespVO> getFrontlinePage(ResourceServerPageReqVO reqVO) {
@@ -61,18 +57,9 @@ public class ResourceServerFrontlineServiceImpl implements ResourceServerFrontli
 
     @Override
     public void transitionLifecycle(String id, String newState) {
-        // 校验存在; 状态未变直接幂等返回
+        // 校验存在
         ResourceServerDO srv = resourceServerValidator.validateExists(id);
-        if (StrUtil.equals(srv.getLifecycleState(), newState)) {
-            return;
-        }
-        // 校验流转表; 上线另查域名已绑定
-        serverLifecycleValidator.validateTransitionTable(srv, newState);
-        if (ResourceServerLifecycleEnum.LIVE.matches(newState)) {
-            serverLifecycleValidator.validateFrontlineDomainReady(id);
-        }
-        // 落新状态
-        resourceServerMapper.updateLifecycleState(id, newState);
-        log.info("[transitionLifecycle] 线路机生命周期切换: id={}, {} → {}", id, srv.getLifecycleState(), newState);
+        // 委托 manager: 幂等 + 流转表校验 + 按类型守卫 + 落状态
+        serverLifecycleManager.transition(srv, newState);
     }
 }

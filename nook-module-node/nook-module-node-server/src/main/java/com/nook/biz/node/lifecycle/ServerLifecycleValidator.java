@@ -1,4 +1,4 @@
-package com.nook.biz.node.validator;
+package com.nook.biz.node.lifecycle;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
@@ -7,6 +7,8 @@ import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.entity.XrayInstallDO;
 import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.mapper.XrayInstallMapper;
+import com.nook.biz.node.validator.ResourceServerLandingValidator;
+import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;

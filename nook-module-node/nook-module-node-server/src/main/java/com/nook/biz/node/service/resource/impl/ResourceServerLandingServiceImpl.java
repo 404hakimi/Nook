@@ -25,10 +25,10 @@ import com.nook.biz.node.mapper.Socks5InstallMapper;
 import com.nook.biz.node.mapper.ResourceServerMapper;
 import com.nook.biz.node.mapper.ResourceServerRuntimeMapper;
 import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
+import com.nook.biz.node.lifecycle.ServerLifecycleManager;
 import com.nook.biz.node.service.resource.ResourceServerLandingService;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
-import com.nook.biz.node.validator.ServerLifecycleValidator;
 import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.utils.object.BeanUtils;
@@ -68,7 +68,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
     @Resource
-    private ServerLifecycleValidator serverLifecycleValidator;
+    private ServerLifecycleManager serverLifecycleManager;
     @Resource
     private SubscriptionCertApi subscriptionCertApi;
 
@@ -234,19 +234,10 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
 
     @Override
     public void transitionLifecycle(String id, String newState) {
-        // 校验存在; 状态未变直接幂等返回
+        // 校验存在
         ResourceServerDO srv = resourceServerValidator.validateExists(id);
-        if (StrUtil.equals(srv.getLifecycleState(), newState)) {
-            return;
-        }
-        // 校验流转表; 停用另查未被客户端占用
-        serverLifecycleValidator.validateTransitionTable(srv, newState);
-        if (ResourceServerLifecycleEnum.RETIRED.matches(newState)) {
-            serverLifecycleValidator.validateLandingNotInUse(id);
-        }
-        // 落新状态
-        resourceServerMapper.updateLifecycleState(id, newState);
-        log.info("[transitionLifecycle] 落地机生命周期切换: id={}, {} → {}", id, srv.getLifecycleState(), newState);
+        // 委托 manager: 幂等 + 流转表校验 + 按类型守卫 + 落状态
+        serverLifecycleManager.transition(srv, newState);
     }
 
 }
