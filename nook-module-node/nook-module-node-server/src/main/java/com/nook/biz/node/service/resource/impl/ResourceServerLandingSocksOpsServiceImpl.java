@@ -199,18 +199,18 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
 
         String prevState = server.getLifecycleState();
         this.finalizeInstall(server, facts);
-        boolean toLive = ResourceServerLifecycleEnum.INSTALLING.matches(prevState);
-        lineSink.accept(toLive
-                ? "[nook] ✔ 装机完成, lifecycle 装机中 → 运行中, serverId=" + server.getId() + "\n"
-                : "[nook] ✔ 装机完成, lifecycle 保持 " + prevState + " 不变, serverId=" + server.getId() + "\n");
-        log.info("[doInstallSocks5] OK serverId={} ip={} prevLifecycle={} toLive={} version={}",
-                server.getId(), server.getIpAddress(), prevState, toLive, facts.version());
+        boolean toReady = ResourceServerLifecycleEnum.INSTALLING.matches(prevState);
+        lineSink.accept(toReady
+                ? "[nook] ✔ 装机完成, 状态 装机中 → 待上线, serverId=" + server.getId() + "\n"
+                : "[nook] ✔ 装机完成, 状态保持 " + prevState + " 不变, serverId=" + server.getId() + "\n");
+        log.info("[doInstallSocks5] OK serverId={} ip={} prevLifecycle={} toReady={} version={}",
+                server.getId(), server.getIpAddress(), prevState, toReady, facts.version());
     }
 
     /**
-     * 装机成功后回写: 落地节点安装信息 + (仅装机中) 生命周期转运行中
+     * 装机成功后回写: 落地节点安装信息 + (仅装机中) 生命周期转待上线
      *
-     * <p>lifecycle 只在原态为装机中时转 LIVE; READY/LIVE/RETIRED 重装保留原状.
+     * <p>生命周期只在原态为装机中时转待上线; 待上线 / 运行中 / 已退役 重装保留原状.
      * <p>不加事务: 两条更新是同一事件的两个独立事实记录, 无原子依赖.
      * <p>极端场景 (安装信息写成功但生命周期切换失败) 重试装机即可 (同版本幂等, 不会真重装).
      *
@@ -225,9 +225,9 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
         landingPatch.setDanteVersion(facts.version());
         landingPatch.setLastDanteUptime(DateUtils.parseOffsetOrFallback(facts.uptimeRaw(), UPTIME_FORMATTER, now));
         socks5InstallMapper.updateBySelective(landingPatch);
-        // 仅装机中 → 运行中; READY/LIVE/RETIRED 重装时保留原 lifecycle 不动 (运维重装不改变已定生命周期)
+        // 仅装机中 → 待上线; 待上线 / 运行中 / 已退役 重装时保留原 lifecycle 不动 (运维重装不改变已定生命周期)
         if (ResourceServerLifecycleEnum.INSTALLING.matches(server.getLifecycleState())) {
-            resourceServerMapper.updateLifecycleState(server.getId(), ResourceServerLifecycleEnum.LIVE.getState());
+            resourceServerMapper.updateLifecycleState(server.getId(), ResourceServerLifecycleEnum.READY.getState());
         }
     }
 
