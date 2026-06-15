@@ -30,6 +30,7 @@ public enum ResourceErrorCode implements ErrorCode {
     LANDING_HAS_BOUND_CLIENT(5106, "落地节点 %s 仍被客户端 %s 占用, 请先吊销该客户端再删除"),
     LANDING_IN_USE_CANNOT_RETIRE(5107, "落地机仍被客户端占用, 不能停用; 请先释放占用它的订阅 / 客户端"),
     LANDING_IP_TYPE_INVALID(5108, "IP 类型 %s 不存在"),
+    LANDING_SOCKS5_PROBE_FAILED(5109, "落地节点 %s 上线前 SOCKS5 拨测未通过: %s; 请确认 SOCKS5 服务正常后重试"),
     ;
 
     private final int code;

@@ -58,6 +58,10 @@ public class ServerLifecycleManager {
             }
             return;
         }
+        // 落地机上线: 拨测 SOCKS5 实际出网可用
+        if (ResourceServerLifecycleEnum.LIVE.matches(newState)) {
+            serverLifecycleValidator.validateLandingSocks5Ready(server);
+        }
         // 落地机停用: 查未被客户端占用
         if (ResourceServerLifecycleEnum.RETIRED.matches(newState)) {
             serverLifecycleValidator.validateLandingNotInUse(server.getId());

@@ -4,8 +4,11 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceErrorCode;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
+import com.nook.biz.node.entity.Socks5InstallDO;
 import com.nook.biz.node.entity.XrayInstallDO;
 import com.nook.biz.node.entity.ResourceServerDO;
+import com.nook.biz.node.framework.socks5.probe.Socks5ProbeSnapshot;
+import com.nook.biz.node.framework.socks5.probe.Socks5Prober;
 import com.nook.biz.node.mapper.XrayInstallMapper;
 import com.nook.biz.node.validator.ResourceServerLandingValidator;
 import com.nook.biz.node.validator.ResourceServerValidator;
@@ -21,12 +24,21 @@ import org.springframework.stereotype.Component;
 @Component
 public class ServerLifecycleValidator {
 
+    /** 落地机上线拨测的检查地址 (echo 出口 IP); 经落地机 SOCKS5 访问验证实际出网可用. */
+    private static final String PROBE_ECHO_URL = "https://api.ipify.org/";
+    /** 拨测 TCP 建连超时毫秒. */
+    private static final int PROBE_CONNECT_TIMEOUT_MS = 5000;
+    /** 拨测 HTTP 读响应超时毫秒. */
+    private static final int PROBE_READ_TIMEOUT_MS = 10000;
+
     @Resource
     private XrayInstallMapper xrayInstallMapper;
     @Resource
     private ResourceServerLandingValidator resourceServerLandingValidator;
     @Resource
     private ResourceServerValidator resourceServerValidator;
+    @Resource
+    private Socks5Prober socks5Prober;
 
     /**
      * 校验生命周期流转合法性 (流转表见 {@link ResourceServerLifecycleEnum}); 各类型上下线前置守卫由对应 service 另行调用
@@ -64,6 +76,25 @@ public class ServerLifecycleValidator {
     public void validateLandingNotInUse(String serverId) {
         if (resourceServerLandingValidator.hasBoundClient(serverId)) {
             throw new BusinessException(ResourceErrorCode.LANDING_IN_USE_CANNOT_RETIRE);
+        }
+    }
+
+    /**
+     * 校验落地机上线前置: SOCKS5 配置齐全且经其 SOCKS5 拨测检查地址实际出网可用
+     *
+     * @param server 当前服务器
+     */
+    public void validateLandingSocks5Ready(ResourceServerDO server) {
+        // 落地机存在 + SOCKS5 端口 / 账号 / 密码齐全
+        Socks5InstallDO landing = resourceServerLandingValidator.validateExists(server.getId());
+        resourceServerLandingValidator.validateSocks5ConfigReady(landing);
+        // 经落地机 SOCKS5 拨测检查地址, 验证实际出网可用
+        Socks5ProbeSnapshot snapshot = socks5Prober.probe(server.getIpAddress(), landing.getSocks5Port(),
+                landing.getSocks5Username(), landing.getSocks5Password(),
+                PROBE_ECHO_URL, PROBE_CONNECT_TIMEOUT_MS, PROBE_READ_TIMEOUT_MS);
+        if (!snapshot.isSuccess()) {
+            throw new BusinessException(ResourceErrorCode.LANDING_SOCKS5_PROBE_FAILED,
+                    server.getId(), snapshot.getErrorMessage());
         }
     }
 
