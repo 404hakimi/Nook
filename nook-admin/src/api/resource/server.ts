@@ -113,6 +113,14 @@ export interface PageResult<T> {
   records: T[]
 }
 
+/** 生命周期状态值; 对齐后端 ResourceServerLifecycleEnum (线路机 / 落地机共用同一套 state 值, 标签各自映射). */
+export const SERVER_LIFECYCLE = {
+  INSTALLING: 'INSTALLING',
+  READY: 'READY',
+  LIVE: 'LIVE',
+  RETIRED: 'RETIRED'
+} as const
+
 /** 装机生命周期 → 中文标签 + 颜色; UI 用 Tag 展示. */
 export const SERVER_LIFECYCLE_LABELS: Record<string, string> = {
   INSTALLING: '装机中',
@@ -195,6 +203,12 @@ export const SERVER_QUOTA_RESET_POLICY_OPTIONS = [
   { label: '按月重置 (MONTHLY, 默认)', value: 'MONTHLY' },
   { label: '永不重置 (FIXED)', value: 'FIXED' }
 ] as const
+
+/** 限流状态值; 对齐后端 ResourceServerThrottleStateEnum. */
+export const SERVER_THROTTLE_STATE = {
+  NORMAL: 'NORMAL',
+  THROTTLED: 'THROTTLED'
+} as const
 
 /** 限流状态 → 中文标签 (read-only, 由 throttle 状态机维护). */
 export const SERVER_THROTTLE_STATE_LABELS: Record<string, string> = {

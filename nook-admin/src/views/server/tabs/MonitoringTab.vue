@@ -23,11 +23,12 @@ import {
 } from 'naive-ui'
 import {
   getServerQuota,
+  SERVER_THROTTLE_STATE,
   type ServerQuota
 } from '@/api/resource/server'
 import { getServerSystemInfo, getServerUfwStatus, type ServerSystemInfo } from '@/api/resource/server-ops'
 import { formatDateTime } from '@/utils/date'
-import { AGENT_ONLINE_LABELS, AGENT_ONLINE_TAG_TYPE } from '@/api/agent/agent'
+import { AGENT_ONLINE, AGENT_ONLINE_LABELS, AGENT_ONLINE_TAG_TYPE } from '@/api/agent/agent'
 import type { ServerFrontlineListItem } from '@/api/resource/server'
 
 const props = defineProps<{
@@ -96,7 +97,7 @@ const trafficStatus = computed<'default' | 'success' | 'warning' | 'error'>(() =
   if (usedPercent.value >= 70) return 'warning'
   return 'success'
 })
-const throttled = computed(() => capacity.value?.throttleState === 'THROTTLED')
+const throttled = computed(() => capacity.value?.throttleState === SERVER_THROTTLE_STATE.THROTTLED)
 
 // ===== 标签化映射 (避免 NORMAL / FIXED 这种 raw value 暴露给运营) =====
 const RESET_POLICY_LABELS: Record<string, string> = {
@@ -115,10 +116,10 @@ const THROTTLE_LABELS: Record<string, string> = {
 // ===== 心跳分级 =====
 const heartbeatColor = computed(() => {
   const s = props.agentInfo?.onlineState
-  if (s === 'ONLINE') return '#16a34a'
-  if (s === 'WARN') return '#ca8a04'
-  if (s === 'TEMP_UNHEALTHY') return '#ea580c'
-  if (s === 'OFFLINE') return '#dc2626'
+  if (s === AGENT_ONLINE.ONLINE) return '#16a34a'
+  if (s === AGENT_ONLINE.WARN) return '#ca8a04'
+  if (s === AGENT_ONLINE.TEMP_UNHEALTHY) return '#ea580c'
+  if (s === AGENT_ONLINE.OFFLINE) return '#dc2626'
   return '#9ca3af'
 })
 </script>

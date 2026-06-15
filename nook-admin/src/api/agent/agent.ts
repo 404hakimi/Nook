@@ -3,6 +3,15 @@ import type { AgentOnlineState } from '@/api/resource/server'
 
 export type { AgentOnlineState }
 
+/** 在线状态值; 对齐后端 AgentOnlineState. */
+export const AGENT_ONLINE: Record<AgentOnlineState, AgentOnlineState> = {
+  ONLINE: 'ONLINE',
+  WARN: 'WARN',
+  TEMP_UNHEALTHY: 'TEMP_UNHEALTHY',
+  OFFLINE: 'OFFLINE',
+  NEVER: 'NEVER'
+}
+
 /** Online state → 中文标签. */
 export const AGENT_ONLINE_LABELS: Record<AgentOnlineState, string> = {
   ONLINE: '在线',

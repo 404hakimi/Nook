@@ -48,6 +48,7 @@ import {
   type ServerLandingSummary
 } from '@/api/resource/server-landing'
 import { transitionLandingLifecycle } from '@/api/resource/server-landing'
+import { SERVER_LIFECYCLE } from '@/api/resource/server'
 import { AGENT_ONLINE_TAG_TYPE } from '@/api/agent/agent'
 import type { SystemRegion } from '@/api/system/region'
 import { IP_TYPE_CODE_LABELS } from '@/api/system/ip-type'
@@ -229,7 +230,7 @@ function expiryTitle(d?: string): string {
 // ===== lifecycle 流转 (admin 只暴露 2 项: 停用 / 启用; INSTALLING/READY 是装机内部态) =====
 async function onSuspend(ip: ServerLanding) {
   // 占用判定收口到后端 (cert.ip_id); 仍被订阅占用时 transition 会抛 LANDING_IN_USE_CANNOT_RETIRE
-  if (ip.lifecycleState !== 'LIVE') return
+  if (ip.lifecycleState !== SERVER_LIFECYCLE.LIVE) return
   const ok = await confirm({
     title: '停用落地机',
     message: `停用落地机 ${ip.ipAddress}? 停用后将从分配池移除, 不再分配给新订阅.`,
@@ -238,7 +239,7 @@ async function onSuspend(ip: ServerLanding) {
   })
   if (!ok) return
   try {
-    await transitionLandingLifecycle(ip.id, 'RETIRED')
+    await transitionLandingLifecycle(ip.id, SERVER_LIFECYCLE.RETIRED)
     message.success('已停用')
     onSaved()
     void refreshDetail()
@@ -246,7 +247,7 @@ async function onSuspend(ip: ServerLanding) {
 }
 
 async function onActivate(ip: ServerLanding) {
-  if (ip.lifecycleState !== 'RETIRED') return
+  if (ip.lifecycleState !== SERVER_LIFECYCLE.RETIRED) return
   const ok = await confirm({
     title: '启用落地机',
     message: `启用落地机 ${ip.ipAddress}? 启用后此落地机可重新被分配给新订阅.`,
@@ -255,7 +256,7 @@ async function onActivate(ip: ServerLanding) {
   })
   if (!ok) return
   try {
-    await transitionLandingLifecycle(ip.id, 'LIVE')
+    await transitionLandingLifecycle(ip.id, SERVER_LIFECYCLE.LIVE)
     message.success('已启用')
     onSaved()
     void refreshDetail()
@@ -363,8 +364,8 @@ onMounted(async () => {
 
       <div
         class="stat-card stat-card--green"
-        :class="{ 'stat-card--active': query.lifecycleState === 'LIVE' }"
-        @click="applyStatsFilter({ lifecycleState: 'LIVE' })"
+        :class="{ 'stat-card--active': query.lifecycleState === SERVER_LIFECYCLE.LIVE }"
+        @click="applyStatsFilter({ lifecycleState: SERVER_LIFECYCLE.LIVE })"
       >
         <div class="stat-card__accent" />
         <div class="stat-card__body">
@@ -533,7 +534,7 @@ onMounted(async () => {
             </NTooltip>
             <!-- 装机: 仅自部署的 INSTALLING / READY (LIVE 不再提供重装) -->
             <NTooltip
-              v-if="ip.provisionMode === 1 && (ip.lifecycleState === 'INSTALLING' || ip.lifecycleState === 'READY')"
+              v-if="ip.provisionMode === 1 && (ip.lifecycleState === SERVER_LIFECYCLE.INSTALLING || ip.lifecycleState === SERVER_LIFECYCLE.READY)"
               placement="top"
             >
               <template #trigger>
@@ -544,7 +545,7 @@ onMounted(async () => {
               <div class="text-xs">装机 (部署 dante)</div>
             </NTooltip>
             <!-- 停用: LIVE 才有; 占用中禁用并提示原因 (后端同样拦截) -->
-            <NTooltip v-if="ip.lifecycleState === 'LIVE'" placement="top">
+            <NTooltip v-if="ip.lifecycleState === SERVER_LIFECYCLE.LIVE" placement="top">
               <template #trigger>
                 <NButton
                   size="small"
@@ -558,7 +559,7 @@ onMounted(async () => {
               </template>
               <div class="text-xs">停用 (移出分配池; 仍被订阅占用时后端会拦)</div>
             </NTooltip>
-            <NTooltip v-else-if="ip.lifecycleState === 'RETIRED'" placement="top">
+            <NTooltip v-else-if="ip.lifecycleState === SERVER_LIFECYCLE.RETIRED" placement="top">
               <template #trigger>
                 <NButton size="small" quaternary type="success" circle @click="onActivate(ip)">
                   <template #icon><NIcon><PlayCircle /></NIcon></template>

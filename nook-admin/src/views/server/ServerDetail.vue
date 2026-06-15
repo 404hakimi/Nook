@@ -32,6 +32,7 @@ import {
 import {
   getServerCredential,
   getServerDetailWithRuntime,
+  SERVER_LIFECYCLE,
   SERVER_LIFECYCLE_LABELS,
   SERVER_LIFECYCLE_TAG_TYPE,
   type ServerCredential,
@@ -165,9 +166,9 @@ const canTest = computed(() =>
 const canManage = computed(() =>
   landingInfo.value?.provisionMode === 1 && !!landingCredential.value?.sshPassword)
 const isSelfDeploy = computed(() => landingInfo.value?.provisionMode === 1)
-const isLive = computed(() => landingInfo.value?.lifecycleState === 'LIVE')
+const isLive = computed(() => landingInfo.value?.lifecycleState === SERVER_LIFECYCLE.LIVE)
 const isInstalling = computed(() =>
-  landingInfo.value?.lifecycleState === 'INSTALLING' || landingInfo.value?.lifecycleState === 'READY')
+  landingInfo.value?.lifecycleState === SERVER_LIFECYCLE.INSTALLING || landingInfo.value?.lifecycleState === SERVER_LIFECYCLE.READY)
 const isAgentOnline = computed(() => {
   if (!landingInfo.value?.lastHeartbeatAt) return false
   return Date.now() - new Date(landingInfo.value.lastHeartbeatAt).getTime() < 5 * 60 * 1000

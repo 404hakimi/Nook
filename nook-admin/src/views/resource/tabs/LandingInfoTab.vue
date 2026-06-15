@@ -29,6 +29,7 @@ import {
   type ServerLanding
 } from '@/api/resource/server-landing'
 import { transitionLandingLifecycle } from '@/api/resource/server-landing'
+import { SERVER_THROTTLE_STATE, SERVER_THROTTLE_STATE_LABELS } from '@/api/resource/server'
 import { IP_TYPE_CODE_LABELS } from '@/api/system/ip-type'
 import { useIpTypeStore } from '@/stores/ipType'
 import { storeToRefs } from 'pinia'
@@ -286,10 +287,10 @@ const trafficUsagePercent = computed(() => {
           </NTag>
           <NTag
             size="tiny"
-            :type="detail.throttleState === 'THROTTLED' ? 'warning' : 'success'"
+            :type="detail.throttleState === SERVER_THROTTLE_STATE.THROTTLED ? 'warning' : 'success'"
             class="ml-2"
           >
-            {{ detail.throttleState === 'THROTTLED' ? '已触发限流' : '正常' }}
+            {{ SERVER_THROTTLE_STATE_LABELS[detail.throttleState || SERVER_THROTTLE_STATE.NORMAL] }}
           </NTag>
         </NDescriptionsItem>
       </NDescriptions>

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { FileText, HelpCircle, Rocket } from 'lucide-vue-next'
 import { NButton, NDescriptions, NDescriptionsItem, NIcon, NTag, NTooltip } from 'naive-ui'
 import {
+  AGENT_ONLINE,
   AGENT_ONLINE_LABELS,
   AGENT_ONLINE_TAG_TYPE
 } from '@/api/agent/agent'
@@ -27,9 +28,9 @@ const provisioned = computed(() => !!props.agentInfo?.agentVersion)
 const healthLabel = computed(() => {
   if (!provisioned.value) return { text: '未装', type: 'default' as const }
   const a = props.agentInfo!
-  if (a.onlineState === 'OFFLINE') return { text: '离线', type: 'error' as const }
-  if (a.onlineState === 'TEMP_UNHEALTHY') return { text: '心跳不稳定', type: 'warning' as const }
-  if (a.onlineState === 'ONLINE') return { text: '正常', type: 'success' as const }
+  if (a.onlineState === AGENT_ONLINE.OFFLINE) return { text: '离线', type: 'error' as const }
+  if (a.onlineState === AGENT_ONLINE.TEMP_UNHEALTHY) return { text: '心跳不稳定', type: 'warning' as const }
+  if (a.onlineState === AGENT_ONLINE.ONLINE) return { text: '正常', type: 'success' as const }
   return { text: AGENT_ONLINE_LABELS[a.onlineState] || '?', type: 'default' as const }
 })
 

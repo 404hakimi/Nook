@@ -13,6 +13,7 @@ import {
   useMessage
 } from 'naive-ui'
 import {
+  SERVER_LIFECYCLE,
   getServerCredential,
   updateServerCredential,
   type ServerCredential
@@ -37,7 +38,7 @@ const message = useMessage()
 const submitting = ref(false)
 const loading = ref(false)
 const errors = reactive<Record<string, string>>({})
-const liveLocked = computed(() => props.lifecycleState === 'LIVE')
+const liveLocked = computed(() => props.lifecycleState === SERVER_LIFECYCLE.LIVE)
 
 const form = reactive<ServerCredential>({
   sshPort: 22,

@@ -25,6 +25,7 @@ import {
   NTag
 } from 'naive-ui'
 import {
+  AGENT_ONLINE,
   AGENT_ONLINE_LABELS,
   AGENT_ONLINE_TAG_TYPE
 } from '@/api/agent/agent'
@@ -125,7 +126,7 @@ const onlineOptions = [
 const filtered = computed(() => {
   if (!form.value.onlineState) return list.value
   return list.value.filter((s) => {
-    if (form.value.onlineState === 'UP') return s.onlineState === 'ONLINE' || s.onlineState === 'WARN'
+    if (form.value.onlineState === 'UP') return s.onlineState === AGENT_ONLINE.ONLINE || s.onlineState === AGENT_ONLINE.WARN
     return s.onlineState === form.value.onlineState
   })
 })
@@ -135,9 +136,9 @@ const stats = computed(() => {
   const t = list.value.length
   let online = 0, warn = 0, offline = 0, never = 0
   for (const s of list.value) {
-    if (s.onlineState === 'ONLINE') online++
-    else if (s.onlineState === 'WARN' || s.onlineState === 'TEMP_UNHEALTHY') warn++
-    else if (s.onlineState === 'OFFLINE') offline++
+    if (s.onlineState === AGENT_ONLINE.ONLINE) online++
+    else if (s.onlineState === AGENT_ONLINE.WARN || s.onlineState === AGENT_ONLINE.TEMP_UNHEALTHY) warn++
+    else if (s.onlineState === AGENT_ONLINE.OFFLINE) offline++
     else never++
   }
   return { t, online, warn, offline, never }
@@ -381,7 +382,7 @@ onMounted(async () => {
                 :class="`pill-${AGENT_ONLINE_TAG_TYPE[s.onlineState] || 'default'}`"
                 :title="`在线状态: ${AGENT_ONLINE_LABELS[s.onlineState]}`"
               >
-                <span class="pill-dot" :class="{ pulse: s.onlineState === 'ONLINE' }"></span>
+                <span class="pill-dot" :class="{ pulse: s.onlineState === AGENT_ONLINE.ONLINE }"></span>
                 <span class="pill-label">{{ AGENT_ONLINE_LABELS[s.onlineState] }}</span>
               </span>
               <span

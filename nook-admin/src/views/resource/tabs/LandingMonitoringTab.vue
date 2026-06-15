@@ -26,6 +26,7 @@ import {
   type ServerLanding,
   type ServerLandingQuota
 } from '@/api/resource/server-landing'
+import { SERVER_THROTTLE_STATE } from '@/api/resource/server'
 import {
   getServerSystemInfo,
   getServerUfwStatus,
@@ -111,7 +112,7 @@ const trafficStatus = computed<'default' | 'success' | 'warning' | 'error'>(() =
   if (usedPercent.value >= 70) return 'warning'
   return 'success'
 })
-const throttled = computed(() => capacity.value?.throttleState === 'THROTTLED')
+const throttled = computed(() => capacity.value?.throttleState === SERVER_THROTTLE_STATE.THROTTLED)
 
 const RESET_POLICY_LABELS: Record<string, string> = {
   MONTHLY: '按月重置',

@@ -14,6 +14,7 @@ import {
 } from 'naive-ui'
 import { HelpCircle } from 'lucide-vue-next'
 import {
+  SERVER_LIFECYCLE,
   updateServerCore,
   type ResourceServer,
   type ResourceServerCoreUpdateDTO
@@ -37,7 +38,7 @@ const errors = reactive<Record<string, string>>({})
 
 // 仅装机中 / 待上线可改区域; 上线后区域是套餐与机器的匹配依据, 锁定
 const regionLocked = computed(() =>
-  props.server?.lifecycleState !== 'INSTALLING' && props.server?.lifecycleState !== 'READY'
+  props.server?.lifecycleState !== SERVER_LIFECYCLE.INSTALLING && props.server?.lifecycleState !== SERVER_LIFECYCLE.READY
 )
 
 const regionStore = useRegionStore()
