@@ -30,6 +30,7 @@ public enum TradeErrorCode implements ErrorCode {
 
     SUB_NOT_FOUND(4031, "订阅 %s 不存在"),
     SUB_NOT_ACTIVE(4032, "订阅 %s 非 ACTIVE 状态"),
+    SUB_INVALID_TRANSITION(4033, "订阅状态不允许从 %s 流转到 %s"),
     ;
 
     private final int code;

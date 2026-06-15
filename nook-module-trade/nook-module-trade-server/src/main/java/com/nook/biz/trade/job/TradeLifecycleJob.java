@@ -2,12 +2,10 @@ package com.nook.biz.trade.job;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.trade.api.enums.TradeCertStatusEnum;
 import com.nook.biz.trade.api.enums.TradeSubscriptionStatusEnum;
-import com.nook.biz.trade.dal.dataobject.TradeSubscriptionCertificateDO;
 import com.nook.biz.trade.dal.dataobject.TradeSubscriptionDO;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
-import com.nook.biz.trade.service.TradeSubscriptionCertificateService;
+import com.nook.biz.trade.lifecycle.SubscriptionLifecycleManager;
 import com.nook.biz.trade.service.TradeTrafficMeteringService;
 import com.nook.biz.trade.service.TradeTrafficMeteringService.MeteringContext;
 import jakarta.annotation.Resource;
@@ -33,7 +31,7 @@ public class TradeLifecycleJob {
     @Resource
     private TradeSubscriptionMapper tradeSubscriptionMapper;
     @Resource
-    private TradeSubscriptionCertificateService tradeSubscriptionCertificateService;
+    private SubscriptionLifecycleManager subscriptionLifecycleManager;
     @Resource
     private TradeTrafficMeteringService tradeTrafficMeteringService;
     @Resource
@@ -56,41 +54,24 @@ public class TradeLifecycleJob {
             try {
                 // 每订阅一个事务: 计量写 trade_subscription_traffic/额度 与生命周期改状态 原子提交; 任一失败整笔回滚下轮重试
                 Outcome o = transactionTemplate.execute(st -> {
-                    // 到期 → 释放: 名下凭证先释放落地机再吊销(清分配, 远端 xray 由 agent 对账清理) + 标过期; 重复执行幂等
+                    // 到期 → 释放: 委托 manager 吊销名下凭证(释放落地机, 远端由 agent 对账清理)并转已过期; 重复执行幂等
                     if (ObjectUtil.isNotNull(s.getExpiresAt()) && !s.getExpiresAt().isAfter(now)) {
-                        for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(s.getId())) {
-                            // revoke 清 cert.ip_id (占用真相), 落地机随之空闲; 远端 xray 由 agent 对账清理
-                            tradeSubscriptionCertificateService.revoke(cert.getId());
-                        }
-                        s.setStatus(TradeSubscriptionStatusEnum.EXPIRED.getState());
-                        tradeSubscriptionMapper.updateById(s);
+                        subscriptionLifecycleManager.expire(s);
                         return Outcome.EXPIRED;
                     }
-                    // 停服订阅: 到重置点才翻篇复活(停服凭证置回应运行, 落地机未释放由对账装回); 没到点继续停
+                    // 停服订阅: 到重置点才翻篇, 委托 manager 恢复(停服凭证置回应运行, 落地机由对账装回); 没到点继续停
                     if (TradeSubscriptionStatusEnum.SUSPENDED.matches(s.getStatus())) {
                         if (!tradeTrafficMeteringService.tryCycleReset(s, now, ctx)) {
                             return Outcome.NONE;
                         }
-                        for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(s.getId())) {
-                            if (TradeCertStatusEnum.SUSPENDED.matches(cert.getCertStatus())) {
-                                tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.ACTIVE.getState());
-                            }
-                        }
-                        s.setStatus(TradeSubscriptionStatusEnum.ACTIVE.getState());
-                        tradeSubscriptionMapper.updateById(s);
+                        subscriptionLifecycleManager.resume(s);
                         return Outcome.RESUMED;
                     }
-                    // 生效中: 累加业务流量; 未到上限继续; 达上限 → 应运行凭证置应停(保留落地机占用) + 订阅停服
+                    // 生效中: 累加业务流量; 未到上限继续; 达上限委托 manager 停服(应运行凭证置应停, 保留落地机占用)
                     if (!tradeTrafficMeteringService.accumulate(s, now, ctx)) {
                         return Outcome.NONE;
                     }
-                    for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(s.getId())) {
-                        if (TradeCertStatusEnum.ACTIVE.matches(cert.getCertStatus())) {
-                            tradeSubscriptionCertificateService.updateCertStatus(cert.getId(), TradeCertStatusEnum.SUSPENDED.getState());
-                        }
-                    }
-                    s.setStatus(TradeSubscriptionStatusEnum.SUSPENDED.getState());
-                    tradeSubscriptionMapper.updateById(s);
+                    subscriptionLifecycleManager.suspend(s);
                     return Outcome.SUSPENDED;
                 });
                 if (o == Outcome.EXPIRED) {

@@ -34,6 +34,7 @@ import com.nook.biz.trade.dal.mysql.mapper.TradePlanMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionTrafficMapper;
 import com.nook.biz.trade.dal.mysql.mapper.TradeSubscriptionMapper;
 import com.nook.biz.trade.event.SubscriptionMachineChangeEvent;
+import com.nook.biz.trade.lifecycle.SubscriptionLifecycleManager;
 import com.nook.biz.trade.service.TradeAllocator;
 import com.nook.biz.trade.service.TradeSubscriptionCertificateService;
 import com.nook.biz.trade.service.TradeSubscriptionService;
@@ -111,6 +112,8 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     private ObjectMapper objectMapper;
     @Resource
     private ApplicationEventPublisher eventPublisher;
+    @Resource
+    private SubscriptionLifecycleManager subscriptionLifecycleManager;
 
     @Override
     public TradeSubscriptionDO adminCreate(SubscriptionCreateReqVO req) {
@@ -262,36 +265,13 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void cancel(String id) {
+        // 校验订阅存在
         TradeSubscriptionDO sub = subMapper.selectById(id);
         if (ObjectUtil.isNull(sub)) {
             throw new BusinessException(TradeErrorCode.SUB_NOT_FOUND, id);
         }
-        // 终态订阅 (已退订 / 已过期) 的凭证已吊销, 拦在前面
-        if (TradeSubscriptionStatusEnum.CANCELLED.matches(sub.getStatus())
-                || TradeSubscriptionStatusEnum.EXPIRED.matches(sub.getStatus())) {
-            throw new BusinessException(TradeErrorCode.SUB_NOT_ACTIVE, id);
-        }
-        String operator = StpSystemUtil.getLoginIdOrSystem();
-        // 名下凭证逐个: 释放落地机 + 置吊销; 远端 xray 由 agent 对账清理
-        for (TradeSubscriptionCertificateDO cert : tradeSubscriptionCertificateService.listBySubscription(id)) {
-            String frontlineId = cert.getServerId();
-            String landingId = cert.getIpId();
-            // 释放: revoke 清 cert.ip_id (占用真相), 落地机随之空闲; 远端 xray 由 agent 对账清理
-            tradeSubscriptionCertificateService.revoke(cert.getId());
-            // 发布释放事件 (监听器落换机历史日志, 与退订解耦)
-            if (ObjectUtil.isNotNull(frontlineId)) {
-                eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), sub.getMemberUserId(),
-                        TradeSubscriptionChangeTypeEnum.FRONTLINE, frontlineId, null,
-                        TradeSubscriptionChangeReasonEnum.RELEASE, operator));
-            }
-            if (ObjectUtil.isNotNull(landingId)) {
-                eventPublisher.publishEvent(new SubscriptionMachineChangeEvent(sub.getId(), sub.getMemberUserId(),
-                        TradeSubscriptionChangeTypeEnum.LANDING, landingId, null,
-                        TradeSubscriptionChangeReasonEnum.RELEASE, operator));
-            }
-        }
-        sub.setStatus(TradeSubscriptionStatusEnum.CANCELLED.getState());
-        subMapper.updateById(sub);
+        // 委托 manager: 流转校验(终态拦截) + 名下凭证释放 + 发释放事件 + 转已取消
+        subscriptionLifecycleManager.cancel(sub);
         log.info("[cancel] sub={} → CANCELLED", id);
     }
 
