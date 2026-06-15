@@ -1,6 +1,5 @@
 package com.nook.biz.node.entity;
 
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerTypeEnum;
@@ -35,10 +34,6 @@ public class ResourceServerDO extends BaseEntity {
 
     /** 备注. */
     private String remark;
-
-    /** 逻辑删除标志. */
-    @TableLogic
-    private Integer deleted;
 
     /** Agent 鉴权 token; 装机时生成, agent push 接口校验 X-Agent-Token 必须等于这个值. */
     private String agentToken;

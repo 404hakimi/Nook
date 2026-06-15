@@ -1,6 +1,6 @@
 # Nook 后端开发规范
 
-> 版本: v1.6 ｜ 日期: 2026-06-11 ｜ 适用: 所有 `nook-module-*` 模块
+> 版本: v1.7 ｜ 日期: 2026-06-15 ｜ 适用: 所有 `nook-module-*` 模块
 
 后端开发的强制约束. 本文为 AI 阅读优化, 规则优先于示例.
 
@@ -14,7 +14,7 @@
 |---|---|---|
 | 主键 | `CHAR(32)` UUID, `BaseEntity.id` 类型 `String`, `@TableId(type = IdType.ASSIGN_UUID)` | 不用雪花 Long |
 | 时间字段 | `created_at` / `updated_at`, 实体字段 `createdAt` / `updatedAt`, `MetaObjectHandlerImpl` 自动 fill | 列名下划线 / 字段名驼峰 |
-| 软删除 | `deleted TINYINT` (0/1), 实体 `@TableLogic Integer deleted` | |
+| 软删除 | **按需**, 默认物理删; `BaseEntity` 不含 `deleted`. 仅需软删的表建 `deleted TINYINT`(0/1) + 该 DO 加 `@TableLogic Integer deleted` | 用户 / 审计类才软删 |
 | Mapper 基类 | MP 原生 `BaseMapper<T>`, 用 `Wrappers.lambdaQuery()` / `lambdaUpdate()` | **没有** `BaseMapperX` / `LambdaQueryWrapperX` |
 | 注入 | `@Resource` 字段注入 | **不用** `@Autowired` / `@RequiredArgsConstructor` 构造注入 |
 | 响应 | `com.nook.common.web.response.Result` + `Result.ok(data)` / `Result.ok()` | 不用 `CommonResult` / `success()` |
@@ -155,7 +155,8 @@ handler 行为:
 
 ## 4. 软删除与物理删除
 
-- `BaseEntity` 子类自带 `@TableLogic Integer deleted`; MP 拦截器自动加 `WHERE deleted = 0`.
+- 默认物理删除; `BaseEntity` **不含** `deleted`. 仅需软删的 DO 自行加 `@TableLogic Integer deleted` (列 `deleted TINYINT` 默认 0), MP 拦截器对该 DO 内置方法自动加 `WHERE deleted = 0`.
+- `@TableLogic` 只拦截 MP 内置方法; **手写 XML 不自动过滤 `deleted`**, 软删表的自定义 SQL 需自行写 `AND deleted = 0`.
 - **"先删后增 + 唯一键"场景必须物理删除**, 否则旧记录占用唯一键, INSERT 报 `Duplicate entry`.
 - **物理删除一律写 XML** (注解可能绕过 `@TableLogic` 拦截器链), 方法名 `physicalDelete` 开头:
 
