@@ -227,7 +227,7 @@ function expiryTitle(d?: string): string {
   return `剩 ${n} 天到期`
 }
 
-// ===== lifecycle 流转 (admin 只暴露 2 项: 停用 / 启用; INSTALLING/READY 是装机内部态) =====
+// ===== lifecycle 流转 (admin 暴露: 上线 / 停用 / 启用; INSTALLING 是装机内部态) =====
 async function onSuspend(ip: ServerLanding) {
   // 占用判定收口到后端 (cert.ip_id); 仍被订阅占用时 transition 会抛 LANDING_IN_USE_CANNOT_RETIRE
   if (ip.lifecycleState !== SERVER_LIFECYCLE.LIVE) return
@@ -258,6 +258,24 @@ async function onActivate(ip: ServerLanding) {
   try {
     await transitionLandingLifecycle(ip.id, SERVER_LIFECYCLE.LIVE)
     message.success('已启用')
+    onSaved()
+    void refreshDetail()
+  } catch { /* */ }
+}
+
+async function onGoLive(ip: ServerLanding) {
+  // 上线前后端会拨测 SOCKS5 实际出网, 不通过抛 LANDING_SOCKS5_PROBE_FAILED
+  if (ip.lifecycleState !== SERVER_LIFECYCLE.READY) return
+  const ok = await confirm({
+    title: '上线落地机',
+    message: `上线落地机 ${ip.ipAddress}? 上线前会拨测 SOCKS5 是否可出网, 不通过则拒绝.`,
+    type: 'info',
+    confirmText: '上线'
+  })
+  if (!ok) return
+  try {
+    await transitionLandingLifecycle(ip.id, SERVER_LIFECYCLE.LIVE)
+    message.success('已上线')
     onSaved()
     void refreshDetail()
   } catch { /* */ }
@@ -543,6 +561,15 @@ onMounted(async () => {
                 </NButton>
               </template>
               <div class="text-xs">装机 (部署 dante)</div>
+            </NTooltip>
+            <!-- 上线: READY 才有; 后端上线前拨测 SOCKS5, 不通过拒绝 -->
+            <NTooltip v-if="ip.lifecycleState === SERVER_LIFECYCLE.READY" placement="top">
+              <template #trigger>
+                <NButton size="small" quaternary type="success" circle @click="onGoLive(ip)">
+                  <template #icon><NIcon><PlayCircle /></NIcon></template>
+                </NButton>
+              </template>
+              <div class="text-xs">上线 (拨测 SOCKS5 通过后进入运行中)</div>
             </NTooltip>
             <!-- 停用: LIVE 才有; 占用中禁用并提示原因 (后端同样拦截) -->
             <NTooltip v-if="ip.lifecycleState === SERVER_LIFECYCLE.LIVE" placement="top">
