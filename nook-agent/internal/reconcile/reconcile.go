@@ -7,6 +7,7 @@ package reconcile
 import (
 	"context"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -66,6 +67,11 @@ func (r *Reconciler) Run(ctx context.Context) {
 }
 
 func (r *Reconciler) once(ctx context.Context) {
+	// 完整重排: xray 可能还没部署, 每轮先探 binary 就绪; 没就绪只记日志跳过, 待 xray 部署后自动对账
+	if _, err := os.Stat(r.xc.Bin()); err != nil {
+		log.Printf("[对账] xray 程序未就绪 (%v), 跳过本轮 (待部署 xray)", err)
+		return
+	}
 	var desired []DesiredClient
 	if err := r.cli.Get(desiredPath, &desired); err != nil {
 		log.Printf("[对账] 拉期望态失败, 跳过本轮: %v", err)
@@ -121,14 +127,14 @@ func (r *Reconciler) apply(ctx context.Context, desired []DesiredClient) {
 			}
 		}
 		if !actualOutSet[d.OutboundTag] {
-			if err := r.xc.AddOutbound(ctx, d.AdoJSON); err != nil {
+			if err := r.xc.AddOutbound(ctx, d.OutboundTag, d.AdoJSON); err != nil {
 				log.Printf("[对账] +outbound %s 失败: %v", d.OutboundTag, err)
 			} else {
 				log.Printf("[对账] +outbound %s", d.OutboundTag)
 			}
 		}
 		if !actualRuleSet[d.RuleTag] {
-			if err := r.xc.AddRules(ctx, d.AdrulesJSON); err != nil {
+			if err := r.xc.AddRules(ctx, d.RuleTag, d.AdrulesJSON); err != nil {
 				log.Printf("[对账] +rule %s 失败: %v", d.RuleTag, err)
 			} else {
 				log.Printf("[对账] +rule %s", d.RuleTag)

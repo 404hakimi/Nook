@@ -23,6 +23,9 @@ func New(xrayBin string, apiPort int) *Client {
 	return &Client{xrayBin: xrayBin, apiPort: apiPort}
 }
 
+// Bin 返回 xray 程序路径; reconcile 据此探 binary 是否就绪.
+func (c *Client) Bin() string { return c.xrayBin }
+
 func (c *Client) baseArgs(sub string) []string {
 	return []string{"api", sub, fmt.Sprintf("--server=127.0.0.1:%d", c.apiPort)}
 }
@@ -56,14 +59,17 @@ func (c *Client) RemoveUser(ctx context.Context, inboundTag, email string) error
 	return nil
 }
 
-// AddOutbound: xray api ado < outbound JSON.
-func (c *Client) AddOutbound(ctx context.Context, outboundJSON string) error {
+// AddOutbound: xray api ado < outbound JSON; 校验 stdout 含 "adding: <tag>" 防 exit 0 静默加 0 条.
+func (c *Client) AddOutbound(ctx context.Context, tag, outboundJSON string) error {
 	args := append(c.baseArgs("ado"), "stdin:")
 	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
 	cmd.Stdin = strings.NewReader(outboundJSON)
-	_, err := runCapture(cmd)
+	out, err := runCapture(cmd)
 	if err != nil {
-		return fmt.Errorf("xray api ado 失败: %w", err)
+		return fmt.Errorf("xray api ado 失败: %w (stdout=%s)", err, out)
+	}
+	if !strings.Contains(out, "adding: "+tag) {
+		return fmt.Errorf("ado 静默失败 (exit 0 但 stdout 无 'adding: %s'): %s", tag, out)
 	}
 	return nil
 }
@@ -79,8 +85,8 @@ func (c *Client) RemoveOutbound(ctx context.Context, outboundTag string) error {
 	return nil
 }
 
-// AddRules: xray api adrules --append < routing JSON. routingJSON = {"routing":{"rules":[...]}}.
-func (c *Client) AddRules(ctx context.Context, routingJSON string) error {
+// AddRules: xray api adrules --append < routing JSON; 加完用 ListRuleTags 确认 ruleTag 出现, 防 exit 0 静默没加.
+func (c *Client) AddRules(ctx context.Context, ruleTag, routingJSON string) error {
 	args := append(c.baseArgs("adrules"), "--append", "stdin:")
 	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
 	cmd.Stdin = strings.NewReader(routingJSON)
@@ -88,7 +94,16 @@ func (c *Client) AddRules(ctx context.Context, routingJSON string) error {
 	if err != nil {
 		return fmt.Errorf("xray api adrules 失败: %w (stdout=%s)", err, out)
 	}
-	return nil
+	tags, lerr := c.ListRuleTags(ctx)
+	if lerr != nil {
+		return fmt.Errorf("adrules 后确认 ruleTag 失败: %w", lerr)
+	}
+	for _, t := range tags {
+		if t == ruleTag {
+			return nil
+		}
+	}
+	return fmt.Errorf("adrules 静默失败: ruleTag %s 未出现在远端", ruleTag)
 }
 
 // RemoveRule: xray api rmrules <ruleTag>. rule 不存在视为幂等通过.

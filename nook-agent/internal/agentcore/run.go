@@ -15,6 +15,7 @@ import (
 
 	"nook-agent/internal/client"
 	"nook-agent/internal/config"
+	"nook-agent/internal/control"
 	"nook-agent/internal/heartbeat"
 	"nook-agent/internal/nic"
 )
@@ -67,6 +68,12 @@ func Run(version string, registerRole RoleRegister) {
 	wg.Add(2)
 	go func() { defer wg.Done(); hb.Run(ctx) }()
 	go func() { defer wg.Done(); nicRep.Run(ctx) }()
+	// 控制接口: 后台 call agent 本地执行部署脚本 (port=0 不启用)
+	if cfg.Control.Port > 0 {
+		ctrl := control.New(cfg.Control.Port, cfg.Backend.APIToken)
+		wg.Add(1)
+		go func() { defer wg.Done(); ctrl.Run(ctx) }()
+	}
 	for _, g := range comp.Goroutines {
 		wg.Add(1)
 		g := g

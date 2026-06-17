@@ -11,11 +11,12 @@ import (
 
 // Config 跟 config.yml 字段一一对齐; 装机时 backend 拼好整段写盘, agent 不补默认值.
 type Config struct {
-	Backend   BackendConfig      `yaml:"backend"`
-	Heartbeat HeartbeatConfig    `yaml:"heartbeat"`
-	NIC       NICConfig          `yaml:"nic"`
-	Xray      XrayConfig         `yaml:"xray"`
-	Landing   LandingConfig      `yaml:"landing"`
+	Backend   BackendConfig   `yaml:"backend"`
+	Heartbeat HeartbeatConfig `yaml:"heartbeat"`
+	NIC       NICConfig       `yaml:"nic"`
+	Control   ControlConfig   `yaml:"control"`
+	Xray      XrayConfig      `yaml:"xray"`
+	Landing   LandingConfig   `yaml:"landing"`
 }
 
 type BackendConfig struct {
@@ -32,6 +33,12 @@ type NICConfig struct {
 	IntervalSeconds int    `yaml:"interval_seconds"`
 	// "auto" 自动用默认路由出口网卡, 显式给 eth0/ens5 覆盖.
 	Interface string `yaml:"interface"`
+}
+
+// ControlConfig: 控制接口; 后台 call agent 本地执行部署脚本用. port=0 不启用.
+type ControlConfig struct {
+	// 控制接口监听端口; 0 = 不启用.
+	Port int `yaml:"port"`
 }
 
 // XrayConfig: frontline 角色必填; landing 角色整段缺省 (yaml 不出现 xray:), 解析后字段 zero value.

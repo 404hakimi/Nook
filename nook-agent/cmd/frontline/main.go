@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"log"
-	"os"
 
 	"nook-agent/internal/agentcore"
 	"nook-agent/internal/client"
@@ -27,14 +26,13 @@ func main() {
 func registerFrontline(cfg *config.Config, cli *client.Client) agentcore.RoleComponents {
 	bin := cfg.Xray.Bin
 	apiPort := cfg.Xray.APIPort
+	// 完整重排: config 装机时已写固定 xray 段; xray 可能还没部署, 不在启动时拦,
+	// 由 reconcile 每轮探 binary 就绪 — 没就绪记日志跳过, 部署好后自动对账, 无需重启 agent
 	if bin == "" || apiPort == 0 {
-		log.Fatalf("[线路机] 配置 xray 段不完整: 程序路径=%q 接口端口=%d; 装机时应已填好", bin, apiPort)
-	}
-	if _, err := os.Stat(bin); err != nil {
-		log.Printf("[线路机] xray 程序 %s 不存在 (%v), 不启动对账", bin, err)
+		log.Printf("[线路机] xray 配置缺失 (config 应有固定 xray 段), 不启动对账")
 		return agentcore.RoleComponents{}
 	}
-	log.Printf("[线路机] xray 已就绪 (程序=%s 接口端口=%d), 启动对账", bin, apiPort)
+	log.Printf("[线路机] 启动对账 (xray bin=%s 接口端口=%d, 运行时探就绪)", bin, apiPort)
 	xrayCli := xray.New(bin, apiPort)
 
 	// reconcile 周期: yaml 未配则回退 stats_interval (历史字段, 都 ~5min)
