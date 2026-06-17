@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { ChevronDown, ChevronRight, FolderOpen, Rocket, Shuffle } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, Rocket, Shuffle } from 'lucide-vue-next'
 import {
   NButton,
   NCheckbox,
@@ -16,7 +16,7 @@ import {
   useMessage
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
-import { xrayInstallStream, type LineServerInstallDTO } from '@/api/xray/xray-install'
+import { xrayInstallStream, listRealityDest, type LineServerInstallDTO } from '@/api/xray/xray-install'
 import { pageServers } from '@/api/resource/server'
 import { listSystemDomain, type SystemDomain } from '@/api/system/domain'
 
@@ -83,6 +83,16 @@ function onPickServer(serverId: string | null) {
 // ===== 域名下拉 (system_domain; 选了 = 走 TLS, 留空 = 纯 vmess+ws) =====
 const domains = ref<SystemDomain[]>([])
 const domainsLoading = ref(false)
+// REALITY dest 候选 (vless 协议下拉)
+const realityDestOptions = ref<{ label: string; value: string }[]>([])
+async function loadRealityDest() {
+  try {
+    const list = await listRealityDest()
+    realityDestOptions.value = list.map((d) => ({ label: d.label, value: d.value }))
+  } catch {
+    realityDestOptions.value = []
+  }
+}
 const domainOptions = computed(() => domains.value.map((d) => ({ label: d.domain, value: d.id })))
 async function loadDomains() {
   domainsLoading.value = true
@@ -103,28 +113,6 @@ const XRAY_VERSION_OPTIONS = [
   { label: 'latest (最新, 风险自负)', value: 'latest' }
 ]
 
-const LOG_LEVEL_OPTIONS = [
-  { label: 'warning (默认, 仅异常记录)', value: 'warning' as const },
-  { label: 'info (含 access log 行级别)', value: 'info' as const },
-  { label: 'debug (排障用, 噪声大)', value: 'debug' as const },
-  { label: 'error (仅错误)', value: 'error' as const },
-  { label: 'none (关日志)', value: 'none' as const }
-]
-
-const RESTART_POLICY_OPTIONS = [
-  { label: 'on-failure (默认, 仅非 0 退出码重启)', value: 'on-failure' as const },
-  { label: 'always (任何停止都重启, 含 OOM/手动 stop)', value: 'always' as const },
-  { label: 'no (不自动重启, 调试用)', value: 'no' as const }
-]
-
-const DEFAULT_INSTALL_DIR = '/home/xray'
-/** systemd unit 文件路径默认值; 服务名 (basename = xray) 跟脚本 systemctl 命令绑死, 改路径要保留同 basename. */
-const DEFAULT_SYSTEMD_UNIT_PATH = '/etc/systemd/system/xray.service'
-
-/** Xray API loopback 端口随机区间; ≥20000 避开 well-known + 8080/8443 等常见占用. */
-const XRAY_API_PORT_MIN = 20000
-const XRAY_API_PORT_MAX = 65535
-
 /** 随机生成 16 字符 ws path (16^16 取一段); 减少同节点 path 撞车 / 被识别概率 */
 function randomWsPath(): string {
   const buf = new Uint8Array(8)
@@ -132,77 +120,23 @@ function randomWsPath(): string {
   return '/' + Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** 随机 xray API 端口 (20000-65535); 仅 127.0.0.1 监听, 给 xray api adi/rmi 调用用. */
-function randomXrayApiPort(): number {
-  const range = XRAY_API_PORT_MAX - XRAY_API_PORT_MIN + 1
-  const buf = new Uint32Array(1)
-  crypto.getRandomValues(buf)
-  return XRAY_API_PORT_MIN + (buf[0] % range)
-}
-
 const form = reactive<LineServerInstallDTO>({
   xrayVersion: XRAY_DEFAULT_VERSION,
-  installDir: DEFAULT_INSTALL_DIR,
-  xrayBinaryPath: '',
-  xrayConfigPath: '',
-  xrayShareDir: '',
-  xrayApiPort: randomXrayApiPort(),
-  logDir: '',
-  xraySystemdUnitPath: DEFAULT_SYSTEMD_UNIT_PATH,
-  logLevel: 'warning',
-  restartPolicy: 'on-failure',
   enableOnBoot: true,
   forceReinstall: false,
   installUfw: true,
   setTimezone: true,
   logRotate: true,
-  // 部署期固定 vmess+ws+0.0.0.0; UI 置灰禁改, 协议适配阶段才放开
+  // 协议: vmess+ws (绑域名走 tls) 或 vless+reality; transport 随协议联动
   protocol: 'vmess',
   transport: 'ws',
   listenIp: '0.0.0.0',
+  realityDest: undefined,
   sharedInboundPort: 443,
   wsPath: randomWsPath(),
   // 域名绑定: 根域 system_domain.id + 二级标签; 选了走 TLS, 留空则 xray 退化纯 vmess+ws
   domainId: undefined,
-  subdomain: '',
-  tlsCertPath: '',
-  tlsKeyPath: ''
-})
-
-/**
- * installDir 派生的全部约定路径; 用户没手动改 form 上对应字段时 placeholder + submit 都用这套.
- * "约定" 仅活在前端, 后端只 @NotBlank 校验 + 入库 + 透传给脚本, 完全不再派生.
- */
-const derivedPaths = computed(() => {
-  const d = (form.installDir || DEFAULT_INSTALL_DIR).replace(/\/+$/, '')
-  // 路径布局 (扁平化, 都在 installDir 根下; 后端 50-xray.sh.tmpl 全部走 dto 透传):
-  //   ${d}/bin/xray            二进制包
-  //   ${d}/bin/                geo 数据 (geoip.dat / geosite.dat) 跟 binary 同目录
-  //   ${d}/config.json         xray 主配置
-  //   ${d}/access.log          xray log.access (logDir=${d})
-  //   ${d}/error.log           xray log.error
-  //   ${d}/tls/                cert + key
-  return {
-    xrayBinaryPath: `${d}/bin/xray`,
-    xrayConfigPath: `${d}/config.json`,
-    xrayShareDir: `${d}/bin`,
-    logDir: d,
-    tlsCertPath: `${d}/tls/cert.pem`,
-    tlsKeyPath: `${d}/tls/key.pem`
-  }
-})
-
-/** 安装路径预览; 表单字段空时回落到 derivedPaths, 跟实际提交对齐. */
-const installPaths = computed(() => {
-  const d = derivedPaths.value
-  const log = form.logDir.trim() || d.logDir
-  return [
-    { label: '二进制包', path: form.xrayBinaryPath?.trim() || d.xrayBinaryPath },
-    { label: 'config', path: form.xrayConfigPath?.trim() || d.xrayConfigPath },
-    { label: 'share', path: (form.xrayShareDir?.trim() || d.xrayShareDir) + '  (geo 数据)' },
-    { label: 'log', path: `${log}/{access,error}.log` },
-    { label: 'systemd', path: form.xraySystemdUnitPath?.trim() || DEFAULT_SYSTEMD_UNIT_PATH }
-  ]
+  subdomain: ''
 })
 
 const advancedOpen = ref(false)
@@ -221,6 +155,15 @@ function applyPrefill() {
 /** 重装态 (有 prefill = 从已装机器进来); 用于提示客户面改动会要求在用客户重拉订阅. */
 const isReinstall = computed(() => !!props.prefill)
 
+/** vless 协议走 reality (tcp, 不绑域名); vmess 走 ws. */
+const isReality = computed(() => form.protocol === 'vless')
+watch(
+  () => form.protocol,
+  (p) => {
+    form.transport = p === 'vless' ? 'tcp' : 'ws'
+  }
+)
+
 /** 完整 FQDN 预览 = 二级标签 + 选中根域; 缺任一则空. */
 const fqdnPreview = computed(() => {
   const sub = (form.subdomain || '').trim()
@@ -238,6 +181,7 @@ watch(
     pickedServer.value = null
     applyPrefill()
     loadDomains()
+    loadRealityDest()
     // server 没传时, 进弹框先拉一次列表给 NSelect 用
     if (!props.server) {
       loadServerOptions()
@@ -247,21 +191,16 @@ watch(
 
 function validate() {
   Object.keys(errors).forEach((k) => delete errors[k])
-  // installDir 必须绝对路径; 黑名单后端兜底校验, 前端只防低级错误
-  if (!form.installDir.trim() || !form.installDir.startsWith('/')) {
-    errors.installDir = '必须以 / 开头的绝对路径'
-  }
-  if (form.xrayApiPort < XRAY_API_PORT_MIN || form.xrayApiPort > XRAY_API_PORT_MAX) {
-    errors.xrayApiPort = `端口范围 ${XRAY_API_PORT_MIN}-${XRAY_API_PORT_MAX}`
-  }
-  // logDir 留空 OK (后端派生); 给了就必须绝对路径
-  if (form.logDir.trim() && !form.logDir.startsWith('/')) {
-    errors.logDir = '必须以 / 开头的绝对路径 (留空走默认 <installDir>/logs)'
-  }
+  const isRealityProto = form.protocol === 'vless'
   if (form.sharedInboundPort < 1 || form.sharedInboundPort > 65535) {
     errors.sharedInboundPort = '端口范围 1-65535'
   }
-  if (!form.wsPath || !form.wsPath.startsWith('/') || !/^\/[A-Za-z0-9_\-/]{0,127}$/.test(form.wsPath)) {
+  if (isRealityProto) {
+    // vless+reality 必须选偷取目标站; ws path 在 reality 下隐藏, 不校验
+    if (!form.realityDest) {
+      errors.realityDest = '请选择 REALITY 目标站'
+    }
+  } else if (!form.wsPath || !form.wsPath.startsWith('/') || !/^\/[A-Za-z0-9_\-/]{0,127}$/.test(form.wsPath)) {
     errors.wsPath = '必须 / 开头, 仅字母数字_-/'
   }
   // 选了根域 (domainId) 则二级域名必填; 都不选则不走域名 + TLS
@@ -291,34 +230,22 @@ async function onSubmit() {
   output.value = ''
   abortCtrl = new AbortController()
   try {
-    // 全部路径字段空 → 用前端约定派生值兜底; 真正发到后端的是绝对路径, 后端 @NotBlank 校验后透传脚本 + 入库
-    const d = derivedPaths.value
     const dto: LineServerInstallDTO = {
       xrayVersion: form.xrayVersion,
-      installDir: form.installDir.trim(),
-      xrayBinaryPath: form.xrayBinaryPath?.trim() || d.xrayBinaryPath,
-      xrayConfigPath: form.xrayConfigPath?.trim() || d.xrayConfigPath,
-      xrayShareDir: form.xrayShareDir?.trim() || d.xrayShareDir,
-      xrayApiPort: form.xrayApiPort,
-      logDir: form.logDir.trim() || d.logDir,
-      xraySystemdUnitPath: form.xraySystemdUnitPath?.trim() || DEFAULT_SYSTEMD_UNIT_PATH,
-      logLevel: form.logLevel,
-      restartPolicy: form.restartPolicy,
       enableOnBoot: form.enableOnBoot,
       forceReinstall: form.forceReinstall,
       installUfw: form.installUfw,
       setTimezone: form.setTimezone,
       logRotate: form.logRotate,
       protocol: form.protocol,
-      transport: form.transport,
+      transport: form.protocol === 'vless' ? 'tcp' : form.transport,
       listenIp: form.listenIp,
       sharedInboundPort: form.sharedInboundPort,
       wsPath: form.wsPath.trim(),
+      realityDest: form.protocol === 'vless' ? form.realityDest : undefined,
       // 选了根域走 TLS (根域 / CF Token 由 system_domain 提供, 二级标签拼 FQDN); 留空则后端 useTls=false
       domainId: form.domainId || undefined,
-      subdomain: form.domainId ? (form.subdomain?.trim() || undefined) : undefined,
-      tlsCertPath: form.tlsCertPath?.trim() || d.tlsCertPath,
-      tlsKeyPath: form.tlsKeyPath?.trim() || d.tlsKeyPath
+      subdomain: form.domainId ? (form.subdomain?.trim() || undefined) : undefined
     }
     await xrayInstallStream(target.id, dto, appendOutput, abortCtrl.signal)
     message.success('部署完成')
@@ -413,76 +340,17 @@ function close() {
         />
       </NFormItem>
 
-      <!-- ===== 基础参数 ===== -->
+      <!-- ===== 基础参数 (安装目录/端口/路径/日志 等由后端 XrayInstallDefaults 固定, 前端不再展示) ===== -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         <NFormItem required>
           <template #label>
             <span>Xray 版本</span>
-            <span class="text-xs text-zinc-400 ml-2">推荐稳定版</span>
+            <span class="text-xs text-zinc-400 ml-2">推荐稳定版; 安装目录 / 端口 / 路径由后端固定</span>
           </template>
           <NSelect
             v-model:value="form.xrayVersion"
             :options="XRAY_VERSION_OPTIONS"
             :disabled="installing"
-          />
-        </NFormItem>
-        <NFormItem
-          required
-          :validation-status="errors.installDir ? 'error' : undefined"
-          :feedback="errors.installDir"
-        >
-          <template #label>
-            <span>安装目录</span>
-            <span class="text-xs text-zinc-400 ml-2">二进制包 / 配置 / 共享数据 全在此目录下</span>
-          </template>
-          <NInput
-            v-model:value="form.installDir"
-            :disabled="installing"
-            placeholder="/home/xray"
-            :input-props="{ style: 'font-family: monospace' }"
-          />
-        </NFormItem>
-
-        <NFormItem
-          required
-          :validation-status="errors.xrayApiPort ? 'error' : undefined"
-          :feedback="errors.xrayApiPort"
-        >
-          <template #label>
-            <span>Xray API 端口</span>
-            <span class="text-xs text-zinc-400 ml-2">仅 127.0.0.1; xray api adi/rmi 用; 进 dialog 自动随机 {{ XRAY_API_PORT_MIN }}-{{ XRAY_API_PORT_MAX }}</span>
-            <NButton
-              text
-              size="tiny"
-              class="ml-2"
-              :disabled="installing"
-              @click="form.xrayApiPort = randomXrayApiPort()"
-            >
-              <template #icon><NIcon><Shuffle /></NIcon></template>
-              重新随机
-            </NButton>
-          </template>
-          <NInputNumber
-            v-model:value="form.xrayApiPort"
-            :min="XRAY_API_PORT_MIN"
-            :max="XRAY_API_PORT_MAX"
-            :disabled="installing"
-            class="w-full"
-          />
-        </NFormItem>
-        <NFormItem
-          :validation-status="errors.logDir ? 'error' : undefined"
-          :feedback="errors.logDir"
-        >
-          <template #label>
-            <span>日志目录</span>
-            <span class="text-xs text-zinc-400 ml-2">留空走默认 (派生自安装目录)</span>
-          </template>
-          <NInput
-            v-model:value="form.logDir"
-            :disabled="installing"
-            :placeholder="derivedPaths.logDir || '/home/xray/logs'"
-            :input-props="{ style: 'font-family: monospace' }"
           />
         </NFormItem>
       </div>
@@ -495,20 +363,41 @@ function close() {
         <NFormItem>
           <template #label>
             <span>协议</span>
-            <span class="text-xs text-zinc-400 ml-2">固定 vmess</span>
+            <span class="text-xs text-zinc-400 ml-2">vmess+ws 或 vless+reality</span>
           </template>
-          <NInput :value="form.protocol" disabled :input-props="{ style: 'font-family: monospace' }" />
+          <NSelect
+            v-model:value="form.protocol"
+            :options="[{ label: 'VMess + WS', value: 'vmess' }, { label: 'VLESS + REALITY', value: 'vless' }]"
+            :disabled="installing"
+          />
         </NFormItem>
 
         <NFormItem>
           <template #label>
             <span>传输</span>
-            <span class="text-xs text-zinc-400 ml-2">固定 ws</span>
+            <span class="text-xs text-zinc-400 ml-2">随协议 (vmess=ws, reality=tcp)</span>
           </template>
           <NInput :value="form.transport" disabled :input-props="{ style: 'font-family: monospace' }" />
         </NFormItem>
 
-        <NFormItem>
+        <NFormItem
+          v-if="isReality"
+          required
+          :validation-status="errors.realityDest ? 'error' : undefined"
+          :feedback="errors.realityDest"
+        >
+          <template #label>
+            <span>REALITY 目标站</span>
+            <span class="text-xs text-zinc-400 ml-2">客户端 SNI 伪装成它</span>
+          </template>
+          <NSelect
+            v-model:value="form.realityDest"
+            :options="realityDestOptions"
+            :disabled="installing"
+            placeholder="选偷取的目标真站"
+          />
+        </NFormItem>
+        <NFormItem v-else>
           <template #label>
             <span>监听 IP</span>
             <span class="text-xs text-zinc-400 ml-2">固定 0.0.0.0</span>
@@ -536,6 +425,7 @@ function close() {
         </NFormItem>
 
         <NFormItem
+          v-if="!isReality"
           required
           :validation-status="errors.wsPath ? 'error' : undefined"
           :feedback="errors.wsPath"
@@ -563,13 +453,13 @@ function close() {
       </div>
 
       <!-- ===== 域名绑定 (根域 system_domain + 二级标签; 选了走 TLS, 留空纯 vmess+ws) ===== -->
-      <div class="text-sm font-semibold mt-4 mb-2 flex items-center gap-3">
+      <div v-if="!isReality" class="text-sm font-semibold mt-4 mb-2 flex items-center gap-3">
         <span>域名 + TLS</span>
         <span class="text-xs text-zinc-400 font-normal">
           选根域 + 填二级标签 = 走 CDN + acme.sh DNS-01 签发 LE 证书; 根域留空 = 不启用域名 (xray 退化纯 vmess+ws)
         </span>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+      <div v-if="!isReality" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         <NFormItem>
           <template #label>
             <span>根域名 (一级域名)</span>
@@ -606,20 +496,6 @@ function close() {
         完整域名: <code class="font-mono text-zinc-700 dark:text-zinc-300">{{ fqdnPreview || '（填二级域名）' }}</code>
       </div>
 
-      <!-- ===== 安装路径只读展示 (跟随 installDir 实时联动) ===== -->
-      <div class="mt-2 mb-4 p-3 rounded bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
-        <div class="flex items-center gap-1 text-xs font-semibold text-zinc-500 mb-2">
-          <NIcon :size="14"><FolderOpen /></NIcon>
-          安装路径预览
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
-          <div v-for="p in installPaths" :key="p.label" class="flex items-baseline gap-2">
-            <span class="text-zinc-500 w-16 flex-shrink-0">{{ p.label }}</span>
-            <span class="font-mono text-zinc-700 dark:text-zinc-300 break-all">{{ p.path }}</span>
-          </div>
-        </div>
-      </div>
-
       <!-- ===== 高级设置 (默认折叠) ===== -->
       <div class="mt-2 pt-3 border-t border-zinc-200 dark:border-zinc-700">
         <button
@@ -636,29 +512,6 @@ function close() {
         </button>
 
         <div v-if="advancedOpen" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-          <NFormItem>
-            <template #label>
-              <span>日志级别</span>
-              <span class="text-xs text-zinc-400 ml-2">config.log.loglevel</span>
-            </template>
-            <NSelect
-              v-model:value="form.logLevel"
-              :options="LOG_LEVEL_OPTIONS"
-              :disabled="installing"
-            />
-          </NFormItem>
-          <NFormItem>
-            <template #label>
-              <span>Systemd 重启策略</span>
-              <span class="text-xs text-zinc-400 ml-2">Restart=</span>
-            </template>
-            <NSelect
-              v-model:value="form.restartPolicy"
-              :options="RESTART_POLICY_OPTIONS"
-              :disabled="installing"
-            />
-          </NFormItem>
-
           <div class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mt-1">
             <NCheckbox v-model:checked="form.enableOnBoot" :disabled="installing">
               开机自启 Xray

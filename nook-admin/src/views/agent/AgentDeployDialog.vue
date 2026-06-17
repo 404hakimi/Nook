@@ -127,7 +127,7 @@ async function loadNic() {
   }
 }
 
-/** frontline 缺 xray_node 信息时不让装机 (xray 没装 → agent 拉 stats 会失败). */
+/** frontline 缺 xray 信息 = 完整重排下 agent 先装 (xray 之后由 agent 部署); 仅提示, 不阻止. */
 const xrayMissing = computed(() =>
   props.role === 'frontline'
   && (!installMeta.value?.xrayBin || installMeta.value?.xrayApiPort == null)
@@ -232,8 +232,8 @@ onUnmounted(() => { if (deployAbort) deployAbort.abort() })
       <span v-if="hostLabel" class="text-xs text-zinc-500 font-mono">{{ hostLabel }}</span>
     </template>
 
-    <NAlert v-if="xrayMissing" type="error" :show-icon="false" size="small" class="mb-3">
-      ⚠ 该服务器尚未安装 Xray, 线路机装 Agent 会失败. 请先到 Xray 管理装上.
+    <NAlert v-if="xrayMissing" type="info" :show-icon="false" size="small" class="mb-3">
+      完整重排: 先装 Agent, Xray 之后到「Xray 管理」由 Agent 部署 (此时 xray 参数留空正常).
     </NAlert>
 
     <!-- label-width 固定 11rem; v-if 折叠 / 展开切换 form-item 集合时 label-width="auto" 会重算导致跨 section 错位.
@@ -384,7 +384,7 @@ onUnmounted(() => { if (deployAbort) deployAbort.abort() })
 
     <template #footer>
       <div class="flex gap-2 pt-1 items-center">
-        <NButton type="primary" size="small" :loading="deploying" :disabled="xrayMissing" @click="startDeploy">
+        <NButton type="primary" size="small" :loading="deploying" :disabled="deploying" @click="startDeploy">
           <template #icon><NIcon><Rocket /></NIcon></template>
           SSH 自动装机
         </NButton>

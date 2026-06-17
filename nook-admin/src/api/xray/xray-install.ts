@@ -76,29 +76,12 @@ export function xrayAutostart(serverId: string, enabled: boolean) {
  *
  * <p>仅装 xray 内核 + 落地池 + UFW + 时区; swap / bbr 等通用 OS 调优走 ServerOps 接口单独触发.
  *
- * <p>所有字段都必须由前端传入, 后端不再 fallback (LineServerInstallReqVOValidator 严校验).
+ * <p>基础设施 (安装目录 / 各路径 / api 端口 / 日志目录 / 日志级别 / 重启策略 / TLS 路径) 由后端 XrayInstallDefaults 固定,
+ * 前端只传版本 + 协议 + 域名 + 行为开关.
  */
 export interface LineServerInstallDTO {
   /** Xray 版本; "v26.3.27" 这种或 "latest". */
   xrayVersion: string
-  /** Xray 安装根目录, 仅作展示分组; 实际路径全部独立传 (xrayBinaryPath 等). */
-  installDir: string
-  /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray. */
-  xrayBinaryPath: string
-  /** xray config.json 绝对路径; 前端默认 <installDir>/etc/xray/config.json. */
-  xrayConfigPath: string
-  /** xray share 目录 (geo*.dat); 前端默认 <installDir>/share/xray. */
-  xrayShareDir: string
-  /** Xray 内置 api server 端口 (loopback); xray api adi/rmi 用. */
-  xrayApiPort: number
-  /** xray 日志目录; 前端默认 <installDir>/logs. */
-  logDir: string
-  /** systemd unit 文件绝对路径; 前端默认 /etc/systemd/system/xray.service. 改路径要保留同名 (basename = xray) 因为脚本里 systemctl 服务名硬编码 xray. */
-  xraySystemdUnitPath: string
-  /** Xray 日志级别: debug / info / warning / error / none. */
-  logLevel: 'debug' | 'info' | 'warning' | 'error' | 'none'
-  /** systemd Restart= 策略: always / on-failure / no. */
-  restartPolicy: 'always' | 'on-failure' | 'no'
   /** 是否 systemctl enable xray (机器重启后自动起 xray). */
   enableOnBoot: boolean
   /** 强制重装; 即使版本号一致也走下载流程, 用于自编译 / build 后缀差异. */
@@ -108,9 +91,9 @@ export interface LineServerInstallDTO {
   setTimezone: boolean
   /** true = 装 logrotate 自动滚 xray 日志 (低配机推荐); false = 跳过 (日志可能填满磁盘). */
   logRotate: boolean
-  /** 共享 inbound 协议; 当前部署期固定 vmess (前端置灰), 协议适配阶段才放开. */
+  /** 共享 inbound 协议; vmess (走 ws) 或 vless (走 reality). */
   protocol: 'vmess' | 'vless' | 'trojan'
-  /** 共享 inbound 传输; 当前部署期固定 ws (前端置灰). */
+  /** 共享 inbound 传输; vmess=ws, vless-reality=tcp; 随协议联动. */
   transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
   /** 共享 inbound 监听 IP; 当前部署期固定 0.0.0.0 (前端置灰). */
   listenIp: string
@@ -125,10 +108,19 @@ export interface LineServerInstallDTO {
   domainId?: string
   /** 二级域名标签 (如 frontline-jp-1); 选了 domainId 时必填. 完整 FQDN = subdomain + "." + 根域. */
   subdomain?: string
-  /** TLS 证书路径; 选了域名必填, 否则送空串. 前端默认 <installDir>/tls/cert.pem. */
-  tlsCertPath: string
-  /** TLS 私钥路径; 选了域名必填, 否则送空串. 前端默认 <installDir>/tls/key.pem. */
-  tlsKeyPath: string
+  /** REALITY 偷取目标候选 (RealityDest.value); protocol=vless 时必填, 其它协议送空. */
+  realityDest?: string
+}
+
+/** REALITY dest 候选 (装机 vless 协议时下拉). */
+export interface RealityDest {
+  value: string
+  label: string
+}
+
+/** 列 REALITY dest 候选. */
+export function listRealityDest() {
+  return request.get<unknown, RealityDest[]>('/admin/xray/install/list-reality-dest')
 }
 
 /** 一键安装/重装 Xray (流式). */
