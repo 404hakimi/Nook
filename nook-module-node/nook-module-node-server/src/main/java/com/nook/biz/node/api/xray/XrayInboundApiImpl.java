@@ -3,8 +3,10 @@ package com.nook.biz.node.api.xray;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSON;
 import com.nook.biz.node.api.xray.dto.XrayInboundDTO;
 import com.nook.biz.node.entity.XrayInboundDO;
+import com.nook.biz.node.framework.xray.inbound.config.InboundParams;
 import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.mapper.ResourceServerMapper;
 import com.nook.biz.node.mapper.XrayInboundMapper;
@@ -49,7 +51,10 @@ public class XrayInboundApiImpl implements XrayInboundApi {
             if (StrUtil.isBlank(host)) {
                 continue;
             }
-            result.put(entry.getKey(), XrayInboundApiConvert.INSTANCE.toInboundDTO(cfg, host));
+            // 解析协议语义参数 (vmess ws path / reality 客户端参数从此取)
+            InboundParams params = StrUtil.isBlank(cfg.getParams())
+                    ? null : JSON.parseObject(cfg.getParams(), InboundParams.class);
+            result.put(entry.getKey(), XrayInboundApiConvert.INSTANCE.toInboundDTO(cfg, host, params));
         }
         return result;
     }

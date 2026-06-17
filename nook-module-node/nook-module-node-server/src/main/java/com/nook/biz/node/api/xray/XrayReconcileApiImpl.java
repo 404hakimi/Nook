@@ -2,6 +2,8 @@ package com.nook.biz.node.api.xray;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSON;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 import com.nook.biz.node.entity.XrayInboundDO;
 import com.nook.biz.node.entity.ResourceServerDO;
@@ -13,6 +15,7 @@ import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
 import com.nook.biz.node.framework.xray.cli.XrayRoutingCli;
+import com.nook.biz.node.framework.xray.inbound.config.InboundParams;
 import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
 import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.biz.trade.api.dto.SubscriptionCertRespDTO;
@@ -76,6 +79,9 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
                 : CollectionUtils.convertMap(socks5InstallMapper.selectByServerIds(ipIds),
                         Socks5InstallDO::getServerId);
 
+        // 协议流控: vless-reality 用 xtls-rprx-vision, 从 inbound params 取 (跟订阅侧同源); 缺它 reality 用户握手被拒
+        String inboundFlow = StrUtil.isBlank(cfg.getParams())
+                ? null : JSON.parseObject(cfg.getParams(), InboundParams.class).getFlow();
         List<XrayReconcileClientDTO> out = new ArrayList<>(certs.size());
         for (SubscriptionCertRespDTO cert : certs) {
             ResourceServerDO landingSrv = landingSrvMap.get(cert.getIpId());
@@ -93,7 +99,7 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
                     .email(cert.getAuthUser())
                     .uuid(cert.getAuthSecret())
                     .protocol(cfg.getProtocol())
-                    .flow("")
+                    .flow(inboundFlow)
                     .build();
 
             // 期望态三件套, agent 据此把该接入点装起来: ① 共享 inbound 加该用户 ② 加它专属 socks 出站(走落地机) ③ 加路由把该用户流量导向该出站
