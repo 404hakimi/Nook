@@ -1,10 +1,15 @@
 package com.nook.biz.node.controller.xray;
 
+import com.nook.biz.node.api.enums.RealityDestPreset;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.controller.xray.vo.RealityDestSimpleRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
 import com.nook.biz.node.service.xray.server.XrayInstallManageService;
+import com.nook.common.utils.collection.CollectionUtils;
 import com.nook.common.web.response.Result;
+
+import java.util.List;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -93,5 +98,18 @@ public class XrayInstallManageController {
     public ResponseBodyEmitter installXray(@RequestParam("id") String id,
                                            @Valid @RequestBody XrayInstallReqVO reqVO) {
         return xrayInstallManageService.installXrayStream(id, reqVO);
+    }
+
+    /**
+     * 列 REALITY dest 候选 (装机前端 vless 协议时下拉)
+     *
+     * @return dest 候选列表
+     */
+    @GetMapping("/list-reality-dest")
+    public Result<List<RealityDestSimpleRespVO>> listRealityDest() {
+        List<RealityDestSimpleRespVO> list = CollectionUtils.convertList(
+                List.of(RealityDestPreset.values()),
+                p -> new RealityDestSimpleRespVO(p.name(), p.getLabel()));
+        return Result.ok(list);
     }
 }

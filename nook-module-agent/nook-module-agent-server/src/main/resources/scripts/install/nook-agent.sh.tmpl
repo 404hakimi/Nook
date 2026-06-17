@@ -76,7 +76,17 @@ SystemMaxFileSize=10M
 EOF
 systemctl restart systemd-journald
 
-echo "=== 8. 启动 agent ==="
+echo "=== 8. 放行 agent 控制端口 44844 (若 UFW 已启用) ==="
+# 后台经 44844 下发 xray 安装/重建; 基础镜像若已开 UFW 只放行 SSH, 不补这刀则后台永远连不上 agent.
+# 仅在 ufw 已 active 时补规则 (幂等); 未启用时端口本就可达, 启用与否交给后续 xray 装机的 40-ufw.
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q '^Status: active'; then
+    ufw allow 44844/tcp comment "nook agent control" >/dev/null || true
+    echo '已放行 44844/tcp'
+else
+    echo 'UFW 未启用, 跳过 (44844 本就可达)'
+fi
+
+echo "=== 9. 启动 agent ==="
 systemctl daemon-reload
 systemctl enable nook-agent
 systemctl restart nook-agent

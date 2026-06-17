@@ -13,6 +13,7 @@ ENABLE_ON_BOOT="{{ENABLE_ON_BOOT}}"
 FORCE_REINSTALL="{{FORCE_REINSTALL}}"
 SHARED_INBOUND_PORT={{SHARED_INBOUND_PORT}}
 WS_PATH="{{WS_PATH}}"
+SHARED_INBOUND_B64="{{SHARED_INBOUND_B64}}"
 USE_TLS="{{USE_TLS}}"
 DOMAIN="{{DOMAIN}}"
 TLS_CERT_PATH="{{TLS_CERT_PATH}}"
@@ -95,19 +96,15 @@ if [[ $NEED_INSTALL -eq 1 ]]; then
     log "✔ Xray binary: $XRAY_BIN"
 fi
 
-# TLS 块: 45-acme-tls 已落好 cert/key, 这里只渲染 streamSettings.tlsSettings 片段
-STREAM_TLS_BLOCK=""
+# in_shared inbound 由后台按协议/安全层渲染好 (base64 下发); 这里只保留 cert/key 存在性兜底
 if [[ "$USE_TLS" == "true" ]]; then
     if [[ ! -f "$TLS_CERT_PATH" || ! -f "$TLS_KEY_PATH" ]]; then
         err "USE_TLS=true 但 cert/key 文件不存在: $TLS_CERT_PATH — 检查 45-acme-tls 是否成功"
         exit 1
     fi
-    # serverName = $DOMAIN, 让客户端 IP 直连时 SNI 不匹配握手失败
-    STREAM_TLS_BLOCK="\"security\": \"tls\","$'\n'"        \"tlsSettings\": {"$'\n'"          \"serverName\": \"$DOMAIN\","$'\n'"          \"alpn\": [\"h2\", \"http/1.1\"],"$'\n'"          \"minVersion\": \"1.2\","$'\n'"          \"certificates\": [{ \"certificateFile\": \"$TLS_CERT_PATH\", \"keyFile\": \"$TLS_KEY_PATH\" }]"$'\n'"        },"
-    log "✔ TLS 块已渲染 (复用 $TLS_CERT_PATH)"
-else
-    log "useTls=false, xray inbound 走纯 ws"
+    log "✔ TLS cert/key 就绪 ($TLS_CERT_PATH)"
 fi
+SHARED_INBOUND_JSON=$(echo "$SHARED_INBOUND_B64" | base64 -d)
 
 if [[ -f "$XRAY_CONFIG" ]]; then
     BACKUP="${XRAY_CONFIG}.bak.$(date +%s)"
@@ -154,22 +151,7 @@ cat > "$XRAY_CONFIG" <<XRAYCONF
       "protocol": "dokodemo-door",
       "settings": { "address": "127.0.0.1" }
     },
-    {
-      "tag": "in_shared",
-      "listen": "0.0.0.0",
-      "port": $SHARED_INBOUND_PORT,
-      "protocol": "vmess",
-      "settings": { "users": [] },
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"]
-      },
-      "streamSettings": {
-        "network": "ws",
-        $STREAM_TLS_BLOCK
-        "wsSettings": { "path": "$WS_PATH" }
-      }
-    }
+    $SHARED_INBOUND_JSON
   ],
   "outbounds": [
 $(gen_outbounds)
@@ -255,3 +237,6 @@ log "  config:  $XRAY_CONFIG"
 log "  share:   $XRAY_SHARE"
 log "  logs:    $LOG_DIR"
 log "  systemd: $SYSTEMD_UNIT"
+
+# 完整重排: agent 装机时 config 已写固定 xray 段, reconcile 每轮自探 binary 就绪;
+# xray 装好后下一轮 reconcile 自动对账, 无需在此改 config / 重启 agent.

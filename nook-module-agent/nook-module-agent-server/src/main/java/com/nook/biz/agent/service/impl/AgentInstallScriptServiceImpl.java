@@ -13,6 +13,7 @@ import com.nook.biz.node.api.resource.ResourceServerCredentialApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.api.xray.XrayInstallApi;
+import com.nook.biz.node.api.xray.XrayInstallDefaults;
 import com.nook.biz.node.api.xray.dto.XrayInstallRespDTO;
 import com.nook.framework.ssh.core.SessionCredential;
 import com.nook.framework.ssh.core.SshSessions;
@@ -38,6 +39,8 @@ import java.util.function.Consumer;
 @Service
 public class AgentInstallScriptServiceImpl implements AgentInstallScriptService {
 
+    /** agent 控制接口固定端口; 后台 call agent 部署用, 装机时 UFW 放行后台 IP. */
+    private static final int CONTROL_PORT = 44844;
     /** xray stats 上报间隔; agent-side 轮询率, 装机时统一值. */
     private static final int XRAY_STATS_INTERVAL_SECONDS = 300;
     /** reconcile (对账) 间隔默认值; admin 未填时用. */
@@ -84,8 +87,8 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         // 取 SSH 凭据并按角色校验装机前置
         ResourceServerCredentialRespDTO cred = resourceServerCredentialApi.requireByServerId(sourceId);
         if (role == AgentRole.FRONTLINE) {
-            agentInstallValidator.validateFrontlinePrerequisite(srv, reqVO);
-            lineSink.accept("[nook] xray: bin=" + reqVO.getXrayBin() + " apiPort=" + reqVO.getXrayApiPort() + "\n");
+            // 完整重排: agent 先装, xray 之后由 agent 部署; 这里不再要求 xray 先装
+            agentInstallValidator.validateFrontlinePrerequisite(srv);
         } else {
             agentInstallValidator.validateLandingPrerequisite(srv);
         }
@@ -165,6 +168,8 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         sb.append("  api_url: ").append(r.getBackendUrl()).append("\n");
         sb.append("  api_token: ").append(token).append("\n");
         sb.append("  timeout_seconds: ").append(r.getBackendTimeoutSeconds()).append("\n\n");
+        sb.append("control:\n");
+        sb.append("  port: ").append(CONTROL_PORT).append("\n\n");
         sb.append("heartbeat:\n");
         sb.append("  interval_seconds: ").append(r.getHeartbeatIntervalSeconds()).append("\n\n");
         sb.append("nic:\n");
@@ -172,10 +177,11 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         sb.append("  interface: ").append(r.getNicInterface()).append("\n\n");
         int reconcileInterval = r.getReconcileIntervalSeconds() == null
                 ? DEFAULT_RECONCILE_INTERVAL_SECONDS : r.getReconcileIntervalSeconds();
+        // 完整重排: 装 agent 时就写固定 xray 段 (路径/端口后端默认); reconcile 据此探, xray 部署好后自动对账
         if (AgentRole.FRONTLINE.matches(r.getRole())) {
             sb.append("xray:\n");
-            sb.append("  bin: ").append(r.getXrayBin()).append("\n");
-            sb.append("  api_port: ").append(r.getXrayApiPort()).append("\n");
+            sb.append("  bin: ").append(XrayInstallDefaults.XRAY_BINARY_PATH).append("\n");
+            sb.append("  api_port: ").append(XrayInstallDefaults.API_PORT).append("\n");
             sb.append("  stats_interval_seconds: ").append(XRAY_STATS_INTERVAL_SECONDS).append("\n");
             sb.append("  reconcile_interval_seconds: ").append(reconcileInterval).append("\n\n");
         } else if (AgentRole.LANDING.matches(r.getRole())) {

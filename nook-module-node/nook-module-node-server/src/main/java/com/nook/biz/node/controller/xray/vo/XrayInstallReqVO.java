@@ -9,72 +9,17 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * Xray 线路服务器一键安装入参.
+ * Xray 线路服务器一键安装入参; 基础设施 (端口/路径/日志/重启策略) 由后端 XrayInstallDefaults 固定, 前端只传版本 + 协议 + 域名 + 行为开关.
  *
  * @author nook
  */
 @Data
 public class XrayInstallReqVO {
 
-    /** xray 内置 api server 端口 (loopback). */
-    @NotNull(message = "xrayApiPort 必填")
-    @Min(value = 1) @Max(value = 65535)
-    private Integer xrayApiPort;
-
     /** Xray 版本; "latest" 装最新 stable, 或 "v26.3.27" 这种具体版本. */
     @NotBlank(message = "xrayVersion 必填")
     @Size(max = 32)
     private String xrayVersion;
-
-    /**
-     * Xray 安装根目录, 仅作展示分组用; 实际 binary / config / share / log / TLS 路径全部由前端独立传, 后端零派生.
-     */
-    @NotBlank(message = "installDir 必填")
-    @Pattern(regexp = "^/.+", message = "installDir 必须是绝对路径")
-    @Size(max = 255)
-    private String installDir;
-
-    /** xray binary 绝对路径; 前端默认 <installDir>/bin/xray, 落到 xray_install.xrayBinaryPath. */
-    @NotBlank(message = "xrayBinaryPath 必填")
-    @Pattern(regexp = "^/.+", message = "xrayBinaryPath 必须是绝对路径")
-    @Size(max = 255)
-    private String xrayBinaryPath;
-
-    /** xray config.json 绝对路径; 前端默认 <installDir>/etc/xray/config.json. */
-    @NotBlank(message = "xrayConfigPath 必填")
-    @Pattern(regexp = "^/.+", message = "xrayConfigPath 必须是绝对路径")
-    @Size(max = 255)
-    private String xrayConfigPath;
-
-    /** xray share 目录 (geo*.dat); 前端默认 <installDir>/share/xray. */
-    @NotBlank(message = "xrayShareDir 必填")
-    @Pattern(regexp = "^/.+", message = "xrayShareDir 必须是绝对路径")
-    @Size(max = 255)
-    private String xrayShareDir;
-
-    /** 远端 xray 日志目录 (access.log / error.log 父目录); 前端默认 <installDir>/logs. */
-    @NotBlank(message = "logDir 必填")
-    @Pattern(regexp = "^/.+", message = "logDir 必须是绝对路径")
-    @Size(max = 255)
-    private String logDir;
-
-    /** systemd unit 文件绝对路径; 前端默认 /etc/systemd/system/xray.service. 当前脚本里 systemctl 服务名硬编码 xray, 改路径需对应保留同 basename. */
-    @NotBlank(message = "xraySystemdUnitPath 必填")
-    @Pattern(regexp = "^/.+\\.service$", message = "xraySystemdUnitPath 必须是绝对路径且以 .service 结尾")
-    @Size(max = 255)
-    private String xraySystemdUnitPath;
-
-    /** Xray 日志级别 (config.log.loglevel); debug/info/warning/error/none. */
-    @NotBlank(message = "logLevel 必填")
-    @Pattern(regexp = "^(debug|info|warning|error|none)$",
-            message = "logLevel 必须是 debug/info/warning/error/none 之一")
-    private String logLevel;
-
-    /** systemd Restart= 策略; always/on-failure/no. */
-    @NotBlank(message = "restartPolicy 必填")
-    @Pattern(regexp = "^(always|on-failure|no)$",
-            message = "restartPolicy 必须是 always/on-failure/no 之一")
-    private String restartPolicy;
 
     /** 是否 systemctl enable xray (机器重启后自动起 xray). */
     @NotNull(message = "enableOnBoot 必填")
@@ -96,17 +41,21 @@ public class XrayInstallReqVO {
     @NotNull(message = "logRotate 必填")
     private Boolean logRotate;
 
-    /** 共享 inbound 协议; 当前部署期固定 vmess (前端置灰), 协议适配阶段才放开. */
+    /** 共享 inbound 协议; vmess (走 ws) 或 vless (走 reality). */
     @NotBlank(message = "protocol 必填")
     @Pattern(regexp = "vmess|vless|trojan", message = "protocol 必须是 vmess / vless / trojan 之一")
     @Size(max = 16)
     private String protocol;
 
-    /** 共享 inbound 传输; 当前部署期固定 ws (前端置灰). */
+    /** 共享 inbound 传输; vmess 走 ws, vless-reality 走 tcp. */
     @NotBlank(message = "transport 必填")
     @Pattern(regexp = "tcp|ws|grpc|h2|quic", message = "transport 必须是 tcp / ws / grpc / h2 / quic 之一")
     @Size(max = 32)
     private String transport;
+
+    /** REALITY 偷取目标候选 (RealityDestPreset name); protocol=vless 时必填. */
+    @Size(max = 32)
+    private String realityDest;
 
     /** 共享 inbound 监听 IP; 当前部署期固定 0.0.0.0 (前端置灰). */
     @NotBlank(message = "listenIp 必填")
@@ -137,14 +86,4 @@ public class XrayInstallReqVO {
             message = "subdomain 只能含字母数字与连字符 (可多级, 点分隔)")
     @Size(max = 128)
     private String subdomain;
-
-    /** TLS 证书路径; useTls=true 时必填, useTls=false 时前端可送空串. 前端默认 <installDir>/tls/cert.pem. */
-    @Pattern(regexp = "^$|^/.+", message = "tlsCertPath 必须是绝对路径或空串")
-    @Size(max = 255)
-    private String tlsCertPath;
-
-    /** TLS 私钥路径; useTls=true 时必填, useTls=false 时前端可送空串. 前端默认 <installDir>/tls/key.pem. */
-    @Pattern(regexp = "^$|^/.+", message = "tlsKeyPath 必须是绝对路径或空串")
-    @Size(max = 255)
-    private String tlsKeyPath;
 }

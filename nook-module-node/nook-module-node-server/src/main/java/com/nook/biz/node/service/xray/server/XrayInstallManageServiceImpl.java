@@ -1,7 +1,10 @@
 package com.nook.biz.node.service.xray.server;
 
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
+import com.nook.biz.node.api.xray.XrayInstallDefaults;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
@@ -9,14 +12,19 @@ import com.nook.biz.node.convert.xray.XrayInstallConvert;
 import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.entity.XrayInboundDO;
+import com.nook.biz.node.entity.XrayInboundProtocolDO;
 import com.nook.biz.node.entity.XrayInstallDO;
+import com.nook.biz.node.framework.agent.AgentControlClient;
 import com.nook.biz.node.framework.cloudflare.CloudflareApiClient;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.script.NookScripts;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
+import com.nook.biz.node.framework.xray.inbound.config.InboundTemplateRenderer;
+import com.nook.biz.node.framework.xray.inbound.strategy.InboundProtocolStrategy;
+import com.nook.biz.node.framework.xray.inbound.strategy.InboundProtocolStrategyFactory;
+import com.nook.biz.node.framework.xray.inbound.strategy.InboundProvision;
+import com.nook.biz.node.mapper.XrayInboundProtocolMapper;
 import com.nook.biz.node.framework.xray.XrayConstants;
-import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
-import com.nook.biz.node.service.resource.ResourceServerCredentialService;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
 import com.nook.biz.node.validator.ResourceServerValidator;
@@ -34,7 +42,6 @@ import com.nook.framework.security.stp.StpSystemUtil;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
-import com.nook.framework.ssh.script.RemoteScriptRunner;
 import com.nook.framework.ssh.script.ScriptCatalog;
 import com.nook.framework.ssh.script.ScriptModule;
 import jakarta.annotation.Resource;
@@ -42,10 +49,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,18 +70,25 @@ import java.util.function.Consumer;
 @Service
 public class XrayInstallManageServiceImpl implements XrayInstallManageService {
 
+    /** agent 本地装 xray 的超时秒数; wget+apt+acme DNS-01 耗时较长, 独立于 SSH 场景超时 (且避免 cred 字段 null 拆箱 NPE). */
+    private static final int XRAY_DEPLOY_TIMEOUT_SECONDS = 1200;
+
     @Resource
-    private RemoteScriptRunner remoteScriptRunner;
+    private AgentControlClient agentControlClient;
     @Resource
     private ScriptCatalog scriptCatalog;
     @Resource
     private ServerProbe serverProbe;
     @Resource
-    private XrayDaemonProbe xrayDaemonProbe;
-    @Resource
     private XrayInstallService xrayInstallService;
     @Resource
     private XrayInboundService xrayInboundService;
+    @Resource
+    private XrayInboundProtocolMapper xrayInboundProtocolMapper;
+    @Resource
+    private InboundTemplateRenderer inboundTemplateRenderer;
+    @Resource
+    private InboundProtocolStrategyFactory inboundProtocolStrategyFactory;
     @Resource
     private XrayInstallValidator xrayInstallValidator;
     @Resource
@@ -86,8 +102,6 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     @Resource
     private ResourceServerValidator resourceServerValidator;
     @Resource
-    private ResourceServerCredentialService resourceServerCredentialService;
-    @Resource
     private ResourceServerService resourceServerService;
     @Resource
     private StreamingEndpointSupport streamingEndpointSupport;
@@ -99,9 +113,13 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
 
     @Override
     public void installStreaming(String serverId, XrayInstallReqVO reqVO, Consumer<String> lineSink) {
-        // 跨字段 fail-fast 校验; 改客户面参数 (域名/wsPath 等) 仅告警留痕不阻断, 在用客户重拉订阅即可
-        xrayInstallValidator.validateInstallReq(serverId, reqVO);
+        // 协议策略: 校验 + 算形态/参数; 加协议只加策略, 不改这里
+        InboundProtocolStrategy strategy = inboundProtocolStrategyFactory.resolve(reqVO);
+        strategy.validate(serverId, reqVO);
+        // 改客户面参数 (域名/wsPath 等) 仅告警留痕不阻断, 在用客户重拉订阅即可
         xrayInstallValidator.warnIfClientFacingChange(serverId, reqVO);
+        // 完整重排: xray 由已装好的 agent 本地部署, 取连接信息 (出网 IP + agent_token)
+        ResourceServerDO srv = resourceServerValidator.validateExists(serverId);
         // 域名绑定 → 走 TLS; 根域 + cfApiToken 从 system_domain 取, 完整 FQDN = 二级标签 + 根域
         boolean useTls = StrUtil.isNotBlank(reqVO.getDomainId());
         SystemDomainRespDTO domain = useTls ? systemDomainApi.getById(reqVO.getDomainId()) : null;
@@ -110,9 +128,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         // 部署前加 A 记录: 仅走域名路径需要; 失败不阻断, 用户可手动在 CF 面板加
         if (useTls && StrUtil.isNotBlank(domain.getCfApiToken())) {
             try {
-                String serverHost = resourceServerValidator.validateExists(serverId).getIpAddress();
-                cloudflareApiClient.ensureARecord(domain.getCfApiToken(), fullDomain, serverHost, false);
-                lineSink.accept("[nook] ✔ Cloudflare A 记录已加: " + fullDomain + " → " + serverHost + "\n");
+                cloudflareApiClient.ensureARecord(domain.getCfApiToken(), fullDomain, srv.getIpAddress(), false);
+                lineSink.accept("[nook] ✔ Cloudflare A 记录已加: " + fullDomain + " → " + srv.getIpAddress() + "\n");
             } catch (Exception cfe) {
                 lineSink.accept("[nook] ⚠ Cloudflare A 记录创建失败 (" + cfe.getMessage()
                         + "), 请手动在 CF 面板加 A 记录\n");
@@ -121,30 +138,19 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
             }
         }
 
-        // 长任务 (1-10 min) 用 INSTALL scope, 跟短任务 SHARED 隔离 cache, 防被 invalidate 半路打断
-        SshSession session = SshSessions.acquire(serverId, SshSessionScope.INSTALL);
-        Map<String, String> vars = buildInstallVars(serverId, reqVO, domain, fullDomain);
+        // 协议产出: 形态 + 语义参数 + 模板占位符 (reality 在此生成密钥, 渲染 + 落库共用)
+        InboundProvision prov = strategy.provision(reqVO, fullDomain);
+
+        // 渲染完整脚本 → 经 agent 控制接口本地执行 (取代 SSH); agent 流式回传 stdout
+        Map<String, String> vars = buildInstallVars(serverId, reqVO, domain, fullDomain, prov);
         String script = assembleInstallScript(reqVO, vars);
-        Duration installTimeout = Duration.ofSeconds(session.cred().getInstallTimeoutSeconds());
-        remoteScriptRunner.runScriptStreaming(
-                session,
-                script,
-                NookScripts.INSTALL_XRAY_TMP_PREFIX,
-                installTimeout,
-                lineSink);
+        int installTimeout = XRAY_DEPLOY_TIMEOUT_SECONDS;
+        agentControlClient.execute(srv.getIpAddress(), srv.getAgentToken(), script, installTimeout, lineSink);
 
-        // 装完后把字面 "latest" 解析成具体 tag (如 "v26.3.27"), 让 DB 反映远端真实版本;
-        // 解析失败则回退原值, 不阻断主流程.
-        String resolvedVersion = xrayDaemonProbe.resolveActualVersion(session, reqVO.getXrayBinaryPath(), reqVO.getXrayVersion());
-        if (!resolvedVersion.equals(reqVO.getXrayVersion())) {
-            lineSink.accept("[nook] xray 实际版本: " + resolvedVersion + " (前端选 "
-                    + reqVO.getXrayVersion() + ")\n");
-        }
-
-        // 部署完成 → 同事务写 xray_install + xray_inbound (两表 1:1)
-        // 用 TransactionTemplate 而非 @Transactional self-invocation, 避免 AOP 代理失效
+        // 部署完成 → 同事务写 xray_install + xray_inbound (两表 1:1); 版本用前端选值 (agent 执行无 SSH session 解析实际 tag)
         try {
-            transactionTemplate.executeWithoutResult(txStatus -> persistDeployment(serverId, reqVO, resolvedVersion, fullDomain));
+            transactionTemplate.executeWithoutResult(txStatus ->
+                    persistDeployment(serverId, reqVO, reqVO.getXrayVersion(), fullDomain, prov));
             lineSink.accept("[nook] ✔ DB 已写入\n");
         } catch (RuntimeException e) {
             log.error("[install] xray 部署成功但 DB 状态初始化失败 server={}, 已自动回滚", serverId, e);
@@ -154,19 +160,22 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         }
     }
 
-    /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. fullDomain 为空 = 未绑域名 / 不用 TLS. */
-    private void persistDeployment(String serverId, XrayInstallReqVO r, String resolvedVersion, String fullDomain) {
+    /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. params/security 由 caller 算好 (reality 密钥跟脚本渲染同一份). */
+    private void persistDeployment(String serverId, XrayInstallReqVO r, String resolvedVersion, String fullDomain,
+                                   InboundProvision prov) {
         boolean useTls = StrUtil.isNotBlank(fullDomain);
+        boolean isReality = prov.protocol() == XrayInboundProtocolEnum.VLESS_REALITY;
         XrayInstallDO srv = new XrayInstallDO();
         srv.setServerId(serverId);
         srv.setXrayVersion(resolvedVersion);
-        srv.setXrayApiPort(r.getXrayApiPort());
-        srv.setXrayInstallDir(r.getInstallDir());
-        srv.setXrayBinaryPath(r.getXrayBinaryPath());
-        srv.setXrayConfigPath(r.getXrayConfigPath());
-        srv.setXrayShareDir(r.getXrayShareDir());
-        srv.setXrayLogDir(r.getLogDir());
-        srv.setXraySystemdUnitPath(r.getXraySystemdUnitPath());
+        // 基础设施路径/端口用后端固定默认 (前端不再传)
+        srv.setXrayApiPort(XrayInstallDefaults.API_PORT);
+        srv.setXrayInstallDir(XrayInstallDefaults.INSTALL_DIR);
+        srv.setXrayBinaryPath(XrayInstallDefaults.XRAY_BINARY_PATH);
+        srv.setXrayConfigPath(XrayInstallDefaults.XRAY_CONFIG_PATH);
+        srv.setXrayShareDir(XrayInstallDefaults.XRAY_SHARE_DIR);
+        srv.setXrayLogDir(XrayInstallDefaults.LOG_DIR);
+        srv.setXraySystemdUnitPath(XrayInstallDefaults.SYSTEMD_UNIT_PATH);
         srv.setDomainId(useTls ? r.getDomainId() : null);
         srv.setSubdomain(useTls ? r.getSubdomain() : null);
         srv.setInstalledAt(LocalDateTime.now());
@@ -174,15 +183,19 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
 
         XrayInboundDO cfg = new XrayInboundDO();
         cfg.setServerId(serverId);
-        cfg.setProtocol(r.getProtocol());
-        cfg.setTransport(r.getTransport());
+        // 协议形态 (protocol/transport/security) 由策略给出
+        cfg.setProtocol(prov.protocol().getProtocol());
+        cfg.setTransport(prov.protocol().getTransport());
+        cfg.setSecurity(prov.protocol().getSecurity());
         cfg.setListenIp(r.getListenIp());
         cfg.setSharedInboundPort(r.getSharedInboundPort());
-        cfg.setWsPath(r.getWsPath());
-        // 未绑域名时 cert/key/domain 全 NULL; 绑了写完整 FQDN (二级标签 + 根域)
-        cfg.setDomain(fullDomain);
-        cfg.setTlsCertPath(useTls ? r.getTlsCertPath() : null);
-        cfg.setTlsKeyPath(useTls ? r.getTlsKeyPath() : null);
+        // 旧列双写 (步骤②切读后删); reality 不用 ws/tls/domain, 全置空
+        cfg.setWsPath(isReality ? null : r.getWsPath());
+        cfg.setDomain(isReality ? null : fullDomain);
+        cfg.setTlsCertPath(useTls && !isReality ? XrayInstallDefaults.TLS_CERT_PATH : null);
+        cfg.setTlsKeyPath(useTls && !isReality ? XrayInstallDefaults.TLS_KEY_PATH : null);
+        // 协议语义参数 (含 reality 密钥) 收口到 params
+        cfg.setParams(JSON.toJSONString(prov.params()));
         xrayInboundService.upsert(cfg);
     }
 
@@ -259,7 +272,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     /**
      * 部署模板渲染变量表; reqVO 字段已被 jakarta @Valid 校验, 这里只做拆箱 + 转 string, 零派生.
      */
-    private Map<String, String> buildInstallVars(String serverId, XrayInstallReqVO r, SystemDomainRespDTO domain, String fullDomain) {
+    private Map<String, String> buildInstallVars(String serverId, XrayInstallReqVO r, SystemDomainRespDTO domain,
+                                                 String fullDomain, InboundProvision prov) {
         boolean useTls = domain != null;
         Map<String, String> vars = new LinkedHashMap<>();
         vars.put("SERVER_NAME", StrUtil.blankToDefault(serverId, "<unset>"));
@@ -267,24 +281,31 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         vars.put("TIMEZONE", Boolean.TRUE.equals(r.getSetTimezone()) ? "Asia/Shanghai" : "");
         vars.put("INSTALL_UFW", String.valueOf(Boolean.TRUE.equals(r.getInstallUfw())));
         vars.put("XRAY_VERSION", r.getXrayVersion());
-        vars.put("XRAY_API_PORT", String.valueOf(r.getXrayApiPort()));
-        vars.put("INSTALL_DIR", r.getInstallDir());
-        vars.put("LOG_DIR", r.getLogDir());
-        vars.put("LOG_LEVEL", r.getLogLevel());
-        vars.put("RESTART_POLICY", r.getRestartPolicy());
+        // 基础设施参数 (端口/路径/日志/重启) 用后端固定默认 (前端不再传); agent reconcile 据此探
+        vars.put("XRAY_API_PORT", String.valueOf(XrayInstallDefaults.API_PORT));
+        vars.put("INSTALL_DIR", XrayInstallDefaults.INSTALL_DIR);
+        vars.put("LOG_DIR", XrayInstallDefaults.LOG_DIR);
+        vars.put("LOG_LEVEL", XrayInstallDefaults.LOG_LEVEL);
+        vars.put("RESTART_POLICY", XrayInstallDefaults.RESTART_POLICY);
         vars.put("ENABLE_ON_BOOT", String.valueOf(Boolean.TRUE.equals(r.getEnableOnBoot())));
         vars.put("FORCE_REINSTALL", String.valueOf(Boolean.TRUE.equals(r.getForceReinstall())));
         vars.put("SHARED_INBOUND_PORT", String.valueOf(r.getSharedInboundPort()));
         vars.put("WS_PATH", r.getWsPath());
-        vars.put("XRAY_BINARY_PATH",       r.getXrayBinaryPath());
-        vars.put("XRAY_CONFIG_PATH",       r.getXrayConfigPath());
-        vars.put("XRAY_SHARE_DIR",         r.getXrayShareDir());
-        vars.put("XRAY_SYSTEMD_UNIT_PATH", r.getXraySystemdUnitPath());
+        vars.put("XRAY_BINARY_PATH",       XrayInstallDefaults.XRAY_BINARY_PATH);
+        vars.put("XRAY_CONFIG_PATH",       XrayInstallDefaults.XRAY_CONFIG_PATH);
+        vars.put("XRAY_SHARE_DIR",         XrayInstallDefaults.XRAY_SHARE_DIR);
+        vars.put("XRAY_SYSTEMD_UNIT_PATH", XrayInstallDefaults.SYSTEMD_UNIT_PATH);
         vars.put("USE_TLS", String.valueOf(useTls));
         vars.put("DOMAIN", useTls ? StrUtil.blankToDefault(fullDomain, "") : "");
         vars.put("CF_API_TOKEN", useTls ? StrUtil.blankToDefault(domain.getCfApiToken(), "") : "");
-        vars.put("TLS_CERT_PATH",  useTls ? StrUtil.blankToDefault(r.getTlsCertPath(), "") : "");
-        vars.put("TLS_KEY_PATH",   useTls ? StrUtil.blankToDefault(r.getTlsKeyPath(),  "") : "");
+        vars.put("TLS_CERT_PATH",  useTls ? XrayInstallDefaults.TLS_CERT_PATH : "");
+        vars.put("TLS_KEY_PATH",   useTls ? XrayInstallDefaults.TLS_KEY_PATH : "");
+        // in_shared inbound 由协议模板渲染好 base64 下发, 取代脚本 shell 硬编码; 模板 key + 占位符值由策略给出
+        XrayInboundProtocolDO template = xrayInboundProtocolMapper.selectById(prov.protocol().getKey());
+        String sharedInbound = inboundTemplateRenderer.render(template.getInboundTemplate(), prov.templateVars());
+        String sharedInboundB64 = Base64.getEncoder()
+                .encodeToString(sharedInbound.getBytes(StandardCharsets.UTF_8));
+        vars.put("SHARED_INBOUND_B64", sharedInboundB64);
         return vars;
     }
 
@@ -309,7 +330,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     @Override
     public ResponseBodyEmitter installXrayStream(String serverId, XrayInstallReqVO reqVO) {
         resourceServerValidator.validateExists(serverId);
-        int installTimeout = resourceServerCredentialService.requireByServerId(serverId).getInstallTimeoutSeconds();
+        int installTimeout = XRAY_DEPLOY_TIMEOUT_SECONDS;
         Duration emitterTimeout = Duration.ofSeconds(installTimeout)
                 .plus(webStreamingProperties.getEmitterBuffer());
         return streamingEndpointSupport.stream("install:" + serverId, emitterTimeout,
