@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.nook.biz.node.api.enums.XraySecurityEnum;
 import lombok.Data;
 
 import java.io.Serial;
@@ -27,11 +28,14 @@ public class XrayInboundDO implements Serializable {
     @TableId(value = "server_id", type = IdType.INPUT)
     private String serverId;
 
-    /** 共享 inbound 协议 (vmess/trojan/...) */
+    /** 共享 inbound 协议 (vmess/vless/...) */
     private String protocol;
 
     /** 共享 inbound 传输 (ws/tcp/...) */
     private String transport;
+
+    /** 安全层 {@link XraySecurityEnum} */
+    private String security;
 
     /** 共享 inbound 监听 IP. */
     private String listenIp;
@@ -50,6 +54,9 @@ public class XrayInboundDO implements Serializable {
 
     /** TLS 私钥路径 (acme.sh 签发后填). */
     private String tlsKeyPath;
+
+    /** 协议/传输/安全细节语义参数 (JSON); 反序列化见 InboundParams. */
+    private String params;
 
     /** 创建时间. */
     @TableField(value = "created_at", fill = FieldFill.INSERT)
