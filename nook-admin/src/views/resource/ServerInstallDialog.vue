@@ -120,7 +120,25 @@ function randomWsPath(): string {
   return '/' + Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-const form = reactive<LineServerInstallDTO>({
+/** 弹框表单态 (平铺, 便于 v-model 绑定); onSubmit 时映射成嵌套的 LineServerInstallDTO. */
+interface InstallFormState {
+  xrayVersion: string
+  enableOnBoot: boolean
+  forceReinstall: boolean
+  installUfw: boolean
+  setTimezone: boolean
+  logRotate: boolean
+  protocol: 'vmess' | 'vless' | 'trojan'
+  transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
+  listenIp: string
+  sharedInboundPort: number
+  wsPath: string
+  realityDest?: string
+  domainId?: string
+  subdomain: string
+}
+
+const form = reactive<InstallFormState>({
   xrayVersion: XRAY_DEFAULT_VERSION,
   enableOnBoot: true,
   forceReinstall: false,
@@ -230,6 +248,7 @@ async function onSubmit() {
   output.value = ''
   abortCtrl = new AbortController()
   try {
+    const isRealityProto = form.protocol === 'vless'
     const dto: LineServerInstallDTO = {
       xrayVersion: form.xrayVersion,
       enableOnBoot: form.enableOnBoot,
@@ -237,15 +256,18 @@ async function onSubmit() {
       installUfw: form.installUfw,
       setTimezone: form.setTimezone,
       logRotate: form.logRotate,
-      protocol: form.protocol,
-      transport: form.protocol === 'vless' ? 'tcp' : form.transport,
-      listenIp: form.listenIp,
-      sharedInboundPort: form.sharedInboundPort,
-      wsPath: form.wsPath.trim(),
-      realityDest: form.protocol === 'vless' ? form.realityDest : undefined,
-      // 选了根域走 TLS (根域 / CF Token 由 system_domain 提供, 二级标签拼 FQDN); 留空则后端 useTls=false
-      domainId: form.domainId || undefined,
-      subdomain: form.domainId ? (form.subdomain?.trim() || undefined) : undefined
+      inbound: {
+        protocol: form.protocol,
+        transport: isRealityProto ? 'tcp' : form.transport,
+        listenIp: form.listenIp,
+        sharedInboundPort: form.sharedInboundPort,
+        // vless 走 reality 不需要 ws path / 域名; vmess 才传
+        wsPath: isRealityProto ? undefined : form.wsPath.trim(),
+        realityDest: isRealityProto ? form.realityDest : undefined,
+        // 选了根域走 TLS (根域 / CF Token 由 system_domain 提供, 二级标签拼 FQDN); 留空则后端 useTls=false
+        domainId: isRealityProto ? undefined : (form.domainId || undefined),
+        subdomain: isRealityProto || !form.domainId ? undefined : (form.subdomain?.trim() || undefined)
+      }
     }
     await xrayInstallStream(target.id, dto, appendOutput, abortCtrl.signal)
     message.success('部署完成')
@@ -388,13 +410,15 @@ function close() {
         >
           <template #label>
             <span>REALITY 目标站</span>
-            <span class="text-xs text-zinc-400 ml-2">客户端 SNI 伪装成它</span>
+            <span class="text-xs text-zinc-400 ml-2">客户端 SNI 伪装成它; 可选预设或自定义域名</span>
           </template>
           <NSelect
             v-model:value="form.realityDest"
             :options="realityDestOptions"
             :disabled="installing"
-            placeholder="选偷取的目标真站"
+            tag
+            filterable
+            placeholder="选或输入目标真站 (如 www.bing.com)"
           />
         </NFormItem>
         <NFormItem v-else>

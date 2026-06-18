@@ -179,9 +179,12 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
                 ? DEFAULT_RECONCILE_INTERVAL_SECONDS : r.getReconcileIntervalSeconds();
         // 完整重排: 装 agent 时就写固定 xray 段 (路径/端口后端默认); reconcile 据此探, xray 部署好后自动对账
         if (AgentRole.FRONTLINE.matches(r.getRole())) {
+            // xray 路径/端口默认走 XrayInstallDefaults; reqVO 传了非空值才覆盖 (前端不传, 保留后端可配置)
+            String xrayBin = StrUtil.blankToDefault(r.getXrayBin(), XrayInstallDefaults.XRAY_BINARY_PATH);
+            int xrayApiPort = r.getXrayApiPort() == null ? XrayInstallDefaults.API_PORT : r.getXrayApiPort();
             sb.append("xray:\n");
-            sb.append("  bin: ").append(XrayInstallDefaults.XRAY_BINARY_PATH).append("\n");
-            sb.append("  api_port: ").append(XrayInstallDefaults.API_PORT).append("\n");
+            sb.append("  bin: ").append(xrayBin).append("\n");
+            sb.append("  api_port: ").append(xrayApiPort).append("\n");
             sb.append("  stats_interval_seconds: ").append(XRAY_STATS_INTERVAL_SECONDS).append("\n");
             sb.append("  reconcile_interval_seconds: ").append(reconcileInterval).append("\n\n");
         } else if (AgentRole.LANDING.matches(r.getRole())) {

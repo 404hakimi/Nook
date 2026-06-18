@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.nook.biz.node.api.enums.XraySecurityEnum;
 import lombok.Data;
 
 import java.io.Serial;
@@ -28,14 +27,8 @@ public class XrayInboundDO implements Serializable {
     @TableId(value = "server_id", type = IdType.INPUT)
     private String serverId;
 
-    /** 共享 inbound 协议 (vmess/vless/...) */
-    private String protocol;
-
-    /** 共享 inbound 传输 (ws/tcp/...) */
-    private String transport;
-
-    /** 安全层 {@link XraySecurityEnum} */
-    private String security;
+    /** 协议形态 key {@link com.nook.biz.node.api.enums.XrayInboundProtocolEnum}; protocol/transport/security 由它解出. */
+    private String protocolKey;
 
     /** 共享 inbound 监听 IP. */
     private String listenIp;
@@ -43,19 +36,7 @@ public class XrayInboundDO implements Serializable {
     /** 共享 inbound 监听端口. */
     private Integer sharedInboundPort;
 
-    /** WebSocket transport path (CDN 接入). */
-    private String wsPath;
-
-    /** 对外域名 (CDN CNAME 指向). */
-    private String domain;
-
-    /** TLS 证书路径 (acme.sh 签发后填). */
-    private String tlsCertPath;
-
-    /** TLS 私钥路径 (acme.sh 签发后填). */
-    private String tlsKeyPath;
-
-    /** 协议/传输/安全细节语义参数 (JSON); 反序列化见 InboundParams. */
+    /** 协议/传输/安全细节语义参数 (JSON, 含 ws/tls/reality/flow + 对外域名); 反序列化见 InboundParams. */
     private String params;
 
     /** 创建时间. */

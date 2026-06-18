@@ -2,6 +2,7 @@ package com.nook.biz.node.api.xray;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
+import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.api.enums.XraySecurityEnum;
 import com.nook.biz.node.api.xray.dto.XrayInboundDTO;
 import com.nook.biz.node.entity.XrayInboundDO;
@@ -12,15 +13,17 @@ import org.mapstruct.factory.Mappers;
 
 import java.util.List;
 
-@Mapper(imports = XraySecurityEnum.class)
+@Mapper
 public interface XrayInboundApiConvert {
 
     XrayInboundApiConvert INSTANCE = Mappers.getMapper(XrayInboundApiConvert.class);
 
     @Mapping(target = "host", source = "host")
     @Mapping(target = "port", source = "cfg.sharedInboundPort")
-    // TLS 开关按安全层是否 tls 推导
-    @Mapping(target = "tls", expression = "java(XraySecurityEnum.TLS.matches(cfg.getSecurity()))")
+    @Mapping(target = "protocol", ignore = true)
+    @Mapping(target = "transport", ignore = true)
+    @Mapping(target = "security", ignore = true)
+    @Mapping(target = "tls", ignore = true)
     @Mapping(target = "wsPath", ignore = true)
     @Mapping(target = "flow", ignore = true)
     @Mapping(target = "publicKey", ignore = true)
@@ -29,8 +32,17 @@ public interface XrayInboundApiConvert {
     @Mapping(target = "fingerprint", ignore = true)
     XrayInboundDTO toBaseInboundDTO(XrayInboundDO cfg, String host);
 
+    /** 组装完整连接 DTO: 协议/传输/安全层由 protocol_key 解出, ws/reality 客户端参数从 params 取. */
     default XrayInboundDTO toInboundDTO(XrayInboundDO cfg, String host, InboundParams params) {
         XrayInboundDTO dto = this.toBaseInboundDTO(cfg, host);
+        // 协议/传输/安全层由 protocol_key 解出 (替代旧 protocol/transport/security 列)
+        XrayInboundProtocolEnum proto = XrayInboundProtocolEnum.fromKey(cfg.getProtocolKey());
+        if (proto != null) {
+            dto.setProtocol(proto.getProtocol());
+            dto.setTransport(proto.getTransport());
+            dto.setSecurity(proto.getSecurity());
+            dto.setTls(XraySecurityEnum.TLS.matches(proto.getSecurity()));
+        }
         if (params == null) {
             return dto;
         }

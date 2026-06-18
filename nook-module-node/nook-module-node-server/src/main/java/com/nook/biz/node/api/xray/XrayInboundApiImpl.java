@@ -44,16 +44,17 @@ public class XrayInboundApiImpl implements XrayInboundApi {
         for (Map.Entry<String, XrayInboundDO> entry : cfgMap.entrySet()) {
             XrayInboundDO cfg = entry.getValue();
             ResourceServerDO srv = serverMap.get(entry.getKey());
-            // host 优先线路机域名, 否则回退出网 IP; 都没有则拼不出连接, 跳过该线路机
-            String host = StrUtil.isNotBlank(cfg.getDomain())
-                    ? cfg.getDomain()
+            // 解析协议语义参数 (vmess ws path / tls 域名 / reality 客户端参数从此取)
+            InboundParams params = StrUtil.isBlank(cfg.getParams())
+                    ? null : JSON.parseObject(cfg.getParams(), InboundParams.class);
+            // host 优先 vmess-tls 对外域名 (params.tls.domain), 否则回退线路机出网 IP; 都没有则拼不出连接, 跳过
+            String domain = (params != null && params.getTls() != null) ? params.getTls().getDomain() : null;
+            String host = StrUtil.isNotBlank(domain)
+                    ? domain
                     : (ObjectUtil.isNull(srv) ? null : srv.getIpAddress());
             if (StrUtil.isBlank(host)) {
                 continue;
             }
-            // 解析协议语义参数 (vmess ws path / reality 客户端参数从此取)
-            InboundParams params = StrUtil.isBlank(cfg.getParams())
-                    ? null : JSON.parseObject(cfg.getParams(), InboundParams.class);
             result.put(entry.getKey(), XrayInboundApiConvert.INSTANCE.toInboundDTO(cfg, host, params));
         }
         return result;

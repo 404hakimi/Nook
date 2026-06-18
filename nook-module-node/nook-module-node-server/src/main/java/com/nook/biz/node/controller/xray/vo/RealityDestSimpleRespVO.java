@@ -12,7 +12,7 @@ import lombok.Data;
 @AllArgsConstructor
 public class RealityDestSimpleRespVO {
 
-    /** 候选值 (RealityDestPreset name, 装机时回传). */
+    /** 候选值 = 偷取目标主机名 (如 www.bing.com); 前端也可自定义输入, 装机时回传. */
     private String value;
 
     /** 展示标签. */

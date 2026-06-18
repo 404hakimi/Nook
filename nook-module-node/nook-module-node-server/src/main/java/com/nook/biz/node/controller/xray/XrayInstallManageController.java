@@ -109,7 +109,7 @@ public class XrayInstallManageController {
     public Result<List<RealityDestSimpleRespVO>> listRealityDest() {
         List<RealityDestSimpleRespVO> list = CollectionUtils.convertList(
                 List.of(RealityDestPreset.values()),
-                p -> new RealityDestSimpleRespVO(p.name(), p.getLabel()));
+                p -> new RealityDestSimpleRespVO(p.getServerName(), p.getLabel() + " (" + p.getServerName() + ")"));
         return Result.ok(list);
     }
 }

@@ -4,6 +4,9 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
+import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 import com.nook.biz.node.entity.XrayInboundDO;
 import com.nook.biz.node.entity.ResourceServerDO;
@@ -12,10 +15,8 @@ import com.nook.biz.node.mapper.Socks5InstallMapper;
 import com.nook.biz.node.mapper.ResourceServerMapper;
 import com.nook.biz.node.mapper.XrayInboundMapper;
 import com.nook.biz.node.framework.xray.XrayConstants;
-import com.nook.biz.node.framework.xray.cli.XrayInboundCli;
-import com.nook.biz.node.framework.xray.cli.XrayOutboundCli;
-import com.nook.biz.node.framework.xray.cli.XrayRoutingCli;
 import com.nook.biz.node.framework.xray.inbound.config.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.protocol.InboundProtocolFactory;
 import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
 import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.biz.trade.api.dto.SubscriptionCertRespDTO;
@@ -48,11 +49,7 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
     @Resource
     private SubscriptionCertApi subscriptionCertApi;
     @Resource
-    private XrayInboundCli xrayInboundCli;
-    @Resource
-    private XrayOutboundCli xrayOutboundCli;
-    @Resource
-    private XrayRoutingCli xrayRoutingCli;
+    private InboundProtocolFactory inboundProtocolFactory;
 
     @Override
     public List<XrayReconcileClientDTO> getDesiredClients(String serverId) {
@@ -79,7 +76,8 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
                 : CollectionUtils.convertMap(socks5InstallMapper.selectByServerIds(ipIds),
                         Socks5InstallDO::getServerId);
 
-        // 协议流控: vless-reality 用 xtls-rprx-vision, 从 inbound params 取 (跟订阅侧同源); 缺它 reality 用户握手被拒
+        // 协议形态由 protocol_key 解出, 流控从 inbound params 取 (跟订阅侧同源); reality 缺 flow 用户握手被拒
+        String protocol = XrayInboundProtocolEnum.fromKey(cfg.getProtocolKey()).getProtocol();
         String inboundFlow = StrUtil.isBlank(cfg.getParams())
                 ? null : JSON.parseObject(cfg.getParams(), InboundParams.class).getFlow();
         List<XrayReconcileClientDTO> out = new ArrayList<>(certs.size());
@@ -98,7 +96,7 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
             InboundUserSpec spec = InboundUserSpec.builder()
                     .email(cert.getAuthUser())
                     .uuid(cert.getAuthSecret())
-                    .protocol(cfg.getProtocol())
+                    .protocol(protocol)
                     .flow(inboundFlow)
                     .build();
 
@@ -109,13 +107,56 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
             dto.setInboundTag(XrayConstants.SHARED_INBOUND_TAG);
             dto.setOutboundTag(outboundTag);
             dto.setRuleTag(ruleTag);
-            dto.setAduJson(xrayInboundCli.buildUserOnlyInboundJson(XrayConstants.SHARED_INBOUND_TAG, spec));
-            dto.setAdoJson(xrayOutboundCli.buildSocksOutboundJson(outboundTag, landingSrv.getIpAddress(),
+            // 协议特定的加用户 JSON 由对应 InboundProtocol 实现渲染 (vmess/vless clients[] 字段不同)
+            dto.setAduJson(inboundProtocolFactory.resolveByProtocol(protocol)
+                    .buildAduJson(XrayConstants.SHARED_INBOUND_TAG, spec));
+            dto.setAdoJson(this.buildSocksOutboundJson(outboundTag, landingSrv.getIpAddress(),
                     landing.getSocks5Port(), landing.getSocks5Username(), landing.getSocks5Password()));
-            dto.setAdrulesJson(xrayRoutingCli.buildAddRuleJson(ruleTag,
-                    List.of(cert.getAuthUser()), outboundTag));
+            dto.setAdrulesJson(this.buildAddRuleJson(ruleTag, List.of(cert.getAuthUser()), outboundTag));
             out.add(dto);
         }
         return out;
+    }
+
+    /**
+     * 渲染 socks5 出站 JSON (ado 入参; 含可选鉴权); 出站对所有 inbound 协议一致, 非协议相关.
+     *
+     * <p>v25.10.15 起 outbound 要求扁平: settings 直接平铺 address / port / user / pass.
+     */
+    private String buildSocksOutboundJson(String tag, String host, int port, String username, String password) {
+        JSONObject settings = new JSONObject();
+        settings.put("address", host);
+        settings.put("port", port);
+        if (StrUtil.isNotBlank(username) && StrUtil.isNotBlank(password)) {
+            settings.put("user", username);
+            settings.put("pass", password);
+            settings.put("level", 0);
+        }
+        JSONObject outbound = new JSONObject();
+        outbound.put("tag", tag);
+        outbound.put("protocol", "socks");
+        outbound.put("settings", settings);
+        JSONArray outbounds = new JSONArray();
+        outbounds.add(outbound);
+        JSONObject config = new JSONObject();
+        config.put("outbounds", outbounds);
+        return config.toJSONString();
+    }
+
+    /** 渲染 adrules 入参 JSON: {"routing":{"rules":[{ruleTag,user,outboundTag}]}}; 路由对所有协议一致, 非协议相关. */
+    private String buildAddRuleJson(String ruleTag, List<String> userEmails, String outboundTag) {
+        JSONArray users = new JSONArray();
+        users.addAll(userEmails);
+        JSONObject rule = new JSONObject();
+        rule.put("ruleTag", ruleTag);
+        rule.put("user", users);
+        rule.put("outboundTag", outboundTag);
+        JSONArray rules = new JSONArray();
+        rules.add(rule);
+        JSONObject routing = new JSONObject();
+        routing.put("rules", rules);
+        JSONObject config = new JSONObject();
+        config.put("routing", routing);
+        return config.toJSONString();
     }
 }

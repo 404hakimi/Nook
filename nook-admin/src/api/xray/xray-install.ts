@@ -71,13 +71,33 @@ export function xrayAutostart(serverId: string, enabled: boolean) {
   return request.post<unknown, string>('/admin/xray/install/set-xray-autostart', null, { params: { id: serverId, enabled } })
 }
 
+/** 共享 inbound 配置 (协议形态 + 监听 + 协议特定参数); 协议特定字段的必填性由后端对应协议实现校验. */
+export interface XrayInboundConfig {
+  /** 协议; vmess (走 ws) 或 vless (走 reality). */
+  protocol: 'vmess' | 'vless' | 'trojan'
+  /** 传输; vmess=ws, vless-reality=tcp; 随协议联动. */
+  transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
+  /** 监听 IP; 当前部署期固定 0.0.0.0. */
+  listenIp: string
+  /** 监听端口 (默认 443). */
+  sharedInboundPort: number
+  /** WebSocket transport path; vmess 必填 (/ 开头), vless 不传. */
+  wsPath?: string
+  /** REALITY 偷取目标主机名 (如 www.bing.com, 预设或自定义); vless 必填, 其它协议不传. */
+  realityDest?: string
+  /** 绑定的根域 system_domain.id; vmess 选了走 TLS, 空走纯 ws; vless 不传. 根域 / CF Token 由 system_domain 提供. */
+  domainId?: string
+  /** 二级域名标签 (如 frontline-jp-1); vmess 绑域名时必填. 完整 FQDN = subdomain + "." + 根域. */
+  subdomain?: string
+}
+
 /**
  * Xray 线路服务器一键安装入参.
  *
  * <p>仅装 xray 内核 + 落地池 + UFW + 时区; swap / bbr 等通用 OS 调优走 ServerOps 接口单独触发.
  *
- * <p>基础设施 (安装目录 / 各路径 / api 端口 / 日志目录 / 日志级别 / 重启策略 / TLS 路径) 由后端 XrayInstallDefaults 固定,
- * 前端只传版本 + 协议 + 域名 + 行为开关.
+ * <p>基础设施 (安装目录 / 各路径 / api 端口 / 日志目录 / 日志级别 / 重启策略 / TLS 路径) 由后端 XrayInstallDefaults 固定;
+ * 前端传版本 + 行为开关 + inbound 配置.
  */
 export interface LineServerInstallDTO {
   /** Xray 版本; "v26.3.27" 这种或 "latest". */
@@ -91,25 +111,8 @@ export interface LineServerInstallDTO {
   setTimezone: boolean
   /** true = 装 logrotate 自动滚 xray 日志 (低配机推荐); false = 跳过 (日志可能填满磁盘). */
   logRotate: boolean
-  /** 共享 inbound 协议; vmess (走 ws) 或 vless (走 reality). */
-  protocol: 'vmess' | 'vless' | 'trojan'
-  /** 共享 inbound 传输; vmess=ws, vless-reality=tcp; 随协议联动. */
-  transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
-  /** 共享 inbound 监听 IP; 当前部署期固定 0.0.0.0 (前端置灰). */
-  listenIp: string
-  /** 共享 inbound 监听端口 (默认 443). */
-  sharedInboundPort: number
-  /** WebSocket transport path; 必须 / 开头. */
-  wsPath: string
-  /**
-   * 绑定的根域 system_domain.id; 选了 = 走域名 + TLS (生产路径: CF A 记录 + 45-acme-tls + xray inbound 渲染 TLS);
-   * 空 = 不走域名, xray inbound 退化成纯 vmess+ws. 根域 / CF Token 由 system_domain 提供, 不在装机入参里传.
-   */
-  domainId?: string
-  /** 二级域名标签 (如 frontline-jp-1); 选了 domainId 时必填. 完整 FQDN = subdomain + "." + 根域. */
-  subdomain?: string
-  /** REALITY 偷取目标候选 (RealityDest.value); protocol=vless 时必填, 其它协议送空. */
-  realityDest?: string
+  /** 共享 inbound 配置. */
+  inbound: XrayInboundConfig
 }
 
 /** REALITY dest 候选 (装机 vless 协议时下拉). */

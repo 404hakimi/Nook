@@ -63,10 +63,10 @@ public class AgentInstallReqVO {
     @NotBlank
     private String backendUrl;
 
-    /** Frontline 必填: xray binary 绝对路径 (前端从 install-meta 取). landing 忽略. */
+    /** Frontline 可选: xray binary 绝对路径; 留空用后端 XrayInstallDefaults 默认 (前端不传). landing 忽略. */
     private String xrayBin;
 
-    /** Frontline 必填: xray api server 端口 (1-65535). landing 忽略. */
+    /** Frontline 可选: xray api server 端口 (1-65535); 留空用后端默认 (44944). landing 忽略. */
     @Min(1) @Max(65535)
     private Integer xrayApiPort;
 

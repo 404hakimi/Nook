@@ -324,8 +324,6 @@ export interface AgentInstallDTO {
   nicInterface: string
   /** Frontline reconcile (对账) 间隔 (秒); landing 忽略. */
   reconcileIntervalSeconds?: number
-  xrayBin?: string
-  xrayApiPort?: number
   nookHome: string
   binPath: string
   configPath: string

@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * Xray inbound 协议/传输/安全细节语义参数 (对应 xray_inbound.params JSON 列)
+ * Xray inbound 协议/传输/安全细节语义参数
  *
  * @author nook
  */
@@ -49,6 +49,9 @@ public class InboundParams {
 
         /** TLS 私钥路径. */
         private String keyPath;
+
+        /** 对外域名 (FQDN); 客户端 host + SNI, 订阅取此 (替代旧 xray_inbound.domain 列). */
+        private String domain;
     }
 
     /**

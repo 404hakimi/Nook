@@ -165,9 +165,7 @@ async function actuallyDeploy() {
   try {
     const dto: AgentInstallDTO = {
       ...form,
-      role: props.role,
-      xrayBin: props.role === 'frontline' ? installMeta.value?.xrayBin : undefined,
-      xrayApiPort: props.role === 'frontline' ? installMeta.value?.xrayApiPort : undefined
+      role: props.role
     }
     await agentInstallStream(props.sourceId, dto, appendLog, deployAbort.signal)
     appendLog('\n[nook-admin] ✅ 部署完成\n')
