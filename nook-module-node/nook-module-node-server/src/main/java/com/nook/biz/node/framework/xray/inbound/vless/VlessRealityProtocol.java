@@ -102,9 +102,8 @@ public class VlessRealityProtocol implements InboundProtocol {
         JSONObject client = new JSONObject();
         client.put("id", user.getUuid());
         client.put("email", user.getEmail());
-        if (StrUtil.isNotBlank(user.getFlow())) {
-            client.put("flow", user.getFlow());
-        }
+        // flow 是本协议固定形态 (xtls-rprx-vision), 由协议自己提供, 不依赖调用方传入
+        client.put("flow", FLOW_VISION);
         client.put("level", 0);
         JSONArray clients = new JSONArray();
         clients.add(client);

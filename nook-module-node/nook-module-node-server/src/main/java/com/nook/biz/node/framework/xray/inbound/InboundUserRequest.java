@@ -17,10 +17,4 @@ public class InboundUserRequest {
 
     /** 协议级凭据 (vmess/vless 走 UUID, trojan 走密码). */
     private String uuid;
-
-    /** 协议名 (vmess / vless / trojan). */
-    private String protocol;
-
-    /** vless flow (xtls-rprx-vision 等); 其它协议留空. */
-    private String flow;
 }
