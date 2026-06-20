@@ -3,7 +3,6 @@ package com.nook.biz.node.validator;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.alibaba.fastjson2.JSON;
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
@@ -11,7 +10,9 @@ import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.entity.XrayInboundDO;
 import com.nook.biz.node.entity.XrayInstallDO;
 import com.nook.biz.node.framework.xray.XrayConstants;
-import com.nook.biz.node.framework.xray.inbound.config.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundParamsResolver;
+import com.nook.biz.node.framework.xray.inbound.vmess.VmessWsParams;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
 import com.nook.biz.system.api.domain.SystemDomainApi;
@@ -79,12 +80,13 @@ public class XrayInstallValidator {
         XrayInboundProtocolEnum existingProto = XrayInboundProtocolEnum.fromKey(existingConfig.getProtocolKey());
         String existingProtocol = existingProto == null ? null : existingProto.getProtocol();
         String existingTransport = existingProto == null ? null : existingProto.getTransport();
-        InboundParams existingParams = StrUtil.isBlank(existingConfig.getParams())
-                ? null : JSON.parseObject(existingConfig.getParams(), InboundParams.class);
-        String existingWsPath = (existingParams != null && existingParams.getWs() != null)
-                ? existingParams.getWs().getPath() : null;
-        String existingDomain = (existingParams != null && existingParams.getTls() != null)
-                ? existingParams.getTls().getDomain() : null;
+        InboundParams existingParams = InboundParamsResolver.resolve(
+                existingConfig.getProtocolKey(), existingConfig.getParams());
+        VmessWsParams existingVmess = (existingParams instanceof VmessWsParams v) ? v : null;
+        String existingWsPath = (existingVmess != null && existingVmess.getWs() != null)
+                ? existingVmess.getWs().getPath() : null;
+        String existingDomain = (existingVmess != null && existingVmess.getTls() != null)
+                ? existingVmess.getTls().getDomain() : null;
         List<String> mismatches = new ArrayList<>();
         if (!ObjectUtil.equal(existingConfig.getSharedInboundPort(), inbound.getSharedInboundPort())) {
             mismatches.add("sharedInboundPort: " + existingConfig.getSharedInboundPort()

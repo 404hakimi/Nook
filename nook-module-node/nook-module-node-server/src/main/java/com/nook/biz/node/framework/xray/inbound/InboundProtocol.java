@@ -1,7 +1,6 @@
-package com.nook.biz.node.framework.xray.inbound.protocol;
+package com.nook.biz.node.framework.xray.inbound;
 
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
-import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
 
 /**
  * 入站协议实现; 每协议形态封装自己的 装机校验 / 参数生成 / inbound 渲染 (reconcile 加用户的 adu JSON)
@@ -31,10 +30,10 @@ public interface InboundProtocol {
     /**
      * 算形态 / 语义参数 / 模板占位符, 并完成协议特定的部署前置 (域名解析 / CF A 记录 / 密钥生成)
      *
-     * @param ctx 装机上下文
-     * @return 协议产出 (含 fullDomain / cfApiToken)
+     * @param ctx 开通请求
+     * @return 开通结果 (含 fullDomain / cfApiToken)
      */
-    InboundProvision provision(InboundProvisionContext ctx);
+    InboundProvisionResult provision(InboundProvisionRequest ctx);
 
     /**
      * 渲染 reconcile 加用户用的 adu 入参 JSON: {"inbounds":[{tag,listen,port,protocol,settings:{clients:[...]}}]}.
@@ -46,5 +45,5 @@ public interface InboundProtocol {
      * @param user 加入用户规格 (uuid / email / flow)
      * @return 含顶层 "inbounds" 的完整 JSON
      */
-    String buildAduJson(String tag, InboundUserSpec user);
+    String buildAduJson(String tag, InboundUserRequest user);
 }

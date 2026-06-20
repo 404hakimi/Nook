@@ -3,7 +3,6 @@ package com.nook.biz.node.api.xray;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
@@ -15,9 +14,11 @@ import com.nook.biz.node.mapper.Socks5InstallMapper;
 import com.nook.biz.node.mapper.ResourceServerMapper;
 import com.nook.biz.node.mapper.XrayInboundMapper;
 import com.nook.biz.node.framework.xray.XrayConstants;
-import com.nook.biz.node.framework.xray.inbound.config.InboundParams;
-import com.nook.biz.node.framework.xray.inbound.protocol.InboundProtocolFactory;
-import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
+import com.nook.biz.node.framework.xray.inbound.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundParamsResolver;
+import com.nook.biz.node.framework.xray.inbound.InboundProtocolFactory;
+import com.nook.biz.node.framework.xray.inbound.InboundUserRequest;
+import com.nook.biz.node.framework.xray.inbound.vless.VlessRealityParams;
 import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.biz.trade.api.dto.SubscriptionCertRespDTO;
 import com.nook.common.utils.collection.CollectionUtils;
@@ -78,8 +79,8 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
 
         // 协议形态由 protocol_key 解出, 流控从 inbound params 取 (跟订阅侧同源); reality 缺 flow 用户握手被拒
         String protocol = XrayInboundProtocolEnum.fromKey(cfg.getProtocolKey()).getProtocol();
-        String inboundFlow = StrUtil.isBlank(cfg.getParams())
-                ? null : JSON.parseObject(cfg.getParams(), InboundParams.class).getFlow();
+        InboundParams params = InboundParamsResolver.resolve(cfg.getProtocolKey(), cfg.getParams());
+        String inboundFlow = (params instanceof VlessRealityParams vless) ? vless.getFlow() : null;
         List<XrayReconcileClientDTO> out = new ArrayList<>(certs.size());
         for (SubscriptionCertRespDTO cert : certs) {
             ResourceServerDO landingSrv = landingSrvMap.get(cert.getIpId());
@@ -93,7 +94,7 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
             // 出站 / 路由 tag 按凭证 id 取, 一个接入点一套, 故障切换/轮换都不变 → agent 据 tag 比对增删
             String outboundTag = XrayConstants.outboundTagOf(cert.getId(), cert.getIpId());
             String ruleTag = XrayConstants.ruleTagOf(cert.getId(), cert.getIpId());
-            InboundUserSpec spec = InboundUserSpec.builder()
+            InboundUserRequest userReq = InboundUserRequest.builder()
                     .email(cert.getAuthUser())
                     .uuid(cert.getAuthSecret())
                     .protocol(protocol)
@@ -109,7 +110,7 @@ public class XrayReconcileApiImpl implements XrayReconcileApi {
             dto.setRuleTag(ruleTag);
             // 协议特定的加用户 JSON 由对应 InboundProtocol 实现渲染 (vmess/vless clients[] 字段不同)
             dto.setAduJson(inboundProtocolFactory.resolveByProtocol(protocol)
-                    .buildAduJson(XrayConstants.SHARED_INBOUND_TAG, spec));
+                    .buildAduJson(XrayConstants.SHARED_INBOUND_TAG, userReq));
             dto.setAdoJson(this.buildSocksOutboundJson(outboundTag, landingSrv.getIpAddress(),
                     landing.getSocks5Port(), landing.getSocks5Username(), landing.getSocks5Password()));
             dto.setAdrulesJson(this.buildAddRuleJson(ruleTag, List.of(cert.getAuthUser()), outboundTag));

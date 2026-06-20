@@ -1,4 +1,4 @@
-package com.nook.biz.node.framework.xray.inbound.protocol;
+package com.nook.biz.node.framework.xray.inbound;
 
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;

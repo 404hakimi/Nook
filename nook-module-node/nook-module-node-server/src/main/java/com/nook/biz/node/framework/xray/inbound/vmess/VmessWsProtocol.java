@@ -1,4 +1,4 @@
-package com.nook.biz.node.framework.xray.inbound.protocol;
+package com.nook.biz.node.framework.xray.inbound.vmess;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONArray;
@@ -10,9 +10,11 @@ import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.framework.cloudflare.CloudflareApiClient;
 import com.nook.biz.node.framework.xray.XrayConstants;
-import com.nook.biz.node.framework.xray.inbound.config.InboundParams;
-import com.nook.biz.node.framework.xray.inbound.config.InboundTemplateRenderer;
-import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
+import com.nook.biz.node.framework.xray.inbound.InboundTemplateRenderer;
+import com.nook.biz.node.framework.xray.inbound.InboundProtocol;
+import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
+import com.nook.biz.node.framework.xray.inbound.InboundProvisionRequest;
+import com.nook.biz.node.framework.xray.inbound.InboundUserRequest;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
 import com.nook.biz.system.api.domain.SystemDomainApi;
 import com.nook.biz.system.api.domain.dto.SystemDomainRespDTO;
@@ -76,8 +78,8 @@ public class VmessWsProtocol implements InboundProtocol {
     }
 
     @Override
-    public InboundProvision provision(InboundProvisionContext ctx) {
-        XrayInboundConfigVO inbound = ctx.reqVO().getInbound();
+    public InboundProvisionResult provision(InboundProvisionRequest ctx) {
+        XrayInboundConfigVO inbound = ctx.getReqVO().getInbound();
         boolean useTls = StrUtil.isNotBlank(inbound.getDomainId());
         String fullDomain = null;
         String cfApiToken = null;
@@ -91,12 +93,12 @@ public class VmessWsProtocol implements InboundProtocol {
         XrayInboundProtocolEnum protocol = useTls
                 ? XrayInboundProtocolEnum.VMESS_WS_TLS : XrayInboundProtocolEnum.VMESS_WS_PLAIN;
         // 语义参数: ws path + (绑域名时) tls 路径
-        InboundParams params = new InboundParams();
-        InboundParams.WsParams ws = new InboundParams.WsParams();
+        VmessWsParams params = new VmessWsParams();
+        VmessWsParams.WsParams ws = new VmessWsParams.WsParams();
         ws.setPath(inbound.getWsPath());
         params.setWs(ws);
         if (useTls) {
-            InboundParams.TlsParams tls = new InboundParams.TlsParams();
+            VmessWsParams.TlsParams tls = new VmessWsParams.TlsParams();
             tls.setCertPath(XrayInstallDefaults.TLS_CERT_PATH);
             tls.setKeyPath(XrayInstallDefaults.TLS_KEY_PATH);
             tls.setDomain(fullDomain);
@@ -114,11 +116,17 @@ public class VmessWsProtocol implements InboundProtocol {
             vars.put("tls.keyPath", XrayInstallDefaults.TLS_KEY_PATH);
         }
         String inboundJson = inboundTemplateRenderer.render(useTls ? TEMPLATE_TLS : TEMPLATE_PLAIN, vars);
-        return new InboundProvision(protocol, params, inboundJson, fullDomain, cfApiToken);
+        return InboundProvisionResult.builder()
+                .protocol(protocol)
+                .params(params)
+                .inboundJson(inboundJson)
+                .fullDomain(fullDomain)
+                .cfApiToken(cfApiToken)
+                .build();
     }
 
     @Override
-    public String buildAduJson(String tag, InboundUserSpec user) {
+    public String buildAduJson(String tag, InboundUserRequest user) {
         JSONObject client = new JSONObject();
         client.put("id", user.getUuid());
         client.put("email", user.getEmail());
@@ -141,17 +149,17 @@ public class VmessWsProtocol implements InboundProtocol {
     }
 
     /** 部署前加 CF A 记录; 失败不阻断 (用户可手动在 CF 面板加). */
-    private void ensureCfRecord(InboundProvisionContext ctx, String fullDomain, String cfApiToken) {
+    private void ensureCfRecord(InboundProvisionRequest ctx, String fullDomain, String cfApiToken) {
         if (StrUtil.isBlank(cfApiToken)) {
             return;
         }
         try {
-            cloudflareApiClient.ensureARecord(cfApiToken, fullDomain, ctx.serverIp(), false);
-            ctx.lineSink().accept("[nook] ✔ Cloudflare A 记录已加: " + fullDomain + " → " + ctx.serverIp() + "\n");
+            cloudflareApiClient.ensureARecord(cfApiToken, fullDomain, ctx.getServerIp(), false);
+            ctx.getLineSink().accept("[nook] ✔ Cloudflare A 记录已加: " + fullDomain + " → " + ctx.getServerIp() + "\n");
         } catch (Exception cfe) {
-            ctx.lineSink().accept("[nook] ⚠ Cloudflare A 记录创建失败 (" + cfe.getMessage()
+            ctx.getLineSink().accept("[nook] ⚠ Cloudflare A 记录创建失败 (" + cfe.getMessage()
                     + "), 请手动在 CF 面板加 A 记录\n");
-            log.warn("[install] CF API 失败 server={} domain={}: {}", ctx.serverId(), fullDomain, cfe.getMessage());
+            log.warn("[install] CF API 失败 server={} domain={}: {}", ctx.getServerId(), fullDomain, cfe.getMessage());
         }
     }
 }

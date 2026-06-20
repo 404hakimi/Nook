@@ -1,4 +1,4 @@
-package com.nook.biz.node.framework.xray.inbound.protocol;
+package com.nook.biz.node.framework.xray.inbound.vless;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONArray;
@@ -8,10 +8,11 @@ import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.framework.xray.XrayConstants;
-import com.nook.biz.node.framework.xray.inbound.config.InboundParams;
-import com.nook.biz.node.framework.xray.inbound.config.InboundTemplateRenderer;
-import com.nook.biz.node.framework.xray.inbound.config.RealityKeyGenerator;
-import com.nook.biz.node.framework.xray.inbound.snapshot.InboundUserSpec;
+import com.nook.biz.node.framework.xray.inbound.InboundTemplateRenderer;
+import com.nook.biz.node.framework.xray.inbound.InboundProtocol;
+import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
+import com.nook.biz.node.framework.xray.inbound.InboundProvisionRequest;
+import com.nook.biz.node.framework.xray.inbound.InboundUserRequest;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
@@ -44,7 +45,7 @@ public class VlessRealityProtocol implements InboundProtocol {
             {"tag":${tag},"listen":${listenIp},"port":${port},"protocol":"vless","settings":{"clients":[],"decryption":"none"},"sniffing":{"enabled":true,"destOverride":["http","tls","quic"]},"streamSettings":{"network":"tcp","security":"reality","realitySettings":{"show":false,"dest":${reality.dest},"xver":0,"serverNames":${reality.serverNames},"privateKey":${reality.privateKey},"shortIds":${reality.shortIds}}}}""";
 
     @Resource
-    private RealityKeyGenerator realityKeyGenerator;
+    private VlessRealityKeyGenerator vlessRealityKeyGenerator;
     @Resource
     private InboundTemplateRenderer inboundTemplateRenderer;
 
@@ -64,19 +65,19 @@ public class VlessRealityProtocol implements InboundProtocol {
     }
 
     @Override
-    public InboundProvision provision(InboundProvisionContext ctx) {
-        XrayInboundConfigVO inbound = ctx.reqVO().getInbound();
+    public InboundProvisionResult provision(InboundProvisionRequest ctx) {
+        XrayInboundConfigVO inbound = ctx.getReqVO().getInbound();
         String serverName = inbound.getRealityDest().trim();
-        RealityKeyGenerator.RealityKeyPair keyPair = realityKeyGenerator.generateKeyPair();
+        VlessRealityKeyGenerator.RealityKeyPair keyPair = vlessRealityKeyGenerator.generateKeyPair();
         // 语义参数: reality 密钥 + dest (privateKey 进服务端, publicKey 进订阅)
-        InboundParams params = new InboundParams();
+        VlessRealityParams params = new VlessRealityParams();
         params.setFlow(FLOW_VISION);
-        InboundParams.RealityParams reality = new InboundParams.RealityParams();
+        VlessRealityParams.RealityParams reality = new VlessRealityParams.RealityParams();
         reality.setDest(serverName + ":" + REALITY_DEST_PORT);
         reality.setServerNames(List.of(serverName));
         reality.setPrivateKey(keyPair.privateKey());
         reality.setPublicKey(keyPair.publicKey());
-        reality.setShortIds(List.of("", realityKeyGenerator.generateShortId(SHORTID_BYTES)));
+        reality.setShortIds(List.of("", vlessRealityKeyGenerator.generateShortId(SHORTID_BYTES)));
         reality.setFingerprint(FINGERPRINT_CHROME);
         params.setReality(reality);
         // 模板占位符
@@ -89,11 +90,15 @@ public class VlessRealityProtocol implements InboundProtocol {
         vars.put("reality.privateKey", reality.getPrivateKey());
         vars.put("reality.shortIds", reality.getShortIds());
         String inboundJson = inboundTemplateRenderer.render(INBOUND_TEMPLATE, vars);
-        return new InboundProvision(XrayInboundProtocolEnum.VLESS_REALITY, params, inboundJson, null, null);
+        return InboundProvisionResult.builder()
+                .protocol(XrayInboundProtocolEnum.VLESS_REALITY)
+                .params(params)
+                .inboundJson(inboundJson)
+                .build();
     }
 
     @Override
-    public String buildAduJson(String tag, InboundUserSpec user) {
+    public String buildAduJson(String tag, InboundUserRequest user) {
         JSONObject client = new JSONObject();
         client.put("id", user.getUuid());
         client.put("email", user.getEmail());

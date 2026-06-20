@@ -1,4 +1,4 @@
-package com.nook.biz.node.framework.xray.inbound.config;
+package com.nook.biz.node.framework.xray.inbound.vless;
 
 import cn.hutool.core.util.HexUtil;
 import com.nook.biz.node.api.enums.XrayErrorCode;
@@ -20,7 +20,7 @@ import java.util.Base64;
  * @author nook
  */
 @Component
-public class RealityKeyGenerator {
+public class VlessRealityKeyGenerator {
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final Base64.Encoder B64_URL = Base64.getUrlEncoder().withoutPadding();

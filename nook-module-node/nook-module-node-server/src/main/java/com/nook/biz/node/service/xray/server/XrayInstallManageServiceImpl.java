@@ -17,10 +17,10 @@ import com.nook.biz.node.entity.XrayInstallDO;
 import com.nook.biz.node.framework.agent.AgentControlClient;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
-import com.nook.biz.node.framework.xray.inbound.protocol.InboundProtocol;
-import com.nook.biz.node.framework.xray.inbound.protocol.InboundProtocolFactory;
-import com.nook.biz.node.framework.xray.inbound.protocol.InboundProvision;
-import com.nook.biz.node.framework.xray.inbound.protocol.InboundProvisionContext;
+import com.nook.biz.node.framework.xray.inbound.InboundProtocol;
+import com.nook.biz.node.framework.xray.inbound.InboundProtocolFactory;
+import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
+import com.nook.biz.node.framework.xray.inbound.InboundProvisionRequest;
 import com.nook.biz.node.framework.xray.install.XrayInstallScriptAssembler;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
@@ -105,8 +105,12 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         ResourceServerDO srv = resourceServerValidator.validateExists(serverId);
 
         // 协议产出: 形态/语义参数/模板占位符 + 域名 (实现内做域名解析/CF A 记录/密钥生成); 渲染 + 落库共用同一份
-        InboundProvision prov = protocol.provision(
-                new InboundProvisionContext(serverId, reqVO, srv.getIpAddress(), lineSink));
+        InboundProvisionResult prov = protocol.provision(InboundProvisionRequest.builder()
+                .serverId(serverId)
+                .reqVO(reqVO)
+                .serverIp(srv.getIpAddress())
+                .lineSink(lineSink)
+                .build());
 
         // 渲染完整脚本 (拼装下沉到基础设施 XrayInstallScriptAssembler) → 经 agent 控制接口本地执行; agent 流式回传 stdout
         String script = xrayInstallScriptAssembler.assemble(serverId, reqVO, prov);
@@ -126,8 +130,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     }
 
     /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. params/security 由 caller 算好 (reality 密钥跟脚本渲染同一份). */
-    private void persistDeployment(String serverId, XrayInstallReqVO r, String resolvedVersion, InboundProvision prov) {
-        String fullDomain = prov.fullDomain();
+    private void persistDeployment(String serverId, XrayInstallReqVO r, String resolvedVersion, InboundProvisionResult prov) {
+        String fullDomain = prov.getFullDomain();
         boolean useTls = StrUtil.isNotBlank(fullDomain);
         XrayInboundConfigVO inbound = r.getInbound();
         XrayInstallDO srv = new XrayInstallDO();
@@ -149,10 +153,10 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         XrayInboundDO cfg = new XrayInboundDO();
         cfg.setServerId(serverId);
         // 协议形态收敛到 protocol_key (protocol/transport/security 由它解出); 域名/ws/tls/reality 语义全在 params
-        cfg.setProtocolKey(prov.protocol().getKey());
+        cfg.setProtocolKey(prov.getProtocol().getKey());
         cfg.setListenIp(inbound.getListenIp());
         cfg.setSharedInboundPort(inbound.getSharedInboundPort());
-        cfg.setParams(JSON.toJSONString(prov.params()));
+        cfg.setParams(JSON.toJSONString(prov.getParams()));
         xrayInboundService.upsert(cfg);
     }
 

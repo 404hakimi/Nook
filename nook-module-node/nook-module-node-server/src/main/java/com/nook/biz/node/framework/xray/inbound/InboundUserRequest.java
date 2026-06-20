@@ -1,16 +1,16 @@
-package com.nook.biz.node.framework.xray.inbound.snapshot;
+package com.nook.biz.node.framework.xray.inbound;
 
 import lombok.Builder;
 import lombok.Data;
 
 /**
- * Xray inbound 加 user 的入参; xray.json clients[] 渲染共用.
+ * Xray inbound 加 user (adu) 请求入参; 渲染成 xray clients[]
  *
  * @author nook
  */
 @Data
 @Builder
-public class InboundUserSpec {
+public class InboundUserRequest {
 
     /** client email; 同 server 全局唯一. */
     private String email;

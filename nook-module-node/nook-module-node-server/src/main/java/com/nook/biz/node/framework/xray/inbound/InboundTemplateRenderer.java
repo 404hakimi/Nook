@@ -1,4 +1,4 @@
-package com.nook.biz.node.framework.xray.inbound.config;
+package com.nook.biz.node.framework.xray.inbound;
 
 import com.alibaba.fastjson2.JSON;
 import org.springframework.stereotype.Component;

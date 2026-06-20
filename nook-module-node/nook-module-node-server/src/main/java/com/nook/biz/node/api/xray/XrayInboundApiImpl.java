@@ -3,10 +3,11 @@ package com.nook.biz.node.api.xray;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.alibaba.fastjson2.JSON;
 import com.nook.biz.node.api.xray.dto.XrayInboundDTO;
 import com.nook.biz.node.entity.XrayInboundDO;
-import com.nook.biz.node.framework.xray.inbound.config.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundParamsResolver;
+import com.nook.biz.node.framework.xray.inbound.vmess.VmessWsParams;
 import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.mapper.ResourceServerMapper;
 import com.nook.biz.node.mapper.XrayInboundMapper;
@@ -45,10 +46,10 @@ public class XrayInboundApiImpl implements XrayInboundApi {
             XrayInboundDO cfg = entry.getValue();
             ResourceServerDO srv = serverMap.get(entry.getKey());
             // 解析协议语义参数 (vmess ws path / tls 域名 / reality 客户端参数从此取)
-            InboundParams params = StrUtil.isBlank(cfg.getParams())
-                    ? null : JSON.parseObject(cfg.getParams(), InboundParams.class);
+            InboundParams params = InboundParamsResolver.resolve(cfg.getProtocolKey(), cfg.getParams());
             // host 优先 vmess-tls 对外域名 (params.tls.domain), 否则回退线路机出网 IP; 都没有则拼不出连接, 跳过
-            String domain = (params != null && params.getTls() != null) ? params.getTls().getDomain() : null;
+            String domain = (params instanceof VmessWsParams vmess && vmess.getTls() != null)
+                    ? vmess.getTls().getDomain() : null;
             String host = StrUtil.isNotBlank(domain)
                     ? domain
                     : (ObjectUtil.isNull(srv) ? null : srv.getIpAddress());

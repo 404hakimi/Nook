@@ -6,7 +6,9 @@ import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.api.enums.XraySecurityEnum;
 import com.nook.biz.node.api.xray.dto.XrayInboundDTO;
 import com.nook.biz.node.entity.XrayInboundDO;
-import com.nook.biz.node.framework.xray.inbound.config.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.vless.VlessRealityParams;
+import com.nook.biz.node.framework.xray.inbound.vmess.VmessWsParams;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
@@ -43,21 +45,21 @@ public interface XrayInboundApiConvert {
             dto.setSecurity(proto.getSecurity());
             dto.setTls(XraySecurityEnum.TLS.matches(proto.getSecurity()));
         }
-        if (params == null) {
-            return dto;
-        }
-        // ws path 从 params 取 (替代旧 ws_path 列)
-        if (params.getWs() != null) {
-            dto.setWsPath(params.getWs().getPath());
-        }
-        dto.setFlow(params.getFlow());
-        // reality 客户端连接参数 (pbk/sni/sid/fp)
-        InboundParams.RealityParams reality = params.getReality();
-        if (reality != null) {
-            dto.setPublicKey(reality.getPublicKey());
-            dto.setServerName(CollUtil.getFirst(reality.getServerNames()));
-            dto.setShortId(this.firstShortId(reality.getShortIds()));
-            dto.setFingerprint(reality.getFingerprint());
+        // vmess: ws path 从 params 取 (替代旧 ws_path 列)
+        if (params instanceof VmessWsParams vmess) {
+            if (vmess.getWs() != null) {
+                dto.setWsPath(vmess.getWs().getPath());
+            }
+        } else if (params instanceof VlessRealityParams vless) {
+            // reality 客户端连接参数 (flow + pbk/sni/sid/fp)
+            dto.setFlow(vless.getFlow());
+            VlessRealityParams.RealityParams reality = vless.getReality();
+            if (reality != null) {
+                dto.setPublicKey(reality.getPublicKey());
+                dto.setServerName(CollUtil.getFirst(reality.getServerNames()));
+                dto.setShortId(this.firstShortId(reality.getShortIds()));
+                dto.setFingerprint(reality.getFingerprint());
+            }
         }
         return dto;
     }

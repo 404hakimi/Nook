@@ -1,11 +1,11 @@
 package com.nook.biz.node.convert.xray;
 
-import cn.hutool.core.util.StrUtil;
-import com.alibaba.fastjson2.JSON;
 import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.controller.xray.vo.XrayInboundRespVO;
 import com.nook.biz.node.entity.XrayInboundDO;
-import com.nook.biz.node.framework.xray.inbound.config.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundParamsResolver;
+import com.nook.biz.node.framework.xray.inbound.vmess.VmessWsParams;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
@@ -31,18 +31,17 @@ public interface XrayInboundConvert {
             vo.setProtocol(proto.getProtocol());
             vo.setTransport(proto.getTransport());
         }
-        InboundParams params = StrUtil.isBlank(entity.getParams())
-                ? null : JSON.parseObject(entity.getParams(), InboundParams.class);
-        if (params == null) {
-            return vo;
-        }
-        if (params.getWs() != null) {
-            vo.setWsPath(params.getWs().getPath());
-        }
-        if (params.getTls() != null) {
-            vo.setDomain(params.getTls().getDomain());
-            vo.setTlsCertPath(params.getTls().getCertPath());
-            vo.setTlsKeyPath(params.getTls().getKeyPath());
+        InboundParams params = InboundParamsResolver.resolve(entity.getProtocolKey(), entity.getParams());
+        // 当前 admin 详情只展示 vmess 的 ws/tls; reality 客户端参数走订阅, 不在此 VO
+        if (params instanceof VmessWsParams vmess) {
+            if (vmess.getWs() != null) {
+                vo.setWsPath(vmess.getWs().getPath());
+            }
+            if (vmess.getTls() != null) {
+                vo.setDomain(vmess.getTls().getDomain());
+                vo.setTlsCertPath(vmess.getTls().getCertPath());
+                vo.setTlsKeyPath(vmess.getTls().getKeyPath());
+            }
         }
         return vo;
     }
