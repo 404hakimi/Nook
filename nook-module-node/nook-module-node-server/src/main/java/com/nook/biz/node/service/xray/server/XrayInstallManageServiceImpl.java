@@ -21,7 +21,7 @@ import com.nook.biz.node.framework.xray.inbound.InboundProtocolFactory;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionRequest;
 import com.nook.biz.node.framework.xray.install.XrayInstallScriptAssembler;
-import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
+import com.nook.biz.node.framework.xray.server.XrayDaemonControl;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
@@ -72,7 +72,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     @Resource
     private XrayInstallValidator xrayInstallValidator;
     @Resource
-    private XrayDaemonProbe xrayDaemonProbe;
+    private XrayDaemonControl xrayDaemonControl;
     @Resource
     private SystemDomainApi systemDomainApi;
     @Resource
@@ -158,7 +158,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         // 守护进程级命令式操作: 直接 SSH 下发 systemctl restart + 探活回 stdout (脱离 op 队列, "立即重启"是一次性命令, 非声明式期望态)
         XrayInstallDO server = xrayInstallValidator.validateExists(serverId);
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
-        return xrayDaemonProbe.restart(session, server.getXrayBinaryPath());
+        return xrayDaemonControl.restart(session, server.getXrayBinaryPath());
     }
 
     @Override
@@ -192,7 +192,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     public String setAutostart(String serverId, boolean enabled) {
         // 直接 SSH 下发 systemctl enable/disable + is-enabled 回 stdout (脱离 op 队列)
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
-        return xrayDaemonProbe.setAutostart(session, enabled);
+        return xrayDaemonControl.setAutostart(session, enabled);
     }
 
     @Override
