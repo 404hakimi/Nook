@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
 	"nook-agent/internal/client"
+	"nook-agent/internal/execx"
 )
 
 type Reporter struct {
@@ -137,7 +137,9 @@ func (r *Reporter) sampleCumulative() (rx, tx int64, err error) {
 			iface = detected
 		}
 	}
-	cmd := exec.Command("vnstat", "-i", iface, "--json")
+	// 单次超时: vnstat 卡死(库锁/IO stall)不能把整条上报 loop 永久阻塞. tick 无 ctx 形参, 用 Background.
+	cmd, cancel := execx.Command(context.Background(), execx.DefaultTimeout, "vnstat", "-i", iface, "--json")
+	defer cancel()
 	out, err := cmd.Output()
 	if err != nil {
 		return 0, 0, fmt.Errorf("跑 vnstat (iface=%s) 失败: %w", iface, err)

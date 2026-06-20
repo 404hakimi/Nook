@@ -7,11 +7,11 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"nook-agent/internal/execx"
 	"nook-agent/internal/nic"
 )
 
@@ -34,7 +34,12 @@ func (l *Limiter) Apply(ctx context.Context, mbps int) {
 		log.Printf("[限速] 解析网卡失败, 跳过本轮: %v", err)
 		return
 	}
-	cur := l.currentRateMbps(ctx, iface)
+	cur, err := l.currentRateMbps(ctx, iface)
+	if err != nil {
+		// 读当前限速失败(tc 瞬时错/超时): 不据此误判限速状态(否则可能误清或反复重建), 跳过本轮.
+		log.Printf("[限速] 读取当前限速失败, 跳过本轮: %v", err)
+		return
+	}
 	if mbps <= 0 {
 		if cur == 0 {
 			return // 本来就无限速
@@ -61,19 +66,24 @@ func (l *Limiter) resolveIface() (string, error) {
 	return nic.DetectDefaultIface()
 }
 
-// currentRateMbps 读本机 htb class 速率 (Mbps); 无我们的 htb / 读失败都按 0 (无限速) 处理.
-func (l *Limiter) currentRateMbps(ctx context.Context, iface string) int {
-	out, err := exec.CommandContext(ctx, "tc", "class", "show", "dev", iface).CombinedOutput()
+// currentRateMbps 读本机 htb class 速率 (Mbps).
+//   - 命令成功且有我们的 htb class → (mbps, nil)
+//   - 命令成功但无 htb class → (0, nil): 确实无限速
+//   - 命令执行失败(瞬时/超时) → (0, err): 由 Apply 跳过本轮, 不据此误判
+func (l *Limiter) currentRateMbps(ctx context.Context, iface string) (int, error) {
+	cmd, cancel := execx.Command(ctx, execx.DefaultTimeout, "tc", "class", "show", "dev", iface)
+	defer cancel()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("tc class show: %w (out=%s)", err, strings.TrimSpace(string(out)))
 	}
 	m := rateRe.FindStringSubmatch(string(out))
 	if m == nil {
-		return 0
+		return 0, nil // 命令成功但无 htb class → 无限速
 	}
-	val, err := strconv.ParseFloat(m[1], 64)
-	if err != nil {
-		return 0
+	val, perr := strconv.ParseFloat(m[1], 64)
+	if perr != nil {
+		return 0, nil
 	}
 	switch m[2] {
 	case "K":
@@ -81,7 +91,7 @@ func (l *Limiter) currentRateMbps(ctx context.Context, iface string) int {
 	case "G":
 		val *= 1000
 	}
-	return int(val + 0.5)
+	return int(val + 0.5), nil
 }
 
 // setRate 用 htb root + 单 default class 整形 egress; root 建一次, 速率改动落 class.
@@ -91,7 +101,9 @@ func (l *Limiter) setRate(ctx context.Context, iface string, mbps int) error {
 	}
 	rate := strconv.Itoa(mbps) + "mbit"
 	a := []string{"class", "replace", "dev", iface, "parent", "1:", "classid", "1:1", "htb", "rate", rate, "ceil", rate}
-	if out, err := exec.CommandContext(ctx, "tc", a...).CombinedOutput(); err != nil {
+	cmd, cancel := execx.Command(ctx, execx.DefaultTimeout, "tc", a...)
+	defer cancel()
+	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("tc %s: %w (out=%s)", strings.Join(a, " "), err, strings.TrimSpace(string(out)))
 	}
 	return nil
@@ -99,12 +111,16 @@ func (l *Limiter) setRate(ctx context.Context, iface string, mbps int) error {
 
 // ensureRootQdisc 确保 htb root 存在: 已是我们的 htb 就不动; 否则把默认 root replace 成 htb.
 func (l *Limiter) ensureRootQdisc(ctx context.Context, iface string) error {
-	out, err := exec.CommandContext(ctx, "tc", "qdisc", "show", "dev", iface).CombinedOutput()
+	showCmd, showCancel := execx.Command(ctx, execx.DefaultTimeout, "tc", "qdisc", "show", "dev", iface)
+	defer showCancel()
+	out, err := showCmd.CombinedOutput()
 	if err == nil && strings.Contains(string(out), "qdisc htb 1:") {
 		return nil
 	}
 	a := []string{"qdisc", "replace", "dev", iface, "root", "handle", "1:", "htb", "default", "1"}
-	if out, err := exec.CommandContext(ctx, "tc", a...).CombinedOutput(); err != nil {
+	cmd, cancel := execx.Command(ctx, execx.DefaultTimeout, "tc", a...)
+	defer cancel()
+	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("tc %s: %w (out=%s)", strings.Join(a, " "), err, strings.TrimSpace(string(out)))
 	}
 	return nil
@@ -112,7 +128,9 @@ func (l *Limiter) ensureRootQdisc(ctx context.Context, iface string) error {
 
 // clear 删 root qdisc; 本来就没有视为幂等通过.
 func (l *Limiter) clear(ctx context.Context, iface string) error {
-	out, err := exec.CommandContext(ctx, "tc", "qdisc", "del", "dev", iface, "root").CombinedOutput()
+	cmd, cancel := execx.Command(ctx, execx.DefaultTimeout, "tc", "qdisc", "del", "dev", iface, "root")
+	defer cancel()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		low := strings.ToLower(string(out))
 		if strings.Contains(low, "no such file") || strings.Contains(low, "invalid argument") {

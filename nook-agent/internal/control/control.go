@@ -5,6 +5,7 @@ package control
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,9 @@ const tokenHeader = "X-Agent-Token"
 
 // 脚本未带超时时的兜底上限.
 const defaultTimeout = 30 * time.Minute
+
+// 请求体上限: 部署脚本通常 KB 级, 留足余量又能挡住超大 body 把内存/磁盘(写 /tmp)打爆.
+const maxBodyBytes = 4 << 20 // 4MiB
 
 // Server 控制接口 HTTP server; 无状态.
 type Server struct {
@@ -48,22 +52,24 @@ func (s *Server) Run(ctx context.Context) {
 		_ = srv.Shutdown(shutCtx)
 	}()
 	log.Printf("[控制接口] 监听 :%d", s.port)
+	// ctx 取消触发 Shutdown → ListenAndServe 返回 ErrServerClosed, 属正常优雅退出.
+	// 其余错误(端口被占/权限/非法地址)是启动失败: 不能只打一行日志让进程带病活着(控制面静默黑洞),
+	// 直接退出, 交给 systemd Restart=always 重试.
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Printf("[控制接口] 退出: %v", err)
+		log.Fatalf("[控制接口] 监听失败, 进程退出待 systemd 重启: %v", err)
 	}
 }
 
 func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	// 鉴权失败 / 非法方法一律伪装成"此路径不存在": 与空 http server 访问未知路径的响应字节完全一致,
+	// 让扫描器从 44844 探不出这是 Nook 控制口. 只有"正确 token + POST"才真正放行执行.
+	if r.Method != http.MethodPost || !tokenOK(r.Header.Get(tokenHeader), s.token) {
+		http.NotFound(w, r)
 		return
 	}
-	if r.Header.Get(tokenHeader) != s.token {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
+	// 到这里的都是带对 token 的后台调用: body 限大小, 解析/内容错误照常报真错(便于后台排查).
 	var req execRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
 		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -72,6 +78,11 @@ func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.runScript(w, r, req)
+}
+
+// tokenOK 常量时间比较 token, 避免按匹配前缀长度变化的计时侧信道泄露 token.
+func tokenOK(got, want string) bool {
+	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }
 
 // runScript 写脚本临时文件 + bash 执行, stdout/stderr 实时 flush 回响应流.

@@ -14,11 +14,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
-	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
+
+	"nook-agent/internal/execx"
 )
 
 // 从 `nft list table` 文本里提 cnt_in 规则的 dport.
@@ -37,32 +40,57 @@ func (m *Meter) Ensure(ctx context.Context, port int) {
 	if port <= 0 {
 		return
 	}
-	curPort, exists := m.currentRulePort()
-	if exists && curPort == port {
+	curPort, present, err := m.currentRulePort(ctx)
+	if err != nil {
+		// 读规则失败(nft 瞬时错/超时): 不能据此当"表不存在"去 rebuild —— rebuild 会 flush 清零累计值.
+		// 跳过本轮, 保住既有计数器; 下轮重试.
+		log.Printf("[计量] 读取计数器规则失败, 跳过本轮 (不重建, 保住累计值): %v", err)
+		return
+	}
+	if present && curPort == port {
 		return // 规则在位且端口对, 不动(agent 重启走这条→不误清)
 	}
 	if err := m.rebuild(ctx, port); err != nil {
 		log.Printf("[计量] 业务流量计数器创建失败 端口=%d: %v", port, err)
 		return
 	}
-	log.Printf("[计量] 业务流量计数器已就绪 端口=%d (重建前: 存在=%v 端口=%d)", port, exists, curPort)
+	log.Printf("[计量] 业务流量计数器已就绪 端口=%d (重建前: 存在=%v 端口=%d)", port, present, curPort)
 }
 
-// currentRulePort: 读内核 nook_meter 表里规则的实际端口; table 不存在 / 无规则返 (0,false) → 触发重建.
-func (m *Meter) currentRulePort() (int, bool) {
-	out, err := exec.Command("nft", "list", "table", "inet", "nook_meter").Output()
+// currentRulePort: 读内核 nook_meter 表里规则的实际端口.
+//   - 表存在且有 dport 规则 → (port, true, nil)
+//   - 确认表/规则不存在 → (0, false, nil): 正常缺失, 交给 Ensure 重建
+//   - nft 命令执行失败(瞬时/超时/nft 缺失) → (0, false, err): Ensure 跳过本轮, 不 rebuild, 不清零
+func (m *Meter) currentRulePort(ctx context.Context) (int, bool, error) {
+	cmd, cancel := execx.Command(ctx, execx.DefaultTimeout, "nft", "list", "table", "inet", "nook_meter")
+	defer cancel()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return 0, false // table 不存在(或被删) → 需重建
+		if tableAbsent(stderr.String(), err) {
+			return 0, false, nil // 表确实不存在(或被删) → 需重建
+		}
+		return 0, false, fmt.Errorf("nft list table: %w (stderr=%s)", err, strings.TrimSpace(stderr.String()))
 	}
 	match := dportRe.FindSubmatch(out)
 	if match == nil {
-		return 0, false
+		return 0, false, nil // 表在但无我们的规则 → 需重建
 	}
-	port, err := strconv.Atoi(string(match[1]))
-	if err != nil {
-		return 0, false
+	port, perr := strconv.Atoi(string(match[1]))
+	if perr != nil {
+		return 0, false, nil // 端口解析不出 → 当作需重建
 	}
-	return port, true
+	return port, true, nil
+}
+
+// tableAbsent: 判断 nft 的失败是不是"表不存在"(正常缺失, 应重建), 而非命令执行失败(瞬时/超时, 应跳过).
+func tableAbsent(stderr string, err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return false // 超时不是"表不存在"
+	}
+	low := strings.ToLower(stderr)
+	return strings.Contains(low, "no such file") || strings.Contains(low, "does not exist")
 }
 
 // rebuild: 独立 table nook_meter, 进/出 socks5 端口各一个 counter(只数不拦); flush 重建会清零, 仅规则缺失/端口变时调.
@@ -82,7 +110,8 @@ table inet nook_meter {
 	}
 }
 `, port, port)
-	cmd := exec.CommandContext(ctx, "nft", "-f", "-")
+	cmd, cancel := execx.Command(ctx, execx.DefaultTimeout, "nft", "-f", "-")
+	defer cancel()
 	cmd.Stdin = bytes.NewReader([]byte(script))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("nft -f: %w (out=%s)", err, string(out))
@@ -112,7 +141,10 @@ type nftJSON struct {
 
 // readCounters: 分别读 biz_in(上行) / biz_out(下行) 累计字节.
 func (m *Meter) readCounters() (in, out int64, err error) {
-	raw, err := exec.Command("nft", "-j", "list", "counters", "table", "inet", "nook_meter").Output()
+	// SampleUpDown 由 nic 采样器(无 ctx 形参)调, 故用 Background; 单次超时仍生效, 卡死即本轮不报 biz.
+	cmd, cancel := execx.Command(context.Background(), execx.DefaultTimeout, "nft", "-j", "list", "counters", "table", "inet", "nook_meter")
+	defer cancel()
+	raw, err := cmd.Output()
 	if err != nil {
 		return 0, 0, fmt.Errorf("nft list counters: %w", err)
 	}

@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"nook-agent/internal/execx"
 )
 
 // Client 调本地 xray api 的命令包装; 无状态.
@@ -30,12 +32,19 @@ func (c *Client) baseArgs(sub string) []string {
 	return []string{"api", sub, fmt.Sprintf("--server=127.0.0.1:%d", c.apiPort)}
 }
 
+// command 构造带单次超时的 xray api 命令 (本地 127.0.0.1 gRPC, 正常亚秒级); 调用方须 defer 返回的 cancel.
+// 防止某次 xray api 调用卡死把整条 reconcile loop 永久阻塞.
+func (c *Client) command(ctx context.Context, args ...string) (*exec.Cmd, context.CancelFunc) {
+	return execx.Command(ctx, execx.DefaultTimeout, c.xrayBin, args...)
+}
+
 // AddUser: xray api adu < inbound JSON.
 // inboundTag + user spec (uuid, email, level) 由 caller 拼好 inbound JSON 后传入.
 func (c *Client) AddUser(ctx context.Context, inboundJSON string) error {
 	// adu 无 stdin 自动 fallback (跟 ado/adrules 不同), 必须显式传 stdin: 否则静默 "Added 0 user(s)".
 	args := append(c.baseArgs("adu"), "stdin:")
-	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
+	cmd, cancel := c.command(ctx, args...)
+	defer cancel()
 	cmd.Stdin = strings.NewReader(inboundJSON)
 	out, err := runCapture(cmd)
 	if err != nil {
@@ -51,7 +60,8 @@ func (c *Client) AddUser(ctx context.Context, inboundJSON string) error {
 // RemoveUser: xray api rmu -tag=<tag> <email>.
 func (c *Client) RemoveUser(ctx context.Context, inboundTag, email string) error {
 	args := append(c.baseArgs("rmu"), "-tag="+inboundTag, email)
-	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
+	cmd, cancel := c.command(ctx, args...)
+	defer cancel()
 	out, err := runCapture(cmd)
 	if err != nil {
 		return fmt.Errorf("xray api rmu 失败: %w (stdout=%s)", err, out)
@@ -62,7 +72,8 @@ func (c *Client) RemoveUser(ctx context.Context, inboundTag, email string) error
 // AddOutbound: xray api ado < outbound JSON; 校验 stdout 含 "adding: <tag>" 防 exit 0 静默加 0 条.
 func (c *Client) AddOutbound(ctx context.Context, tag, outboundJSON string) error {
 	args := append(c.baseArgs("ado"), "stdin:")
-	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
+	cmd, cancel := c.command(ctx, args...)
+	defer cancel()
 	cmd.Stdin = strings.NewReader(outboundJSON)
 	out, err := runCapture(cmd)
 	if err != nil {
@@ -77,7 +88,8 @@ func (c *Client) AddOutbound(ctx context.Context, tag, outboundJSON string) erro
 // RemoveOutbound: xray api rmo <outbound_tag>.
 func (c *Client) RemoveOutbound(ctx context.Context, outboundTag string) error {
 	args := append(c.baseArgs("rmo"), outboundTag)
-	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
+	cmd, cancel := c.command(ctx, args...)
+	defer cancel()
 	_, err := runCapture(cmd)
 	if err != nil {
 		return fmt.Errorf("xray api rmo 失败: %w", err)
@@ -88,7 +100,8 @@ func (c *Client) RemoveOutbound(ctx context.Context, outboundTag string) error {
 // AddRules: xray api adrules --append < routing JSON; 加完用 ListRuleTags 确认 ruleTag 出现, 防 exit 0 静默没加.
 func (c *Client) AddRules(ctx context.Context, ruleTag, routingJSON string) error {
 	args := append(c.baseArgs("adrules"), "--append", "stdin:")
-	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
+	cmd, cancel := c.command(ctx, args...)
+	defer cancel()
 	cmd.Stdin = strings.NewReader(routingJSON)
 	out, err := runCapture(cmd)
 	if err != nil {
@@ -109,7 +122,8 @@ func (c *Client) AddRules(ctx context.Context, ruleTag, routingJSON string) erro
 // RemoveRule: xray api rmrules <ruleTag>. rule 不存在视为幂等通过.
 func (c *Client) RemoveRule(ctx context.Context, ruleTag string) error {
 	args := append(c.baseArgs("rmrules"), ruleTag)
-	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
+	cmd, cancel := c.command(ctx, args...)
+	defer cancel()
 	out, err := runCapture(cmd)
 	if err != nil {
 		low := strings.ToLower(out)
@@ -125,7 +139,8 @@ func (c *Client) RemoveRule(ctx context.Context, ruleTag string) error {
 // account.id 即 user UUID (vmess/vless), reconcile 用它判断 UUID 是否轮换.
 func (c *Client) ListUsers(ctx context.Context, inboundTag string) (map[string]string, error) {
 	args := append(c.baseArgs("inbounduser"), "-tag="+inboundTag)
-	cmd := exec.CommandContext(ctx, c.xrayBin, args...)
+	cmd, cancel := c.command(ctx, args...)
+	defer cancel()
 	out, err := runCapture(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("xray api inbounduser 失败: %w (stdout=%s)", err, out)
@@ -156,7 +171,8 @@ func (c *Client) ListUsers(ctx context.Context, inboundTag string) (map[string]s
 
 // ListOutboundTags: xray api lso → 所有 outbound tag (含静态; reconcile 按 out_ 前缀过滤业务出站).
 func (c *Client) ListOutboundTags(ctx context.Context) ([]string, error) {
-	cmd := exec.CommandContext(ctx, c.xrayBin, c.baseArgs("lso")...)
+	cmd, cancel := c.command(ctx, c.baseArgs("lso")...)
+	defer cancel()
 	out, err := runCapture(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("xray api lso 失败: %w (stdout=%s)", err, out)
@@ -184,7 +200,8 @@ func (c *Client) ListOutboundTags(ctx context.Context) ([]string, error) {
 
 // ListRuleTags: xray api lsrules → 所有 routing rule 的 ruleTag (无 ruleTag 的内置 api 规则自然跳过).
 func (c *Client) ListRuleTags(ctx context.Context) ([]string, error) {
-	cmd := exec.CommandContext(ctx, c.xrayBin, c.baseArgs("lsrules")...)
+	cmd, cancel := c.command(ctx, c.baseArgs("lsrules")...)
+	defer cancel()
 	out, err := runCapture(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("xray api lsrules 失败: %w (stdout=%s)", err, out)
