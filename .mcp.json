@@ -31,22 +31,17 @@
         "chrome-devtools-mcp@latest"
       ]
     },
-    "codegraph": {
-      "type": "stdio",
-      "command": "codegraph",
-      "args": ["serve", "--mcp"]
-    },
     "intellij-idea": {
       "type": "stdio",
-      "command": "D:\\IntelliJ IDEA\\jbr\\bin\\java",
-      "args": [
-        "-classpath",
-        "D:\\IntelliJ IDEA\\plugins\\mcpserver\\lib\\mcpserver-frontend.jar;D:\\IntelliJ IDEA\\lib\\util-8.jar;D:\\IntelliJ IDEA\\lib\\intellij.libraries.kotlinx.coroutines.core.jar;D:\\IntelliJ IDEA\\lib\\intellij.libraries.ktor.client.cio.jar;D:\\IntelliJ IDEA\\lib\\intellij.libraries.ktor.client.jar;D:\\IntelliJ IDEA\\lib\\intellij.libraries.ktor.network.tls.jar;D:\\IntelliJ IDEA\\lib\\intellij.libraries.ktor.io.jar;D:\\IntelliJ IDEA\\lib\\intellij.libraries.ktor.utils.jar;D:\\IntelliJ IDEA\\lib\\intellij.libraries.kotlinx.io.jar;D:\\IntelliJ IDEA\\lib\\intellij.libraries.kotlinx.serialization.core.jar;D:\\IntelliJ IDEA\\lib\\intellij.libraries.kotlinx.serialization.json.jar",
-        "com.intellij.mcpserver.stdio.McpStdioRunnerKt"
-      ],
       "env": {
         "IJ_MCP_SERVER_PORT": "64342"
-      }
+      },
+      "command": "/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java",
+      "args": [
+        "-classpath",
+        "/Applications/IntelliJ IDEA.app/Contents/plugins/mcpserver/lib/mcpserver-frontend.jar:/Applications/IntelliJ IDEA.app/Contents/lib/util-8.jar:/Applications/IntelliJ IDEA.app/Contents/lib/intellij.libraries.kotlinx.coroutines.core.jar:/Applications/IntelliJ IDEA.app/Contents/lib/intellij.libraries.ktor.client.cio.jar:/Applications/IntelliJ IDEA.app/Contents/lib/intellij.libraries.ktor.client.jar:/Applications/IntelliJ IDEA.app/Contents/lib/intellij.libraries.ktor.network.tls.jar:/Applications/IntelliJ IDEA.app/Contents/lib/intellij.libraries.ktor.io.jar:/Applications/IntelliJ IDEA.app/Contents/lib/intellij.libraries.ktor.utils.jar:/Applications/IntelliJ IDEA.app/Contents/lib/intellij.libraries.kotlinx.io.jar:/Applications/IntelliJ IDEA.app/Contents/lib/intellij.libraries.kotlinx.serialization.core.jar:/Applications/IntelliJ IDEA.app/Contents/lib/intellij.libraries.kotlinx.serialization.json.jar",
+        "com.intellij.mcpserver.stdio.McpStdioRunnerKt"
+      ]
     }
   }
 }
