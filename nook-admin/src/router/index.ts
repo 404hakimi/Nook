@@ -103,18 +103,6 @@ const routes: RouteRecordRaw[] = [
         name: 'resource-server-landing-detail',
         component: () => import('@/views/server/ServerDetail.vue'),
         meta: { title: '落地机详情', serverType: 'landing' }
-      },
-      {
-        path: 'operation/op-log',
-        name: 'operation-op-log',
-        component: () => import('@/views/operation/OpLogList.vue'),
-        meta: { title: '操作流水' }
-      },
-      {
-        path: 'operation/op-config',
-        name: 'operation-op-config',
-        component: () => import('@/views/operation/OpConfigList.vue'),
-        meta: { title: 'Op 调度配置' }
       }
     ]
   },

@@ -2,7 +2,6 @@ package com.nook.biz.node.service.xray.server;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.api.xray.XrayInstallDefaults;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
@@ -22,6 +21,7 @@ import com.nook.biz.node.framework.xray.inbound.InboundProtocolFactory;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionRequest;
 import com.nook.biz.node.framework.xray.install.XrayInstallScriptAssembler;
+import com.nook.biz.node.framework.xray.server.XrayDaemonProbe;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
@@ -31,11 +31,6 @@ import com.nook.biz.system.api.domain.SystemDomainApi;
 import com.nook.framework.web.StreamingEndpointSupport;
 import com.nook.framework.web.WebStreamingProperties;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
-import com.nook.biz.operation.api.OpType;
-import com.nook.biz.operation.api.dto.OpEnqueueRequest;
-import com.nook.biz.operation.api.spi.OpConfigResolver;
-import com.nook.biz.operation.api.spi.OpOrchestrator;
-import com.nook.framework.security.stp.StpSystemUtil;
 import com.nook.framework.ssh.core.SshSession;
 import com.nook.framework.ssh.core.SshSessionScope;
 import com.nook.framework.ssh.core.SshSessions;
@@ -77,9 +72,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     @Resource
     private XrayInstallValidator xrayInstallValidator;
     @Resource
-    private OpOrchestrator opOrchestrator;
-    @Resource
-    private OpConfigResolver opConfigResolver;
+    private XrayDaemonProbe xrayDaemonProbe;
     @Resource
     private SystemDomainApi systemDomainApi;
     @Resource
@@ -162,12 +155,10 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
 
     @Override
     public String restart(String serverId) {
-        OpEnqueueRequest req = OpEnqueueRequest.builder()
-                .serverId(serverId)
-                .opType(OpType.XRAY_RESTART.name())
-                .operator(StpSystemUtil.getLoginIdOrSystem())
-                .build();
-        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.XRAY_RESTART.name()), String.class);
+        // 守护进程级命令式操作: 直接 SSH 下发 systemctl restart + 探活回 stdout (脱离 op 队列, "立即重启"是一次性命令, 非声明式期望态)
+        XrayInstallDO server = xrayInstallValidator.validateExists(serverId);
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
+        return xrayDaemonProbe.restart(session, server.getXrayBinaryPath());
     }
 
     @Override
@@ -199,15 +190,9 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
 
     @Override
     public String setAutostart(String serverId, boolean enabled) {
-        JSONObject params = new JSONObject();
-        params.put("enabled", enabled);
-        OpEnqueueRequest req = OpEnqueueRequest.builder()
-                .serverId(serverId)
-                .opType(OpType.SERVER_AUTOSTART.name())
-                .operator(StpSystemUtil.getLoginIdOrSystem())
-                .paramsJson(params.toJSONString())
-                .build();
-        return opOrchestrator.submitAndWait(req, opConfigResolver.getWaitTimeout(OpType.SERVER_AUTOSTART.name()), String.class);
+        // 直接 SSH 下发 systemctl enable/disable + is-enabled 回 stdout (脱离 op 队列)
+        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
+        return xrayDaemonProbe.setAutostart(session, enabled);
     }
 
     @Override

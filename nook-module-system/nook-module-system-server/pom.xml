@@ -32,11 +32,6 @@
             <artifactId>nook-spring-boot-starter-mybatis</artifactId>
         </dependency>
 
-        <!-- 提供 OpLogEnricher SPI; system 模块给 op_log 补 operator (admin) realName/username -->
-        <dependency>
-            <groupId>com.nook</groupId>
-            <artifactId>nook-module-operation-api</artifactId>
-        </dependency>
 
         <!-- 改根域串前查 xray_install 是否已被线路机绑定 (禁止部署漂移) -->
         <dependency>

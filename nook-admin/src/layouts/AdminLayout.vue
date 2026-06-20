@@ -17,8 +17,6 @@ import {
   Moon,
   LogOut,
   ScrollText,
-  History,
-  SlidersHorizontal,
   ArrowLeftRight,
   Settings2,
   MapPin,
@@ -102,15 +100,6 @@ const menuOptions: MenuOption[] = [
       // 线路机统一入口 (B 方案): 卡片总览, 点卡片进详情 tab (基本/Xray/Agent/任务)
       { key: '/servers', label: routerLabel('/servers', '线路机'), icon: icon(Server) },
       { key: '/resource/server-landing', label: routerLabel('/resource/server-landing', '落地机'), icon: icon(Globe2) }
-    ]
-  },
-  {
-    key: 'operation-group',
-    label: '运维管理',
-    icon: icon(History),
-    children: [
-      { key: '/operation/op-log', label: routerLabel('/operation/op-log', '操作流水'), icon: icon(History) },
-      { key: '/operation/op-config', label: routerLabel('/operation/op-config', 'Op 调度配置'), icon: icon(SlidersHorizontal) }
     ]
   },
   { key: '/monitor/alerts', label: routerLabel('/monitor/alerts', '监控告警'), icon: icon(Bell) }
