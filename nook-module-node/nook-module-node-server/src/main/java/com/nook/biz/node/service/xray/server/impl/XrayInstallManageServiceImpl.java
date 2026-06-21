@@ -1,8 +1,7 @@
-package com.nook.biz.node.service.xray.server;
+package com.nook.biz.node.service.xray.server.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
-import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.api.xray.XrayInstallDefaults;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
@@ -24,6 +23,7 @@ import com.nook.biz.node.framework.xray.install.XrayInstallScriptAssembler;
 import com.nook.biz.node.framework.xray.server.XrayDaemonControl;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
+import com.nook.biz.node.service.xray.server.XrayInstallManageService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.XrayInstallValidator;

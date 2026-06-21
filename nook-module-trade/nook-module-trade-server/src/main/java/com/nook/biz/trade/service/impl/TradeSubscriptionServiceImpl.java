@@ -7,15 +7,12 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nook.biz.member.api.MemberUserApi;
 import com.nook.biz.member.api.dto.MemberSubscriberDTO;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
-import com.nook.biz.node.api.enums.XraySecurityEnum;
-import com.nook.biz.node.api.xray.XrayInboundApi;
-import com.nook.biz.node.api.xray.dto.XrayInboundDTO;
+import com.nook.biz.node.api.xray.XrayShareApi;
+import com.nook.biz.node.api.xray.dto.ShareRenderReqDTO;
 import com.nook.biz.trade.api.enums.TradeCertSourceEnum;
 import com.nook.biz.trade.api.enums.TradeCertStatusEnum;
 import com.nook.biz.trade.api.enums.TradeErrorCode;
@@ -56,8 +53,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -78,10 +73,7 @@ import java.util.Set;
 @Service
 public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
 
-    private static final int DEFAULT_PORT = 443;
     private static final DateTimeFormatter EXPIRE_FMT = DateTimeFormatter.ofPattern("MM-dd");
-    /** vmess 协议标识; 协议空按 vmess 默认, reality 走 vless 分派. */
-    private static final String PROTOCOL_VMESS = "vmess";
     /** Clash 隐藏总出口组名: MATCH 目标, 客户端选节点时同步切到对应套餐组. */
     private static final String CLASH_ROOT_GROUP = "Nook";
     /** 无可用节点时的 Clash 空配置. */
@@ -104,13 +96,11 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
     @Resource
     private TransactionTemplate transactionTemplate;
     @Resource
-    private XrayInboundApi xrayInboundApi;
+    private XrayShareApi xrayShareApi;
     @Resource
     private ResourceServerLandingApi landingApi;
     @Resource
     private MemberUserApi memberUserApi;
-    @Resource
-    private ObjectMapper objectMapper;
     @Resource
     private ApplicationEventPublisher eventPublisher;
     @Resource
@@ -338,107 +328,34 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         if (CollUtil.isEmpty(certs)) {
             return clash ? EMPTY_CLASH : Base64.encode("");
         }
-        // 只缺 node 侧的线路机接入参数 (host/端口/协议/传输/path/tls); 凭证密钥 trade 自己有
-        Set<String> serverIds = CollectionUtils.convertSet(certs, TradeSubscriptionCertificateDO::getServerId);
-        Map<String, XrayInboundDTO> inboundMap = xrayInboundApi.listInboundByServerIds(serverIds);
         // 套餐名只用于节点备注展示, 批量查一次避免逐订阅查库
         Set<String> planIds = CollectionUtils.convertSet(subs, TradeSubscriptionDO::getPlanId);
         Map<String, String> planNameMap = CollectionUtils.convertMap(
                 planMapper.selectBatchIds(planIds), TradePlanDO::getId, TradePlanDO::getName);
 
         if (clash) {
-            return renderClashYaml(subs, certs, inboundMap, planNameMap);
+            return renderClashYaml(subs, certs, planNameMap);
         }
+        // 一凭证一节点: 备注作展示名; 协议特定渲染 (vmess://vless://) 收口 node (XrayShareApi), 拼不出连接的凭证不在结果里
+        List<ShareRenderReqDTO> reqs = new ArrayList<>(certs.size());
+        for (TradeSubscriptionCertificateDO cert : certs) {
+            TradeSubscriptionDO sub = subById.get(cert.getSubscriptionId());
+            reqs.add(ShareRenderReqDTO.builder()
+                    .reqKey(cert.getId())
+                    .serverId(cert.getServerId())
+                    .uuid(cert.getAuthSecret())
+                    .label(buildRemark(sub, planNameMap.get(sub.getPlanId())))
+                    .build());
+        }
+        Map<String, String> links = xrayShareApi.renderShareLinks(reqs);
         StringBuilder lines = new StringBuilder();
         for (TradeSubscriptionCertificateDO cert : certs) {
-            XrayInboundDTO inbound = inboundMap.get(cert.getServerId());
-            if (ObjectUtil.isNull(inbound)) {
-                continue; // 线路机未装 xray / 拼不出 host
+            String link = links.get(cert.getId());
+            if (link != null) {
+                lines.append(link).append('\n');
             }
-            // 按安全层/协议分派 (reality → vless, 否则 vmess); 不支持的形态跳过
-            if (!this.isSupportedInbound(inbound)) {
-                log.warn("[renderSubscription] 跳过不支持的协议形态: server={} protocol={} security={}",
-                        cert.getServerId(), inbound.getProtocol(), inbound.getSecurity());
-                continue;
-            }
-            TradeSubscriptionDO sub = subById.get(cert.getSubscriptionId());
-            String nodeLink = this.buildNodeLink(inbound, cert.getAuthSecret(), sub, planNameMap.get(sub.getPlanId()));
-            lines.append(nodeLink).append('\n');
         }
         return Base64.encode(lines.toString().trim());
-    }
-
-    /** 该 inbound 协议形态当前能否渲染订阅 (reality 或 vmess; 协议空按 vmess). */
-    private boolean isSupportedInbound(XrayInboundDTO inbound) {
-        if (XraySecurityEnum.REALITY.matches(inbound.getSecurity())) {
-            return true;
-        }
-        return StrUtil.isBlank(inbound.getProtocol()) || PROTOCOL_VMESS.equalsIgnoreCase(inbound.getProtocol());
-    }
-
-    /**
-     * 按安全层/协议分派拼节点链接 (reality → vless://, 否则 vmess://)
-     *
-     * @param inbound  线路机接入参数
-     * @param secret   凭证密钥
-     * @param sub      订阅
-     * @param planName 套餐名 (节点备注)
-     * @return 节点分享链接
-     */
-    private String buildNodeLink(XrayInboundDTO inbound, String secret, TradeSubscriptionDO sub, String planName) {
-        if (XraySecurityEnum.REALITY.matches(inbound.getSecurity())) {
-            return this.buildVlessRealityLink(inbound, secret, sub, planName);
-        }
-        return this.buildVmessLink(inbound, secret, sub, planName);
-    }
-
-    /**
-     * 拼单个 vless://(reality) 链接 (host = 线路机域名 / 出网 IP; uuid = 凭证密钥).
-     */
-    private String buildVlessRealityLink(XrayInboundDTO inbound, String uuid, TradeSubscriptionDO sub, String planName) {
-        int port = ObjectUtil.isNull(inbound.getPort()) ? DEFAULT_PORT : inbound.getPort();
-        StringBuilder query = new StringBuilder("encryption=none&security=reality");
-        query.append("&type=").append(StrUtil.blankToDefault(inbound.getTransport(), "tcp"));
-        if (StrUtil.isNotBlank(inbound.getFlow())) {
-            query.append("&flow=").append(inbound.getFlow());
-        }
-        if (StrUtil.isNotBlank(inbound.getServerName())) {
-            query.append("&sni=").append(this.urlEncode(inbound.getServerName()));
-        }
-        if (StrUtil.isNotBlank(inbound.getFingerprint())) {
-            query.append("&fp=").append(inbound.getFingerprint());
-        }
-        if (StrUtil.isNotBlank(inbound.getPublicKey())) {
-            query.append("&pbk=").append(this.urlEncode(inbound.getPublicKey()));
-        }
-        if (StrUtil.isNotBlank(inbound.getShortId())) {
-            query.append("&sid=").append(inbound.getShortId());
-        }
-        String remark = this.urlEncode(buildRemark(sub, planName));
-        return "vless://" + uuid + "@" + inbound.getHost() + ":" + port + "?" + query + "#" + remark;
-    }
-
-    /**
-     * 拼单个 vmess:// 链接 (host = 线路机域名 / 出网 IP; uuid = 凭证密钥).
-     */
-    private String buildVmessLink(XrayInboundDTO inbound, String uuid, TradeSubscriptionDO sub, String planName) {
-        Map<String, Object> v = new LinkedHashMap<>();
-        v.put("v", "2");
-        v.put("ps", buildRemark(sub, planName));
-        v.put("add", inbound.getHost());
-        v.put("port", String.valueOf(ObjectUtil.isNull(inbound.getPort()) ? DEFAULT_PORT : inbound.getPort()));
-        v.put("id", uuid);
-        v.put("aid", "0");
-        v.put("scy", "auto");
-        v.put("net", StrUtil.blankToDefault(inbound.getTransport(), "ws"));
-        v.put("type", "none");
-        v.put("host", inbound.getHost());
-        v.put("path", StrUtil.nullToEmpty(inbound.getWsPath()));
-        v.put("tls", inbound.isTls() ? "tls" : "");
-        if (inbound.isTls()) {
-            v.put("sni", inbound.getHost());
-        }
-        return "vmess://" + Base64.encode(toJson(v));
     }
 
     /**
@@ -461,9 +378,19 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
      */
     private String renderClashYaml(List<TradeSubscriptionDO> subs,
                                    List<TradeSubscriptionCertificateDO> certs,
-                                   Map<String, XrayInboundDTO> inboundMap,
                                    Map<String, String> planNameMap) {
         Map<String, String> groupNames = buildGroupNames(subs, planNameMap);
+        // 协议特定 proxy 渲染收口 node (XrayShareApi); 一次渲染全部凭证, name 先占位, 后按 dense 序覆盖成最终节点名
+        List<ShareRenderReqDTO> reqs = new ArrayList<>(certs.size());
+        for (TradeSubscriptionCertificateDO cert : certs) {
+            reqs.add(ShareRenderReqDTO.builder()
+                    .reqKey(cert.getId())
+                    .serverId(cert.getServerId())
+                    .uuid(cert.getAuthSecret())
+                    .label(cert.getId())
+                    .build());
+        }
+        Map<String, Map<String, Object>> proxyByCert = xrayShareApi.renderClashProxies(reqs);
         Map<String, List<TradeSubscriptionCertificateDO>> certsBySub = new LinkedHashMap<>();
         for (TradeSubscriptionCertificateDO cert : certs) {
             certsBySub.computeIfAbsent(cert.getSubscriptionId(), k -> new ArrayList<>()).add(cert);
@@ -478,18 +405,15 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
             String groupName = groupNames.get(sub.getId());
             List<String> nodeNames = new ArrayList<>();
             for (TradeSubscriptionCertificateDO cert : subCerts) {
-                XrayInboundDTO inbound = inboundMap.get(cert.getServerId());
-                if (ObjectUtil.isNull(inbound)) {
-                    continue; // 线路机未装 xray / 拼不出 host
-                }
-                if (!this.isSupportedInbound(inbound)) {
-                    log.warn("[renderSubscription] 跳过不支持的协议形态: server={} protocol={} security={}",
-                            cert.getServerId(), inbound.getProtocol(), inbound.getSecurity());
-                    continue;
+                Map<String, Object> proxy = proxyByCert.get(cert.getId());
+                if (proxy == null) {
+                    continue; // 线路机未装 xray / 拼不出 host / 协议不支持
                 }
                 String nodeName = groupName + "-" + (nodeNames.size() + 1);
                 nodeNames.add(nodeName);
-                proxies.add(this.buildClashProxy(nodeName, inbound, cert.getAuthSecret()));
+                // 节点编号是 trade 编排层职责 (跨凭证密集排序), 覆盖 node 渲染时的占位 name
+                proxy.put("name", nodeName);
+                proxies.add(proxy);
             }
             if (nodeNames.isEmpty()) {
                 continue;
@@ -523,75 +447,6 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
         return new Yaml(options).dump(root);
     }
 
-    /** 按安全层/协议分派拼 Clash 节点 (reality → vless, 否则 vmess). */
-    private Map<String, Object> buildClashProxy(String name, XrayInboundDTO inbound, String uuid) {
-        if (XraySecurityEnum.REALITY.matches(inbound.getSecurity())) {
-            return this.buildClashVlessRealityProxy(name, inbound, uuid);
-        }
-        return this.buildClashVmessProxy(name, inbound, uuid);
-    }
-
-    /**
-     * 拼单个 Clash.Meta vless(reality) 节点 (字段与 vless:// 链接同源).
-     */
-    private Map<String, Object> buildClashVlessRealityProxy(String name, XrayInboundDTO inbound, String uuid) {
-        Map<String, Object> p = new LinkedHashMap<>();
-        p.put("name", name);
-        p.put("type", "vless");
-        p.put("server", inbound.getHost());
-        p.put("port", ObjectUtil.isNull(inbound.getPort()) ? DEFAULT_PORT : inbound.getPort());
-        p.put("uuid", uuid);
-        p.put("network", StrUtil.blankToDefault(inbound.getTransport(), "tcp"));
-        p.put("udp", true);
-        p.put("tls", true);
-        if (StrUtil.isNotBlank(inbound.getFlow())) {
-            p.put("flow", inbound.getFlow());
-        }
-        if (StrUtil.isNotBlank(inbound.getServerName())) {
-            p.put("servername", inbound.getServerName());
-        }
-        if (StrUtil.isNotBlank(inbound.getFingerprint())) {
-            p.put("client-fingerprint", inbound.getFingerprint());
-        }
-        Map<String, Object> realityOpts = new LinkedHashMap<>();
-        if (StrUtil.isNotBlank(inbound.getPublicKey())) {
-            realityOpts.put("public-key", inbound.getPublicKey());
-        }
-        if (StrUtil.isNotBlank(inbound.getShortId())) {
-            realityOpts.put("short-id", inbound.getShortId());
-        }
-        p.put("reality-opts", realityOpts);
-        return p;
-    }
-
-    /**
-     * 拼单个 Clash vmess 节点 (字段与 vmess:// 链接同源).
-     */
-    private Map<String, Object> buildClashVmessProxy(String name, XrayInboundDTO inbound, String uuid) {
-        Map<String, Object> p = new LinkedHashMap<>();
-        p.put("name", name);
-        p.put("type", "vmess");
-        p.put("server", inbound.getHost());
-        p.put("port", ObjectUtil.isNull(inbound.getPort()) ? DEFAULT_PORT : inbound.getPort());
-        p.put("uuid", uuid);
-        p.put("alterId", 0);
-        p.put("cipher", "auto");
-        p.put("udp", true);
-        String network = StrUtil.blankToDefault(inbound.getTransport(), "ws");
-        p.put("network", network);
-        if (inbound.isTls()) {
-            p.put("tls", true);
-            p.put("servername", inbound.getHost());
-        }
-        if ("ws".equals(network)) {
-            Map<String, Object> wsOpts = new LinkedHashMap<>();
-            wsOpts.put("path", StrUtil.blankToDefault(inbound.getWsPath(), "/"));
-            wsOpts.put("headers", Map.of("Host", inbound.getHost()));
-            p.put("ws-opts", wsOpts);
-        }
-        return p;
-    }
-
     /**
      * 节点备注: "套餐名 | 到期 MM-dd".
      */
@@ -601,19 +456,6 @@ public class TradeSubscriptionServiceImpl implements TradeSubscriptionService {
             return name + " | 到期 " + sub.getExpiresAt().format(EXPIRE_FMT);
         }
         return name;
-    }
-
-    /** URL 编码 (空格转 %20; vless 链接 query / fragment 用). */
-    private String urlEncode(String s) {
-        return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20");
-    }
-
-    private String toJson(Map<String, Object> map) {
-        try {
-            return objectMapper.writeValueAsString(map);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("vmess JSON 序列化失败", e);
-        }
     }
 
 }

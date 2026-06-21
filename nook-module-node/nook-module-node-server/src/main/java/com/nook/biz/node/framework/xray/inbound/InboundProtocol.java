@@ -1,6 +1,12 @@
 package com.nook.biz.node.framework.xray.inbound;
 
+import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
+import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 入站协议实现; 每协议形态封装自己的 装机校验 / 参数生成 / inbound 渲染 (reconcile 加用户的 adu JSON)
@@ -10,14 +16,11 @@ import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 public interface InboundProtocol {
 
     /**
-     * 是否处理该协议 (按基础协议名 vmess / vless 判定)
+     * 本实现处理的协议形态集 (一个策略可覆盖多形态, 如 vmess 的 ws-tls / ws-plain); 工厂据此建「协议名 → 实现」分派表
      *
-     * <p>装机侧传 reqVO.inbound.protocol; reconcile 侧传 protocol_key 解出的 protocol.
-     *
-     * @param protocol 基础协议名 (大小写不敏感)
-     * @return 是否匹配
+     * @return 处理的 {@link XrayInboundProtocolEnum} 形态集
      */
-    boolean supports(String protocol);
+    Set<XrayInboundProtocolEnum> supportedForms();
 
     /**
      * 协议特定的装机参数校验
@@ -46,4 +49,34 @@ public interface InboundProtocol {
      * @return 含顶层 "inbounds" 的完整 JSON
      */
     String buildAduJson(String tag, InboundUserRequest user);
+
+    /**
+     * 重装时算本协议客户面连接参数的变更项 (变了则在用客户需重拉订阅才能恢复)
+     *
+     * <p>客户面参数是协议特定的 (vmess 看 ws path / 对外域名; vless reality 密钥每次重装必重新生成 → 恒变更),
+     * 故各协议自报; 调用方只比通用字段 (端口 / 监听 IP / 协议形态), 协议形态没变才下放到这里.
+     *
+     * @param existingParams 现存语义参数 (DB 解出, 跟本协议同形态)
+     * @param newInput       新装机 inbound 入参
+     * @return 客户面变更项的人读描述; 空 = 无变更
+     */
+    List<String> clientFacingDiff(InboundParams existingParams, XrayInboundConfigVO newInput);
+
+    /**
+     * 拼本协议的客户分享链接 (vmess:// / vless://); host (域名 vs 出网 IP) 由协议自定
+     *
+     * @param params 语义参数 (DB 解出, 跟本协议同形态); 可空 (按缺省渲染)
+     * @param ctx    渲染上下文 (出网 IP / 端口 / uuid / 展示名)
+     * @return 分享链接; host 拼不出时返回 null (调用方跳过)
+     */
+    String buildShareLink(InboundParams params, ShareContext ctx);
+
+    /**
+     * 拼本协议的 Clash proxy 节点 (vmess ws-opts / vless reality-opts); 字段与分享链接同源
+     *
+     * @param params 语义参数 (DB 解出, 跟本协议同形态); 可空 (按缺省渲染)
+     * @param ctx    渲染上下文 (出网 IP / 端口 / uuid / 展示名)
+     * @return Clash proxy 节点 (调用方直接序列化进 YAML); host 拼不出时返回 null
+     */
+    Map<String, Object> buildClashProxy(InboundParams params, ShareContext ctx);
 }

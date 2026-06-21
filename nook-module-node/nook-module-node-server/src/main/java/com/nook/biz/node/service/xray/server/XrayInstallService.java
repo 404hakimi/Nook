@@ -29,14 +29,6 @@ public interface XrayInstallService {
     XrayInstallDO get(String serverId);
 
     /**
-     * 按 serverId 批量取实例元数据
-     *
-     * @param serverIds 服务器编号集合
-     * @return serverId → 实例元数据
-     */
-    Map<String, XrayInstallDO> listByServerIds(Collection<String> serverIds);
-
-    /**
      * 同一根域下二级标签是否已被别的线路机占用 (重装时排除自身)
      *
      * @param domainId        根域 system_domain.id

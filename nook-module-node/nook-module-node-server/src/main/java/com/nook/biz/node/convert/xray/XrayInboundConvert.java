@@ -4,8 +4,6 @@ import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.controller.xray.vo.XrayInboundRespVO;
 import com.nook.biz.node.entity.XrayInboundDO;
 import com.nook.biz.node.framework.xray.inbound.InboundParams;
-import com.nook.biz.node.framework.xray.inbound.InboundParamsResolver;
-import com.nook.biz.node.framework.xray.inbound.vmess.VmessWsParams;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
@@ -23,25 +21,19 @@ public interface XrayInboundConvert {
     @Mapping(target = "tlsKeyPath", ignore = true)
     XrayInboundRespVO toBase(XrayInboundDO entity);
 
-    /** 协议/传输由 protocol_key 解出, ws/域名/tls 路径从 params 取 (旧列已删). */
-    default XrayInboundRespVO convert(XrayInboundDO entity) {
+    /** 协议/传输由 protocol_key 解出, ws/域名/tls 路径由协议 params 多态投影 (vless-reality 无这些字段, 留空). */
+    default XrayInboundRespVO convert(XrayInboundDO entity, InboundParams params) {
         XrayInboundRespVO vo = this.toBase(entity);
         XrayInboundProtocolEnum proto = XrayInboundProtocolEnum.fromKey(entity.getProtocolKey());
         if (proto != null) {
             vo.setProtocol(proto.getProtocol());
             vo.setTransport(proto.getTransport());
         }
-        InboundParams params = InboundParamsResolver.resolve(entity.getProtocolKey(), entity.getParams());
-        // 当前 admin 详情只展示 vmess 的 ws/tls; reality 客户端参数走订阅, 不在此 VO
-        if (params instanceof VmessWsParams vmess) {
-            if (vmess.getWs() != null) {
-                vo.setWsPath(vmess.getWs().getPath());
-            }
-            if (vmess.getTls() != null) {
-                vo.setDomain(vmess.getTls().getDomain());
-                vo.setTlsCertPath(vmess.getTls().getCertPath());
-                vo.setTlsKeyPath(vmess.getTls().getKeyPath());
-            }
+        if (params != null) {
+            vo.setWsPath(params.getWsPath());
+            vo.setDomain(params.getDomain());
+            vo.setTlsCertPath(params.getCertPath());
+            vo.setTlsKeyPath(params.getKeyPath());
         }
         return vo;
     }

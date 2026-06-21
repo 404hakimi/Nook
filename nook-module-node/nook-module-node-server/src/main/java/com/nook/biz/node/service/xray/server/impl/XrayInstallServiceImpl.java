@@ -59,15 +59,6 @@ public class XrayInstallServiceImpl implements XrayInstallService {
     }
 
     @Override
-    public Map<String, XrayInstallDO> listByServerIds(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) {
-            return Map.of();
-        }
-        return CollectionUtils.convertMap(
-                xrayInstallMapper.selectBatchIds(serverIds), XrayInstallDO::getServerId);
-    }
-
-    @Override
     @Transactional(rollbackFor = Exception.class)
     public void markReplayDone(String serverId, LocalDateTime xrayUptime) {
         int affected = xrayInstallMapper.updateXrayUptime(serverId, xrayUptime);

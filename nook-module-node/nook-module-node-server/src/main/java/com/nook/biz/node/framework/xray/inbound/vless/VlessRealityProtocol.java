@@ -1,5 +1,7 @@
 package com.nook.biz.node.framework.xray.inbound.vless;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
@@ -8,18 +10,25 @@ import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.framework.xray.XrayConstants;
+import com.nook.biz.node.framework.xray.inbound.InboundParams;
 import com.nook.biz.node.framework.xray.inbound.InboundTemplateRenderer;
 import com.nook.biz.node.framework.xray.inbound.InboundProtocol;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionRequest;
 import com.nook.biz.node.framework.xray.inbound.InboundUserRequest;
+import com.nook.biz.node.framework.xray.inbound.ShareContext;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -33,6 +42,10 @@ public class VlessRealityProtocol implements InboundProtocol {
     /** 固定流控 + uTLS 指纹. */
     private static final String FLOW_VISION = "xtls-rprx-vision";
     private static final String FINGERPRINT_CHROME = "chrome";
+    /** 客户面传输 (reality 固定 tcp); vless type / clash network. */
+    private static final String NETWORK_TCP = "tcp";
+    /** 客户面协议名 (vless:// / clash type). */
+    private static final String PROTOCOL_VLESS = "vless";
     /** shortId 字节数 (hex 长度 = 2×). */
     private static final int SHORTID_BYTES = 8;
     /** dest 固定 443 端口 (TLS 站). */
@@ -50,8 +63,8 @@ public class VlessRealityProtocol implements InboundProtocol {
     private InboundTemplateRenderer inboundTemplateRenderer;
 
     @Override
-    public boolean supports(String protocol) {
-        return "vless".equalsIgnoreCase(protocol);
+    public Set<XrayInboundProtocolEnum> supportedForms() {
+        return Set.of(XrayInboundProtocolEnum.VLESS_REALITY);
     }
 
     @Override
@@ -121,5 +134,120 @@ public class VlessRealityProtocol implements InboundProtocol {
         JSONObject config = new JSONObject();
         config.put("inbounds", inbounds);
         return config.toJSONString();
+    }
+
+    @Override
+    public List<String> clientFacingDiff(InboundParams existingParams, XrayInboundConfigVO newInput) {
+        VlessRealityParams existing = (existingParams instanceof VlessRealityParams v) ? v : null;
+        List<String> diffs = new ArrayList<>();
+        // realityDest (偷取的目标真站) 变更
+        String oldDest = (existing != null && existing.getReality() != null)
+                ? CollUtil.getFirst(existing.getReality().getServerNames()) : null;
+        String newDest = StrUtil.trimToNull(newInput.getRealityDest());
+        if (!ObjectUtil.equal(oldDest, newDest)) {
+            diffs.add("realityDest: " + oldDest + " → " + newDest);
+        }
+        // reality x25519 密钥每次重装必重新生成 → 在用客户 pbk 失效, 恒为客户面变更
+        diffs.add("reality 密钥 (重装重新生成, 客户端 pbk 失效, 必须重拉订阅)");
+        return diffs;
+    }
+
+    @Override
+    public String buildShareLink(InboundParams params, ShareContext ctx) {
+        // reality 无对外域名, host 恒为线路机出网 IP
+        String host = ctx.getServerIp();
+        if (StrUtil.isBlank(host)) {
+            return null;
+        }
+        VlessRealityParams p = (params instanceof VlessRealityParams v) ? v : null;
+        RealityFields r = realityFields(p);
+        StringBuilder query = new StringBuilder("encryption=none&security=reality");
+        query.append("&type=").append(NETWORK_TCP);
+        if (p != null && StrUtil.isNotBlank(p.getFlow())) {
+            query.append("&flow=").append(p.getFlow());
+        }
+        if (StrUtil.isNotBlank(r.sni)) {
+            query.append("&sni=").append(urlEncode(r.sni));
+        }
+        if (StrUtil.isNotBlank(r.fingerprint)) {
+            query.append("&fp=").append(r.fingerprint);
+        }
+        if (StrUtil.isNotBlank(r.publicKey)) {
+            query.append("&pbk=").append(urlEncode(r.publicKey));
+        }
+        if (StrUtil.isNotBlank(r.shortId)) {
+            query.append("&sid=").append(r.shortId);
+        }
+        return "vless://" + ctx.getUuid() + "@" + host + ":" + ctx.getPort() + "?" + query
+                + "#" + urlEncode(StrUtil.nullToEmpty(ctx.getLabel()));
+    }
+
+    @Override
+    public Map<String, Object> buildClashProxy(InboundParams params, ShareContext ctx) {
+        String host = ctx.getServerIp();
+        if (StrUtil.isBlank(host)) {
+            return null;
+        }
+        VlessRealityParams p = (params instanceof VlessRealityParams v) ? v : null;
+        RealityFields r = realityFields(p);
+        Map<String, Object> proxy = new LinkedHashMap<>();
+        proxy.put("name", ctx.getLabel());
+        proxy.put("type", PROTOCOL_VLESS);
+        proxy.put("server", host);
+        proxy.put("port", ctx.getPort());
+        proxy.put("uuid", ctx.getUuid());
+        proxy.put("network", NETWORK_TCP);
+        proxy.put("udp", true);
+        proxy.put("tls", true);
+        if (p != null && StrUtil.isNotBlank(p.getFlow())) {
+            proxy.put("flow", p.getFlow());
+        }
+        if (StrUtil.isNotBlank(r.sni)) {
+            proxy.put("servername", r.sni);
+        }
+        if (StrUtil.isNotBlank(r.fingerprint)) {
+            proxy.put("client-fingerprint", r.fingerprint);
+        }
+        Map<String, Object> realityOpts = new LinkedHashMap<>();
+        if (StrUtil.isNotBlank(r.publicKey)) {
+            realityOpts.put("public-key", r.publicKey);
+        }
+        if (StrUtil.isNotBlank(r.shortId)) {
+            realityOpts.put("short-id", r.shortId);
+        }
+        proxy.put("reality-opts", realityOpts);
+        return proxy;
+    }
+
+    /** 从 params 取客户面 reality 字段 (sni/fp/pbk/sid); params 或 reality 缺则全 null. */
+    private static RealityFields realityFields(VlessRealityParams p) {
+        VlessRealityParams.RealityParams reality = (p != null) ? p.getReality() : null;
+        if (reality == null) {
+            return new RealityFields(null, null, null, null);
+        }
+        return new RealityFields(CollUtil.getFirst(reality.getServerNames()), reality.getFingerprint(),
+                reality.getPublicKey(), firstShortId(reality.getShortIds()));
+    }
+
+    /** 客户面 reality 字段投影 (sni = serverNames 首个, sid = firstShortId). */
+    private record RealityFields(String sni, String fingerprint, String publicKey, String shortId) {
+    }
+
+    /** URL 编码 (空格转 %20; vless 链接 query / fragment 用). */
+    private static String urlEncode(String s) {
+        return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20");
+    }
+
+    /** shortId 取首个非空, 都空取第一个; 订阅 sid 用. */
+    private static String firstShortId(List<String> shortIds) {
+        if (CollUtil.isEmpty(shortIds)) {
+            return null;
+        }
+        for (String s : shortIds) {
+            if (StrUtil.isNotBlank(s)) {
+                return s;
+            }
+        }
+        return shortIds.get(0);
     }
 }

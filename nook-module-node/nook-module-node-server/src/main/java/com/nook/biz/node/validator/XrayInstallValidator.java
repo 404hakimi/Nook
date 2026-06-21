@@ -2,20 +2,17 @@ package com.nook.biz.node.validator;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.entity.XrayInboundDO;
 import com.nook.biz.node.entity.XrayInstallDO;
-import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.inbound.InboundParams;
 import com.nook.biz.node.framework.xray.inbound.InboundParamsResolver;
-import com.nook.biz.node.framework.xray.inbound.vmess.VmessWsParams;
+import com.nook.biz.node.framework.xray.inbound.InboundProtocolFactory;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
-import com.nook.biz.system.api.domain.SystemDomainApi;
 import com.nook.biz.trade.api.SubscriptionCertApi;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
@@ -41,7 +38,7 @@ public class XrayInstallValidator {
     @Resource
     private SubscriptionCertApi subscriptionCertApi;
     @Resource
-    private SystemDomainApi systemDomainApi;
+    private InboundProtocolFactory inboundProtocolFactory;
 
     /**
      * 校验 xray 实例存在并返回
@@ -76,39 +73,24 @@ public class XrayInstallValidator {
         if (ObjectUtil.isNull(existingConfig)) return;
 
         XrayInboundConfigVO inbound = reqVO.getInbound();
-        // 现存形态由 protocol_key 解出, ws/对外域名从 params 取 (旧 protocol/transport/ws_path/domain 列已删)
-        XrayInboundProtocolEnum existingProto = XrayInboundProtocolEnum.fromKey(existingConfig.getProtocolKey());
-        String existingProtocol = existingProto == null ? null : existingProto.getProtocol();
-        String existingTransport = existingProto == null ? null : existingProto.getTransport();
-        InboundParams existingParams = InboundParamsResolver.resolve(
-                existingConfig.getProtocolKey(), existingConfig.getParams());
-        VmessWsParams existingVmess = (existingParams instanceof VmessWsParams v) ? v : null;
-        String existingWsPath = (existingVmess != null && existingVmess.getWs() != null)
-                ? existingVmess.getWs().getPath() : null;
-        String existingDomain = (existingVmess != null && existingVmess.getTls() != null)
-                ? existingVmess.getTls().getDomain() : null;
         List<String> mismatches = new ArrayList<>();
+        // 通用客户面字段: 监听端口 / 监听 IP
         if (!ObjectUtil.equal(existingConfig.getSharedInboundPort(), inbound.getSharedInboundPort())) {
             mismatches.add("sharedInboundPort: " + existingConfig.getSharedInboundPort()
                     + " → " + inbound.getSharedInboundPort());
         }
-        if (!ObjectUtil.equal(existingProtocol, inbound.getProtocol())) {
-            mismatches.add("protocol: " + existingProtocol + " → " + inbound.getProtocol());
-        }
-        if (!ObjectUtil.equal(existingTransport, inbound.getTransport())) {
-            mismatches.add("transport: " + existingTransport + " → " + inbound.getTransport());
-        }
         if (!ObjectUtil.equal(existingConfig.getListenIp(), inbound.getListenIp())) {
             mismatches.add("listenIp: " + existingConfig.getListenIp() + " → " + inbound.getListenIp());
         }
-        if (!ObjectUtil.equal(existingWsPath, inbound.getWsPath())) {
-            mismatches.add("wsPath: " + existingWsPath + " → " + inbound.getWsPath());
-        }
-        // 未绑域名 (domainId 空) 时 domain 落 null; 绑了拼完整 FQDN (二级标签 + 根域)
-        String newDomain = StrUtil.isBlank(inbound.getDomainId()) ? null
-                : XrayConstants.fqdn(inbound.getSubdomain(), systemDomainApi.getById(inbound.getDomainId()).getDomain());
-        if (!ObjectUtil.equal(existingDomain, newDomain)) {
-            mismatches.add("domain: " + existingDomain + " → " + newDomain);
+        // 协议形态变了 = 全盘客户面变更; 没变则下放给协议实现做协议特定 diff (ws/域名/reality 密钥等)
+        XrayInboundProtocolEnum existingProto = XrayInboundProtocolEnum.fromKey(existingConfig.getProtocolKey());
+        String existingProtocol = existingProto == null ? null : existingProto.getProtocol();
+        if (!ObjectUtil.equal(existingProtocol, inbound.getProtocol())) {
+            mismatches.add("protocol: " + existingProtocol + " → " + inbound.getProtocol());
+        } else {
+            InboundParams existingParams = InboundParamsResolver.resolve(
+                    existingConfig.getProtocolKey(), existingConfig.getParams());
+            mismatches.addAll(inboundProtocolFactory.resolve(reqVO).clientFacingDiff(existingParams, inbound));
         }
         if (CollUtil.isNotEmpty(mismatches)) {
             log.warn("[xray-reinstall] server={} 改动客户面参数, {} 个在用客户需重新拉取订阅: {}",

@@ -4,6 +4,8 @@ import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.controller.xray.vo.XrayInboundRespVO;
 import com.nook.biz.node.convert.xray.XrayInboundConvert;
 import com.nook.biz.node.entity.XrayInboundDO;
+import com.nook.biz.node.framework.xray.inbound.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundParamsResolver;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
@@ -38,6 +40,7 @@ public class XrayInboundController {
         if (ObjectUtil.isNull(entity)) {
             return Result.ok(null);
         }
-        return Result.ok(XrayInboundConvert.INSTANCE.convert(entity));
+        InboundParams params = InboundParamsResolver.resolve(entity.getProtocolKey(), entity.getParams());
+        return Result.ok(XrayInboundConvert.INSTANCE.convert(entity, params));
     }
 }
