@@ -1,8 +1,10 @@
 package com.nook.biz.node.framework.agent;
 
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.api.enums.XrayErrorCode;
+import com.nook.biz.node.framework.xray.install.XrayDeployRequest;
 import com.nook.common.web.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -19,7 +21,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * agent 控制接口客户端; 后台 POST agent:44844/execute 下发脚本, 流式读回 agent 本地执行的 stdout
+ * agent 控制接口客户端; 后台 POST agent:44844 控制接口 (/execute 跑脚本 / /xray/deploy 下发装机配置), 流式读回 stdout
  *
  * @author nook
  */
@@ -47,10 +49,28 @@ public class AgentControlClient {
      * @param lineSink       stdout 行回调 (转发给前端流式)
      */
     public void execute(String agentHost, String token, String script, int timeoutSeconds, Consumer<String> lineSink) {
-        String url = "http://" + agentHost + ":" + CONTROL_PORT + "/execute";
         JSONObject body = new JSONObject();
         body.put("script", script);
         body.put("timeoutSeconds", timeoutSeconds);
+        this.postStreaming(agentHost, "/execute", token, body.toJSONString(), timeoutSeconds, lineSink);
+    }
+
+    /**
+     * 通知 agent 用内置逻辑本地装机 xray; 下发结构化配置 (非脚本), 流式回传安装日志, 未见成功标记则抛错
+     *
+     * @param agentHost agent 主机 (线路机出网 IP)
+     * @param token     agent 鉴权 token (resource_server.agent_token)
+     * @param req       装机请求 (版本/开关/inbound JSON/域名; 内含超时)
+     * @param lineSink  安装日志行回调 (转发给前端流式)
+     */
+    public void deployXray(String agentHost, String token, XrayDeployRequest req, Consumer<String> lineSink) {
+        this.postStreaming(agentHost, "/xray/deploy", token, JSON.toJSONString(req), req.getTimeoutSeconds(), lineSink);
+    }
+
+    /** POST agent 控制接口 + 流式读回 stdout; 非 200 / 无成功标记 / IO 中断均抛 BusinessException. */
+    private void postStreaming(String agentHost, String path, String token, String bodyJson,
+                               int timeoutSeconds, Consumer<String> lineSink) {
+        String url = "http://" + agentHost + ":" + CONTROL_PORT + path;
         HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
                 .build();
@@ -59,7 +79,7 @@ public class AgentControlClient {
                 .header("Content-Type", "application/json")
                 .header(TOKEN_HEADER, token)
                 .timeout(Duration.ofSeconds(timeoutSeconds + RESPONSE_BUFFER_SECONDS))
-                .POST(HttpRequest.BodyPublishers.ofString(body.toJSONString(), StandardCharsets.UTF_8))
+                .POST(HttpRequest.BodyPublishers.ofString(bodyJson, StandardCharsets.UTF_8))
                 .build();
         boolean ok;
         try {
@@ -81,7 +101,7 @@ public class AgentControlClient {
             throw new BusinessException(XrayErrorCode.BACKEND_OPERATION_FAILED, agentHost,
                     "agent 未确认成功 (无 NOOK_RESULT=ok 标记; 可能超时或连接中断, 远端可能已部分执行, 重新部署幂等修复)");
         }
-        log.info("[agent-control] execute server={} 远端执行成功", agentHost);
+        log.info("[agent-control] {} server={} 成功", path, agentHost);
     }
 
     /** 流式转发每行给 lineSink, 返回是否见到成功结尾标记. */

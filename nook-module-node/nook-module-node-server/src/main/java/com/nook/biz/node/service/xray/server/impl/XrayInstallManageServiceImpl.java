@@ -2,6 +2,7 @@ package com.nook.biz.node.service.xray.server.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
+import com.nook.biz.node.api.enums.XrayInstallStatusEnum;
 import com.nook.biz.node.api.xray.XrayInstallDefaults;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
@@ -20,7 +21,7 @@ import com.nook.biz.node.framework.xray.inbound.InboundProtocolFactory;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionRequest;
 import com.nook.biz.node.framework.xray.inbound.InboundSetupSpec;
-import com.nook.biz.node.framework.xray.install.XrayInstallScriptAssembler;
+import com.nook.biz.node.framework.xray.install.XrayDeployRequest;
 import com.nook.biz.node.framework.xray.server.XrayDaemonControl;
 import com.nook.biz.system.api.domain.DomainUtils;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
@@ -67,8 +68,6 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     @Resource
     private XrayInboundService xrayInboundService;
     @Resource
-    private XrayInstallScriptAssembler xrayInstallScriptAssembler;
-    @Resource
     private InboundProtocolFactory inboundProtocolFactory;
     @Resource
     private XrayInstallValidator xrayInstallValidator;
@@ -100,7 +99,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         // 完整重排: xray 由已装好的 agent 本地部署, 取连接信息 (出网 IP + agent_token)
         ResourceServerDO srv = resourceServerValidator.validateExists(serverId);
 
-        // 协议产出: 形态/语义参数/模板占位符 + 域名 (实现内做域名解析/CF A 记录/密钥生成); 渲染 + 落库共用同一份
+        // 协议产出: 形态/语义参数 + 渲染好的 inbound JSON + 域名 (实现内做域名解析/CF A 记录/密钥生成)
         InboundProvisionResult prov = protocol.provision(InboundProvisionRequest.builder()
                 .serverId(serverId)
                 .spec(spec)
@@ -108,19 +107,21 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
                 .lineSink(lineSink)
                 .build());
 
-        // 渲染完整脚本 (拼装下沉到基础设施 XrayInstallScriptAssembler) → 经 agent 控制接口本地执行; agent 流式回传 stdout
-        String script = xrayInstallScriptAssembler.assemble(serverId, reqVO, prov);
-        agentControlClient.execute(srv.getIpAddress(), srv.getAgentToken(), script, XRAY_DEPLOY_TIMEOUT_SECONDS, lineSink);
+        // 配置先行 (DB 为中心): 先把期望态落库 (status=deploying), 再通知 agent 装机
+        transactionTemplate.executeWithoutResult(txStatus ->
+                persistDeployment(serverId, reqVO, reqVO.getXrayVersion(), prov));
+        lineSink.accept("[nook] ✔ 配置已落库, 通知 agent 装机...\n");
 
-        // 部署完成 → 同事务写 xray_install + xray_inbound (两表 1:1); 版本用前端选值 (agent 执行无 SSH session 解析实际 tag)
+        // 通知 agent: 下发结构化配置 (版本/开关/inbound JSON/域名), agent 用内置逻辑本地装机 + 流式回传日志
+        XrayDeployRequest deployReq = buildDeployRequest(serverId, reqVO, prov);
         try {
-            transactionTemplate.executeWithoutResult(txStatus ->
-                    persistDeployment(serverId, reqVO, reqVO.getXrayVersion(), prov));
-            lineSink.accept("[nook] ✔ DB 已写入\n");
+            agentControlClient.deployXray(srv.getIpAddress(), srv.getAgentToken(), deployReq, lineSink);
+            xrayInstallService.markInstallStatus(serverId, XrayInstallStatusEnum.OK);
+            lineSink.accept("[nook] ✔ agent 部署完成\n");
         } catch (RuntimeException e) {
-            log.error("[install] xray 部署成功但 DB 状态初始化失败 server={}, 已自动回滚", serverId, e);
-            lineSink.accept("[nook] ⚠ 远端部署 OK, 但 DB 状态初始化失败 (已回滚): "
-                    + e.getMessage() + " (重新点部署即可幂等修复)\n");
+            xrayInstallService.markInstallStatus(serverId, XrayInstallStatusEnum.FAILED);
+            log.error("[install] xray 部署失败 server={} (配置已留库 status=failed, 重新部署幂等修复)", serverId, e);
+            lineSink.accept("[nook] ⚠ agent 部署失败: " + e.getMessage() + " (配置已留库, 重新部署即可)\n");
             throw e;
         }
     }
@@ -134,6 +135,25 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
                 .realityDest(in.getRealityDest())
                 .domainId(in.getDomainId())
                 .subdomain(in.getSubdomain())
+                .build();
+    }
+
+    /** 后台配置 → agent 装机请求 (结构化下发; agent 用内置逻辑本地装机, inbound JSON 不透明写盘). */
+    private XrayDeployRequest buildDeployRequest(String serverId, XrayInstallReqVO r, InboundProvisionResult prov) {
+        String fullDomain = prov.getFullDomain();
+        return XrayDeployRequest.builder()
+                .serverId(serverId)
+                .xrayVersion(r.getXrayVersion())
+                .forceReinstall(Boolean.TRUE.equals(r.getForceReinstall()))
+                .enableOnBoot(Boolean.TRUE.equals(r.getEnableOnBoot()))
+                .installUfw(Boolean.TRUE.equals(r.getInstallUfw()))
+                .setTimezone(Boolean.TRUE.equals(r.getSetTimezone()))
+                .logRotate(Boolean.TRUE.equals(r.getLogRotate()))
+                .sharedInboundPort(r.getInbound().getSharedInboundPort())
+                .inboundConfigJson(prov.getInboundJson())
+                .domain(fullDomain)
+                .cfApiToken(StrUtil.isNotBlank(fullDomain) ? prov.getCfApiToken() : null)
+                .timeoutSeconds(XRAY_DEPLOY_TIMEOUT_SECONDS)
                 .build();
     }
 
@@ -155,7 +175,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         srv.setXraySystemdUnitPath(XrayInstallDefaults.SYSTEMD_UNIT_PATH);
         srv.setDomainId(useTls ? inbound.getDomainId() : null);
         srv.setSubdomain(useTls ? inbound.getSubdomain() : null);
-        srv.setInstalledAt(LocalDateTime.now());
+        // 配置先行: 落库即 deploying; installedAt 等 agent 回报成功才置 (见 markInstallStatus)
+        srv.setInstallStatus(XrayInstallStatusEnum.DEPLOYING.getCode());
         xrayInstallService.upsert(srv);
 
         XrayInboundDO cfg = new XrayInboundDO();

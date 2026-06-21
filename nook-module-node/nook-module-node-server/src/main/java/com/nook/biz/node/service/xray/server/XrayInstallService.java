@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.xray.server;
 
+import com.nook.biz.node.api.enums.XrayInstallStatusEnum;
 import com.nook.biz.node.entity.XrayInstallDO;
 
 import java.time.LocalDateTime;
@@ -45,4 +46,12 @@ public interface XrayInstallService {
      * @param xrayUptime 探测到的 xray 启动时间
      */
     void markReplayDone(String serverId, LocalDateTime xrayUptime);
+
+    /**
+     * 更新装机状态 (agent 回报后); OK 时同步置 installedAt = now
+     *
+     * @param serverId 服务器编号
+     * @param status   装机状态
+     */
+    void markInstallStatus(String serverId, XrayInstallStatusEnum status);
 }

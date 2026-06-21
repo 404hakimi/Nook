@@ -3,6 +3,8 @@ package com.nook.biz.node.service.xray.server.impl;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.nook.biz.node.api.enums.XrayInstallStatusEnum;
 import com.nook.biz.node.entity.XrayInstallDO;
 import com.nook.biz.node.mapper.XrayInstallMapper;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
@@ -64,6 +66,19 @@ public class XrayInstallServiceImpl implements XrayInstallService {
         int affected = xrayInstallMapper.updateXrayUptime(serverId, xrayUptime);
         if (affected == 0) {
             log.warn("[xray-install] markReplayDone 没匹配到行 server={} (xray_install 缺失?)", serverId);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void markInstallStatus(String serverId, XrayInstallStatusEnum status) {
+        // 定向更新 install_status (OK 时同步置 installedAt), 避免 updateById 把其它列覆成 null
+        int affected = xrayInstallMapper.update(null, new LambdaUpdateWrapper<XrayInstallDO>()
+                .eq(XrayInstallDO::getServerId, serverId)
+                .set(XrayInstallDO::getInstallStatus, status.getCode())
+                .set(status == XrayInstallStatusEnum.OK, XrayInstallDO::getInstalledAt, LocalDateTime.now()));
+        if (affected == 0) {
+            log.warn("[xray-install] markInstallStatus 没匹配到行 server={} status={}", serverId, status.getCode());
         }
     }
 }

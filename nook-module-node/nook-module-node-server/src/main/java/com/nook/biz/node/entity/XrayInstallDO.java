@@ -57,7 +57,10 @@ public class XrayInstallDO implements Serializable {
     /** 二级域名标签 (如 frontline-jp-1); 完整 FQDN = subdomain + "." + system_domain.domain(根域). */
     private String subdomain;
 
-    /** 最近一次部署完成时间; 重装时也会覆写, 不是单纯的"首次"语义. */
+    /** 装机状态 {@link com.nook.biz.node.api.enums.XrayInstallStatusEnum}; 配置落库=deploying, agent 回报后 ok/failed. */
+    private String installStatus;
+
+    /** 最近一次部署成功时间; agent 回报成功才置 (deploying/failed 时为旧值或空). */
     private LocalDateTime installedAt;
 
     /** 上次探测到的 xray 启动时间; 由对账任务探测回填, 重装时清零后重新探测. */
