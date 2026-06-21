@@ -32,6 +32,10 @@ public class AgentControlClient {
     private static final String TOKEN_HEADER = "X-Agent-Token";
     /** 远端执行成功的机器可读结尾标记, 跟 nook-agent control 包对齐. */
     private static final String MARK_OK = "NOOK_RESULT=ok";
+    /** TCP 建链超时秒数; 后台与节点跨洲互通 (如后台北美 ↔ 亚洲日本节点), 给国际链路 SYN 丢包/抖动留足余量. */
+    private static final int CONNECT_TIMEOUT_SECONDS = 30;
+    /** HTTP 响应超时 = 脚本执行超时 + 此缓冲; 缓冲覆盖跨洲流式回传的延迟/抖动. 须 < SSE emitter buffer (见 WebStreamingProperties), 否则外层 SSE 先断. */
+    private static final int RESPONSE_BUFFER_SECONDS = 120;
 
     /**
      * 调 agent 本地执行脚本; 流式回传 stdout, 未见成功标记则抛错
@@ -48,13 +52,13 @@ public class AgentControlClient {
         body.put("script", script);
         body.put("timeoutSeconds", timeoutSeconds);
         HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(15))
+                .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
                 .build();
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Content-Type", "application/json")
                 .header(TOKEN_HEADER, token)
-                .timeout(Duration.ofSeconds(timeoutSeconds + 30L))
+                .timeout(Duration.ofSeconds(timeoutSeconds + RESPONSE_BUFFER_SECONDS))
                 .POST(HttpRequest.BodyPublishers.ofString(body.toJSONString(), StandardCharsets.UTF_8))
                 .build();
         boolean ok;

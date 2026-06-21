@@ -16,5 +16,6 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "nook.web.streaming")
 public class WebStreamingProperties {
 
-    private Duration emitterBuffer = Duration.ofSeconds(60);
+    /** SSE emitter 超时 = 操作超时 + 此缓冲; 流式接口最外层超时, 须 > 内层 (如 AgentControlClient HTTP) 缓冲; 跨洲远端操作留足余量. */
+    private Duration emitterBuffer = Duration.ofSeconds(180);
 }
