@@ -26,7 +26,7 @@ public enum XrayInboundProtocolEnum {
     /** xray streamSettings.network. */
     private final String transport;
 
-    /** 安全层 {@link XraySecurityEnum}. */
+    /** 安全层取值: none / tls / reality. */
     private final String security;
 
     public static XrayInboundProtocolEnum fromKey(String key) {
