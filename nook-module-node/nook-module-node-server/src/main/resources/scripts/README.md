@@ -9,7 +9,7 @@
 | `install/` | 一键装机 (单文件, 不依赖模块拼装) | `nook-agent.sh.tmpl`, `socks5-dante.sh.tmpl` |
 | `uninstall/` | 卸载脚本 (预留) | — |
 | `ops/` | 运维短操作 + 公共 helper | `socks5-update-creds.sh.tmpl`, `_helpers.sh` |
-| `modules/` | 可复用拼装单元 (xray install 多模块串接) | `00-prepare-env.sh.tmpl`, `50-xray.sh.tmpl` |
+| `modules/` | OS 调优可复用单元 (ServerOsOp 用; xray 装机已改 agent 内置, 原模块退场) | `20-swap.sh.tmpl`, `30-bbr.sh.tmpl` |
 
 ## 占位协议
 

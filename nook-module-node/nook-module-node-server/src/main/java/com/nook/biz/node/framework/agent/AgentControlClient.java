@@ -2,7 +2,6 @@ package com.nook.biz.node.framework.agent;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.framework.xray.install.XrayDeployRequest;
 import com.nook.common.web.exception.BusinessException;
@@ -38,22 +37,6 @@ public class AgentControlClient {
     private static final int CONNECT_TIMEOUT_SECONDS = 30;
     /** HTTP 响应超时 = 脚本执行超时 + 此缓冲; 缓冲覆盖跨洲流式回传的延迟/抖动. 须 < SSE emitter buffer (见 WebStreamingProperties), 否则外层 SSE 先断. */
     private static final int RESPONSE_BUFFER_SECONDS = 120;
-
-    /**
-     * 调 agent 本地执行脚本; 流式回传 stdout, 未见成功标记则抛错
-     *
-     * @param agentHost      agent 主机 (线路机出网 IP)
-     * @param token          agent 鉴权 token (resource_server.agent_token)
-     * @param script         完整脚本文本
-     * @param timeoutSeconds 执行超时秒数
-     * @param lineSink       stdout 行回调 (转发给前端流式)
-     */
-    public void execute(String agentHost, String token, String script, int timeoutSeconds, Consumer<String> lineSink) {
-        JSONObject body = new JSONObject();
-        body.put("script", script);
-        body.put("timeoutSeconds", timeoutSeconds);
-        this.postStreaming(agentHost, "/execute", token, body.toJSONString(), timeoutSeconds, lineSink);
-    }
 
     /**
      * 通知 agent 用内置逻辑本地装机 xray; 下发结构化配置 (非脚本), 流式回传安装日志, 未见成功标记则抛错
