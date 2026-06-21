@@ -1,7 +1,5 @@
 package com.nook.biz.node.framework.xray;
 
-import cn.hutool.core.util.StrUtil;
-
 /**
  * Xray 域真常量; 跟具体 server / 部署参数无关的"约定值".
  *
@@ -33,13 +31,6 @@ public final class XrayConstants {
     /** 由 clientId + 落地机 ipId 派生 routing rule tag; 与 outbound tag 同步编入 ipId(rule 引用 outbound). */
     public static String ruleTagOf(String clientId, String ipId) {
         return RULE_TAG_PREFIX + clientId + "_" + ipId;
-    }
-
-    /** 拼完整 FQDN: 二级标签 + 根域 (如 frontline-jp-1 + karsu.cc → frontline-jp-1.karsu.cc); 标签空则直接用根域. */
-    public static String fqdn(String subdomain, String rootDomain) {
-        String sub = StrUtil.trimToEmpty(subdomain);
-        String root = StrUtil.trimToEmpty(rootDomain);
-        return StrUtil.isEmpty(sub) ? root : sub + "." + root;
     }
 
     private XrayConstants() {

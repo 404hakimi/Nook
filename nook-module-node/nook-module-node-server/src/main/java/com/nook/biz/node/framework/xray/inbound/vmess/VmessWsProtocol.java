@@ -21,6 +21,7 @@ import com.nook.biz.node.framework.xray.inbound.InboundProvisionRequest;
 import com.nook.biz.node.framework.xray.inbound.InboundUserRequest;
 import com.nook.biz.node.framework.xray.inbound.ShareContext;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
+import com.nook.biz.system.api.domain.DomainUtils;
 import com.nook.biz.system.api.domain.SystemDomainApi;
 import com.nook.biz.system.api.domain.dto.SystemDomainRespDTO;
 import com.nook.common.web.exception.BusinessException;
@@ -102,7 +103,7 @@ public class VmessWsProtocol implements InboundProtocol {
         if (useTls) {
             // 根域 + cfApiToken 从 system_domain 取, 完整 FQDN = 二级标签 + 根域
             SystemDomainRespDTO domain = systemDomainApi.getById(inbound.getDomainId());
-            fullDomain = XrayConstants.fqdn(inbound.getSubdomain(), domain.getDomain());
+            fullDomain = DomainUtils.buildFqdn(inbound.getSubdomain(), domain.getDomain());
             cfApiToken = domain.getCfApiToken();
             this.ensureCfRecord(ctx, fullDomain, cfApiToken);
         }
@@ -176,7 +177,7 @@ public class VmessWsProtocol implements InboundProtocol {
         // 对外域名 (FQDN): 绑域名拼完整 FQDN (二级标签 + 根域), 未绑 (domainId 空) 落 null
         String oldDomain = (existing != null && existing.getTls() != null) ? existing.getTls().getDomain() : null;
         String newDomain = StrUtil.isBlank(newInput.getDomainId()) ? null
-                : XrayConstants.fqdn(newInput.getSubdomain(), systemDomainApi.getById(newInput.getDomainId()).getDomain());
+                : DomainUtils.buildFqdn(newInput.getSubdomain(), systemDomainApi.getById(newInput.getDomainId()).getDomain());
         if (!ObjectUtil.equal(oldDomain, newDomain)) {
             diffs.add("domain: " + oldDomain + " → " + newDomain);
         }

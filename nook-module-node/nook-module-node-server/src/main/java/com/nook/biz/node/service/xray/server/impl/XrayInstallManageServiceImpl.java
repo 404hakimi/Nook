@@ -21,7 +21,7 @@ import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionRequest;
 import com.nook.biz.node.framework.xray.install.XrayInstallScriptAssembler;
 import com.nook.biz.node.framework.xray.server.XrayDaemonControl;
-import com.nook.biz.node.framework.xray.XrayConstants;
+import com.nook.biz.system.api.domain.DomainUtils;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.biz.node.service.xray.server.XrayInstallManageService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
@@ -207,7 +207,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         if (StrUtil.isNotBlank(vo.getDomainId())) {
             String rootDomain = systemDomainApi.getDomainMap(Set.of(vo.getDomainId())).get(vo.getDomainId());
             if (StrUtil.isNotBlank(rootDomain)) {
-                vo.setDomain(XrayConstants.fqdn(vo.getSubdomain(), rootDomain));
+                vo.setDomain(DomainUtils.buildFqdn(vo.getSubdomain(), rootDomain));
             }
         }
         return vo;
