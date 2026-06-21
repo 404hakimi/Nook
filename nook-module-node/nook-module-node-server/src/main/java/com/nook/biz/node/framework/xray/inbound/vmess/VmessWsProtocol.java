@@ -9,11 +9,10 @@ import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.api.xray.XrayInstallDefaults;
-import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
-import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.framework.cloudflare.CloudflareApiClient;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.inbound.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundSetupSpec;
 import com.nook.biz.node.framework.xray.inbound.InboundTemplateRenderer;
 import com.nook.biz.node.framework.xray.inbound.InboundProtocol;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
@@ -75,28 +74,27 @@ public class VmessWsProtocol implements InboundProtocol {
     }
 
     @Override
-    public void validate(String serverId, XrayInstallReqVO reqVO) {
-        XrayInboundConfigVO inbound = reqVO.getInbound();
-        if (StrUtil.isBlank(inbound.getWsPath())) {
+    public void validate(String serverId, InboundSetupSpec spec) {
+        if (StrUtil.isBlank(spec.getWsPath())) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "vmess+ws 装机 wsPath 必填");
         }
         // 未绑域名 = 纯 ws, 无需域名/证书校验
-        if (StrUtil.isBlank(inbound.getDomainId())) {
+        if (StrUtil.isBlank(spec.getDomainId())) {
             return;
         }
-        systemDomainApi.getById(inbound.getDomainId());
-        if (StrUtil.isBlank(inbound.getSubdomain())) {
+        systemDomainApi.getById(spec.getDomainId());
+        if (StrUtil.isBlank(spec.getSubdomain())) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "绑定域名时二级域名 (subdomain) 必填");
         }
-        if (xrayInstallService.isSubdomainTaken(inbound.getDomainId(), inbound.getSubdomain().trim(), serverId)) {
+        if (xrayInstallService.isSubdomainTaken(spec.getDomainId(), spec.getSubdomain().trim(), serverId)) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID,
-                    "该根域下二级域名 '" + inbound.getSubdomain().trim() + "' 已被其他线路机占用, 请换一个");
+                    "该根域下二级域名 '" + spec.getSubdomain().trim() + "' 已被其他线路机占用, 请换一个");
         }
     }
 
     @Override
     public InboundProvisionResult provision(InboundProvisionRequest ctx) {
-        XrayInboundConfigVO inbound = ctx.getReqVO().getInbound();
+        InboundSetupSpec inbound = ctx.getSpec();
         boolean useTls = StrUtil.isNotBlank(inbound.getDomainId());
         String fullDomain = null;
         String cfApiToken = null;
@@ -166,7 +164,7 @@ public class VmessWsProtocol implements InboundProtocol {
     }
 
     @Override
-    public List<String> clientFacingDiff(InboundParams existingParams, XrayInboundConfigVO newInput) {
+    public List<String> clientFacingDiff(InboundParams existingParams, InboundSetupSpec newInput) {
         VmessWsParams existing = (existingParams instanceof VmessWsParams v) ? v : null;
         List<String> diffs = new ArrayList<>();
         // ws 接入路径

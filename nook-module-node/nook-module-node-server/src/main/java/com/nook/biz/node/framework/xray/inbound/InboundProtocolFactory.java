@@ -2,7 +2,6 @@ package com.nook.biz.node.framework.xray.inbound;
 
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
-import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
@@ -36,13 +35,13 @@ public class InboundProtocolFactory {
     }
 
     /**
-     * 装机侧: 按装机请求选协议实现
+     * 装机侧: 按入站配置规格选协议实现
      *
-     * @param reqVO 装机入参
+     * @param spec 入站配置规格
      * @return 协议实现
      */
-    public InboundProtocol resolve(XrayInstallReqVO reqVO) {
-        return resolveByProtocol(reqVO.getInbound().getProtocol());
+    public InboundProtocol resolve(InboundSetupSpec spec) {
+        return resolveByProtocol(spec.getProtocol());
     }
 
     /**

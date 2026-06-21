@@ -1,6 +1,5 @@
 package com.nook.biz.node.framework.xray.inbound;
 
-import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import lombok.Builder;
 import lombok.Data;
 
@@ -18,8 +17,8 @@ public class InboundProvisionRequest {
     /** 服务器ID (线路机). */
     private String serverId;
 
-    /** 装机入参. */
-    private XrayInstallReqVO reqVO;
+    /** 入站配置规格 (controller VO 已在 service 边界映射成它). */
+    private InboundSetupSpec spec;
 
     /** 线路机出网 IP; CF A 记录指向它. */
     private String serverIp;

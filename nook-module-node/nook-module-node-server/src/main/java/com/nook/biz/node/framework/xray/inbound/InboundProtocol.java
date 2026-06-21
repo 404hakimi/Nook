@@ -1,8 +1,6 @@
 package com.nook.biz.node.framework.xray.inbound;
 
 import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
-import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
-import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 
 import java.util.List;
 import java.util.Map;
@@ -26,9 +24,9 @@ public interface InboundProtocol {
      * 协议特定的装机参数校验
      *
      * @param serverId 服务器ID (subdomain 唯一性排除自身)
-     * @param reqVO    装机入参
+     * @param spec     入站配置规格
      */
-    void validate(String serverId, XrayInstallReqVO reqVO);
+    void validate(String serverId, InboundSetupSpec spec);
 
     /**
      * 算形态 / 语义参数 / 模板占位符, 并完成协议特定的部署前置 (域名解析 / CF A 记录 / 密钥生成)
@@ -60,7 +58,7 @@ public interface InboundProtocol {
      * @param newInput       新装机 inbound 入参
      * @return 客户面变更项的人读描述; 空 = 无变更
      */
-    List<String> clientFacingDiff(InboundParams existingParams, XrayInboundConfigVO newInput);
+    List<String> clientFacingDiff(InboundParams existingParams, InboundSetupSpec newInput);
 
     /**
      * 拼本协议的客户分享链接 (vmess:// / vless://); host (域名 vs 出网 IP) 由协议自定

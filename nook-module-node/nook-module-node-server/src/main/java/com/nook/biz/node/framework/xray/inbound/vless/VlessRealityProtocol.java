@@ -7,10 +7,9 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
-import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
-import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.framework.xray.XrayConstants;
 import com.nook.biz.node.framework.xray.inbound.InboundParams;
+import com.nook.biz.node.framework.xray.inbound.InboundSetupSpec;
 import com.nook.biz.node.framework.xray.inbound.InboundTemplateRenderer;
 import com.nook.biz.node.framework.xray.inbound.InboundProtocol;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
@@ -68,9 +67,9 @@ public class VlessRealityProtocol implements InboundProtocol {
     }
 
     @Override
-    public void validate(String serverId, XrayInstallReqVO reqVO) {
+    public void validate(String serverId, InboundSetupSpec spec) {
         // realityDest = 偷取目标真站主机名 (预设候选或自定义输入); 仅校验主机名格式, 不强制是预设之一
-        String dest = StrUtil.trimToNull(reqVO.getInbound().getRealityDest());
+        String dest = StrUtil.trimToNull(spec.getRealityDest());
         if (dest == null || !HOST_PATTERN.matcher(dest).matches()) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID,
                     "reality 装机 realityDest 必填且须是合法主机名 (如 www.bing.com)");
@@ -79,7 +78,7 @@ public class VlessRealityProtocol implements InboundProtocol {
 
     @Override
     public InboundProvisionResult provision(InboundProvisionRequest ctx) {
-        XrayInboundConfigVO inbound = ctx.getReqVO().getInbound();
+        InboundSetupSpec inbound = ctx.getSpec();
         String serverName = inbound.getRealityDest().trim();
         VlessRealityKeyGenerator.RealityKeyPair keyPair = vlessRealityKeyGenerator.generateKeyPair();
         // 语义参数: reality 密钥 + dest (privateKey 进服务端, publicKey 进订阅)
@@ -137,7 +136,7 @@ public class VlessRealityProtocol implements InboundProtocol {
     }
 
     @Override
-    public List<String> clientFacingDiff(InboundParams existingParams, XrayInboundConfigVO newInput) {
+    public List<String> clientFacingDiff(InboundParams existingParams, InboundSetupSpec newInput) {
         VlessRealityParams existing = (existingParams instanceof VlessRealityParams v) ? v : null;
         List<String> diffs = new ArrayList<>();
         // realityDest (偷取的目标真站) 变更

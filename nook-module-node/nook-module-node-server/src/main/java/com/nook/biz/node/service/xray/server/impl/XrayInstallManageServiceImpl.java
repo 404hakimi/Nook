@@ -19,6 +19,7 @@ import com.nook.biz.node.framework.xray.inbound.InboundProtocol;
 import com.nook.biz.node.framework.xray.inbound.InboundProtocolFactory;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionResult;
 import com.nook.biz.node.framework.xray.inbound.InboundProvisionRequest;
+import com.nook.biz.node.framework.xray.inbound.InboundSetupSpec;
 import com.nook.biz.node.framework.xray.install.XrayInstallScriptAssembler;
 import com.nook.biz.node.framework.xray.server.XrayDaemonControl;
 import com.nook.biz.system.api.domain.DomainUtils;
@@ -89,18 +90,20 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
 
     @Override
     public void installStreaming(String serverId, XrayInstallReqVO reqVO, Consumer<String> lineSink) {
+        // controller VO 在此映射成 framework 中立入站规格, 协议实现不再认识 controller VO
+        InboundSetupSpec spec = toSetupSpec(reqVO.getInbound());
         // 协议实现: 校验 + 算形态/参数 (含域名解析/CF A 记录/密钥生成); 加协议只加实现, 不改这里
-        InboundProtocol protocol = inboundProtocolFactory.resolve(reqVO);
-        protocol.validate(serverId, reqVO);
+        InboundProtocol protocol = inboundProtocolFactory.resolve(spec);
+        protocol.validate(serverId, spec);
         // 改客户面参数 (域名/wsPath 等) 仅告警留痕不阻断, 在用客户重拉订阅即可
-        xrayInstallValidator.warnIfClientFacingChange(serverId, reqVO);
+        xrayInstallValidator.warnIfClientFacingChange(serverId, spec);
         // 完整重排: xray 由已装好的 agent 本地部署, 取连接信息 (出网 IP + agent_token)
         ResourceServerDO srv = resourceServerValidator.validateExists(serverId);
 
         // 协议产出: 形态/语义参数/模板占位符 + 域名 (实现内做域名解析/CF A 记录/密钥生成); 渲染 + 落库共用同一份
         InboundProvisionResult prov = protocol.provision(InboundProvisionRequest.builder()
                 .serverId(serverId)
-                .reqVO(reqVO)
+                .spec(spec)
                 .serverIp(srv.getIpAddress())
                 .lineSink(lineSink)
                 .build());
@@ -120,6 +123,19 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
                     + e.getMessage() + " (重新点部署即可幂等修复)\n");
             throw e;
         }
+    }
+
+    /** controller 入站 VO → framework 中立入站规格 (协议实现据此工作, 不依赖 controller VO). */
+    private static InboundSetupSpec toSetupSpec(XrayInboundConfigVO in) {
+        return InboundSetupSpec.builder()
+                .protocol(in.getProtocol())
+                .listenIp(in.getListenIp())
+                .sharedInboundPort(in.getSharedInboundPort())
+                .wsPath(in.getWsPath())
+                .realityDest(in.getRealityDest())
+                .domainId(in.getDomainId())
+                .subdomain(in.getSubdomain())
+                .build();
     }
 
     /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. params/security 由 caller 算好 (reality 密钥跟脚本渲染同一份). */
