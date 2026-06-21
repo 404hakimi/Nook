@@ -22,9 +22,6 @@ public class XrayInboundRespVO {
     /** 共享 inbound 传输 (ws/tcp/...) */
     private String transport;
 
-    /** 共享 inbound 监听 IP. */
-    private String listenIp;
-
     /** 共享 inbound 监听端口. */
     private Integer sharedInboundPort;
 

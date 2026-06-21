@@ -77,9 +77,6 @@ public class XrayInstallValidator {
             mismatches.add("sharedInboundPort: " + existingConfig.getSharedInboundPort()
                     + " → " + spec.getSharedInboundPort());
         }
-        if (!ObjectUtil.equal(existingConfig.getListenIp(), spec.getListenIp())) {
-            mismatches.add("listenIp: " + existingConfig.getListenIp() + " → " + spec.getListenIp());
-        }
         // 协议形态变了 = 全盘客户面变更; 没变则下放给协议实现做协议特定 diff (ws/域名/reality 密钥等)
         XrayInboundProtocolEnum existingProto = XrayInboundProtocolEnum.fromKey(existingConfig.getProtocolKey());
         String existingProtocol = existingProto == null ? null : existingProto.getProtocol();

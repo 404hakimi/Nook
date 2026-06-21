@@ -77,8 +77,6 @@ export interface XrayInboundConfig {
   protocol: 'vmess' | 'vless' | 'trojan'
   /** 传输; vmess=ws, vless-reality=tcp; 随协议联动. */
   transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
-  /** 监听 IP; 当前部署期固定 0.0.0.0. */
-  listenIp: string
   /** 监听端口 (默认 443). */
   sharedInboundPort: number
   /** WebSocket transport path; vmess 必填 (/ 开头), vless 不传. */

@@ -16,9 +16,6 @@ public class InboundSetupSpec {
     /** 协议; vmess / vless (用于选协议实现). */
     private String protocol;
 
-    /** 监听 IP. */
-    private String listenIp;
-
     /** 共享 inbound 端口. */
     private Integer sharedInboundPort;
 

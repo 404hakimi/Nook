@@ -129,7 +129,6 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     private static InboundSetupSpec toSetupSpec(XrayInboundConfigVO in) {
         return InboundSetupSpec.builder()
                 .protocol(in.getProtocol())
-                .listenIp(in.getListenIp())
                 .sharedInboundPort(in.getSharedInboundPort())
                 .wsPath(in.getWsPath())
                 .realityDest(in.getRealityDest())
@@ -163,7 +162,6 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         cfg.setServerId(serverId);
         // 协议形态收敛到 protocol_key (protocol/transport/security 由它解出); 域名/ws/tls/reality 语义全在 params
         cfg.setProtocolKey(prov.getProtocol().getKey());
-        cfg.setListenIp(inbound.getListenIp());
         cfg.setSharedInboundPort(inbound.getSharedInboundPort());
         cfg.setParams(JSON.toJSONString(prov.getParams()));
         xrayInboundService.upsert(cfg);

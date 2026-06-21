@@ -30,9 +30,6 @@ public class XrayInboundDO implements Serializable {
     /** 协议形态 key {@link com.nook.biz.node.api.enums.XrayInboundProtocolEnum}; protocol/transport/security 由它解出. */
     private String protocolKey;
 
-    /** 共享 inbound 监听 IP. */
-    private String listenIp;
-
     /** 共享 inbound 监听端口. */
     private Integer sharedInboundPort;
 

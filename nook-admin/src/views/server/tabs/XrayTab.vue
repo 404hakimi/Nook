@@ -68,7 +68,6 @@ const reinstallPrefill = computed<Record<string, unknown> | null>(() => {
     subdomain: s.subdomain,
     protocol: c?.protocol,
     transport: c?.transport,
-    listenIp: c?.listenIp,
     sharedInboundPort: c?.sharedInboundPort,
     wsPath: c?.wsPath,
     tlsCertPath: c?.tlsCertPath,

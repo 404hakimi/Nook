@@ -54,7 +54,7 @@ public class VlessRealityProtocol implements InboundProtocol {
             "^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))+$");
     /** vless+reality inbound 模板 (${} 占位符 render 时填充). */
     private static final String INBOUND_TEMPLATE = """
-            {"tag":${tag},"listen":${listenIp},"port":${port},"protocol":"vless","settings":{"clients":[],"decryption":"none"},"sniffing":{"enabled":true,"destOverride":["http","tls","quic"]},"streamSettings":{"network":"tcp","security":"reality","realitySettings":{"show":false,"dest":${reality.dest},"xver":0,"serverNames":${reality.serverNames},"privateKey":${reality.privateKey},"shortIds":${reality.shortIds}}}}""";
+            {"tag":${tag},"listen":"0.0.0.0","port":${port},"protocol":"vless","settings":{"clients":[],"decryption":"none"},"sniffing":{"enabled":true,"destOverride":["http","tls","quic"]},"streamSettings":{"network":"tcp","security":"reality","realitySettings":{"show":false,"dest":${reality.dest},"xver":0,"serverNames":${reality.serverNames},"privateKey":${reality.privateKey},"shortIds":${reality.shortIds}}}}""";
 
     @Resource
     private VlessRealityKeyGenerator vlessRealityKeyGenerator;
@@ -95,7 +95,6 @@ public class VlessRealityProtocol implements InboundProtocol {
         // 模板占位符
         Map<String, Object> vars = new HashMap<>();
         vars.put("tag", XrayConstants.SHARED_INBOUND_TAG);
-        vars.put("listenIp", inbound.getListenIp());
         vars.put("port", inbound.getSharedInboundPort());
         vars.put("reality.dest", reality.getDest());
         vars.put("reality.serverNames", reality.getServerNames());

@@ -130,7 +130,6 @@ interface InstallFormState {
   logRotate: boolean
   protocol: 'vmess' | 'vless' | 'trojan'
   transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
-  listenIp: string
   sharedInboundPort: number
   wsPath: string
   realityDest?: string
@@ -148,7 +147,6 @@ const form = reactive<InstallFormState>({
   // 协议: vmess+ws (绑域名走 tls) 或 vless+reality; transport 随协议联动
   protocol: 'vmess',
   transport: 'ws',
-  listenIp: '0.0.0.0',
   realityDest: undefined,
   sharedInboundPort: 443,
   wsPath: randomWsPath(),
@@ -259,7 +257,6 @@ async function onSubmit() {
       inbound: {
         protocol: form.protocol,
         transport: isRealityProto ? 'tcp' : form.transport,
-        listenIp: form.listenIp,
         sharedInboundPort: form.sharedInboundPort,
         // vless 走 reality 不需要 ws path / 域名; vmess 才传
         wsPath: isRealityProto ? undefined : form.wsPath.trim(),
@@ -420,13 +417,6 @@ function close() {
             filterable
             placeholder="选或输入目标真站 (如 www.bing.com)"
           />
-        </NFormItem>
-        <NFormItem v-else>
-          <template #label>
-            <span>监听 IP</span>
-            <span class="text-xs text-zinc-400 ml-2">固定 0.0.0.0</span>
-          </template>
-          <NInput :value="form.listenIp" disabled :input-props="{ style: 'font-family: monospace' }" />
         </NFormItem>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">

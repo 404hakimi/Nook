@@ -53,11 +53,11 @@ public class VmessWsProtocol implements InboundProtocol {
 
     /** vmess+ws+tls inbound 模板 (${} 占位符 render 时填充). */
     private static final String TEMPLATE_TLS = """
-            {"tag":${tag},"listen":${listenIp},"port":${port},"protocol":"vmess","settings":{"clients":[]},"sniffing":{"enabled":true,"destOverride":["http","tls","quic"]},"streamSettings":{"network":"ws","security":"tls","tlsSettings":{"serverName":${domain},"alpn":["h2","http/1.1"],"minVersion":"1.2","certificates":[{"certificateFile":${tls.certPath},"keyFile":${tls.keyPath}}]},"wsSettings":{"path":${ws.path}}}}""";
+            {"tag":${tag},"listen":"0.0.0.0","port":${port},"protocol":"vmess","settings":{"clients":[]},"sniffing":{"enabled":true,"destOverride":["http","tls","quic"]},"streamSettings":{"network":"ws","security":"tls","tlsSettings":{"serverName":${domain},"alpn":["h2","http/1.1"],"minVersion":"1.2","certificates":[{"certificateFile":${tls.certPath},"keyFile":${tls.keyPath}}]},"wsSettings":{"path":${ws.path}}}}""";
 
     /** vmess+ws (无 tls) inbound 模板. */
     private static final String TEMPLATE_PLAIN = """
-            {"tag":${tag},"listen":${listenIp},"port":${port},"protocol":"vmess","settings":{"clients":[]},"sniffing":{"enabled":true,"destOverride":["http","tls","quic"]},"streamSettings":{"network":"ws","security":"none","wsSettings":{"path":${ws.path}}}}""";
+            {"tag":${tag},"listen":"0.0.0.0","port":${port},"protocol":"vmess","settings":{"clients":[]},"sniffing":{"enabled":true,"destOverride":["http","tls","quic"]},"streamSettings":{"network":"ws","security":"none","wsSettings":{"path":${ws.path}}}}""";
 
     @Resource
     private SystemDomainApi systemDomainApi;
@@ -122,7 +122,6 @@ public class VmessWsProtocol implements InboundProtocol {
         // 模板占位符
         Map<String, Object> vars = new HashMap<>();
         vars.put("tag", XrayConstants.SHARED_INBOUND_TAG);
-        vars.put("listenIp", inbound.getListenIp());
         vars.put("port", inbound.getSharedInboundPort());
         vars.put("ws.path", inbound.getWsPath());
         if (useTls) {

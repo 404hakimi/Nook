@@ -7,8 +7,6 @@ export interface XrayInbound {
   protocol?: string
   /** 共享 inbound 传输 (ws/tcp/...) */
   transport?: string
-  /** 共享 inbound 监听 IP */
-  listenIp?: string
   /** 共享 inbound 监听端口 */
   sharedInboundPort?: number
   /** WebSocket transport path */

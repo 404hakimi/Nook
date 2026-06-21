@@ -28,13 +28,6 @@ public class XrayInboundConfigVO {
     @Size(max = 32)
     private String transport;
 
-    /** 监听 IP; 当前固定 0.0.0.0. */
-    @NotBlank(message = "listenIp 必填")
-    @Pattern(regexp = "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$|^::$|^[0-9a-fA-F:]+$",
-            message = "listenIp 必须是合法 IPv4 / IPv6")
-    @Size(max = 45)
-    private String listenIp;
-
     /** 监听端口; 默认 443. */
     @NotNull(message = "sharedInboundPort 必填")
     @Min(value = 1) @Max(value = 65535)
