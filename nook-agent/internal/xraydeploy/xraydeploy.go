@@ -4,13 +4,13 @@
 // 取代退场的后台 bash 装机链路 (原 scripts/modules/50-xray.sh.tmpl 等). 机器级 bootstrap
 // (apt 依赖 / 时区 / ufw 基础规则) 由 agent 上机时的 SSH 脚本负责, 这里只做 xray 专属 + 补端口.
 //
-// 覆盖: 非 TLS (vless-reality / vmess-ws-plain) 与 绑域名 TLS (vmess-ws-tls; acme.sh + Cloudflare DNS-01).
+// 覆盖: 非 TLS (vless-reality / vmess-ws-plain) 与 绑域名 TLS (vmess-ws-tls; 证书由后台签好下发, agent 写盘).
 //
 // 文件划分:
 //
 //	xraydeploy.go — 入口 Deploy 编排 + Request/paths 类型
 //	binary.go     — xray binary 下载/版本/解压
-//	tls.go        — acme.sh + Cloudflare DNS-01 证书
+//	tls.go        — 写后台下发的 TLS 证书 (cert/key) 到盘
 //	render.go     — config.json + systemd unit 渲染
 //	service.go    — ufw / systemctl / 校验起服
 //	exec.go       — shell 执行 + 流式日志辅助
@@ -47,7 +47,8 @@ type Request struct {
 	SharedInboundPort int    `json:"sharedInboundPort"`
 	InboundConfigJSON string `json:"inboundConfigJson"`
 	Domain            string `json:"domain"`
-	CfAPIToken        string `json:"cfApiToken"`
+	TLSCertPem        string `json:"tlsCertPem"`
+	TLSKeyPem         string `json:"tlsKeyPem"`
 	TimeoutSeconds    int    `json:"timeoutSeconds"`
 }
 
@@ -96,8 +97,8 @@ func Deploy(ctx context.Context, xrayBin string, apiPort int, body []byte, out i
 		}
 	}
 	if useTLS {
-		// 绑域名: 先签/复用 TLS 证书到 p.certPath/p.keyPath (config.json 的 tlsSettings 引用它).
-		if err := ensureTLSCert(ctx, out, p, req.Domain, req.CfAPIToken); err != nil {
+		// 绑域名: 把后台签好下发的 cert/key 写到 p.certPath/p.keyPath (config.json 的 tlsSettings 引用它).
+		if err := ensureTLSCert(out, p, req.Domain, req.TLSCertPem, req.TLSKeyPem); err != nil {
 			return err
 		}
 	}

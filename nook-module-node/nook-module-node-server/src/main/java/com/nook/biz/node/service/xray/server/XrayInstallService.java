@@ -54,4 +54,22 @@ public interface XrayInstallService {
      * @param status   装机状态
      */
     void markInstallStatus(String serverId, XrayInstallStatusEnum status);
+
+    /**
+     * 落库后台签发的 TLS 证书 (定向更新, 不碰其它列)
+     *
+     * @param serverId 服务器编号
+     * @param certPem  全链证书 PEM
+     * @param keyPem   私钥 PEM
+     * @param notAfter 叶子证书到期时间
+     */
+    void saveTlsCert(String serverId, String certPem, String keyPem, LocalDateTime notAfter);
+
+    /**
+     * 清空该 server 的 TLS 绑定 (域名 + 证书列); 重新部署成非 TLS 时调,
+     * 避免全局 NOT_NULL 更新策略把旧证书 / 旧域名残留在行里 (误导详情页, 也防未来续期任务误扫).
+     *
+     * @param serverId 服务器编号
+     */
+    void clearTlsBinding(String serverId);
 }

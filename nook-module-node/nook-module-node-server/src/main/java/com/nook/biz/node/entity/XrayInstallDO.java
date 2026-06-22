@@ -57,6 +57,15 @@ public class XrayInstallDO implements Serializable {
     /** 二级域名标签 (如 frontline-jp-1); 完整 FQDN = subdomain + "." + system_domain.domain(根域). */
     private String subdomain;
 
+    /** 后台签发的全链证书 PEM (TLS 部署时下发 agent 写盘); 空 = 未签 / 非 TLS. */
+    private String tlsCertPem;
+
+    /** 证书私钥 PEM; 与 tlsCertPem 配对. */
+    private String tlsKeyPem;
+
+    /** 叶子证书到期时间; 复用判定 (剩余 > 阈值则不重签) 与续期任务据此扫临期. */
+    private LocalDateTime tlsCertNotAfter;
+
     /** 装机状态 {@link com.nook.biz.node.api.enums.XrayInstallStatusEnum}; 配置落库=deploying, agent 回报后 ok/failed. */
     private String installStatus;
 

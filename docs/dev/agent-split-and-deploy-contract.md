@@ -67,8 +67,9 @@ nook-agent/
   "logRotate": true,
   "sharedInboundPort": 443,
   "inboundConfigJson": "<已渲染的 xray inbound JSON>",  // agent 不透明写进 config.json 的 inbounds
-  "domain": "x.karsu.cc",         // 可空; 非空才走 acme
-  "cfApiToken": "***",            // 可空; acme DNS-01 用
+  "domain": "x.karsu.cc",         // 可空; 非空 = 绑域名 TLS
+  "tlsCertPem": "-----BEGIN CERTIFICATE-----\n...",  // 仅绑域名: 后台签好的全链证书 PEM
+  "tlsKeyPem": "-----BEGIN PRIVATE KEY-----\n...",   // 仅绑域名: 证书私钥 PEM
   "timeoutSeconds": 1200
 }
 ```
@@ -78,13 +79,13 @@ nook-agent/
 原后台 `XrayInstallDefaults` 常量,装机改造后归 agent 所有;但 agent 落盘/监听的值要与后台 `inboundConfigJson`、reconcile 引用的一致:
 
 - **TLS cert/key 路径**:`/home/xray/tls/cert.pem`、`/home/xray/tls/key.pem`
-  —— `inboundConfigJson` 的 `tlsSettings.certificates` 引用它,agent acme 必须落盘到这里。
+  —— `inboundConfigJson` 的 `tlsSettings.certificates` 引用它,agent 把后台下发的 `tlsCertPem`/`tlsKeyPem` 写到这里(cert `0644` / key `0600`)。
 - **xray api 端口**:`44944`(loopback);reconcile 靠它查 xray、应用 adu/ado/adrules。
 - 安装路径:`/home/xray/bin/xray`、`/home/xray/config.json`;systemd unit `/etc/systemd/system/xray.service`。
 
 **这些常量 agent 从哪来**:`binaryPath` + `apiPort` 已由现有 agent 装机写进 `config.yml`(后台从 `xray_install` 读后写入)—— agent 直接用。`cert/key / config / share / log` 路径目前是约定值(= `XrayInstallDefaults`),agent 端硬编码或一并进 `config.yml`,**来源由 agent 会话定**,只需与后台 `inboundConfigJson` 引用一致。
 
-**安全(cfApiToken)**:`/xray/deploy` 走内网或 HTTPS 信任链;agent **日志脱敏**(`cfApiToken=***`)、**用完不持久化**(仅本次 acme 用,不写盘 / 不入 config.yml)。
+**安全(证书签发回归后台)**:证书签发(Let's Encrypt + Cloudflare DNS-01)全在**后台**(acme4j + `CloudflareApiClient` + `XrayCertManager`);`cfApiToken` 只留后台(从 `system_domain` 取),**不再下发 agent**。`/xray/deploy` 改下发签好的 `tlsCertPem`/`tlsKeyPem`。注意:该控制通道(`:44844`)目前是 `X-Agent-Token` + UFW 信任网络的**明文 HTTP**,证书**私钥过线** —— 生产应收紧为 HTTPS / UFW 严格只放后台出口 IP(见 review #1)。
 
 ## D. 线路机装机责任(`/xray/deploy` 内 agent 要做的 = 退场的 bash 模块逻辑)
 
@@ -92,7 +93,7 @@ nook-agent/
 
 1. **prepare-env**:root 校验、Ubuntu 22+ / arch 校验、**dpkg-lock 等待**、apt 公共依赖(curl/wget/jq/iproute2/unzip/ca-certificates)。
 2. **ufw**(`installUfw`):放行 `22` / `sharedInboundPort` / `44844`。
-3. **acme-tls**(`domain` 非空):acme.sh + Cloudflare DNS-01;**成本感知复用(现有证书 >7 天有效则不重签,防 Let's Encrypt 限流)**。
+3. **写 TLS 证书**(`domain` 非空):把后台下发的 `tlsCertPem`/`tlsKeyPem` 写到 `/home/xray/tls/`(cert `0644` / key `0600`)。**签发 / 复用 / 续期全在后台**(acme4j + CF DNS-01 + `XrayCertManager`,剩余 >`renew-before-days` 天则复用),agent 不跑 acme、不直连 CF。
 4. **logrotate / journald-cap**(对应 flag)。
 5. **xray(核心,最重)**:arch 检测(x86_64/aarch64/armv7);按 `xrayVersion` 下载 + **版本 pin**(`forceReinstall` 强制);旧二进制备份;生成 `config.json`(内置 api inbound + **传入的 `inboundConfigJson`** + blackhole/api 出站);`GOMEMLIMIT = 70% 内存`;写 systemd unit;`xray -test` 校验;`systemctl enable/disable`(按 `enableOnBoot`)+ restart;验 xray is-active + api 端口监听。
 6. **finalize**:摘要/自检(可选)。
@@ -109,7 +110,7 @@ nook-agent/
 | ufw | ✔ 基础(22 + 44844) | ✔ 补 `sharedInboundPort`(部署时才知) |
 | logrotate / journald-cap | ✔ 机器级 | 可选 |
 | swap / bbr | `ServerOsOp` 按需运维 | — 不随 xray |
-| acme-TLS | — | ✔ xray 专属(需 `domain`) |
+| 写 TLS 证书 | — | ✔ 写后台下发的 cert/key(需 `domain`);**签发在后台** |
 | xray 二进制 / `config.json` / systemd | — | ✔ xray 专属 |
 
 → "机器级 bootstrap" **已在现有 SSH 装 agent 脚本** `scripts/install/nook-agent.sh.tmpl` 做(时区 / UFW / journald 等已存在,**非新工作**);`/xray/deploy` 只补 xray 专属 + 端口相关(ufw 加 `sharedInboundPort`)。ufw 补端口放 SSH 脚本还是 deploy 时补,由 agent 会话定。**所有步骤必须幂等**(跑两遍安全)。
@@ -139,7 +140,6 @@ nook-agent/
 ## 本契约不规定(agent 会话自决的实现细节)
 
 下列是 agent Go 实现细节,不属跨会话契约,由 agent 会话定;契约只管 **wire 端点+字段 / 持久化边界 / 共享路径约定 / 状态语义**:
-- acme 证书有效期检测 / 缓存 / `forceReinstall` 是否重签
 - xray 二进制下载源 / checksum 校验 / `latest`→具体版本解析 / 下载重试
 - 各步骤幂等的具体做法(检查-跳过 vs 无条件重跑)、部分失败的回滚 / 清理
 - agent 首启 config 自检(xray 段缺失时跳过 vs 退出)、热更新

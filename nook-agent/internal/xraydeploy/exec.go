@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 )
@@ -25,16 +24,6 @@ func sh(ctx context.Context, out io.Writer, name string, args ...string) error {
 // shAllowFail 同 sh 但忽略错误 (如 systemctl stop 一个未装的服务).
 func shAllowFail(ctx context.Context, out io.Writer, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdout = out
-	cmd.Stderr = out
-	return cmd.Run()
-}
-
-// shEnv 同 sh 但附加 env (不进日志; 用于 CF_Token 等敏感值, 避免泄到流式回传/后台日志).
-func shEnv(ctx context.Context, out io.Writer, extraEnv []string, name string, args ...string) error {
-	fmt.Fprintf(out, "[nook-agent] $ %s %s\n", name, strings.Join(args, " "))
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Env = append(os.Environ(), extraEnv...)
 	cmd.Stdout = out
 	cmd.Stderr = out
 	return cmd.Run()

@@ -13,6 +13,8 @@ import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.entity.XrayInboundDO;
 import com.nook.biz.node.entity.XrayInstallDO;
+import com.nook.biz.node.framework.acme.IssuedCert;
+import com.nook.biz.node.framework.acme.XrayCertManager;
 import com.nook.biz.node.framework.agent.AgentControlClient;
 import com.nook.biz.node.framework.server.probe.ServerProbe;
 import com.nook.biz.node.framework.server.snapshot.JournalLogSnapshot;
@@ -42,7 +44,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -56,11 +57,13 @@ import java.util.function.Consumer;
 @Service
 public class XrayInstallManageServiceImpl implements XrayInstallManageService {
 
-    /** agent 本地装 xray 的超时秒数; wget+apt+acme DNS-01 耗时较长, 独立于 SSH 场景超时 (且避免 cred 字段 null 拆箱 NPE). */
+    /** agent 本地装 xray 的超时秒数 (下载 binary 为主; 证书已由后台签好下发), 独立于 SSH 场景超时 (且避免 cred 字段 null 拆箱 NPE). */
     private static final int XRAY_DEPLOY_TIMEOUT_SECONDS = 1200;
 
     @Resource
     private AgentControlClient agentControlClient;
+    @Resource
+    private XrayCertManager xrayCertManager;
     @Resource
     private ServerProbe serverProbe;
     @Resource
@@ -110,10 +113,22 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         // 配置先行 (DB 为中心): 先把期望态落库 (status=deploying), 再通知 agent 装机
         transactionTemplate.executeWithoutResult(txStatus ->
                 persistDeployment(serverId, reqVO, reqVO.getXrayVersion(), prov));
-        lineSink.accept("[nook] ✔ 配置已落库, 通知 agent 装机...\n");
+        lineSink.accept("[nook] ✔ 配置已落库\n");
 
-        // 通知 agent: 下发结构化配置 (版本/开关/inbound JSON/域名), agent 用内置逻辑本地装机 + 流式回传日志
-        XrayDeployRequest deployReq = buildDeployRequest(serverId, reqVO, prov);
+        // 绑域名: 后台签发/复用 TLS 证书 (DNS-01 经 Cloudflare), 随部署请求下发给 agent 写盘; agent 不再直连 CF/acme.
+        // 放事务外: 签发是较慢网络操作 (~30-60s), 不能占着 DB 事务.
+        IssuedCert cert = null;
+        if (StrUtil.isNotBlank(prov.getFullDomain())) {
+            lineSink.accept("[nook] → 后台签发/复用 TLS 证书 (DNS-01)...\n");
+            // 透出签发各阶段进度行 (兼流式心跳: 签发可能 >60s, 否则中间代理 idle 易断流)
+            cert = xrayCertManager.ensureCert(serverId, prov.getFullDomain(), prov.getCfApiToken(),
+                    msg -> lineSink.accept("[nook]   " + msg + "\n"));
+            lineSink.accept("[nook] ✔ 证书就绪 (到期 " + cert.getNotAfter() + ")\n");
+        }
+        lineSink.accept("[nook] 通知 agent 装机...\n");
+
+        // 通知 agent: 下发结构化配置 (版本/开关/inbound JSON/域名/证书), agent 用内置逻辑本地装机 + 流式回传日志
+        XrayDeployRequest deployReq = buildDeployRequest(serverId, reqVO, prov, cert);
         try {
             agentControlClient.deployXray(srv.getIpAddress(), srv.getAgentToken(), deployReq, lineSink);
             xrayInstallService.markInstallStatus(serverId, XrayInstallStatusEnum.OK);
@@ -138,9 +153,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
                 .build();
     }
 
-    /** 后台配置 → agent 装机请求 (结构化下发; agent 用内置逻辑本地装机, inbound JSON 不透明写盘). */
-    private XrayDeployRequest buildDeployRequest(String serverId, XrayInstallReqVO r, InboundProvisionResult prov) {
-        String fullDomain = prov.getFullDomain();
+    /** 后台配置 → agent 装机请求 (结构化下发; agent 用内置逻辑本地装机, inbound JSON 不透明写盘, TLS 证书后台签好直接下发). */
+    private XrayDeployRequest buildDeployRequest(String serverId, XrayInstallReqVO r, InboundProvisionResult prov, IssuedCert cert) {
         return XrayDeployRequest.builder()
                 .serverId(serverId)
                 .xrayVersion(r.getXrayVersion())
@@ -151,8 +165,9 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
                 .logRotate(Boolean.TRUE.equals(r.getLogRotate()))
                 .sharedInboundPort(r.getInbound().getSharedInboundPort())
                 .inboundConfigJson(prov.getInboundJson())
-                .domain(fullDomain)
-                .cfApiToken(StrUtil.isNotBlank(fullDomain) ? prov.getCfApiToken() : null)
+                .domain(prov.getFullDomain())
+                .tlsCertPem(cert != null ? cert.getCertPem() : null)
+                .tlsKeyPem(cert != null ? cert.getKeyPem() : null)
                 .timeoutSeconds(XRAY_DEPLOY_TIMEOUT_SECONDS)
                 .build();
     }
@@ -178,6 +193,10 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         // 配置先行: 落库即 deploying; installedAt 等 agent 回报成功才置 (见 markInstallStatus)
         srv.setInstallStatus(XrayInstallStatusEnum.DEPLOYING.getCode());
         xrayInstallService.upsert(srv);
+        // 重新部署成非 TLS: 全局 NOT_NULL 策略不会把上面置 null 的 domain/证书列写回, 显式清掉避免旧证书/旧域名残留
+        if (!useTls) {
+            xrayInstallService.clearTlsBinding(serverId);
+        }
 
         XrayInboundDO cfg = new XrayInboundDO();
         cfg.setServerId(serverId);

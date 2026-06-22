@@ -81,4 +81,30 @@ public class XrayInstallServiceImpl implements XrayInstallService {
             log.warn("[xray-install] markInstallStatus 没匹配到行 server={} status={}", serverId, status.getCode());
         }
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void saveTlsCert(String serverId, String certPem, String keyPem, LocalDateTime notAfter) {
+        int affected = xrayInstallMapper.update(null, new LambdaUpdateWrapper<XrayInstallDO>()
+                .eq(XrayInstallDO::getServerId, serverId)
+                .set(XrayInstallDO::getTlsCertPem, certPem)
+                .set(XrayInstallDO::getTlsKeyPem, keyPem)
+                .set(XrayInstallDO::getTlsCertNotAfter, notAfter));
+        if (affected == 0) {
+            log.warn("[xray-install] saveTlsCert 没匹配到行 server={}", serverId);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void clearTlsBinding(String serverId) {
+        // 显式 set null (wrapper.set 不受全局 NOT_NULL 策略约束, 区别于 updateById)
+        xrayInstallMapper.update(null, new LambdaUpdateWrapper<XrayInstallDO>()
+                .eq(XrayInstallDO::getServerId, serverId)
+                .set(XrayInstallDO::getDomainId, null)
+                .set(XrayInstallDO::getSubdomain, null)
+                .set(XrayInstallDO::getTlsCertPem, null)
+                .set(XrayInstallDO::getTlsKeyPem, null)
+                .set(XrayInstallDO::getTlsCertNotAfter, null));
+    }
 }

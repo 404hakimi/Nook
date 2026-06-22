@@ -470,7 +470,7 @@ function close() {
       <div v-if="!isReality" class="text-sm font-semibold mt-4 mb-2 flex items-center gap-3">
         <span>域名 + TLS</span>
         <span class="text-xs text-zinc-400 font-normal">
-          选根域 + 填二级标签 = 走 CDN + acme.sh DNS-01 签发 LE 证书; 根域留空 = 不启用域名 (xray 退化纯 vmess+ws)
+          选根域 + 填二级标签 = 走 CDN + TLS (证书由后台自动签发/续期); 根域留空 = 不启用域名 (xray 退化纯 vmess+ws)
         </span>
       </div>
       <div v-if="!isReality" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">

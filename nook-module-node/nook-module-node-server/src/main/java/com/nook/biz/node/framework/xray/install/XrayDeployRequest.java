@@ -41,12 +41,15 @@ public class XrayDeployRequest {
     /** 已渲染的 xray inbound JSON (agent 不透明写入 config.json 的 inbounds). */
     private String inboundConfigJson;
 
-    /** 对外域名 FQDN (vmess-tls; 空 = 无 TLS, agent 跳过 acme). */
+    /** 对外域名 FQDN (vmess-tls; 空 = 无 TLS, agent 跳过写证书). */
     private String domain;
 
-    /** Cloudflare API Token (agent acme DNS-01 用; 仅绑域名时下发). */
-    private String cfApiToken;
+    /** 后台签好的全链证书 PEM (agent 直接写盘; 仅绑域名时有值). agent 不再直连 Cloudflare/acme. */
+    private String tlsCertPem;
 
-    /** agent 本地装机超时秒数 (wget + apt + acme DNS-01 耗时较长). */
+    /** 后台签好的证书私钥 PEM (与 tlsCertPem 配对; 仅绑域名时有值). */
+    private String tlsKeyPem;
+
+    /** agent 本地装机超时秒数 (下载 xray binary 为主; 证书由后台签好下发, agent 不再跑 acme). */
     private int timeoutSeconds;
 }
