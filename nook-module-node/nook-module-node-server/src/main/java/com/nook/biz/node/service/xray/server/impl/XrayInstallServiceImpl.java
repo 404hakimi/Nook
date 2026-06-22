@@ -1,6 +1,5 @@
 package com.nook.biz.node.service.xray.server.impl;
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -8,15 +7,13 @@ import com.nook.biz.node.api.enums.XrayInstallStatusEnum;
 import com.nook.biz.node.entity.XrayInstallDO;
 import com.nook.biz.node.mapper.XrayInstallMapper;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
-import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.Map;
+import java.util.List;
 
 /**
  * Xray 实例元数据 Service 实现类
@@ -50,6 +47,15 @@ public class XrayInstallServiceImpl implements XrayInstallService {
     @Override
     public XrayInstallDO get(String serverId) {
         return xrayInstallMapper.selectById(serverId);
+    }
+
+    @Override
+    public List<XrayInstallDO> listRenewable(LocalDateTime before) {
+        // 已签证书 (notAfter 非空) 且早于阈值 且装机已 ok 的行 (deploying/failed 不动)
+        return xrayInstallMapper.selectList(new LambdaQueryWrapper<XrayInstallDO>()
+                .isNotNull(XrayInstallDO::getTlsCertNotAfter)
+                .lt(XrayInstallDO::getTlsCertNotAfter, before)
+                .eq(XrayInstallDO::getInstallStatus, XrayInstallStatusEnum.OK.getCode()));
     }
 
     @Override

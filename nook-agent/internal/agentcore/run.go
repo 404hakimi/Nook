@@ -28,6 +28,7 @@ type RoleComponents struct {
 	Goroutines        []Goroutine
 	NicBizSampler     func() (up, down *int64) // landing: 采样 nft socks5 业务上下行供 nic 上报; nil = nic 不报 biz
 	XrayDeploy        control.XrayDeployFunc   // frontline: 控制接口 /xray/deploy 装机实现; nil = 不暴露该端点
+	XrayCert          control.XrayCertFunc     // frontline: 控制接口 /xray/cert 证书续期写盘实现; nil = 不暴露该端点
 	XrayStatusSampler func() bool              // frontline: 心跳采样 xray 是否运行; nil = 不报 (landing)
 }
 
@@ -72,7 +73,7 @@ func Run(version string, registerRole RoleRegister) {
 	go func() { defer wg.Done(); nicRep.Run(ctx) }()
 	// 控制接口: 后台 call agent 本地执行部署脚本 (port=0 不启用)
 	if cfg.Control.Port > 0 {
-		ctrl := control.New(cfg.Control.Port, cfg.Backend.APIToken, comp.XrayDeploy)
+		ctrl := control.New(cfg.Control.Port, cfg.Backend.APIToken, comp.XrayDeploy, comp.XrayCert)
 		wg.Add(1)
 		go func() { defer wg.Done(); ctrl.Run(ctx) }()
 	}

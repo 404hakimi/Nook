@@ -5,6 +5,7 @@ import com.nook.biz.node.entity.XrayInstallDO;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -72,4 +73,12 @@ public interface XrayInstallService {
      * @param serverId 服务器编号
      */
     void clearTlsBinding(String serverId);
+
+    /**
+     * 列出临期可续证书的实例 (已签 && notAfter < before && 装机 ok); 续期任务用
+     *
+     * @param before 到期时间阈值 (= now + 续期窗口)
+     * @return 命中的实例元数据列表
+     */
+    List<XrayInstallDO> listRenewable(LocalDateTime before);
 }

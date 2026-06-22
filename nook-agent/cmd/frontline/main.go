@@ -55,6 +55,10 @@ func registerFrontline(cfg *config.Config, cli *client.Client) agentcore.RoleCom
 		XrayDeploy: func(ctx context.Context, body []byte, out io.Writer) error {
 			return xraydeploy.Deploy(ctx, bin, apiPort, body, out)
 		},
+		// 后台 POST /xray/cert 续期: 写新 cert/key + reload xray (轻量, 不重走装机).
+		XrayCert: func(ctx context.Context, body []byte, out io.Writer) error {
+			return xraydeploy.WriteCert(ctx, bin, body, out)
+		},
 		// 心跳采样: xray 是否在跑 (后台据此把卡死的 deploying 推进到 ok)
 		XrayStatusSampler: func() bool {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

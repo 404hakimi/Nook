@@ -3,6 +3,7 @@ package com.nook.biz.node.framework.agent;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.nook.biz.node.api.enums.XrayErrorCode;
+import com.nook.biz.node.framework.xray.install.XrayCertPushRequest;
 import com.nook.biz.node.framework.xray.install.XrayDeployRequest;
 import com.nook.common.web.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +49,18 @@ public class AgentControlClient {
      */
     public void deployXray(String agentHost, String token, XrayDeployRequest req, Consumer<String> lineSink) {
         this.postStreaming(agentHost, "/xray/deploy", token, JSON.toJSONString(req), req.getTimeoutSeconds(), lineSink);
+    }
+
+    /**
+     * 通知 agent 写入续期后的新证书并 reload xray (轻量, 不重走装机); 复用 /xray/cert 流式约定
+     *
+     * @param agentHost agent 主机 (线路机出网 IP)
+     * @param token     agent 鉴权 token
+     * @param req       证书下发请求 (域名 + cert/key + 超时)
+     * @param lineSink  日志行回调
+     */
+    public void pushCert(String agentHost, String token, XrayCertPushRequest req, Consumer<String> lineSink) {
+        this.postStreaming(agentHost, "/xray/cert", token, JSON.toJSONString(req), req.getTimeoutSeconds(), lineSink);
     }
 
     /** POST agent 控制接口 + 流式读回 stdout; 非 200 / 无成功标记 / IO 中断均抛 BusinessException. */

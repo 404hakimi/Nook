@@ -28,15 +28,19 @@ const maxBodyBytes = 4 << 20 // 4MiB
 // XrayDeployFunc 由 frontline 角色提供: 解析下发配置 + 本地装 xray + 流式写 out; nil = 不暴露 /xray/deploy.
 type XrayDeployFunc func(ctx context.Context, body []byte, out io.Writer) error
 
+// XrayCertFunc 由 frontline 角色提供: 写后台续期下发的 cert/key + reload xray + 流式写 out; nil = 不暴露 /xray/cert.
+type XrayCertFunc func(ctx context.Context, body []byte, out io.Writer) error
+
 // Server 控制接口 HTTP server; 无状态.
 type Server struct {
 	port       int
 	token      string
 	xrayDeploy XrayDeployFunc
+	xrayCert   XrayCertFunc
 }
 
-func New(port int, token string, xrayDeploy XrayDeployFunc) *Server {
-	return &Server{port: port, token: token, xrayDeploy: xrayDeploy}
+func New(port int, token string, xrayDeploy XrayDeployFunc, xrayCert XrayCertFunc) *Server {
+	return &Server{port: port, token: token, xrayDeploy: xrayDeploy, xrayCert: xrayCert}
 }
 
 // execRequest 跟后台 AgentControlClient 下发体对齐.
@@ -51,6 +55,9 @@ func (s *Server) Run(ctx context.Context) {
 	mux.HandleFunc("/execute", s.handleExecute)
 	if s.xrayDeploy != nil {
 		mux.HandleFunc("/xray/deploy", s.handleXrayDeploy)
+	}
+	if s.xrayCert != nil {
+		mux.HandleFunc("/xray/cert", s.handleXrayCert)
 	}
 	srv := &http.Server{Addr: fmt.Sprintf(":%d", s.port), Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
@@ -90,6 +97,17 @@ func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
 
 // handleXrayDeploy 后台通知 agent 本地装机: 解析下发配置 → 内置 Go 装机 → 流式回日志 + NOOK_RESULT.
 func (s *Server) handleXrayDeploy(w http.ResponseWriter, r *http.Request) {
+	s.handleStreamingJob(w, r, "/xray/deploy", s.xrayDeploy)
+}
+
+// handleXrayCert 后台续期: 推新 cert/key, agent 写盘 + reload xray → 流式回日志 + NOOK_RESULT.
+func (s *Server) handleXrayCert(w http.ResponseWriter, r *http.Request) {
+	s.handleStreamingJob(w, r, "/xray/cert", s.xrayCert)
+}
+
+// handleStreamingJob 公共骨架: 鉴权 → 读 body → chunked 流式跑 job → 行尾 NOOK_RESULT marker 判成败.
+func (s *Server) handleStreamingJob(w http.ResponseWriter, r *http.Request, name string,
+	job func(ctx context.Context, body []byte, out io.Writer) error) {
 	if r.Method != http.MethodPost || !tokenOK(r.Header.Get(tokenHeader), s.token) {
 		http.NotFound(w, r)
 		return
@@ -108,9 +126,9 @@ func (s *Server) handleXrayDeploy(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	fw := &flushWriter{w: w, f: flusher}
 	// chunked 200 已发无法改 status; 行尾用 NOOK_RESULT marker 让后台判成败 (与 /execute 一致).
-	if err := s.xrayDeploy(r.Context(), body, fw); err != nil {
-		fmt.Fprintf(fw, "\n[nook-agent] xray deploy failed: %v\nNOOK_RESULT=fail\n", err)
-		log.Printf("[控制接口] /xray/deploy 失败: %v", err)
+	if err := job(r.Context(), body, fw); err != nil {
+		fmt.Fprintf(fw, "\n[nook-agent] %s failed: %v\nNOOK_RESULT=fail\n", name, err)
+		log.Printf("[控制接口] %s 失败: %v", name, err)
 		return
 	}
 	fmt.Fprint(fw, "\nNOOK_RESULT=ok\n")
