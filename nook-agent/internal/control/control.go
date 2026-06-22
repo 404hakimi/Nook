@@ -1,28 +1,20 @@
-// Package control 暴露 agent 控制接口: 后台 POST /execute 下发脚本文本, agent 本地 bash 执行 + chunked 流式回 stdout.
+// Package control 暴露 agent 控制接口 (:44844): 后台 POST /xray/deploy 下发装机配置 / /xray/cert 下发续期证书,
+// agent 内置 Go 执行 + chunked 流式回 stdout.
 //
-// 鉴权复用 backend.api_token (后台 call 时带 X-Agent-Token). agent 纯出站之外仅此一个入站口, 装机时 UFW 应只放行后台出口 IP.
+// 安全: 通道是明文 HTTP, 但 body 经后台 AES-256-GCM 加密 (key 由 agent_token 本地派生, token 不过线),
+// agent「能成功解密」即鉴权 (见 crypto.go). agent 纯出站之外仅此一个入站口, 装机时 UFW 应只放行后台出口 IP.
 package control
 
 import (
 	"context"
-	"crypto/subtle"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"os/exec"
 	"time"
 )
 
-const tokenHeader = "X-Agent-Token"
-
-// 脚本未带超时时的兜底上限.
-const defaultTimeout = 30 * time.Minute
-
-// 请求体上限: 部署脚本通常 KB 级, 留足余量又能挡住超大 body 把内存/磁盘(写 /tmp)打爆.
+// 请求体上限: 加密信封 (cert/key + base64 膨胀) 通常 KB 级, 留足余量又能挡住超大 body 打爆内存.
 const maxBodyBytes = 4 << 20 // 4MiB
 
 // XrayDeployFunc 由 frontline 角色提供: 解析下发配置 + 本地装 xray + 流式写 out; nil = 不暴露 /xray/deploy.
@@ -43,16 +35,9 @@ func New(port int, token string, xrayDeploy XrayDeployFunc, xrayCert XrayCertFun
 	return &Server{port: port, token: token, xrayDeploy: xrayDeploy, xrayCert: xrayCert}
 }
 
-// execRequest 跟后台 AgentControlClient 下发体对齐.
-type execRequest struct {
-	Script         string `json:"script"`
-	TimeoutSeconds int    `json:"timeoutSeconds"`
-}
-
 // Run 启动控制接口; ctx 取消时优雅关闭.
 func (s *Server) Run(ctx context.Context) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/execute", s.handleExecute)
 	if s.xrayDeploy != nil {
 		mux.HandleFunc("/xray/deploy", s.handleXrayDeploy)
 	}
@@ -75,26 +60,6 @@ func (s *Server) Run(ctx context.Context) {
 	}
 }
 
-func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
-	// 鉴权失败 / 非法方法一律伪装成"此路径不存在": 与空 http server 访问未知路径的响应字节完全一致,
-	// 让扫描器从 44844 探不出这是 Nook 控制口. 只有"正确 token + POST"才真正放行执行.
-	if r.Method != http.MethodPost || !tokenOK(r.Header.Get(tokenHeader), s.token) {
-		http.NotFound(w, r)
-		return
-	}
-	// 到这里的都是带对 token 的后台调用: body 限大小, 解析/内容错误照常报真错(便于后台排查).
-	var req execRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(&req); err != nil {
-		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	if req.Script == "" {
-		http.Error(w, "script empty", http.StatusBadRequest)
-		return
-	}
-	s.runScript(w, r, req)
-}
-
 // handleXrayDeploy 后台通知 agent 本地装机: 解析下发配置 → 内置 Go 装机 → 流式回日志 + NOOK_RESULT.
 func (s *Server) handleXrayDeploy(w http.ResponseWriter, r *http.Request) {
 	s.handleStreamingJob(w, r, "/xray/deploy", s.xrayDeploy)
@@ -105,10 +70,12 @@ func (s *Server) handleXrayCert(w http.ResponseWriter, r *http.Request) {
 	s.handleStreamingJob(w, r, "/xray/cert", s.xrayCert)
 }
 
-// handleStreamingJob 公共骨架: 鉴权 → 读 body → chunked 流式跑 job → 行尾 NOOK_RESULT marker 判成败.
+// handleStreamingJob 公共骨架: 强制加密载荷 → 解密(即鉴权) → chunked 流式跑 job → 行尾 NOOK_RESULT marker 判成败.
+// 这些端点带 TLS 私钥, token 不再明文过线: 后台 AES-GCM 加密 body, 「能解密」即证明持 token.
 func (s *Server) handleStreamingJob(w http.ResponseWriter, r *http.Request, name string,
 	job func(ctx context.Context, body []byte, out io.Writer) error) {
-	if r.Method != http.MethodPost || !tokenOK(r.Header.Get(tokenHeader), s.token) {
+	// 必须 POST + 带加密头; 否则伪装成"路径不存在"(与鉴权失败一致, 不向扫描器暴露这是控制口).
+	if r.Method != http.MethodPost || r.Header.Get(encHeader) != encValue {
 		http.NotFound(w, r)
 		return
 	}
@@ -117,6 +84,13 @@ func (s *Server) handleStreamingJob(w http.ResponseWriter, r *http.Request, name
 		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	// 解密成功即鉴权; 失败 = token 不符 / 篡改 / 重放 → 同样伪装成 404, 不泄露.
+	body, err = decryptControlBody(body, s.token)
+	if err != nil {
+		log.Printf("[控制接口] %s 解密失败 (鉴权/重放拒绝): %v", name, err)
+		http.NotFound(w, r)
+		return
+	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
@@ -125,66 +99,13 @@ func (s *Server) handleStreamingJob(w http.ResponseWriter, r *http.Request, name
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	fw := &flushWriter{w: w, f: flusher}
-	// chunked 200 已发无法改 status; 行尾用 NOOK_RESULT marker 让后台判成败 (与 /execute 一致).
+	// chunked 200 已发无法改 status; 行尾用 NOOK_RESULT marker 让后台判成败.
 	if err := job(r.Context(), body, fw); err != nil {
 		fmt.Fprintf(fw, "\n[nook-agent] %s failed: %v\nNOOK_RESULT=fail\n", name, err)
 		log.Printf("[控制接口] %s 失败: %v", name, err)
 		return
 	}
 	fmt.Fprint(fw, "\nNOOK_RESULT=ok\n")
-}
-
-// tokenOK 常量时间比较 token, 避免按匹配前缀长度变化的计时侧信道泄露 token.
-func tokenOK(got, want string) bool {
-	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
-}
-
-// runScript 写脚本临时文件 + bash 执行, stdout/stderr 实时 flush 回响应流.
-func (s *Server) runScript(w http.ResponseWriter, r *http.Request, req execRequest) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-	tmp, err := os.CreateTemp("", "nook-deploy-*.sh")
-	if err != nil {
-		http.Error(w, "create temp failed: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.WriteString(req.Script); err != nil {
-		http.Error(w, "write temp failed: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	_ = tmp.Close()
-
-	timeout := time.Duration(req.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = defaultTimeout
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), timeout)
-	defer cancel()
-
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-
-	fw := &flushWriter{w: w, f: flusher}
-	cmd := exec.CommandContext(ctx, "bash", tmp.Name())
-	cmd.Stdout = fw
-	cmd.Stderr = fw
-	// chunked 200 已发无法改 status; 行尾用机器可读 marker (NOOK_RESULT) 让后台判定成败, 并区分超时
-	err = cmd.Run()
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		fmt.Fprintf(fw, "\n[nook-agent] exec timeout (>%ds)\nNOOK_RESULT=fail\n", int(timeout.Seconds()))
-		log.Printf("[控制接口] /execute 超时 (>%ds)", int(timeout.Seconds()))
-		return
-	}
-	if err != nil {
-		fmt.Fprintf(fw, "\n[nook-agent] exec failed: %v\nNOOK_RESULT=fail\n", err)
-		log.Printf("[控制接口] /execute 失败: %v", err)
-		return
-	}
-	fmt.Fprint(fw, "\n[nook-agent] exec ok\nNOOK_RESULT=ok\n")
 }
 
 // flushWriter 每次写后立即 flush, 让后台实时收到 stdout.

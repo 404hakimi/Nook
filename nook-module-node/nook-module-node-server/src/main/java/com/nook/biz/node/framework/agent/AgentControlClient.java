@@ -21,7 +21,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * agent 控制接口客户端; 后台 POST agent:44844 控制接口 (/execute 跑脚本 / /xray/deploy 下发装机配置), 流式读回 stdout
+ * agent 控制接口客户端; 后台 POST agent:44844 (/xray/deploy 下发装机 / /xray/cert 下发续期证书), 流式读回 stdout.
+ * body 经 AES-GCM 加密 (ControlCrypto), token 不过线; agent 端解密即鉴权.
  *
  * @author nook
  */
@@ -31,7 +32,6 @@ public class AgentControlClient {
 
     /** agent 控制接口固定端口; 装机时 UFW 放行给后台出口 IP. */
     private static final int CONTROL_PORT = 44844;
-    private static final String TOKEN_HEADER = "X-Agent-Token";
     /** 远端执行成功的机器可读结尾标记, 跟 nook-agent control 包对齐. */
     private static final String MARK_OK = "NOOK_RESULT=ok";
     /** TCP 建链超时秒数; 后台与节点跨洲互通 (如后台北美 ↔ 亚洲日本节点), 给国际链路 SYN 丢包/抖动留足余量. */
@@ -67,15 +67,18 @@ public class AgentControlClient {
     private void postStreaming(String agentHost, String path, String token, String bodyJson,
                                int timeoutSeconds, Consumer<String> lineSink) {
         String url = "http://" + agentHost + ":" + CONTROL_PORT + path;
+        // 通道是明文 HTTP 且 body 含 TLS 私钥 → AES-256-GCM 端到端加密 (key 由 agent_token 派生).
+        // token 不再放任何请求头 (否则窃听者抓头即可算出 key); agent「能解密」即鉴权 (见 ControlCrypto).
+        String encryptedBody = ControlCrypto.encrypt(bodyJson, token);
         HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
                 .build();
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("Content-Type", "application/json")
-                .header(TOKEN_HEADER, token)
+                .header("Content-Type", "application/octet-stream")
+                .header(ControlCrypto.ENC_HEADER, ControlCrypto.ENC_VALUE)
                 .timeout(Duration.ofSeconds(timeoutSeconds + RESPONSE_BUFFER_SECONDS))
-                .POST(HttpRequest.BodyPublishers.ofString(bodyJson, StandardCharsets.UTF_8))
+                .POST(HttpRequest.BodyPublishers.ofString(encryptedBody, StandardCharsets.UTF_8))
                 .build();
         boolean ok;
         try {

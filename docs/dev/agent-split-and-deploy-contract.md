@@ -46,13 +46,15 @@ nook-agent/
 
 | 方向 | 端点 | 载荷 | 状态 |
 | --- | --- | --- | --- |
-| 后台 → agent | `POST :44844/xray/deploy`(Header `X-Agent-Token`) | `XrayDeployRequest`(见下) | **后台已建,agent 待实现** |
+| 后台 → agent | `POST :44844/xray/deploy`(body AES-GCM 加密,Header `X-Agent-Enc: aes-gcm`) | `XrayDeployRequest`(见下) | ✔ 双端已实现 |
+| 后台 → agent | `POST :44844/xray/cert`(同上加密) | `XrayCertPushRequest`(续期推证书) | ✔ 双端已实现 |
 | agent → 后台 | `GET /api/agent/reconcile/desired` | desired clients(预渲染 adu/ado/adrules JSON) | 既有,不变 |
 | agent → 后台 | `POST /api/agent/heartbeat`(1min) | agentVersion(+ 拟带 xray 状态,见 §状态机) | 既有,**共享(agentcore)** |
 | agent → 后台 | `POST /api/agent/nic-traffic`(5min) | rx/tx/biz bytes | 既有,**共享** |
 | agent → 后台 | **装机结果回报**(端点 or 心跳,见 §状态机) | `status: ok\|failed` + message + xrayUptime | **本次新增需求,方式待定** |
 
-`/xray/deploy` 响应沿用现 `/execute` 约定:流式回传 stdout,**末行含 `NOOK_RESULT=ok`** 表示成功(无标记 → 后台判失败)。
+`/xray/deploy`、`/xray/cert` 响应约定:流式回传 stdout,**末行含 `NOOK_RESULT=ok`** 表示成功(无标记 → 后台判失败)。
+(旧 `POST :44844/execute` 任意脚本端点已下线 —— 它是明文 `X-Agent-Token` + 任意 bash,与"token 不过线"矛盾。)
 
 ### XrayDeployRequest(后台下发,agent 据此装机)
 
@@ -85,7 +87,9 @@ nook-agent/
 
 **这些常量 agent 从哪来**:`binaryPath` + `apiPort` 已由现有 agent 装机写进 `config.yml`(后台从 `xray_install` 读后写入)—— agent 直接用。`cert/key / config / share / log` 路径目前是约定值(= `XrayInstallDefaults`),agent 端硬编码或一并进 `config.yml`,**来源由 agent 会话定**,只需与后台 `inboundConfigJson` 引用一致。
 
-**安全(证书签发回归后台)**:证书签发(Let's Encrypt + Cloudflare DNS-01)全在**后台**(acme4j + `CloudflareApiClient` + `XrayCertManager`);`cfApiToken` 只留后台(从 `system_domain` 取),**不再下发 agent**。`/xray/deploy` 改下发签好的 `tlsCertPem`/`tlsKeyPem`。注意:该控制通道(`:44844`)目前是 `X-Agent-Token` + UFW 信任网络的**明文 HTTP**,证书**私钥过线** —— 生产应收紧为 HTTPS / UFW 严格只放后台出口 IP(见 review #1)。
+**安全(证书签发回归后台)**:证书签发(Let's Encrypt + Cloudflare DNS-01)全在**后台**(acme4j + `CloudflareApiClient` + `XrayCertManager`);`cfApiToken` 只留后台(从 `system_domain` 取),**不再下发 agent**。`/xray/deploy`、`/xray/cert` 下发签好的 `tlsCertPem`/`tlsKeyPem`。
+
+**通道加密**:`:44844` 是 UFW 限受信网络的明文 HTTP,但 body(含 TLS 私钥)做 **AES-256-GCM 端到端加密**(`ControlCrypto` ↔ agent `crypto.go`):key = `SHA-256("nook-agent-control-v1" ‖ agent_token)` 本地派生,**token 不进任何请求头**(否则窃听者抓头即可算 key);agent「能成功 GCM 解密」即鉴权,明文帧前置 8B 毫秒时间戳防重放(±300s,双端须 NTP)。残留:窗口内重放靠操作幂等兜底(无 nonce 去重);跨洲时钟漂移 >300s 会令合法请求被拒(后台续期任务会记错误日志,非静默)。
 
 ## D. 线路机装机责任(`/xray/deploy` 内 agent 要做的 = 退场的 bash 模块逻辑)
 
