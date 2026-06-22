@@ -67,5 +67,11 @@
             <groupId>com.alibaba.fastjson2</groupId>
             <artifactId>fastjson2</artifactId>
         </dependency>
+        <!-- ACME (Let's Encrypt) 客户端: 后台签 xray TLS 证书 (DNS-01 走 CloudflareApiClient); 3.x 已含 KeyPairUtils + LE provider -->
+        <dependency>
+            <groupId>org.shredzone.acme4j</groupId>
+            <artifactId>acme4j-client</artifactId>
+            <version>3.5.1</version>
+        </dependency>
     </dependencies>
 </project>

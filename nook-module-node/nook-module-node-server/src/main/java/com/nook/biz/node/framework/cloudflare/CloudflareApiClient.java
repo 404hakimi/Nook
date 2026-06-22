@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * Cloudflare DNS API 客户端; 仅 A 记录 / zone lookup, acme.sh 自己用 TXT _acme-challenge.
+ * Cloudflare DNS API 客户端; zone lookup + A 记录 (业务解析) + TXT 记录 (后台签证书的 DNS-01 挑战).
  * <p>API Token 推荐权限: Zone:Read + Zone.DNS:Edit (限定到目标 zone).
  *
  * @author nook
@@ -81,6 +81,47 @@ public class CloudflareApiClient {
         }
     }
 
+    /**
+     * DNS-01 挑战: 在 _acme-challenge.&lt;fqdn&gt; 写 TXT=value (acme4j 给的 token digest); 返回 recordId 供挑战完删除.
+     * 幂等: 同名 TXT 已存在则 PUT 覆盖 (重复签发不报已存在).
+     *
+     * @return 该 TXT 记录的 CF recordId
+     */
+    public String upsertTxtRecord(String apiToken, String fqdn, String value) {
+        String challengeName = "_acme-challenge." + fqdn;
+        String zoneId = findZoneId(apiToken, extractRootDomain(fqdn));
+
+        String listUrl = API_BASE + "/zones/" + zoneId + "/dns_records?type=TXT&name=" + challengeName;
+        JSONArray existing = httpGet(apiToken, listUrl).getJSONArray("result");
+
+        JSONObject payload = new JSONObject();
+        payload.put("type", "TXT");
+        payload.put("name", challengeName);
+        payload.put("content", value);
+        payload.put("ttl", 60);
+
+        if (CollUtil.isNotEmpty(existing)) {
+            String recordId = existing.getJSONObject(0).getString("id");
+            httpJson(apiToken, API_BASE + "/zones/" + zoneId + "/dns_records/" + recordId, "PUT", payload);
+            log.info("[cf-api] updateTXT name={} (challenge)", challengeName);
+            return recordId;
+        }
+        JSONObject created = httpJson(apiToken, API_BASE + "/zones/" + zoneId + "/dns_records", "POST", payload);
+        String recordId = created.getJSONObject("result").getString("id");
+        log.info("[cf-api] createTXT name={} id={} (challenge)", challengeName, recordId);
+        return recordId;
+    }
+
+    /** 删 fqdn 所在 zone 下指定 recordId 的 DNS 记录 (DNS-01 挑战完清理 TXT); recordId 空则跳过. */
+    public void deleteDnsRecord(String apiToken, String fqdn, String recordId) {
+        if (StrUtil.isBlank(recordId)) {
+            return;
+        }
+        String zoneId = findZoneId(apiToken, extractRootDomain(fqdn));
+        httpDelete(apiToken, API_BASE + "/zones/" + zoneId + "/dns_records/" + recordId);
+        log.info("[cf-api] deleteRecord id={} (challenge cleanup)", recordId);
+    }
+
     /** fullDomain 最后两段当 zone candidate (e.g. a.b.example.com → example.com); 不处理 .co.uk 这种次级 TLD. */
     static String extractRootDomain(String fullDomain) {
         String[] parts = fullDomain.split("\\.");
@@ -99,7 +140,7 @@ public class CloudflareApiClient {
         return parseAndCheck(resp, "GET " + url);
     }
 
-    private void httpJson(String apiToken, String url, String method, JSONObject payload) {
+    private JSONObject httpJson(String apiToken, String url, String method, JSONObject payload) {
         HttpRequest req = "PUT".equalsIgnoreCase(method)
                 ? HttpRequest.put(url) : HttpRequest.post(url);
         HttpResponse resp = req
@@ -108,7 +149,15 @@ public class CloudflareApiClient {
                 .body(payload.toJSONString())
                 .timeout(TIMEOUT_MS)
                 .execute();
-        parseAndCheck(resp, method + " " + url);
+        return parseAndCheck(resp, method + " " + url);
+    }
+
+    private void httpDelete(String apiToken, String url) {
+        HttpResponse resp = HttpRequest.delete(url)
+                .bearerAuth(apiToken)
+                .timeout(TIMEOUT_MS)
+                .execute();
+        parseAndCheck(resp, "DELETE " + url);
     }
 
     /** CF API 统一返回 {success, errors[], result}; success=false 抛业务错; 网络错抛 IO. */
