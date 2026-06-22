@@ -7,6 +7,8 @@ import (
 	"context"
 	"io"
 	"log"
+	"os/exec"
+	"time"
 
 	"nook-agent/internal/agentcore"
 	"nook-agent/internal/client"
@@ -52,6 +54,12 @@ func registerFrontline(cfg *config.Config, cli *client.Client) agentcore.RoleCom
 		// 后台 POST /xray/deploy 时本地装机 (装到 config 的 xray.bin 路径); reconcile 装好后自动接上灌用户.
 		XrayDeploy: func(ctx context.Context, body []byte, out io.Writer) error {
 			return xraydeploy.Deploy(ctx, bin, apiPort, body, out)
+		},
+		// 心跳采样: xray 是否在跑 (后台据此把卡死的 deploying 推进到 ok)
+		XrayStatusSampler: func() bool {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			return exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", "xray").Run() == nil
 		},
 	}
 }

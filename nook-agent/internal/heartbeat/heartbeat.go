@@ -10,17 +10,19 @@ import (
 )
 
 type Reporter struct {
-	cli      *client.Client
-	interval time.Duration
-	version  string
+	cli         *client.Client
+	interval    time.Duration
+	version     string
+	xraySampler func() bool // frontline: 采样 xray 是否运行; nil = 不报
 }
 
-func New(cli *client.Client, interval time.Duration, agentVersion string) *Reporter {
-	return &Reporter{cli: cli, interval: interval, version: agentVersion}
+func New(cli *client.Client, interval time.Duration, agentVersion string, xraySampler func() bool) *Reporter {
+	return &Reporter{cli: cli, interval: interval, version: agentVersion, xraySampler: xraySampler}
 }
 
 type req struct {
 	AgentVersion string `json:"agentVersion"`
+	XrayActive   *bool  `json:"xrayActive,omitempty"`
 }
 
 // Run 阻塞循环 (一般跑在 goroutine 里); ctx 取消时退出.
@@ -41,7 +43,12 @@ func (r *Reporter) Run(ctx context.Context) {
 }
 
 func (r *Reporter) tick() {
-	if err := r.cli.Post("/api/agent/heartbeat", req{AgentVersion: r.version}, nil); err != nil {
+	body := req{AgentVersion: r.version}
+	if r.xraySampler != nil {
+		active := r.xraySampler()
+		body.XrayActive = &active
+	}
+	if err := r.cli.Post("/api/agent/heartbeat", body, nil); err != nil {
 		log.Printf("[心跳] 上报失败: %v", err)
 	} else {
 		log.Printf("[心跳] 上报成功")

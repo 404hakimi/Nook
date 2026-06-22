@@ -25,9 +25,10 @@ type Goroutine func(ctx context.Context)
 
 // RoleComponents: 角色注册器返回的组件 — 额外 goroutine + 可选的 nic 业务流量采样器.
 type RoleComponents struct {
-	Goroutines    []Goroutine
-	NicBizSampler func() (up, down *int64) // landing: 采样 nft socks5 业务上下行供 nic 上报; nil = nic 不报 biz
-	XrayDeploy    control.XrayDeployFunc   // frontline: 控制接口 /xray/deploy 装机实现; nil = 不暴露该端点
+	Goroutines        []Goroutine
+	NicBizSampler     func() (up, down *int64) // landing: 采样 nft socks5 业务上下行供 nic 上报; nil = nic 不报 biz
+	XrayDeploy        control.XrayDeployFunc   // frontline: 控制接口 /xray/deploy 装机实现; nil = 不暴露该端点
+	XrayStatusSampler func() bool              // frontline: 心跳采样 xray 是否运行; nil = 不报 (landing)
 }
 
 // RoleRegister: 角色自己挂额外 collector + 提供可选的业务流量采样器.
@@ -59,7 +60,7 @@ func Run(version string, registerRole RoleRegister) {
 	// 角色注册器挂自己的 collector (e.g., frontline 挂 xray reconcile, landing 挂 tc 限速 + 业务流量计量)
 	comp := registerRole(cfg, cli)
 
-	hb := heartbeat.New(cli, cfg.HeartbeatInterval(), version)
+	hb := heartbeat.New(cli, cfg.HeartbeatInterval(), version, comp.XrayStatusSampler)
 	nicRep := nic.New(cli, cfg.NICInterval(), cfg.NIC.Interface, comp.NicBizSampler)
 
 	ctx, cancel := context.WithCancel(context.Background())

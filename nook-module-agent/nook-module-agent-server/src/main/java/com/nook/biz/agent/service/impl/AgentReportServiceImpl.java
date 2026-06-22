@@ -12,6 +12,7 @@ import com.nook.biz.node.api.resource.ResourceServerQuotaApi;
 import com.nook.biz.node.api.resource.ResourceServerLandingApi;
 import com.nook.biz.node.api.resource.ResourceServerRuntimeApi;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
+import com.nook.biz.node.api.xray.XrayInstallApi;
 import com.nook.biz.node.api.xray.XrayReconcileApi;
 import com.nook.biz.node.api.xray.dto.XrayReconcileClientDTO;
 import com.nook.biz.trade.api.TradeBandwidthApi;
@@ -41,6 +42,8 @@ public class AgentReportServiceImpl implements AgentReportService {
     @Resource
     private XrayReconcileApi xrayReconcileApi;
     @Resource
+    private XrayInstallApi xrayInstallApi;
+    @Resource
     private TradeBandwidthApi tradeBandwidthApi;
     @Resource
     private ResourceServerLandingApi resourceServerLandingApi;
@@ -51,6 +54,10 @@ public class AgentReportServiceImpl implements AgentReportService {
         int affected = resourceServerRuntimeApi.onHeartbeat(serverId, LocalDateTime.now(), agentVersion, clientIp);
         if (affected == 0) {
             log.warn("[receiveHeartbeat] runtime 行不存在: serverId={}, 装机流程异常", serverId);
+        }
+        // frontline 报 xray 已起 → 把卡死的 deploying 推进到 ok (同步装机连接中断的兜底; 已终态不动)
+        if (Boolean.TRUE.equals(req.getXrayActive())) {
+            xrayInstallApi.markDeployedIfDeploying(serverId);
         }
     }
 
