@@ -27,6 +27,7 @@ type Goroutine func(ctx context.Context)
 type RoleComponents struct {
 	Goroutines    []Goroutine
 	NicBizSampler func() (up, down *int64) // landing: 采样 nft socks5 业务上下行供 nic 上报; nil = nic 不报 biz
+	XrayDeploy    control.XrayDeployFunc   // frontline: 控制接口 /xray/deploy 装机实现; nil = 不暴露该端点
 }
 
 // RoleRegister: 角色自己挂额外 collector + 提供可选的业务流量采样器.
@@ -70,7 +71,7 @@ func Run(version string, registerRole RoleRegister) {
 	go func() { defer wg.Done(); nicRep.Run(ctx) }()
 	// 控制接口: 后台 call agent 本地执行部署脚本 (port=0 不启用)
 	if cfg.Control.Port > 0 {
-		ctrl := control.New(cfg.Control.Port, cfg.Backend.APIToken)
+		ctrl := control.New(cfg.Control.Port, cfg.Backend.APIToken, comp.XrayDeploy)
 		wg.Add(1)
 		go func() { defer wg.Done(); ctrl.Run(ctx) }()
 	}

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -24,14 +25,18 @@ const defaultTimeout = 30 * time.Minute
 // 请求体上限: 部署脚本通常 KB 级, 留足余量又能挡住超大 body 把内存/磁盘(写 /tmp)打爆.
 const maxBodyBytes = 4 << 20 // 4MiB
 
+// XrayDeployFunc 由 frontline 角色提供: 解析下发配置 + 本地装 xray + 流式写 out; nil = 不暴露 /xray/deploy.
+type XrayDeployFunc func(ctx context.Context, body []byte, out io.Writer) error
+
 // Server 控制接口 HTTP server; 无状态.
 type Server struct {
-	port  int
-	token string
+	port       int
+	token      string
+	xrayDeploy XrayDeployFunc
 }
 
-func New(port int, token string) *Server {
-	return &Server{port: port, token: token}
+func New(port int, token string, xrayDeploy XrayDeployFunc) *Server {
+	return &Server{port: port, token: token, xrayDeploy: xrayDeploy}
 }
 
 // execRequest 跟后台 AgentControlClient 下发体对齐.
@@ -44,6 +49,9 @@ type execRequest struct {
 func (s *Server) Run(ctx context.Context) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/execute", s.handleExecute)
+	if s.xrayDeploy != nil {
+		mux.HandleFunc("/xray/deploy", s.handleXrayDeploy)
+	}
 	srv := &http.Server{Addr: fmt.Sprintf(":%d", s.port), Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
@@ -78,6 +86,34 @@ func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.runScript(w, r, req)
+}
+
+// handleXrayDeploy 后台通知 agent 本地装机: 解析下发配置 → 内置 Go 装机 → 流式回日志 + NOOK_RESULT.
+func (s *Server) handleXrayDeploy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost || !tokenOK(r.Header.Get(tokenHeader), s.token) {
+		http.NotFound(w, r)
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	if err != nil {
+		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fw := &flushWriter{w: w, f: flusher}
+	// chunked 200 已发无法改 status; 行尾用 NOOK_RESULT marker 让后台判成败 (与 /execute 一致).
+	if err := s.xrayDeploy(r.Context(), body, fw); err != nil {
+		fmt.Fprintf(fw, "\n[nook-agent] xray deploy failed: %v\nNOOK_RESULT=fail\n", err)
+		log.Printf("[控制接口] /xray/deploy 失败: %v", err)
+		return
+	}
+	fmt.Fprint(fw, "\nNOOK_RESULT=ok\n")
 }
 
 // tokenOK 常量时间比较 token, 避免按匹配前缀长度变化的计时侧信道泄露 token.

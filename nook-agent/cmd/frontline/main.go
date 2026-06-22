@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 
 	"nook-agent/internal/agentcore"
@@ -12,6 +13,7 @@ import (
 	"nook-agent/internal/config"
 	"nook-agent/internal/reconcile"
 	"nook-agent/internal/xray"
+	"nook-agent/internal/xraydeploy"
 )
 
 // Version 编译时 ldflags 注入; 命名约定 "frontline-X.Y.Z".
@@ -46,6 +48,10 @@ func registerFrontline(cfg *config.Config, cli *client.Client) agentcore.RoleCom
 	return agentcore.RoleComponents{
 		Goroutines: []agentcore.Goroutine{
 			func(ctx context.Context) { rec.Run(ctx) },
+		},
+		// 后台 POST /xray/deploy 时本地装机 (装到 config 的 xray.bin 路径); reconcile 装好后自动接上灌用户.
+		XrayDeploy: func(ctx context.Context, body []byte, out io.Writer) error {
+			return xraydeploy.Deploy(ctx, bin, apiPort, body, out)
 		},
 	}
 }
