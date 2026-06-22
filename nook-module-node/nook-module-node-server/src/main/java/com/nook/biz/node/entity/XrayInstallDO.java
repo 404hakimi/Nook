@@ -48,7 +48,7 @@ public class XrayInstallDO implements Serializable {
     /** Xray 日志目录. */
     private String xrayLogDir;
 
-    /** systemd unit 文件绝对路径; 装机时前端定义, 后端透传到 50-xray.sh.tmpl 写文件 + 入库. */
+    /** systemd unit 文件绝对路径; 由后台固定默认 (XrayInstallDefaults.SYSTEMD_UNIT_PATH) 落库, agent 据此写 unit. */
     private String xraySystemdUnitPath;
 
     /** 绑定的域名 system_domain.id; 空 = 未绑 / 不用 TLS. */

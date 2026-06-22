@@ -8,13 +8,13 @@ package com.nook.biz.node.framework.xray;
 public final class XrayConstants {
 
     /**
-     * Xray 在远端 systemd 上注册的 unit 名 (50-xray.sh.tmpl 安装时 systemctl 命令硬编码 "xray").
-     * <p>注: unit 文件 *路径* 不再走常量, 而是装机时由前端透过 dto 传入 (XrayInstallDO.xraySystemdUnitPath);
+     * Xray 在远端 systemd 上注册的 unit 名 (与 agent xraydeploy 写的 systemd unit 名 "xray" 对齐).
+     * <p>注: unit 文件 *路径* 不再走常量, 而是装机时由后台固定默认落库 (XrayInstallDO.xraySystemdUnitPath);
      * 这里只保留 *服务名* 供后续运维操作 (XrayDaemonControl 的 systemctl restart / is-active 等) 使用.
      */
     public static final String SYSTEMD_UNIT = "xray";
 
-    /** 1:N 模型下共享 inbound 的固定 tag, 与 50-xray.sh.tmpl 里 inbound 对齐. */
+    /** 1:N 模型下共享 inbound 的固定 tag, 与 agent 写入 config.json 的共享 inbound tag 对齐. */
     public static final String SHARED_INBOUND_TAG = "in_shared";
 
     /** 业务 outbound tag 前缀; 完整 tag = OUTBOUND_TAG_PREFIX + clientId + "_" + ipId. */
