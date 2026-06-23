@@ -27,4 +27,10 @@ public class InboundProvisionResult {
 
     /** Cloudflare API token; vmess-tls 加 A 记录用, 其余为空. */
     private String cfApiToken;
+
+    /** 绑定根域 system_domain.id; vmess-tls 有值, 其余空. persistDeployment 据此回填 xray_install, 不再从输入 VO 取协议特化字段. */
+    private String domainId;
+
+    /** 二级域名标签; vmess-tls 有值, 其余空. */
+    private String subdomain;
 }

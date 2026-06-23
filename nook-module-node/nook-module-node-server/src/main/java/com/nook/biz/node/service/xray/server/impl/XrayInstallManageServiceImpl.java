@@ -141,15 +141,12 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         }
     }
 
-    /** controller 入站 VO → framework 中立入站规格 (协议实现据此工作, 不依赖 controller VO). */
+    /** controller 入站 VO → framework 中立入站规格 (协议实现据此工作, 不依赖 controller VO). 协议特定字段在多态 params 里整体透传, 加协议本方法零改. */
     private static InboundSetupSpec toSetupSpec(XrayInboundConfigVO in) {
         return InboundSetupSpec.builder()
                 .protocol(in.getProtocol())
                 .sharedInboundPort(in.getSharedInboundPort())
-                .wsPath(in.getWsPath())
-                .realityDest(in.getRealityDest())
-                .domainId(in.getDomainId())
-                .subdomain(in.getSubdomain())
+                .params(in.getParams())
                 .build();
     }
 
@@ -188,8 +185,9 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         srv.setXrayShareDir(XrayInstallDefaults.XRAY_SHARE_DIR);
         srv.setXrayLogDir(XrayInstallDefaults.LOG_DIR);
         srv.setXraySystemdUnitPath(XrayInstallDefaults.SYSTEMD_UNIT_PATH);
-        srv.setDomainId(useTls ? inbound.getDomainId() : null);
-        srv.setSubdomain(useTls ? inbound.getSubdomain() : null);
+        // 协议特定的域名绑定从 provision 结果取 (协议自己产出), 不再从输入 VO 取协议特化字段
+        srv.setDomainId(prov.getDomainId());
+        srv.setSubdomain(prov.getSubdomain());
         // 配置先行: 落库即 deploying; installedAt 等 agent 回报成功才置 (见 markInstallStatus)
         srv.setInstallStatus(XrayInstallStatusEnum.DEPLOYING.getCode());
         xrayInstallService.upsert(srv);

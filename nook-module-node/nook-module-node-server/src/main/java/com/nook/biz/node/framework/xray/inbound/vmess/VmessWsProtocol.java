@@ -75,33 +75,43 @@ public class VmessWsProtocol implements InboundProtocol {
 
     @Override
     public void validate(String serverId, InboundSetupSpec spec) {
-        if (StrUtil.isBlank(spec.getWsPath())) {
+        VmessWsInput in = input(spec);
+        if (StrUtil.isBlank(in.getWsPath())) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "vmess+ws 装机 wsPath 必填");
         }
         // 未绑域名 = 纯 ws, 无需域名/证书校验
-        if (StrUtil.isBlank(spec.getDomainId())) {
+        if (StrUtil.isBlank(in.getDomainId())) {
             return;
         }
-        systemDomainApi.getById(spec.getDomainId());
-        if (StrUtil.isBlank(spec.getSubdomain())) {
+        systemDomainApi.getById(in.getDomainId());
+        if (StrUtil.isBlank(in.getSubdomain())) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "绑定域名时二级域名 (subdomain) 必填");
         }
-        if (xrayInstallService.isSubdomainTaken(spec.getDomainId(), spec.getSubdomain().trim(), serverId)) {
+        if (xrayInstallService.isSubdomainTaken(in.getDomainId(), in.getSubdomain().trim(), serverId)) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID,
-                    "该根域下二级域名 '" + spec.getSubdomain().trim() + "' 已被其他线路机占用, 请换一个");
+                    "该根域下二级域名 '" + in.getSubdomain().trim() + "' 已被其他线路机占用, 请换一个");
         }
+    }
+
+    /** 取本协议专属输入 DTO; 工厂已按 protocol 分派 + Jackson 已按 protocol 绑定子类型, 不符 = 请求 protocol 与 params 不一致. */
+    private VmessWsInput input(InboundSetupSpec spec) {
+        if (spec.getParams() instanceof VmessWsInput v) {
+            return v;
+        }
+        throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "vmess 入参类型不匹配 (protocol 与 params 不一致)");
     }
 
     @Override
     public InboundProvisionResult provision(InboundProvisionRequest ctx) {
-        InboundSetupSpec inbound = ctx.getSpec();
-        boolean useTls = StrUtil.isNotBlank(inbound.getDomainId());
+        InboundSetupSpec spec = ctx.getSpec();
+        VmessWsInput in = input(spec);
+        boolean useTls = StrUtil.isNotBlank(in.getDomainId());
         String fullDomain = null;
         String cfApiToken = null;
         if (useTls) {
             // 根域 + cfApiToken 从 system_domain 取, 完整 FQDN = 二级标签 + 根域
-            SystemDomainRespDTO domain = systemDomainApi.getById(inbound.getDomainId());
-            fullDomain = DomainUtils.buildFqdn(inbound.getSubdomain(), domain.getDomain());
+            SystemDomainRespDTO domain = systemDomainApi.getById(in.getDomainId());
+            fullDomain = DomainUtils.buildFqdn(in.getSubdomain(), domain.getDomain());
             cfApiToken = domain.getCfApiToken();
             this.ensureCfRecord(ctx, fullDomain, cfApiToken);
         }
@@ -110,7 +120,7 @@ public class VmessWsProtocol implements InboundProtocol {
         // 语义参数: ws path + (绑域名时) tls 路径
         VmessWsParams params = new VmessWsParams();
         VmessWsParams.WsParams ws = new VmessWsParams.WsParams();
-        ws.setPath(inbound.getWsPath());
+        ws.setPath(in.getWsPath());
         params.setWs(ws);
         if (useTls) {
             VmessWsParams.TlsParams tls = new VmessWsParams.TlsParams();
@@ -122,8 +132,8 @@ public class VmessWsProtocol implements InboundProtocol {
         // 模板占位符
         Map<String, Object> vars = new HashMap<>();
         vars.put("tag", XrayConstants.SHARED_INBOUND_TAG);
-        vars.put("port", inbound.getSharedInboundPort());
-        vars.put("ws.path", inbound.getWsPath());
+        vars.put("port", spec.getSharedInboundPort());
+        vars.put("ws.path", in.getWsPath());
         if (useTls) {
             vars.put("domain", fullDomain);
             vars.put("tls.certPath", XrayInstallDefaults.TLS_CERT_PATH);
@@ -136,6 +146,8 @@ public class VmessWsProtocol implements InboundProtocol {
                 .inboundJson(inboundJson)
                 .fullDomain(fullDomain)
                 .cfApiToken(cfApiToken)
+                .domainId(useTls ? in.getDomainId() : null)
+                .subdomain(useTls ? in.getSubdomain() : null)
                 .build();
     }
 
@@ -164,17 +176,18 @@ public class VmessWsProtocol implements InboundProtocol {
 
     @Override
     public List<String> clientFacingDiff(InboundParams existingParams, InboundSetupSpec newInput) {
+        VmessWsInput in = input(newInput);
         VmessWsParams existing = (existingParams instanceof VmessWsParams v) ? v : null;
         List<String> diffs = new ArrayList<>();
         // ws 接入路径
         String oldWsPath = (existing != null && existing.getWs() != null) ? existing.getWs().getPath() : null;
-        if (!ObjectUtil.equal(oldWsPath, newInput.getWsPath())) {
-            diffs.add("wsPath: " + oldWsPath + " → " + newInput.getWsPath());
+        if (!ObjectUtil.equal(oldWsPath, in.getWsPath())) {
+            diffs.add("wsPath: " + oldWsPath + " → " + in.getWsPath());
         }
         // 对外域名 (FQDN): 绑域名拼完整 FQDN (二级标签 + 根域), 未绑 (domainId 空) 落 null
         String oldDomain = (existing != null && existing.getTls() != null) ? existing.getTls().getDomain() : null;
-        String newDomain = StrUtil.isBlank(newInput.getDomainId()) ? null
-                : DomainUtils.buildFqdn(newInput.getSubdomain(), systemDomainApi.getById(newInput.getDomainId()).getDomain());
+        String newDomain = StrUtil.isBlank(in.getDomainId()) ? null
+                : DomainUtils.buildFqdn(in.getSubdomain(), systemDomainApi.getById(in.getDomainId()).getDomain());
         if (!ObjectUtil.equal(oldDomain, newDomain)) {
             diffs.add("domain: " + oldDomain + " → " + newDomain);
         }

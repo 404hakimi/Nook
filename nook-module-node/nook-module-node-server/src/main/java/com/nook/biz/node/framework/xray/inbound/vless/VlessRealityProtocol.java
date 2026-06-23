@@ -69,17 +69,25 @@ public class VlessRealityProtocol implements InboundProtocol {
     @Override
     public void validate(String serverId, InboundSetupSpec spec) {
         // realityDest = 偷取目标真站主机名 (预设候选或自定义输入); 仅校验主机名格式, 不强制是预设之一
-        String dest = StrUtil.trimToNull(spec.getRealityDest());
+        String dest = StrUtil.trimToNull(input(spec).getRealityDest());
         if (dest == null || !HOST_PATTERN.matcher(dest).matches()) {
             throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID,
                     "reality 装机 realityDest 必填且须是合法主机名 (如 www.bing.com)");
         }
     }
 
+    /** 取本协议专属输入 DTO; 工厂已按 protocol 分派 + Jackson 已按 protocol 绑定子类型, 不符 = 请求 protocol 与 params 不一致. */
+    private VlessRealityInput input(InboundSetupSpec spec) {
+        if (spec.getParams() instanceof VlessRealityInput v) {
+            return v;
+        }
+        throw new BusinessException(XrayErrorCode.SERVER_INSTALL_INVALID, "vless 入参类型不匹配 (protocol 与 params 不一致)");
+    }
+
     @Override
     public InboundProvisionResult provision(InboundProvisionRequest ctx) {
-        InboundSetupSpec inbound = ctx.getSpec();
-        String serverName = inbound.getRealityDest().trim();
+        InboundSetupSpec spec = ctx.getSpec();
+        String serverName = input(spec).getRealityDest().trim();
         VlessRealityKeyGenerator.RealityKeyPair keyPair = vlessRealityKeyGenerator.generateKeyPair();
         // 语义参数: reality 密钥 + dest (privateKey 进服务端, publicKey 进订阅)
         VlessRealityParams params = new VlessRealityParams();
@@ -95,7 +103,7 @@ public class VlessRealityProtocol implements InboundProtocol {
         // 模板占位符
         Map<String, Object> vars = new HashMap<>();
         vars.put("tag", XrayConstants.SHARED_INBOUND_TAG);
-        vars.put("port", inbound.getSharedInboundPort());
+        vars.put("port", spec.getSharedInboundPort());
         vars.put("reality.dest", reality.getDest());
         vars.put("reality.serverNames", reality.getServerNames());
         vars.put("reality.privateKey", reality.getPrivateKey());
@@ -141,7 +149,7 @@ public class VlessRealityProtocol implements InboundProtocol {
         // realityDest (偷取的目标真站) 变更
         String oldDest = (existing != null && existing.getReality() != null)
                 ? CollUtil.getFirst(existing.getReality().getServerNames()) : null;
-        String newDest = StrUtil.trimToNull(newInput.getRealityDest());
+        String newDest = StrUtil.trimToNull(input(newInput).getRealityDest());
         if (!ObjectUtil.equal(oldDest, newDest)) {
             diffs.add("realityDest: " + oldDest + " → " + newDest);
         }

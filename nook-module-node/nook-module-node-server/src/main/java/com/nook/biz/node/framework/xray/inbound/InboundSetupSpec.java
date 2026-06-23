@@ -19,15 +19,6 @@ public class InboundSetupSpec {
     /** 共享 inbound 端口. */
     private Integer sharedInboundPort;
 
-    /** WebSocket 接入路径 (vmess). */
-    private String wsPath;
-
-    /** REALITY 偷取目标主机名 (vless). */
-    private String realityDest;
-
-    /** 绑定根域 system_domain.id (vmess-tls; 空走纯 ws). */
-    private String domainId;
-
-    /** 二级域名标签 (vmess 绑域名时). */
-    private String subdomain;
+    /** 协议特定入站参数 (多态, 按 protocol 绑定 VmessWsInput / VlessRealityInput); 协议策略各自 downcast 取值. */
+    private InboundProtocolInput params;
 }

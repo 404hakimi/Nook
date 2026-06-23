@@ -247,6 +247,15 @@ async function onSubmit() {
   abortCtrl = new AbortController()
   try {
     const isRealityProto = form.protocol === 'vless'
+    // 协议特定字段收进 params, 按 protocol 决定形状 (后端多态绑定)
+    const params = isRealityProto
+      ? { realityDest: form.realityDest as string }
+      : {
+          wsPath: form.wsPath.trim(),
+          // 选了根域走 TLS (根域 / CF Token 由 system_domain 提供, 二级标签拼 FQDN); 留空则后端 useTls=false
+          domainId: form.domainId || undefined,
+          subdomain: form.domainId ? form.subdomain?.trim() || undefined : undefined
+        }
     const dto: LineServerInstallDTO = {
       xrayVersion: form.xrayVersion,
       enableOnBoot: form.enableOnBoot,
@@ -256,14 +265,8 @@ async function onSubmit() {
       logRotate: form.logRotate,
       inbound: {
         protocol: form.protocol,
-        transport: isRealityProto ? 'tcp' : form.transport,
         sharedInboundPort: form.sharedInboundPort,
-        // vless 走 reality 不需要 ws path / 域名; vmess 才传
-        wsPath: isRealityProto ? undefined : form.wsPath.trim(),
-        realityDest: isRealityProto ? form.realityDest : undefined,
-        // 选了根域走 TLS (根域 / CF Token 由 system_domain 提供, 二级标签拼 FQDN); 留空则后端 useTls=false
-        domainId: isRealityProto ? undefined : (form.domainId || undefined),
-        subdomain: isRealityProto || !form.domainId ? undefined : (form.subdomain?.trim() || undefined)
+        params
       }
     }
     await xrayInstallStream(target.id, dto, appendOutput, abortCtrl.signal)
