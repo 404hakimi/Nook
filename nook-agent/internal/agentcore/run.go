@@ -13,6 +13,7 @@ import (
 	"sync"
 	"syscall"
 
+	"nook-agent/internal/bootstrap"
 	"nook-agent/internal/client"
 	"nook-agent/internal/config"
 	"nook-agent/internal/control"
@@ -55,6 +56,9 @@ func Run(version string, registerRole RoleRegister) {
 	}
 	log.Printf("[主程序] 配置就绪: 后端=%s 心跳间隔=%d秒 流量上报间隔=%d秒(网卡=%s)",
 		cfg.Backend.APIURL, int(cfg.HeartbeatInterval().Seconds()), int(cfg.NICInterval().Seconds()), cfg.NIC.Interface)
+
+	// 机器级幂等准备 (NTP 时间同步 + 时区): 保证控制通道时间戳防重放校验可靠; best-effort 不阻断
+	bootstrap.Run()
 
 	cli := client.New(cfg.Backend.APIURL, cfg.Backend.APIToken, cfg.HTTPTimeout())
 
