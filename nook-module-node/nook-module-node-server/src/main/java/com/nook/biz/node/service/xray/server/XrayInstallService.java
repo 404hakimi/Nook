@@ -4,9 +4,6 @@ import com.nook.biz.node.api.enums.XrayInstallStatusEnum;
 import com.nook.biz.node.entity.XrayInstallDO;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Xray 实例元数据 Service 接口
@@ -57,28 +54,10 @@ public interface XrayInstallService {
     void markInstallStatus(String serverId, XrayInstallStatusEnum status);
 
     /**
-     * 落库后台签发的 TLS 证书 (定向更新, 不碰其它列)
-     *
-     * @param serverId 服务器编号
-     * @param certPem  全链证书 PEM
-     * @param keyPem   私钥 PEM
-     * @param notAfter 叶子证书到期时间
-     */
-    void saveTlsCert(String serverId, String certPem, String keyPem, LocalDateTime notAfter);
-
-    /**
-     * 清空该 server 的 TLS 绑定 (域名 + 证书列); 重新部署成非 TLS 时调,
-     * 避免全局 NOT_NULL 更新策略把旧证书 / 旧域名残留在行里 (误导详情页, 也防未来续期任务误扫).
+     * 清空该 server 的域名绑定 (domain_id / subdomain); 重新部署成非 TLS 时调,
+     * 避免全局 NOT_NULL 更新策略把旧域名残留在行里 (误导详情页). 证书清理走 {@link XrayTlsCertService#clear}.
      *
      * @param serverId 服务器编号
      */
     void clearTlsBinding(String serverId);
-
-    /**
-     * 列出临期可续证书的实例 (已签 && notAfter < before && 装机 ok); 续期任务用
-     *
-     * @param before 到期时间阈值 (= now + 续期窗口)
-     * @return 命中的实例元数据列表
-     */
-    List<XrayInstallDO> listRenewable(LocalDateTime before);
 }

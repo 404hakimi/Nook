@@ -3,10 +3,12 @@ package com.nook.biz.node.framework.acme;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.entity.XrayInstallDO;
+import com.nook.biz.node.entity.XrayTlsCertDO;
 import com.nook.biz.node.framework.agent.AgentControlClient;
 import com.nook.biz.node.framework.xray.install.XrayCertPushRequest;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
+import com.nook.biz.node.service.xray.server.XrayTlsCertService;
 import com.nook.biz.system.api.domain.DomainUtils;
 import com.nook.biz.system.api.domain.SystemDomainApi;
 import com.nook.biz.system.api.domain.dto.SystemDomainRespDTO;
@@ -41,6 +43,8 @@ public class XrayCertRenewalTask {
     @Resource
     private XrayInstallService xrayInstallService;
     @Resource
+    private XrayTlsCertService xrayTlsCertService;
+    @Resource
     private SystemDomainApi systemDomainApi;
     @Resource
     private XrayCertManager xrayCertManager;
@@ -53,32 +57,33 @@ public class XrayCertRenewalTask {
     @Scheduled(cron = "${nook.acme.renew-cron:0 30 3 * * ?}")
     public void renewExpiring() {
         LocalDateTime threshold = LocalDateTime.now().plusDays(renewBeforeDays);
-        List<XrayInstallDO> due = xrayInstallService.listRenewable(threshold);
+        List<XrayTlsCertDO> due = xrayTlsCertService.listExpiring(threshold);
         if (due.isEmpty()) {
             return;
         }
         log.info("[acme-renew] 扫到 {} 张临期证书 (剩余 < {} 天), 开始续期", due.size(), renewBeforeDays);
         int ok = 0;
-        for (XrayInstallDO row : due) {
+        for (XrayTlsCertDO cert : due) {
             try {
-                renewOne(row);
+                renewOne(cert.getServerId());
                 ok++;
             } catch (Exception e) {
                 // 单台失败不阻断其它; 本轮漏的下轮再扫 (仍在窗口内)
-                log.error("[acme-renew] server={} 续期失败: {}", row.getServerId(), e.getMessage(), e);
+                log.error("[acme-renew] server={} 续期失败: {}", cert.getServerId(), e.getMessage(), e);
             }
         }
         log.info("[acme-renew] 续期完成 {}/{}", ok, due.size());
     }
 
-    private void renewOne(XrayInstallDO row) {
-        String serverId = row.getServerId();
-        if (StrUtil.isBlank(row.getDomainId())) {
-            log.warn("[acme-renew] server={} 有证书却无 domainId, 跳过", serverId);
+    private void renewOne(String serverId) {
+        XrayInstallDO install = xrayInstallService.get(serverId);
+        // 域名绑定 (domainId/subdomain) 仍在 xray_install; 重建 FQDN + 取 cfToken 用它
+        if (install == null || StrUtil.isBlank(install.getDomainId())) {
+            log.warn("[acme-renew] server={} 有证书却无域名绑定, 跳过", serverId);
             return;
         }
-        SystemDomainRespDTO domain = systemDomainApi.getById(row.getDomainId());
-        String fqdn = DomainUtils.buildFqdn(row.getSubdomain(), domain.getDomain());
+        SystemDomainRespDTO domain = systemDomainApi.getById(install.getDomainId());
+        String fqdn = DomainUtils.buildFqdn(install.getSubdomain(), domain.getDomain());
 
         // 重签 (扫到即在窗口内 → ensureCert 必重签) + 落库; 复用 XrayCertManager 的 per-fqdn 单飞锁, 与安装路径互斥
         IssuedCert cert = xrayCertManager.ensureCert(serverId, fqdn, domain.getCfApiToken(), null);

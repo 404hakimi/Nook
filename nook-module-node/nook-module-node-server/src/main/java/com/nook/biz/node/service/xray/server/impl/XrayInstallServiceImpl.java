@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * Xray 实例元数据 Service 实现类
@@ -50,15 +49,6 @@ public class XrayInstallServiceImpl implements XrayInstallService {
     }
 
     @Override
-    public List<XrayInstallDO> listRenewable(LocalDateTime before) {
-        // 已签证书 (notAfter 非空) 且早于阈值 且装机已 ok 的行 (deploying/failed 不动)
-        return xrayInstallMapper.selectList(new LambdaQueryWrapper<XrayInstallDO>()
-                .isNotNull(XrayInstallDO::getTlsCertNotAfter)
-                .lt(XrayInstallDO::getTlsCertNotAfter, before)
-                .eq(XrayInstallDO::getInstallStatus, XrayInstallStatusEnum.OK.getCode()));
-    }
-
-    @Override
     public boolean isSubdomainTaken(String domainId, String subdomain, String excludeServerId) {
         return xrayInstallMapper.selectCount(new LambdaQueryWrapper<XrayInstallDO>()
                 .eq(XrayInstallDO::getDomainId, domainId)
@@ -90,27 +80,11 @@ public class XrayInstallServiceImpl implements XrayInstallService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void saveTlsCert(String serverId, String certPem, String keyPem, LocalDateTime notAfter) {
-        int affected = xrayInstallMapper.update(null, new LambdaUpdateWrapper<XrayInstallDO>()
-                .eq(XrayInstallDO::getServerId, serverId)
-                .set(XrayInstallDO::getTlsCertPem, certPem)
-                .set(XrayInstallDO::getTlsKeyPem, keyPem)
-                .set(XrayInstallDO::getTlsCertNotAfter, notAfter));
-        if (affected == 0) {
-            log.warn("[xray-install] saveTlsCert 没匹配到行 server={}", serverId);
-        }
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
     public void clearTlsBinding(String serverId) {
-        // 显式 set null (wrapper.set 不受全局 NOT_NULL 策略约束, 区别于 updateById)
+        // 显式 set null (wrapper.set 不受全局 NOT_NULL 策略约束, 区别于 updateById); 证书清理走 XrayTlsCertService.clear
         xrayInstallMapper.update(null, new LambdaUpdateWrapper<XrayInstallDO>()
                 .eq(XrayInstallDO::getServerId, serverId)
                 .set(XrayInstallDO::getDomainId, null)
-                .set(XrayInstallDO::getSubdomain, null)
-                .set(XrayInstallDO::getTlsCertPem, null)
-                .set(XrayInstallDO::getTlsKeyPem, null)
-                .set(XrayInstallDO::getTlsCertNotAfter, null));
+                .set(XrayInstallDO::getSubdomain, null));
     }
 }

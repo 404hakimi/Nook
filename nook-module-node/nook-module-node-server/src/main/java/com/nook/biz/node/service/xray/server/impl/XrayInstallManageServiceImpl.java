@@ -29,6 +29,7 @@ import com.nook.biz.system.api.domain.DomainUtils;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
 import com.nook.biz.node.service.xray.server.XrayInstallManageService;
 import com.nook.biz.node.service.xray.server.XrayInstallService;
+import com.nook.biz.node.service.xray.server.XrayTlsCertService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.biz.node.validator.XrayInstallValidator;
 import com.nook.biz.system.api.domain.SystemDomainApi;
@@ -64,6 +65,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     private AgentControlClient agentControlClient;
     @Resource
     private XrayCertManager xrayCertManager;
+    @Resource
+    private XrayTlsCertService xrayTlsCertService;
     @Resource
     private ServerProbe serverProbe;
     @Resource
@@ -191,9 +194,10 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         // 配置先行: 落库即 deploying; installedAt 等 agent 回报成功才置 (见 markInstallStatus)
         srv.setInstallStatus(XrayInstallStatusEnum.DEPLOYING.getCode());
         xrayInstallService.upsert(srv);
-        // 重新部署成非 TLS: 全局 NOT_NULL 策略不会把上面置 null 的 domain/证书列写回, 显式清掉避免旧证书/旧域名残留
+        // 重新部署成非 TLS: 清掉旧域名绑定 (clearTlsBinding) + 旧证书 (证书独立表), 避免残留/续期误扫
         if (!useTls) {
             xrayInstallService.clearTlsBinding(serverId);
+            xrayTlsCertService.clear(serverId);
         }
 
         XrayInboundDO cfg = new XrayInboundDO();

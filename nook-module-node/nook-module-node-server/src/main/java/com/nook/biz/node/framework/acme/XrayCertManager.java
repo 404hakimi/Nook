@@ -1,8 +1,8 @@
 package com.nook.biz.node.framework.acme;
 
 import cn.hutool.core.util.StrUtil;
-import com.nook.biz.node.entity.XrayInstallDO;
-import com.nook.biz.node.service.xray.server.XrayInstallService;
+import com.nook.biz.node.entity.XrayTlsCertDO;
+import com.nook.biz.node.service.xray.server.XrayTlsCertService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * xray TLS 证书的"取或签": 桥接持久化 ({@link XrayInstallService} 的 tls_* 列) 与签发 ({@link LetsEncryptCertService}).
+ * xray TLS 证书的"取或签": 桥接持久化 ({@link XrayTlsCertService} 独立证书表) 与签发 ({@link LetsEncryptCertService}).
  * <p>复用判定: 库内证书 PEM/私钥齐全 && 覆盖目标 fqdn && 剩余有效期 &gt; {@code renewBeforeDays} 天 → 直接复用,
  * 否则签发并落库 (沿用旧 acme.sh "临期才重签"省 Let's Encrypt 配额的思路). 续期任务亦复用本类.
  *
@@ -34,7 +34,7 @@ public class XrayCertManager {
     private int renewBeforeDays;
 
     @Resource
-    private XrayInstallService xrayInstallService;
+    private XrayTlsCertService xrayTlsCertService;
     @Resource
     private LetsEncryptCertService letsEncryptCertService;
 
@@ -53,34 +53,34 @@ public class XrayCertManager {
     public IssuedCert ensureCert(String serverId, String fqdn, String cfApiToken, Consumer<String> progress) {
         Object lock = issueLocks.computeIfAbsent(fqdn, k -> new Object());
         synchronized (lock) {
-            XrayInstallDO row = xrayInstallService.get(serverId);
+            XrayTlsCertDO row = xrayTlsCertService.get(serverId);
             if (row != null && canReuse(row, fqdn)) {
-                log.info("[acme] 复用库内证书 server={} fqdn={} notAfter={}", serverId, fqdn, row.getTlsCertNotAfter());
+                log.info("[acme] 复用库内证书 server={} fqdn={} notAfter={}", serverId, fqdn, row.getNotAfter());
                 if (progress != null) {
-                    progress.accept("复用库内有效证书 (到期 " + row.getTlsCertNotAfter() + ")");
+                    progress.accept("复用库内有效证书 (到期 " + row.getNotAfter() + ")");
                 }
                 return IssuedCert.builder()
-                        .certPem(row.getTlsCertPem())
-                        .keyPem(row.getTlsKeyPem())
-                        .notAfter(row.getTlsCertNotAfter())
+                        .certPem(row.getCertPem())
+                        .keyPem(row.getKeyPem())
+                        .notAfter(row.getNotAfter())
                         .build();
             }
             IssuedCert issued = letsEncryptCertService.issue(fqdn, cfApiToken, progress);
-            xrayInstallService.saveTlsCert(serverId, issued.getCertPem(), issued.getKeyPem(), issued.getNotAfter());
+            xrayTlsCertService.save(serverId, fqdn, issued.getCertPem(), issued.getKeyPem(), issued.getNotAfter());
             return issued;
         }
     }
 
     /** 库内证书是否可复用: PEM/私钥齐 && 未临期 && 覆盖 fqdn. */
-    private boolean canReuse(XrayInstallDO row, String fqdn) {
-        if (StrUtil.isBlank(row.getTlsCertPem()) || StrUtil.isBlank(row.getTlsKeyPem())
-                || row.getTlsCertNotAfter() == null) {
+    private boolean canReuse(XrayTlsCertDO row, String fqdn) {
+        if (StrUtil.isBlank(row.getCertPem()) || StrUtil.isBlank(row.getKeyPem())
+                || row.getNotAfter() == null) {
             return false;
         }
-        if (row.getTlsCertNotAfter().isBefore(LocalDateTime.now().plusDays(renewBeforeDays))) {
+        if (row.getNotAfter().isBefore(LocalDateTime.now().plusDays(renewBeforeDays))) {
             return false; // 临期 → 重签
         }
-        return certCoversDomain(row.getTlsCertPem(), fqdn); // 域名变了 / 证书坏了 → 重签
+        return certCoversDomain(row.getCertPem(), fqdn); // 域名变了 / 证书坏了 → 重签
     }
 
     /** 解析全链 PEM 的叶子证书 (首张), 判其 SAN (dNSName) 是否覆盖 fqdn; 解析失败按"不可复用"处理 (LE 证书只填 SAN, 不看 CN). */
