@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"nook-agent/internal/client"
+	"nook-agent/internal/shared/client"
 )
 
 type Reporter struct {

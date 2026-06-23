@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"nook-agent/internal/execx"
+	"nook-agent/internal/shared/execx"
 )
 
 // Client 调本地 xray api 的命令包装; 无状态.
@@ -226,7 +226,6 @@ func (c *Client) ListRuleTags(ctx context.Context) ([]string, error) {
 	}
 	return tags, nil
 }
-
 
 func runCapture(cmd *exec.Cmd) (string, error) {
 	var buf bytes.Buffer

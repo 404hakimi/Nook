@@ -17,7 +17,7 @@ import java.util.Base64;
  * <p><b>token 不再明文过线</b>: 密钥 = SHA-256(LABEL ‖ agentToken) 由共享 token 本地派生, token 本身不进任何请求头;
  * agent 端「能成功 GCM 解密」即证明持有 token = 鉴权 (替代旧 X-Agent-Token 明文头, 否则窃听者抓头即可算出 key).
  * 明文帧前置 8 字节 big-endian 毫秒时间戳, agent 校验新鲜度防重放.
- * 信封 = base64(nonce(12B) ‖ 密文(含时间戳)+GCM tag(16B)). 双端算法/标签/分段必须严格一致 (见 agent control/crypto.go).
+ * 信封 = base64(nonce(12B) ‖ 密文(含时间戳)+GCM tag(16B)). 双端算法/标签/分段必须严格一致 (见 agent shared/control/crypto.go).
  *
  * @author nook
  */

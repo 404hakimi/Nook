@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"nook-agent/internal/agentcore"
-	"nook-agent/internal/client"
-	"nook-agent/internal/config"
-	"nook-agent/internal/meter"
-	"nook-agent/internal/tc"
+	"nook-agent/internal/landing/meter"
+	"nook-agent/internal/landing/tc"
+	"nook-agent/internal/shared/client"
+	"nook-agent/internal/shared/config"
 )
 
 // Version 编译时 ldflags 注入; 命名约定 "landing-X.Y.Z".

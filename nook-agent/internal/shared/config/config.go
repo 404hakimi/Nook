@@ -30,7 +30,7 @@ type HeartbeatConfig struct {
 }
 
 type NICConfig struct {
-	IntervalSeconds int    `yaml:"interval_seconds"`
+	IntervalSeconds int `yaml:"interval_seconds"`
 	// "auto" 自动用默认路由出口网卡, 显式给 eth0/ens5 覆盖.
 	Interface string `yaml:"interface"`
 }
@@ -97,7 +97,9 @@ func (c *Config) validate() error {
 func (c *Config) HeartbeatInterval() time.Duration {
 	return time.Duration(c.Heartbeat.IntervalSeconds) * time.Second
 }
-func (c *Config) NICInterval() time.Duration { return time.Duration(c.NIC.IntervalSeconds) * time.Second }
+func (c *Config) NICInterval() time.Duration {
+	return time.Duration(c.NIC.IntervalSeconds) * time.Second
+}
 func (c *Config) HTTPTimeout() time.Duration {
 	return time.Duration(c.Backend.TimeoutSeconds) * time.Second
 }

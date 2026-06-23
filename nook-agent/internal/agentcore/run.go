@@ -13,12 +13,12 @@ import (
 	"sync"
 	"syscall"
 
-	"nook-agent/internal/bootstrap"
-	"nook-agent/internal/client"
-	"nook-agent/internal/config"
-	"nook-agent/internal/control"
-	"nook-agent/internal/heartbeat"
-	"nook-agent/internal/nic"
+	"nook-agent/internal/shared/bootstrap"
+	"nook-agent/internal/shared/client"
+	"nook-agent/internal/shared/config"
+	"nook-agent/internal/shared/control"
+	"nook-agent/internal/shared/heartbeat"
+	"nook-agent/internal/shared/nic"
 )
 
 // Goroutine 一个长跑函数 (ctx 取消时退出); 角色注册器返一组要 wg.Add(1) + go 起来的.

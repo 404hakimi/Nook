@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"nook-agent/internal/client"
-	"nook-agent/internal/execx"
+	"nook-agent/internal/shared/client"
+	"nook-agent/internal/shared/execx"
 )
 
 type Reporter struct {

@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"nook-agent/internal/execx"
-	"nook-agent/internal/nic"
+	"nook-agent/internal/shared/execx"
+	"nook-agent/internal/shared/nic"
 )
 
 // rateRe 匹配 tc class 输出里的 "rate 50Mbit" / "rate 50000Kbit" / "rate 1Gbit".

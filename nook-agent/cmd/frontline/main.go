@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"nook-agent/internal/agentcore"
-	"nook-agent/internal/client"
-	"nook-agent/internal/config"
-	"nook-agent/internal/reconcile"
-	"nook-agent/internal/xray"
-	"nook-agent/internal/xraydeploy"
+	"nook-agent/internal/frontline/reconcile"
+	"nook-agent/internal/frontline/xray"
+	"nook-agent/internal/frontline/xraydeploy"
+	"nook-agent/internal/shared/client"
+	"nook-agent/internal/shared/config"
 )
 
 // Version 编译时 ldflags 注入; 命名约定 "frontline-X.Y.Z".

@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"nook-agent/internal/execx"
+	"nook-agent/internal/shared/execx"
 )
 
 // 从 `nft list table` 文本里提 cnt_in 规则的 dport.

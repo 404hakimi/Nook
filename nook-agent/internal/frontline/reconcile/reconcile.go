@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"nook-agent/internal/client"
-	"nook-agent/internal/xray"
+	"nook-agent/internal/frontline/xray"
+	"nook-agent/internal/shared/client"
 )
 
 const (
