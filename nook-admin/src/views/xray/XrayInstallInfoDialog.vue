@@ -33,7 +33,7 @@ const installPaths = computed(() => {
   return rows.filter((r) => !!r.value)
 })
 
-const hasTls = computed(() => !!props.config?.domain)
+const hasTls = computed(() => !!props.server?.domain)
 
 function close() {
   emit('update:modelValue', false)
@@ -78,13 +78,11 @@ function close() {
         <NDescriptionsItem label="共享 inbound 端口">
           <span class="font-mono text-xs">{{ config?.sharedInboundPort ?? '-' }}</span>
         </NDescriptionsItem>
-        <NDescriptionsItem label="协议 / 传输">
-          <span class="font-mono text-xs">
-            {{ config?.protocol ?? '-' }}<span v-if="config?.transport"> + {{ config.transport }}</span>
-          </span>
+        <NDescriptionsItem label="协议">
+          <span class="font-mono text-xs">{{ config?.protocol ?? '-' }}</span>
         </NDescriptionsItem>
         <NDescriptionsItem label="WS Path" :span="2">
-          <span class="font-mono text-xs">{{ config?.wsPath || '-' }}</span>
+          <span class="font-mono text-xs">{{ config?.formValues?.wsPath || '-' }}</span>
         </NDescriptionsItem>
       </NDescriptions>
 
@@ -107,17 +105,14 @@ function close() {
       </div>
 
       <!-- TLS / 域名 (xray_inbound, 走域名时才显示) -->
-      <div v-if="hasTls && config">
+      <div v-if="hasTls && server">
         <div class="text-xs font-semibold text-zinc-500 mb-2">TLS / 域名</div>
         <NDescriptions :column="1" size="small" bordered label-placement="left" label-align="left">
           <NDescriptionsItem label="域名">
-            <span class="font-mono text-xs">{{ config.domain }}</span>
+            <span class="font-mono text-xs">{{ server.domain }}</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="证书路径">
-            <span class="font-mono text-xs">{{ config.tlsCertPath || '-' }}</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="私钥路径">
-            <span class="font-mono text-xs">{{ config.tlsKeyPath || '-' }}</span>
+          <NDescriptionsItem label="证书">
+            <span class="font-mono text-xs">后台自动签发 / 续期 (xray_tls_cert)</span>
           </NDescriptionsItem>
         </NDescriptions>
       </div>

@@ -71,33 +71,17 @@ export function xrayAutostart(serverId: string, enabled: boolean) {
   return request.post<unknown, string>('/admin/xray/install/set-xray-autostart', null, { params: { id: serverId, enabled } })
 }
 
-/** vmess + ws 协议特定参数. */
-export interface VmessWsInput {
-  /** WebSocket 接入路径 (/ 开头). */
-  wsPath: string
-  /** 绑定根域 system_domain.id; 非空走 TLS, 空走纯 ws. */
-  domainId?: string
-  /** 二级域名标签; 绑域名时必填. */
-  subdomain?: string
-}
-
-/** vless + reality 协议特定参数. */
-export interface VlessRealityInput {
-  /** REALITY 偷取目标主机名 (如 www.bing.com). */
-  realityDest: string
-}
-
 /**
- * 共享 inbound 配置 (协议形态键 + 监听 + 协议特定参数 params).
- * 协议特定字段收进 params, 由后端按 protocol 多态绑定 (vmess→VmessWsInput / vless→VlessRealityInput).
+ * 共享 inbound 配置 (协议形态键 + 监听 + 协议特定参数 params)。
+ * 协议特定字段收进 params (key = 协议 formSchema 字段 name), 由后端按 protocol 多态绑定; 前端 schema 驱动, 故 params 泛型。
  */
 export interface XrayInboundConfig {
-  /** 协议; vmess (走 ws) 或 vless (走 reality); 同时是 params 的多态判别键. */
-  protocol: 'vmess' | 'vless' | 'trojan'
+  /** 协议判别键 (vmess / vless / ...); 加协议后端 schema 自动出现, 故用 string. */
+  protocol: string
   /** 监听端口 (默认 443). */
   sharedInboundPort: number
-  /** 协议特定入站参数; 按 protocol 决定形状. */
-  params: VmessWsInput | VlessRealityInput
+  /** 协议特定入站参数 (key = formSchema 字段 name); 形状由 protocol 决定, 后端多态绑定. */
+  params: Record<string, unknown>
 }
 
 /**
