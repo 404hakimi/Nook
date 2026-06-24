@@ -1,6 +1,10 @@
 package com.nook.biz.node.controller.xray.vo;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.nook.biz.node.framework.xray.inbound.InboundProtocolInput;
+import com.nook.biz.node.framework.xray.inbound.vless.VlessRealityInput;
+import com.nook.biz.node.framework.xray.inbound.vmess.VmessWsInput;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -32,7 +36,15 @@ public class XrayInboundConfigVO {
     @Min(value = 1) @Max(value = 65535)
     private Integer sharedInboundPort;
 
-    /** 协议特定入站参数; 按 protocol 多态绑定到 VmessWsInput / VlessRealityInput, 各子类自带字段校验。 */
+    /**
+     * 协议特定入站参数; 按兄弟字段 protocol 多态绑定到 VmessWsInput / VlessRealityInput, 各子类自带字段校验。
+     * EXTERNAL_PROPERTY 必须声明在本属性 (而非基类), 否则 Jackson 拿不到外层 protocol 上下文. 加协议在 @JsonSubTypes 加一行。
+     */
+    @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXTERNAL_PROPERTY, property = "protocol")
+    @JsonSubTypes({
+            @JsonSubTypes.Type(value = VmessWsInput.class, name = "vmess"),
+            @JsonSubTypes.Type(value = VlessRealityInput.class, name = "vless"),
+    })
     @NotNull(message = "params 必填")
     @Valid
     private InboundProtocolInput params;
