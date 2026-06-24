@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { ChevronDown, ChevronRight, Rocket, Shuffle } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, Rocket } from 'lucide-vue-next'
 import {
   NButton,
   NCheckbox,
@@ -16,9 +16,16 @@ import {
   useMessage
 } from 'naive-ui'
 import { useConfirm } from '@/composables/useConfirm'
-import { xrayInstallStream, listRealityDest, type LineServerInstallDTO } from '@/api/xray/xray-install'
+import {
+  xrayInstallStream,
+  listRealityDest,
+  getProtocolSchemas,
+  type LineServerInstallDTO,
+  type ProtocolSchema,
+  type InboundFieldSchema
+} from '@/api/xray/xray-install'
 import { pageServers } from '@/api/resource/server'
-import { listSystemDomain, type SystemDomain } from '@/api/system/domain'
+import { listSystemDomain } from '@/api/system/domain'
 
 /** ServerInstallDialog 仅需 server.id + server.name; 实际可接受任何含 id/name 的形态 (ResourceServer / ServerFrontlineListItem). */
 interface ServerTarget { id: string; name: string }
@@ -26,7 +33,7 @@ interface ServerTarget { id: string; name: string }
 interface Props {
   modelValue: boolean
   server?: ServerTarget | null
-  /** 重装时用当前装机配置预填整张表单 (wsPath/端口/路径/协议/域名等); 新装传空走默认 + 随机. */
+  /** 重装预填: { protocol, sharedInboundPort, formValues }; 新装传空走协议 schema 默认值. */
   prefill?: Record<string, unknown> | null
 }
 const props = defineProps<Props>()
@@ -80,29 +87,41 @@ function onPickServer(serverId: string | null) {
   pickedServer.value = opt ? opt.raw : null
 }
 
-// ===== 域名下拉 (system_domain; 选了 = 走 TLS, 留空 = 纯 vmess+ws) =====
-const domains = ref<SystemDomain[]>([])
-const domainsLoading = ref(false)
-// REALITY dest 候选 (vless 协议下拉)
-const realityDestOptions = ref<{ label: string; value: string }[]>([])
-async function loadRealityDest() {
+// ===== 协议 schema (后端 /list-protocols 数据驱动; 加协议前端零改) =====
+const protocolSchemas = ref<ProtocolSchema[]>([])
+const protocolOptions = computed(() =>
+  protocolSchemas.value.map((s) => ({ label: s.label, value: s.protocol }))
+)
+const selectedSchema = computed<ProtocolSchema | undefined>(() =>
+  protocolSchemas.value.find((s) => s.protocol === form.protocol)
+)
+
+async function loadProtocolSchemas() {
   try {
-    const list = await listRealityDest()
-    realityDestOptions.value = list.map((d) => ({ label: d.label, value: d.value }))
+    protocolSchemas.value = (await getProtocolSchemas()) || []
   } catch {
-    realityDestOptions.value = []
+    protocolSchemas.value = []
   }
 }
-const domainOptions = computed(() => domains.value.map((d) => ({ label: d.domain, value: d.id })))
-async function loadDomains() {
-  domainsLoading.value = true
+
+// select 字段的候选来源注册表: optionsKey → loader; 加新候选源在这里加一项
+const optionsCache = reactive<Record<string, { label: string; value: string }[]>>({})
+const optionsLoaders: Record<string, () => Promise<{ label: string; value: string }[]>> = {
+  domains: async () => (await listSystemDomain()).map((d) => ({ label: d.domain, value: d.id })),
+  realityDest: async () => (await listRealityDest()).map((d) => ({ label: d.label, value: d.value }))
+}
+async function loadOptions(key: string) {
+  if (optionsCache[key] || !optionsLoaders[key]) return
   try {
-    domains.value = await listSystemDomain()
+    optionsCache[key] = await optionsLoaders[key]()
   } catch {
-    domains.value = []
-  } finally {
-    domainsLoading.value = false
+    optionsCache[key] = []
   }
+}
+function loadSchemaOptions() {
+  selectedSchema.value?.fields.forEach((f) => {
+    if (f.type === 'select' && f.optionsKey) loadOptions(f.optionsKey)
+  })
 }
 
 /** 项目认可的 Xray 稳定版; 升级时改这里. (后端不再有 fallback, 必须前端传值) */
@@ -113,14 +132,7 @@ const XRAY_VERSION_OPTIONS = [
   { label: 'latest (最新, 风险自负)', value: 'latest' }
 ]
 
-/** 随机生成 16 字符 ws path (16^16 取一段); 减少同节点 path 撞车 / 被识别概率 */
-function randomWsPath(): string {
-  const buf = new Uint8Array(8)
-  crypto.getRandomValues(buf)
-  return '/' + Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-/** 弹框表单态 (平铺, 便于 v-model 绑定); onSubmit 时映射成嵌套的 LineServerInstallDTO. */
+/** 弹框表单态: 通用字段 (版本/开关/端口/协议); 协议特定字段在 paramsForm (schema 驱动). */
 interface InstallFormState {
   xrayVersion: string
   enableOnBoot: boolean
@@ -128,13 +140,8 @@ interface InstallFormState {
   installUfw: boolean
   setTimezone: boolean
   logRotate: boolean
-  protocol: 'vmess' | 'vless' | 'trojan'
-  transport: 'tcp' | 'ws' | 'grpc' | 'h2' | 'quic'
+  protocol: string
   sharedInboundPort: number
-  wsPath: string
-  realityDest?: string
-  domainId?: string
-  subdomain: string
 }
 
 const form = reactive<InstallFormState>({
@@ -144,60 +151,55 @@ const form = reactive<InstallFormState>({
   installUfw: true,
   setTimezone: true,
   logRotate: true,
-  // 协议: vmess+ws (绑域名走 tls) 或 vless+reality; transport 随协议联动
   protocol: 'vmess',
-  transport: 'ws',
-  realityDest: undefined,
-  sharedInboundPort: 443,
-  wsPath: randomWsPath(),
-  // 域名绑定: 根域 system_domain.id + 二级标签; 选了走 TLS, 留空则 xray 退化纯 vmess+ws
-  domainId: undefined,
-  subdomain: ''
+  sharedInboundPort: 443
 })
+
+/** 协议特定字段值 (key = schema 字段 name); schema 驱动动态渲染 + 提交 inbound.params. */
+const paramsForm = reactive<Record<string, unknown>>({})
 
 const advancedOpen = ref(false)
 
-/** 重装: 用当前装机配置覆盖表单 (只覆盖有值的字段, 未持久化项保留默认); 新装无 prefill 保持默认 + 随机 wsPath. */
-function applyPrefill() {
-  const p = props.prefill
-  if (!p) return
-  const clean: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(p)) {
-    if (v !== undefined && v !== null && v !== '') clean[k] = v
-  }
-  Object.assign(form, clean)
+/** 用选中协议的 schema 默认值重置 paramsForm. */
+function resetParamsForm() {
+  Object.keys(paramsForm).forEach((k) => delete paramsForm[k])
+  selectedSchema.value?.fields.forEach((f) => {
+    paramsForm[f.name] = f.defaultValue ?? (f.type === 'number' ? null : '')
+  })
+}
+
+/** 用户切协议: 重置该协议字段默认 + 拉候选. */
+function onProtocolChange(p: string) {
+  form.protocol = p
+  resetParamsForm()
+  loadSchemaOptions()
 }
 
 /** 重装态 (有 prefill = 从已装机器进来); 用于提示客户面改动会要求在用客户重拉订阅. */
 const isReinstall = computed(() => !!props.prefill)
 
-/** vless 协议走 reality (tcp, 不绑域名); vmess 走 ws. */
-const isReality = computed(() => form.protocol === 'vless')
-watch(
-  () => form.protocol,
-  (p) => {
-    form.transport = p === 'vless' ? 'tcp' : 'ws'
-  }
-)
-
-/** 完整 FQDN 预览 = 二级标签 + 选中根域; 缺任一则空. */
-const fqdnPreview = computed(() => {
-  const sub = (form.subdomain || '').trim()
-  const root = domains.value.find((d) => d.id === form.domainId)?.domain
-  return form.domainId && root && sub ? `${sub}.${root}` : ''
-})
-
 watch(
   () => [props.modelValue, props.server?.id],
-  ([open]) => {
+  async ([open]) => {
     if (!open) return
     Object.keys(errors).forEach((k) => delete errors[k])
     output.value = ''
     advancedOpen.value = false
     pickedServer.value = null
-    applyPrefill()
-    loadDomains()
-    loadRealityDest()
+    await loadProtocolSchemas()
+    form.xrayVersion = (props.prefill?.xrayVersion as string) || XRAY_DEFAULT_VERSION
+    // 协议: 重装用 prefill, 否则默认第一个
+    form.protocol = (props.prefill?.protocol as string) || protocolSchemas.value[0]?.protocol || 'vmess'
+    form.sharedInboundPort = (props.prefill?.sharedInboundPort as number) ?? 443
+    resetParamsForm()
+    // 重装: 用详情 formValues 覆盖默认
+    const fv = props.prefill?.formValues as Record<string, unknown> | undefined
+    if (fv) {
+      Object.entries(fv).forEach(([k, v]) => {
+        if (v !== null && v !== undefined) paramsForm[k] = v
+      })
+    }
+    loadSchemaOptions()
     // server 没传时, 进弹框先拉一次列表给 NSelect 用
     if (!props.server) {
       loadServerOptions()
@@ -207,24 +209,22 @@ watch(
 
 function validate() {
   Object.keys(errors).forEach((k) => delete errors[k])
-  const isRealityProto = form.protocol === 'vless'
   if (form.sharedInboundPort < 1 || form.sharedInboundPort > 65535) {
     errors.sharedInboundPort = '端口范围 1-65535'
   }
-  if (isRealityProto) {
-    // vless+reality 必须选偷取目标站; ws path 在 reality 下隐藏, 不校验
-    if (!form.realityDest) {
-      errors.realityDest = '请选择 REALITY 目标站'
+  selectedSchema.value?.fields.forEach((f) => {
+    const v = paramsForm[f.name]
+    const blank = v === undefined || v === null || v === ''
+    // 静态必填 或 条件必填 (requiredWhenField 非空时本字段才必填)
+    const required = f.required || (!!f.requiredWhenField && !!paramsForm[f.requiredWhenField])
+    if (required && blank) {
+      errors[f.name] = `${f.label} 必填`
+      return
     }
-  } else if (!form.wsPath || !form.wsPath.startsWith('/') || !/^\/[A-Za-z0-9_\-/]{0,127}$/.test(form.wsPath)) {
-    errors.wsPath = '必须 / 开头, 仅字母数字_-/'
-  }
-  // 选了根域 (domainId) 则二级域名必填; 都不选则不走域名 + TLS
-  if (form.domainId && !form.subdomain?.trim()) {
-    errors.subdomain = '选了根域后, 二级域名必填'
-  } else if (form.subdomain?.trim() && !/^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$/.test(form.subdomain.trim())) {
-    errors.subdomain = '只能含字母数字与连字符 (可多级, 点分隔)'
-  }
+    if (!blank && f.pattern && typeof v === 'string' && !new RegExp(f.pattern).test(v)) {
+      errors[f.name] = `${f.label} 格式不正确`
+    }
+  })
   return Object.keys(errors).length === 0
 }
 
@@ -246,16 +246,12 @@ async function onSubmit() {
   output.value = ''
   abortCtrl = new AbortController()
   try {
-    const isRealityProto = form.protocol === 'vless'
-    // 协议特定字段收进 params, 按 protocol 决定形状 (后端多态绑定)
-    const params = isRealityProto
-      ? { realityDest: form.realityDest as string }
-      : {
-          wsPath: form.wsPath.trim(),
-          // 选了根域走 TLS (根域 / CF Token 由 system_domain 提供, 二级标签拼 FQDN); 留空则后端 useTls=false
-          domainId: form.domainId || undefined,
-          subdomain: form.domainId ? form.subdomain?.trim() || undefined : undefined
-        }
+    // 协议特定字段整体进 params (后端按 protocol 多态绑定); 空串原样传 (后端按 blank 判)
+    const params: Record<string, unknown> = {}
+    selectedSchema.value?.fields.forEach((f) => {
+      const v = paramsForm[f.name]
+      params[f.name] = typeof v === 'string' ? v.trim() : v
+    })
     const dto: LineServerInstallDTO = {
       xrayVersion: form.xrayVersion,
       enableOnBoot: form.enableOnBoot,
@@ -306,6 +302,11 @@ function close() {
     message.warning('已断开输出流, 远端脚本可能仍在后台跑')
   }
   emit('update:modelValue', false)
+}
+
+/** select 字段是否允许自定义输入 + 是否可清除 (派生自 schema). */
+function fieldSelectProps(f: InboundFieldSchema) {
+  return { tag: !!f.allowCustom, clearable: !f.required }
 }
 </script>
 
@@ -379,50 +380,22 @@ function close() {
 
       <div class="text-sm font-semibold mt-4 mb-2">
         共享 inbound
-        <span class="text-xs text-zinc-400 ml-2 font-normal">所有客户共用一个端口 + path; 协议 / 传输 / 监听 IP 当前固定, 协议适配后开放</span>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-4">
-        <NFormItem>
-          <template #label>
-            <span>协议</span>
-            <span class="text-xs text-zinc-400 ml-2">vmess+ws 或 vless+reality</span>
-          </template>
-          <NSelect
-            v-model:value="form.protocol"
-            :options="[{ label: 'VMess + WS', value: 'vmess' }, { label: 'VLESS + REALITY', value: 'vless' }]"
-            :disabled="installing"
-          />
-        </NFormItem>
-
-        <NFormItem>
-          <template #label>
-            <span>传输</span>
-            <span class="text-xs text-zinc-400 ml-2">随协议 (vmess=ws, reality=tcp)</span>
-          </template>
-          <NInput :value="form.transport" disabled :input-props="{ style: 'font-family: monospace' }" />
-        </NFormItem>
-
-        <NFormItem
-          v-if="isReality"
-          required
-          :validation-status="errors.realityDest ? 'error' : undefined"
-          :feedback="errors.realityDest"
-        >
-          <template #label>
-            <span>REALITY 目标站</span>
-            <span class="text-xs text-zinc-400 ml-2">客户端 SNI 伪装成它; 可选预设或自定义域名</span>
-          </template>
-          <NSelect
-            v-model:value="form.realityDest"
-            :options="realityDestOptions"
-            :disabled="installing"
-            tag
-            filterable
-            placeholder="选或输入目标真站 (如 www.bing.com)"
-          />
-        </NFormItem>
+        <span class="text-xs text-zinc-400 ml-2 font-normal">所有客户共用一个端口; 协议字段由后端 schema 驱动</span>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
+        <NFormItem required>
+          <template #label>
+            <span>协议</span>
+            <span class="text-xs text-zinc-400 ml-2">加协议后端自动出现在这里</span>
+          </template>
+          <NSelect
+            :value="form.protocol"
+            :options="protocolOptions"
+            :disabled="installing"
+            @update:value="onProtocolChange"
+          />
+        </NFormItem>
+
         <NFormItem
           required
           :validation-status="errors.sharedInboundPort ? 'error' : undefined"
@@ -440,77 +413,44 @@ function close() {
             class="w-full"
           />
         </NFormItem>
+      </div>
 
+      <!-- ===== 协议特定字段 (schema 驱动动态渲染) ===== -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         <NFormItem
-          v-if="!isReality"
-          required
-          :validation-status="errors.wsPath ? 'error' : undefined"
-          :feedback="errors.wsPath"
+          v-for="field in selectedSchema?.fields || []"
+          :key="field.name"
+          :required="field.required"
+          :validation-status="errors[field.name] ? 'error' : undefined"
+          :feedback="errors[field.name]"
         >
           <template #label>
-            <span>WS Path</span>
-            <NButton
-              text
-              size="tiny"
-              class="ml-2"
-              :disabled="installing"
-              @click="form.wsPath = randomWsPath()"
-            >
-              <template #icon><NIcon><Shuffle /></NIcon></template>
-              重新随机
-            </NButton>
+            <span>{{ field.label }}</span>
           </template>
-          <NInput
-            v-model:value="form.wsPath"
-            placeholder="/abc123"
+          <NInputNumber
+            v-if="field.type === 'number'"
+            v-model:value="(paramsForm[field.name] as number | null)"
             :disabled="installing"
-            :input-props="{ style: 'font-family: monospace' }"
+            class="w-full"
           />
-        </NFormItem>
-      </div>
-
-      <!-- ===== 域名绑定 (根域 system_domain + 二级标签; 选了走 TLS, 留空纯 vmess+ws) ===== -->
-      <div v-if="!isReality" class="text-sm font-semibold mt-4 mb-2 flex items-center gap-3">
-        <span>域名 + TLS</span>
-        <span class="text-xs text-zinc-400 font-normal">
-          选根域 + 填二级标签 = 走 CDN + TLS (证书由后台自动签发/续期); 根域留空 = 不启用域名 (xray 退化纯 vmess+ws)
-        </span>
-      </div>
-      <div v-if="!isReality" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-        <NFormItem>
-          <template #label>
-            <span>根域名 (一级域名)</span>
-            <span class="text-xs text-zinc-400 ml-2">在「系统配置 → 域名」预先登记; 含 CF Token</span>
-          </template>
           <NSelect
-            v-model:value="form.domainId"
-            :options="domainOptions"
-            :loading="domainsLoading"
+            v-else-if="field.type === 'select'"
+            v-model:value="(paramsForm[field.name] as string | null)"
+            :options="optionsCache[field.optionsKey || ''] || []"
             :disabled="installing"
-            clearable
             filterable
-            placeholder="选根域 (留空 = 不启用 TLS)"
+            :tag="fieldSelectProps(field).tag"
+            :clearable="fieldSelectProps(field).clearable"
+            :placeholder="field.placeholder"
           />
-        </NFormItem>
-
-        <NFormItem
-          :validation-status="errors.subdomain ? 'error' : undefined"
-          :feedback="errors.subdomain"
-        >
-          <template #label>
-            <span>二级域名</span>
-            <span class="text-xs text-zinc-400 ml-2">本机专属, 如 frontline-jp-1</span>
-          </template>
           <NInput
-            v-model:value="form.subdomain"
-            :disabled="installing || !form.domainId"
-            placeholder="frontline-jp-1"
+            v-else
+            v-model:value="(paramsForm[field.name] as string)"
+            :disabled="installing"
+            :placeholder="field.placeholder"
             :input-props="{ style: 'font-family: monospace' }"
           />
         </NFormItem>
-      </div>
-      <div v-if="form.domainId" class="-mt-1 mb-1 text-xs text-zinc-500">
-        完整域名: <code class="font-mono text-zinc-700 dark:text-zinc-300">{{ fqdnPreview || '（填二级域名）' }}</code>
       </div>
 
       <!-- ===== 高级设置 (默认折叠) ===== -->

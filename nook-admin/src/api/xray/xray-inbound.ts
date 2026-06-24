@@ -3,18 +3,12 @@ import request from '@/api/request'
 /** Xray inbound 共享配置 (业务可热改); 跟 resource_server 1:1 */
 export interface XrayInbound {
   serverId: string
-  /** 共享 inbound 协议 (vmess/trojan/...) */
+  /** 共享 inbound 协议判别键 (vmess/vless) */
   protocol?: string
-  /** 共享 inbound 传输 (ws/tcp/...) */
-  transport?: string
   /** 共享 inbound 监听端口 */
   sharedInboundPort?: number
-  /** WebSocket transport path */
-  wsPath?: string
-  /** 对外域名 (CDN CNAME 指向) */
-  domain?: string
-  tlsCertPath?: string
-  tlsKeyPath?: string
+  /** 协议字段值 (key = 协议 formSchema 字段 name; vmess: wsPath/domainId/subdomain, vless: realityDest); 重装预填用 */
+  formValues?: Record<string, unknown>
   createdAt?: string
   updatedAt?: string
 }

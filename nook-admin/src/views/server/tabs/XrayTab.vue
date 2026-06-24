@@ -50,28 +50,17 @@ const statusOpen = ref(false)
 const logOpen = ref(false)
 const installOpen = ref(false)
 
-/** 重装预填: 用当前 xray_install + xray_inbound 把表单填成「当前配置」, 避免重装时 wsPath/端口 被随机重置而误触客户面变更校验 (6017). */
+/** 重装预填: 用当前 xray_install + xray_inbound 把表单填成「当前配置」, 避免重装时被随机/默认重置而误触客户面变更校验. */
 const reinstallPrefill = computed<Record<string, unknown> | null>(() => {
   const s = server.value
   if (!s) return null
   const c = config.value
   return {
     xrayVersion: s.xrayVersion,
-    installDir: s.xrayInstallDir,
-    xrayBinaryPath: s.xrayBinaryPath,
-    xrayConfigPath: s.xrayConfigPath,
-    xrayShareDir: s.xrayShareDir,
-    logDir: s.xrayLogDir,
-    xrayApiPort: s.xrayApiPort,
-    xraySystemdUnitPath: s.xraySystemdUnitPath,
-    domainId: s.domainId,
-    subdomain: s.subdomain,
     protocol: c?.protocol,
-    transport: c?.transport,
     sharedInboundPort: c?.sharedInboundPort,
-    wsPath: c?.wsPath,
-    tlsCertPath: c?.tlsCertPath,
-    tlsKeyPath: c?.tlsKeyPath
+    // 协议字段值 (含 vmess 的 domainId/subdomain, vless 的 realityDest); 装机 dialog 按 schema 回填
+    formValues: c?.formValues
   }
 })
 
@@ -157,16 +146,15 @@ function onRestart() {
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="绑定域名">
-            <code v-if="server.domain || config?.domain" class="kbd">{{ server.domain || config?.domain }}</code>
+            <code v-if="server.domain" class="kbd">{{ server.domain }}</code>
             <span v-else class="muted">未绑定 (无 TLS)</span>
           </NDescriptionsItem>
-          <NDescriptionsItem label="协议 / 传输">
+          <NDescriptionsItem label="协议">
             <NTag v-if="config?.protocol" size="tiny">{{ config.protocol }}</NTag>
-            <NTag v-if="config?.transport" size="tiny" type="info" class="ml-1">{{ config.transport }}</NTag>
-            <span v-if="!config?.protocol && !config?.transport" class="muted">—</span>
+            <span v-else class="muted">—</span>
           </NDescriptionsItem>
           <NDescriptionsItem label="ws path">
-            <code v-if="config?.wsPath" class="kbd">{{ config.wsPath }}</code>
+            <code v-if="config?.formValues?.wsPath" class="kbd">{{ config.formValues.wsPath }}</code>
             <span v-else class="muted">—</span>
           </NDescriptionsItem>
         </NDescriptions>
@@ -181,13 +169,9 @@ function onRestart() {
           </div>
         </template>
         <NDescriptions bordered size="small" label-placement="left" :column="1" label-style="width: 6rem">
-          <NDescriptionsItem label="cert 路径">
-            <code v-if="config?.tlsCertPath" class="kbd">{{ config.tlsCertPath }}</code>
-            <span v-else class="muted">—</span>
-          </NDescriptionsItem>
-          <NDescriptionsItem label="key 路径">
-            <code v-if="config?.tlsKeyPath" class="kbd">{{ config.tlsKeyPath }}</code>
-            <span v-else class="muted">—</span>
+          <NDescriptionsItem label="状态">
+            <NTag v-if="server.domain" size="tiny" type="success">已绑定 · 证书由后台自动签发/续期</NTag>
+            <span v-else class="muted">未启用 (无域名 / 纯 vmess+ws)</span>
           </NDescriptionsItem>
         </NDescriptions>
       </NCard>

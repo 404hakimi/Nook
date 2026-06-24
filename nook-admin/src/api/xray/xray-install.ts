@@ -135,6 +135,36 @@ export function listRealityDest() {
   return request.get<unknown, RealityDest[]>('/admin/xray/install/list-reality-dest')
 }
 
+/** 协议装机表单单字段描述 (后端 InboundFieldSchema; 前端动态渲染 + 校验). */
+export interface InboundFieldSchema {
+  name: string
+  label: string
+  type: 'text' | 'select' | 'number'
+  required: boolean
+  /** 此字段非空时本字段才必填 (如 subdomain ← domainId). */
+  requiredWhenField?: string
+  defaultValue?: unknown
+  placeholder?: string
+  /** text 校验正则. */
+  pattern?: string
+  /** select 候选来源 key (前端 loader 注册表解析: domains / realityDest). */
+  optionsKey?: string
+  /** select 是否允许自定义输入. */
+  allowCustom?: boolean
+}
+
+/** 单协议装机表单 schema (后端 ProtocolSchemaRespVO). */
+export interface ProtocolSchema {
+  protocol: string
+  label: string
+  fields: InboundFieldSchema[]
+}
+
+/** 列出全部协议的装机表单 schema (动态渲染协议下拉 + 字段). */
+export function getProtocolSchemas() {
+  return request.get<unknown, ProtocolSchema[]>('/admin/xray/install/list-protocols')
+}
+
 /** 一键安装/重装 Xray (流式). */
 export function xrayInstallStream(
   serverId: string,
