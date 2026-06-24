@@ -1,10 +1,12 @@
 package com.nook.biz.node.service.xray.server;
 
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.controller.xray.vo.ProtocolSchemaRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -67,4 +69,11 @@ public interface XrayInstallManageService {
      * @return 流式响应
      */
     ResponseBodyEmitter installXrayStream(String serverId, XrayInstallReqVO reqVO);
+
+    /**
+     * 列出全部入站协议的装机表单 schema (前端动态渲染协议下拉 + 字段)
+     *
+     * @return 协议 schema 列表
+     */
+    List<ProtocolSchemaRespVO> listProtocolSchemas();
 }

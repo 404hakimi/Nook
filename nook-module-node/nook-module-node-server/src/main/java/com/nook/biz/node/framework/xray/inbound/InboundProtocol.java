@@ -77,4 +77,28 @@ public interface InboundProtocol {
      * @return Clash proxy 节点 (调用方直接序列化进 YAML); host 拼不出时返回 null
      */
     Map<String, Object> buildClashProxy(InboundParams params, ShareContext ctx);
+
+    /**
+     * 协议显示名 (装机表单协议下拉 label)
+     *
+     * @return 显示名, 如 "VMess + WS"
+     */
+    String displayName();
+
+    /**
+     * 本协议装机表单的字段 schema; 前端据此动态渲染 + 校验. 加协议 = 在此声明字段, 共享前端零改.
+     *
+     * @return 字段描述列表
+     */
+    List<InboundFieldSchema> formSchema();
+
+    /**
+     * 重装预填: 把已存语义参数 (+ 域名绑定) 反投影成表单值 (key = formSchema 字段 name); 取代 InboundParams 基类的投影 getter
+     *
+     * @param params    DB 解出的本协议语义参数; 可空
+     * @param domainId  绑定根域 id (vmess-tls; 来自 xray_install, 非 params); 可空
+     * @param subdomain 二级域名标签 (来自 xray_install); 可空
+     * @return 表单字段值 map (前端回填)
+     */
+    Map<String, Object> formPrefill(InboundParams params, String domainId, String subdomain);
 }

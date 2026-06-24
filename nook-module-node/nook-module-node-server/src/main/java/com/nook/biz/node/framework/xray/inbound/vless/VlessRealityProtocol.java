@@ -8,6 +8,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.nook.biz.node.api.enums.XrayErrorCode;
 import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.framework.xray.XrayConstants;
+import com.nook.biz.node.framework.xray.inbound.InboundFieldSchema;
 import com.nook.biz.node.framework.xray.inbound.InboundParams;
 import com.nook.biz.node.framework.xray.inbound.InboundSetupSpec;
 import com.nook.biz.node.framework.xray.inbound.InboundTemplateRenderer;
@@ -223,6 +224,29 @@ public class VlessRealityProtocol implements InboundProtocol {
         }
         proxy.put("reality-opts", realityOpts);
         return proxy;
+    }
+
+    @Override
+    public String displayName() {
+        return "VLESS + REALITY";
+    }
+
+    @Override
+    public List<InboundFieldSchema> formSchema() {
+        return List.of(
+                InboundFieldSchema.builder().name("realityDest").label("REALITY 目标站").type("select").required(true)
+                        .optionsKey("realityDest").allowCustom(true).placeholder("如 www.bing.com")
+                        .pattern("^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))+$")
+                        .build());
+    }
+
+    @Override
+    public Map<String, Object> formPrefill(InboundParams params, String domainId, String subdomain) {
+        VlessRealityParams p = (params instanceof VlessRealityParams v) ? v : null;
+        Map<String, Object> values = new LinkedHashMap<>();
+        String dest = (p != null && p.getReality() != null) ? CollUtil.getFirst(p.getReality().getServerNames()) : null;
+        values.put("realityDest", dest);
+        return values;
     }
 
     /** 从 params 取客户面 reality 字段 (sni/fp/pbk/sid); params 或 reality 缺则全 null. */

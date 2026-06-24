@@ -19,26 +19,6 @@ public class VmessWsParams extends InboundParams {
     /** TLS 安全层参数; 绑域名时有值, 纯 ws 留空. */
     private TlsParams tls;
 
-    @Override
-    public String getWsPath() {
-        return ws == null ? null : ws.getPath();
-    }
-
-    @Override
-    public String getDomain() {
-        return tls == null ? null : tls.getDomain();
-    }
-
-    @Override
-    public String getCertPath() {
-        return tls == null ? null : tls.getCertPath();
-    }
-
-    @Override
-    public String getKeyPath() {
-        return tls == null ? null : tls.getKeyPath();
-    }
-
     /**
      * WebSocket 传输参数
      *

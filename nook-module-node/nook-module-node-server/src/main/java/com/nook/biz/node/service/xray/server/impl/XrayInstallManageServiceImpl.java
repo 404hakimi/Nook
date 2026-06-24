@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSON;
 import com.nook.biz.node.api.enums.XrayInstallStatusEnum;
 import com.nook.biz.node.api.xray.XrayInstallDefaults;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.controller.xray.vo.ProtocolSchemaRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
@@ -45,6 +46,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -277,5 +279,17 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
                 .plus(webStreamingProperties.getEmitterBuffer());
         return streamingEndpointSupport.stream("install:" + serverId, emitterTimeout,
                 lineSink -> installStreaming(serverId, reqVO, lineSink));
+    }
+
+    @Override
+    public List<ProtocolSchemaRespVO> listProtocolSchemas() {
+        return inboundProtocolFactory.all().stream().map(p -> {
+            ProtocolSchemaRespVO vo = new ProtocolSchemaRespVO();
+            // 协议判别键: 该实现支持形态的 protocol (vmess 两形态 protocol 同为 vmess)
+            vo.setProtocol(p.supportedForms().iterator().next().getProtocol());
+            vo.setLabel(p.displayName());
+            vo.setFields(p.formSchema());
+            return vo;
+        }).toList();
     }
 }

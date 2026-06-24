@@ -4,9 +4,13 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
- * 管理后台 - Xray inbound 共享配置 Resp VO (业务可热改)
+ * 管理后台 - Xray inbound 共享配置 Resp VO (业务可热改)。
+ *
+ * <p>协议特定字段不再平铺: 改为 {@code formValues} (key = 协议 formSchema 字段 name), 由协议 formPrefill 投影,
+ * 前端动态表单重装预填直接用。
  *
  * @author nook
  */
@@ -16,26 +20,14 @@ public class XrayInboundRespVO {
     /** 服务器编号. */
     private String serverId;
 
-    /** 共享 inbound 协议 (vmess/trojan/...) */
+    /** 共享 inbound 协议判别键 (vmess / vless). */
     private String protocol;
-
-    /** 共享 inbound 传输 (ws/tcp/...) */
-    private String transport;
 
     /** 共享 inbound 监听端口. */
     private Integer sharedInboundPort;
 
-    /** WebSocket transport path. */
-    private String wsPath;
-
-    /** 对外域名 (CDN CNAME 指向). */
-    private String domain;
-
-    /** TLS 证书路径. */
-    private String tlsCertPath;
-
-    /** TLS 私钥路径. */
-    private String tlsKeyPath;
+    /** 协议字段值 (key = 该协议 formSchema 字段 name; vmess: wsPath/domainId/subdomain, vless: realityDest); 重装预填用. */
+    private Map<String, Object> formValues;
 
     /** 创建时间. */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

@@ -2,6 +2,7 @@ package com.nook.biz.node.framework.xray.inbound.vmess;
 
 import cn.hutool.core.codec.Base64;
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
@@ -11,6 +12,7 @@ import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import com.nook.biz.node.api.xray.XrayInstallDefaults;
 import com.nook.biz.node.framework.cloudflare.CloudflareApiClient;
 import com.nook.biz.node.framework.xray.XrayConstants;
+import com.nook.biz.node.framework.xray.inbound.InboundFieldSchema;
 import com.nook.biz.node.framework.xray.inbound.InboundParams;
 import com.nook.biz.node.framework.xray.inbound.InboundSetupSpec;
 import com.nook.biz.node.framework.xray.inbound.InboundTemplateRenderer;
@@ -44,18 +46,28 @@ import java.util.Set;
 @Component
 public class VmessWsProtocol implements InboundProtocol {
 
-    /** xray streamSettings.network (vmess 固定 ws); 客户面 vmess net / clash network. */
+    /**
+     * xray streamSettings.network (vmess 固定 ws); 客户面 vmess net / clash network.
+     */
     private static final String NETWORK_WS = "ws";
-    /** 客户面协议名 (vmess:// / clash type). */
+    /**
+     * 客户面协议名 (vmess:// / clash type).
+     */
     private static final String PROTOCOL_VMESS = "vmess";
-    /** vmess 链接 tls 字段值 (绑域名时). */
+    /**
+     * vmess 链接 tls 字段值 (绑域名时).
+     */
     private static final String SECURITY_TLS = "tls";
 
-    /** vmess+ws+tls inbound 模板 (${} 占位符 render 时填充). */
+    /**
+     * vmess+ws+tls inbound 模板 (${} 占位符 render 时填充).
+     */
     private static final String TEMPLATE_TLS = """
             {"tag":${tag},"listen":"0.0.0.0","port":${port},"protocol":"vmess","settings":{"clients":[]},"sniffing":{"enabled":true,"destOverride":["http","tls","quic"]},"streamSettings":{"network":"ws","security":"tls","tlsSettings":{"serverName":${domain},"alpn":["h2","http/1.1"],"minVersion":"1.2","certificates":[{"certificateFile":${tls.certPath},"keyFile":${tls.keyPath}}]},"wsSettings":{"path":${ws.path}}}}""";
 
-    /** vmess+ws (无 tls) inbound 模板. */
+    /**
+     * vmess+ws (无 tls) inbound 模板.
+     */
     private static final String TEMPLATE_PLAIN = """
             {"tag":${tag},"listen":"0.0.0.0","port":${port},"protocol":"vmess","settings":{"clients":[]},"sniffing":{"enabled":true,"destOverride":["http","tls","quic"]},"streamSettings":{"network":"ws","security":"none","wsSettings":{"path":${ws.path}}}}""";
 
@@ -93,7 +105,9 @@ public class VmessWsProtocol implements InboundProtocol {
         }
     }
 
-    /** 取本协议专属输入 DTO; 工厂已按 protocol 分派 + Jackson 已按 protocol 绑定子类型, 不符 = 请求 protocol 与 params 不一致. */
+    /**
+     * 取本协议专属输入 DTO; 工厂已按 protocol 分派 + Jackson 已按 protocol 绑定子类型, 不符 = 请求 protocol 与 params 不一致.
+     */
     private VmessWsInput input(InboundSetupSpec spec) {
         if (spec.getParams() instanceof VmessWsInput v) {
             return v;
@@ -253,7 +267,42 @@ public class VmessWsProtocol implements InboundProtocol {
         return proxy;
     }
 
-    /** 部署前加 CF A 记录; 失败不阻断 (用户可手动在 CF 面板加). */
+    @Override
+    public String displayName() {
+        return "VMess + WS";
+    }
+
+    @Override
+    public List<InboundFieldSchema> formSchema() {
+        return List.of(
+                InboundFieldSchema.builder().name("wsPath").label("WS 路径").type("text").required(true)
+                        .defaultValue(randomWsPath()).placeholder("/xxxxxx")
+                        .pattern("^/[A-Za-z0-9_\\-/]{0,127}$").build(),
+                InboundFieldSchema.builder().name("domainId").label("绑定根域 (走 TLS)").type("select").required(false)
+                        .optionsKey("domains").placeholder("留空 = 纯 ws, 不绑域名").build(),
+                InboundFieldSchema.builder().name("subdomain").label("二级域名").type("text").required(false)
+                        .requiredWhenField("domainId").placeholder("如 frontline-jp-1")
+                        .pattern("^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$").build());
+    }
+
+    @Override
+    public Map<String, Object> formPrefill(InboundParams params, String domainId, String subdomain) {
+        VmessWsParams p = (params instanceof VmessWsParams v) ? v : null;
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("wsPath", p != null && p.getWs() != null ? p.getWs().getPath() : null);
+        values.put("domainId", domainId);
+        values.put("subdomain", subdomain);
+        return values;
+    }
+
+    /** 新装默认随机 ws 路径 (16 hex). */
+    private static String randomWsPath() {
+        return "/" + RandomUtil.randomString("0123456789abcdef", 16);
+    }
+
+    /**
+     * 部署前加 CF A 记录; 失败不阻断 (用户可手动在 CF 面板加).
+     */
     private void ensureCfRecord(InboundProvisionRequest ctx, String fullDomain, String cfApiToken) {
         if (StrUtil.isBlank(cfApiToken)) {
             return;

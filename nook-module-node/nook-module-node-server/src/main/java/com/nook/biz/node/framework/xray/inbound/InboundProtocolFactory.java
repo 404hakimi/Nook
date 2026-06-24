@@ -57,4 +57,9 @@ public class InboundProtocolFactory {
         }
         return p;
     }
+
+    /** 全部协议实现 (每个实现 = 一个协议家族, 如 vmess 含 ws-tls/ws-plain); 装机表单 schema 列举用. */
+    public List<InboundProtocol> all() {
+        return protocols;
+    }
 }

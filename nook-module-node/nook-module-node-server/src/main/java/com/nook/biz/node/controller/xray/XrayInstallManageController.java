@@ -2,6 +2,7 @@ package com.nook.biz.node.controller.xray;
 
 import com.nook.biz.node.api.enums.RealityDestPreset;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
+import com.nook.biz.node.controller.xray.vo.ProtocolSchemaRespVO;
 import com.nook.biz.node.controller.xray.vo.RealityDestSimpleRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
@@ -111,5 +112,15 @@ public class XrayInstallManageController {
                 List.of(RealityDestPreset.values()),
                 p -> new RealityDestSimpleRespVO(p.getServerName(), p.getLabel() + " (" + p.getServerName() + ")"));
         return Result.ok(list);
+    }
+
+    /**
+     * 列出全部入站协议的装机表单 schema (前端动态渲染协议下拉 + 字段, 加协议前端零改)
+     *
+     * @return 协议 schema 列表
+     */
+    @GetMapping("/list-protocols")
+    public Result<List<ProtocolSchemaRespVO>> listProtocols() {
+        return Result.ok(xrayInstallManageService.listProtocolSchemas());
     }
 }
