@@ -10,10 +10,11 @@ import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 public interface AgentAuthService {
 
     /**
-     * 校验 agent token 并获得对应服务器
+     * 校验 agent 上行鉴权 (token 不过线: 明文 serverId + 加密证明) 并获得对应服务器
      *
-     * @param agentToken X-Agent-Token 请求头值
-     * @return 服务器信息
+     * @param serverId  X-Agent-Server 头 (明文 serverId)
+     * @param authProof X-Agent-Auth 头 (token 加密的鉴权证明)
+     * @return 服务器信息; 校验失败抛 UNAUTHORIZED
      */
-    ResourceServerRespDTO verifyAndGetServer(String agentToken);
+    ResourceServerRespDTO verifyAndGetServer(String serverId, String authProof);
 }

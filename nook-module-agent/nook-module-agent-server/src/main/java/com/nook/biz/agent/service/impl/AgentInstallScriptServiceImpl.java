@@ -94,7 +94,7 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
         }
         // 渲染 agent 配置
         String token = srv.getAgentToken();
-        String configYaml = buildYaml(reqVO, token);
+        String configYaml = buildYaml(reqVO, token, srv.getId());
         lineSink.accept("[nook] agent_token: " + StrUtil.subPre(token, 12) + "… (复用 server 入库时签发)\n");
         lineSink.accept("[nook] role: " + reqVO.getRole() + " / server: " + srv.getName() + "\n");
         lineSink.accept("[nook] 渲染 yaml: " + configYaml.length() + " 字节\n");
@@ -161,12 +161,14 @@ public class AgentInstallScriptServiceImpl implements AgentInstallScriptService 
     }
 
     /** 拼 nook-agent config.yml. 所有值 (URL / 路径 / xray) 都来自 DTO, backend 不兜底. */
-    private String buildYaml(AgentInstallReqVO r, String token) {
+    private String buildYaml(AgentInstallReqVO r, String token, String serverId) {
         StringBuilder sb = new StringBuilder(1024);
         sb.append("# nook-").append(r.getRole()).append("-agent 配置 (装机时 backend 渲染; 改配置后需重新部署)\n\n");
         sb.append("backend:\n");
         sb.append("  api_url: ").append(r.getBackendUrl()).append("\n");
         sb.append("  api_token: ").append(token).append("\n");
+        // server_id: agent→后台鉴权用 (明文上报, token 不过线)
+        sb.append("  server_id: ").append(serverId).append("\n");
         sb.append("  timeout_seconds: ").append(r.getBackendTimeoutSeconds()).append("\n\n");
         sb.append("control:\n");
         sb.append("  port: ").append(CONTROL_PORT).append("\n\n");

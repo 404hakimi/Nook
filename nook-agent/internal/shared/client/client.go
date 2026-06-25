@@ -9,23 +9,31 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"nook-agent/internal/shared/wirecrypto"
 )
 
-const tokenHeader = "X-Agent-Token"
+// agent→后台 鉴权头: token 不过线, 发明文 serverId + token 加密的证明 (含时间戳), 后台解密即鉴权.
+const (
+	serverHeader = "X-Agent-Server"
+	authHeader   = "X-Agent-Auth"
+)
 
 // Client 是 backend HTTP 客户端; 短连接, 每次新 Request.
 type Client struct {
-	apiURL string
-	token  string
-	http   *http.Client
+	apiURL   string
+	token    string
+	serverID string
+	http     *http.Client
 }
 
 // New 构造一个 client; baseURL 必须不带尾斜杠.
-func New(apiURL, token string, timeout time.Duration) *Client {
+func New(apiURL, token, serverID string, timeout time.Duration) *Client {
 	return &Client{
-		apiURL: strings.TrimRight(apiURL, "/"),
-		token:  token,
-		http:   &http.Client{Timeout: timeout},
+		apiURL:   strings.TrimRight(apiURL, "/"),
+		token:    token,
+		serverID: serverID,
+		http:     &http.Client{Timeout: timeout},
 	}
 }
 
@@ -62,7 +70,13 @@ func (c *Client) do(method, path string, body any, respData any) error {
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	req.Header.Set(tokenHeader, c.token)
+	// 鉴权: 明文 serverId + token 加密的证明 (含时间戳防重放); token 本身不过线
+	proof, err := wirecrypto.Encrypt(c.serverID, c.token)
+	if err != nil {
+		return fmt.Errorf("生成鉴权证明失败: %w", err)
+	}
+	req.Header.Set(serverHeader, c.serverID)
+	req.Header.Set(authHeader, proof)
 	req.Header.Set("User-Agent", "nook-agent")
 
 	resp, err := c.http.Do(req)

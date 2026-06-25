@@ -7,11 +7,15 @@ import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
 import com.nook.biz.node.convert.resource.ResourceServerConvert;
 import com.nook.biz.node.entity.ResourceServerDO;
+import com.nook.biz.node.framework.agent.AgentControlCrypto;
 import com.nook.biz.node.mapper.ResourceServerMapper;
 import com.nook.biz.node.service.resource.ResourceServerAdmission;
 import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
+import com.nook.common.web.error.CommonErrorCode;
+import com.nook.common.web.exception.BusinessException;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -24,6 +28,7 @@ import java.util.Set;
  *
  * @author nook
  */
+@Slf4j
 @Service
 public class ResourceServerApiImpl implements ResourceServerApi {
 
@@ -51,6 +56,29 @@ public class ResourceServerApiImpl implements ResourceServerApi {
     public ResourceServerRespDTO getByAgentToken(String agentToken) {
         ResourceServerDO srv = resourceServerMapper.selectByAgentToken(agentToken);
         return ObjectUtil.isNull(srv) ? null : ResourceServerConvert.INSTANCE.toRespDTO(srv);
+    }
+
+    @Override
+    public ResourceServerRespDTO verifyAgentAuth(String serverId, String authProof) {
+        if (StrUtil.isBlank(serverId) || StrUtil.isBlank(authProof)) {
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
+        }
+        ResourceServerDO srv = resourceServerMapper.selectById(serverId);
+        if (ObjectUtil.isNull(srv) || StrUtil.isBlank(srv.getAgentToken())) {
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
+        }
+        try {
+            // 解密成功 = 持有该 server 的 token (GCM 认证); 证明内容须 = serverId (绑定, 防证明挪到别的 serverId 头)
+            String proven = AgentControlCrypto.decrypt(authProof, srv.getAgentToken());
+            if (!serverId.equals(proven)) {
+                throw new IllegalStateException("证明 serverId 不匹配");
+            }
+        } catch (Exception e) {
+            // 不区分原因 (token 错 / 过期 / 篡改), 统一 401 防枚举
+            log.warn("[verifyAgentAuth] 鉴权失败 server={}: {}", serverId, e.getMessage());
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
+        }
+        return ResourceServerConvert.INSTANCE.toRespDTO(srv);
     }
 
     @Override

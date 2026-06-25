@@ -39,6 +39,15 @@ public interface ResourceServerApi {
     ResourceServerRespDTO getByAgentToken(String agentToken);
 
     /**
+     * 校验 agent 上行鉴权证明并返回服务器 (token 不过线: 按明文 serverId 找 token, 用 token 解密证明, 成功即鉴权)
+     *
+     * @param serverId  agent 明文上报的 serverId (X-Agent-Server 头)
+     * @param authProof agent 用 token 加密的鉴权证明 (X-Agent-Auth 头)
+     * @return 服务器视图; 校验失败抛 UNAUTHORIZED
+     */
+    ResourceServerRespDTO verifyAgentAuth(String serverId, String authProof);
+
+    /**
      * 批量获得服务器名称
      *
      * @param serverIds 服务器ID集合

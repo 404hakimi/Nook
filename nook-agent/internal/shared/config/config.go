@@ -20,8 +20,10 @@ type Config struct {
 }
 
 type BackendConfig struct {
-	APIURL         string `yaml:"api_url"`
-	APIToken       string `yaml:"api_token"`
+	APIURL   string `yaml:"api_url"`
+	APIToken string `yaml:"api_token"`
+	// 本机 serverId; agent→后台鉴权用 (明文 X-Agent-Server, 后台据此找 token 解密证明; token 不过线).
+	ServerID       string `yaml:"server_id"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
 
@@ -78,6 +80,9 @@ func (c *Config) validate() error {
 	}
 	if c.Backend.APIToken == "" {
 		return fmt.Errorf("backend.api_token 不能为空")
+	}
+	if c.Backend.ServerID == "" {
+		return fmt.Errorf("backend.server_id 不能为空")
 	}
 	if c.Backend.TimeoutSeconds <= 0 {
 		return fmt.Errorf("backend.timeout_seconds 必须 > 0")

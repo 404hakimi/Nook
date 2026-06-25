@@ -60,7 +60,7 @@ func Run(version string, registerRole RoleRegister) {
 	// 机器级幂等准备 (NTP 时间同步 + 时区): 保证控制通道时间戳防重放校验可靠; best-effort 不阻断
 	bootstrap.Run()
 
-	cli := client.New(cfg.Backend.APIURL, cfg.Backend.APIToken, cfg.HTTPTimeout())
+	cli := client.New(cfg.Backend.APIURL, cfg.Backend.APIToken, cfg.Backend.ServerID, cfg.HTTPTimeout())
 
 	// 角色注册器挂自己的 collector (e.g., frontline 挂 xray reconcile, landing 挂 tc 限速 + 业务流量计量)
 	comp := registerRole(cfg, cli)
