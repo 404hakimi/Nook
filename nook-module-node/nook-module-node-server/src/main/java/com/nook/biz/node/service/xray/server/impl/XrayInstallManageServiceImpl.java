@@ -9,6 +9,7 @@ import com.nook.biz.node.controller.xray.vo.ProtocolSchemaRespVO;
 import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
+import com.nook.biz.node.convert.server.ServerInspectorConvert;
 import com.nook.biz.node.convert.xray.XrayInstallConvert;
 import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.service.resource.ResourceServerService;
@@ -98,7 +99,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     @Override
     public void installStreaming(String serverId, XrayInstallReqVO reqVO, Consumer<String> lineSink) {
         // controller VO 在此映射成 framework 中立入站规格, 协议实现不再认识 controller VO
-        InboundSetupSpec spec = toSetupSpec(reqVO.getInbound());
+        InboundSetupSpec spec = XrayInstallConvert.INSTANCE.toSetupSpec(reqVO.getInbound());
         // 协议实现: 校验 + 算形态/参数 (含域名解析/CF A 记录/密钥生成); 加协议只加实现, 不改这里
         InboundProtocol protocol = inboundProtocolFactory.resolve(spec);
         protocol.validate(serverId, spec);
@@ -133,7 +134,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         lineSink.accept("[nook] 通知 agent 装机...\n");
 
         // 通知 agent: 下发结构化配置 (版本/开关/inbound JSON/域名/证书), agent 用内置逻辑本地装机 + 流式回传日志
-        XrayDeployRequest deployReq = buildDeployRequest(serverId, reqVO, prov, cert);
+        XrayDeployRequest deployReq = XrayInstallConvert.INSTANCE.toDeployRequest(serverId, reqVO, prov, cert, XRAY_DEPLOY_TIMEOUT_SECONDS);
         try {
             agentControlClient.deployXray(srv.getIpAddress(), srv.getAgentToken(), deployReq, lineSink);
             xrayInstallService.markInstallStatus(serverId, XrayInstallStatusEnum.OK);
@@ -144,34 +145,6 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
             lineSink.accept("[nook] ⚠ agent 部署失败: " + e.getMessage() + " (配置已留库, 重新部署即可)\n");
             throw e;
         }
-    }
-
-    /** controller 入站 VO → framework 中立入站规格 (协议实现据此工作, 不依赖 controller VO). 协议特定字段在多态 params 里整体透传, 加协议本方法零改. */
-    private static InboundSetupSpec toSetupSpec(XrayInboundConfigVO in) {
-        return InboundSetupSpec.builder()
-                .protocol(in.getProtocol())
-                .sharedInboundPort(in.getSharedInboundPort())
-                .params(in.getParams())
-                .build();
-    }
-
-    /** 后台配置 → agent 装机请求 (结构化下发; agent 用内置逻辑本地装机, inbound JSON 不透明写盘, TLS 证书后台签好直接下发). */
-    private XrayDeployRequest buildDeployRequest(String serverId, XrayInstallReqVO r, InboundProvisionResult prov, IssuedCert cert) {
-        return XrayDeployRequest.builder()
-                .serverId(serverId)
-                .xrayVersion(r.getXrayVersion())
-                .forceReinstall(Boolean.TRUE.equals(r.getForceReinstall()))
-                .enableOnBoot(Boolean.TRUE.equals(r.getEnableOnBoot()))
-                .installUfw(Boolean.TRUE.equals(r.getInstallUfw()))
-                .setTimezone(Boolean.TRUE.equals(r.getSetTimezone()))
-                .logRotate(Boolean.TRUE.equals(r.getLogRotate()))
-                .sharedInboundPort(r.getInbound().getSharedInboundPort())
-                .inboundConfigJson(prov.getInboundJson())
-                .domain(prov.getFullDomain())
-                .tlsCertPem(cert != null ? cert.getCertPem() : null)
-                .tlsKeyPem(cert != null ? cert.getKeyPem() : null)
-                .timeoutSeconds(XRAY_DEPLOY_TIMEOUT_SECONDS)
-                .build();
     }
 
     /** 两表写入: 实例元数据 / inbound 配置; caller 必须包事务. params/security 由 caller 算好 (reality 密钥跟脚本渲染同一份). */
@@ -236,14 +209,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         String filePath = server.getXrayLogDir().replaceAll("/+$", "") + "/" + safeVariant + ".log";
         SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
         JournalLogSnapshot snap = serverProbe.readFileLog(session, filePath, lines, keyword);
-
-        ServiceLogRespVO vo = new ServiceLogRespVO();
-        vo.setUnit(snap.getUnit());
-        vo.setLines(snap.getLines());
-        vo.setLevel(snap.getLevel());
-        vo.setKeyword(snap.getKeyword());
-        vo.setLog(snap.getLog());
-        return vo;
+        return ServerInspectorConvert.INSTANCE.convert(snap);
     }
 
     @Override
