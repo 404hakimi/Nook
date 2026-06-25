@@ -45,14 +45,6 @@ public interface ResourceServerService {
     Map<String, Long> countByRegion();
 
     /**
-     * 获得服务器 (不存在返 null)
-     *
-     * @param id 服务器编号
-     * @return 服务器
-     */
-    ResourceServerDO getServer(String id);
-
-    /**
      * 获得服务器; 不存在则报错
      *
      * @param id 服务器编号
@@ -67,14 +59,6 @@ public interface ResourceServerService {
      * @return 服务器编号 → 服务器 DO
      */
     Map<String, ResourceServerDO> getServerMap(Collection<String> ids);
-
-    /**
-     * 批量获得服务器名称
-     *
-     * @param ids 服务器编号集合
-     * @return 服务器编号 → 服务器名称
-     */
-    Map<String, String> getServerNameMap(Collection<String> ids);
 
     /**
      * 批量获得服务器出网 IP

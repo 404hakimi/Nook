@@ -1,6 +1,5 @@
 package com.nook.biz.node.api.resource;
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
@@ -10,7 +9,6 @@ import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.framework.agent.AgentControlCrypto;
 import com.nook.biz.node.mapper.ResourceServerMapper;
 import com.nook.biz.node.service.resource.ResourceServerAdmission;
-import com.nook.biz.node.service.resource.ResourceServerService;
 import com.nook.biz.node.validator.ResourceServerValidator;
 import com.nook.common.web.error.CommonErrorCode;
 import com.nook.common.web.exception.BusinessException;
@@ -35,8 +33,6 @@ public class ResourceServerApiImpl implements ResourceServerApi {
     @Resource
     private ResourceServerValidator resourceServerValidator;
     @Resource
-    private ResourceServerService resourceServerService;
-    @Resource
     private ResourceServerMapper resourceServerMapper;
     @Resource
     private ResourceServerAdmission resourceServerAdmission;
@@ -49,12 +45,6 @@ public class ResourceServerApiImpl implements ResourceServerApi {
     @Override
     public ResourceServerRespDTO getServer(String serverId) {
         ResourceServerDO srv = resourceServerMapper.selectById(serverId);
-        return ObjectUtil.isNull(srv) ? null : ResourceServerConvert.INSTANCE.toRespDTO(srv);
-    }
-
-    @Override
-    public ResourceServerRespDTO getByAgentToken(String agentToken) {
-        ResourceServerDO srv = resourceServerMapper.selectByAgentToken(agentToken);
         return ObjectUtil.isNull(srv) ? null : ResourceServerConvert.INSTANCE.toRespDTO(srv);
     }
 
@@ -79,19 +69,6 @@ public class ResourceServerApiImpl implements ResourceServerApi {
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
         }
         return ResourceServerConvert.INSTANCE.toRespDTO(srv);
-    }
-
-    @Override
-    public Map<String, String> getServerNameMap(Collection<String> serverIds) {
-        return resourceServerService.getServerNameMap(serverIds);
-    }
-
-    @Override
-    public List<ResourceServerRespDTO> listByServerIds(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) {
-            return List.of();
-        }
-        return ResourceServerConvert.INSTANCE.toRespDTOList(resourceServerMapper.selectBatchIds(serverIds));
     }
 
     @Override

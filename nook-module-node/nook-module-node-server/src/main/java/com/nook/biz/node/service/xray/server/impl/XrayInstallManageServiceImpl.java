@@ -96,8 +96,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     @Resource
     private TransactionTemplate transactionTemplate;
 
-    @Override
-    public void installStreaming(String serverId, XrayInstallReqVO reqVO, Consumer<String> lineSink) {
+    /** 流式装机 / 重装 xray (装机编排核心; 仅 installXrayStream 内部触发, 非接口方法). */
+    private void installStreaming(String serverId, XrayInstallReqVO reqVO, Consumer<String> lineSink) {
         // controller VO 在此映射成 framework 中立入站规格, 协议实现不再认识 controller VO
         InboundSetupSpec spec = XrayInstallConvert.INSTANCE.toSetupSpec(reqVO.getInbound());
         // 协议实现: 校验 + 算形态/参数 (含域名解析/CF A 记录/密钥生成); 加协议只加实现, 不改这里
@@ -244,7 +244,7 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         Duration emitterTimeout = Duration.ofSeconds(installTimeout)
                 .plus(webStreamingProperties.getEmitterBuffer());
         return streamingEndpointSupport.stream("install:" + serverId, emitterTimeout,
-                lineSink -> installStreaming(serverId, reqVO, lineSink));
+                lineSink -> this.installStreaming(serverId, reqVO, lineSink));
     }
 
     @Override

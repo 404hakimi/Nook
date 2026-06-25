@@ -31,12 +31,6 @@ public final class XrayInstallDefaults {
     /** xray 内置 api 端口; 固定 loopback (127.0.0.1) 端口, agent reconcile 据此探测 + 调本地 xray api. */
     public static final int API_PORT = 44944;
 
-    /** xray 日志级别. */
-    public static final String LOG_LEVEL = "warning";
-
-    /** systemd Restart= 策略. */
-    public static final String RESTART_POLICY = "on-failure";
-
     /** TLS 证书路径 (vmess+ws 绑域名时 acme 签发落点); 固定在安装目录 tls 子目录下. */
     public static final String TLS_CERT_PATH = "/home/xray/tls/cert.pem";
 

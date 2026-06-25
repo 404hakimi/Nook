@@ -36,11 +36,6 @@ public interface ResourceServerMapper extends BaseMapper<ResourceServerDO> {
                 .ne(ResourceServerDO::getId, excludeId));
     }
 
-    default ResourceServerDO selectByAgentToken(String agentToken) {
-        return selectOne(Wrappers.<ResourceServerDO>lambdaQuery()
-                .eq(ResourceServerDO::getAgentToken, agentToken));
-    }
-
     default boolean existsByIpAddress(String ipAddress) {
         return exists(Wrappers.<ResourceServerDO>lambdaQuery()
                 .eq(ResourceServerDO::getIpAddress, ipAddress));

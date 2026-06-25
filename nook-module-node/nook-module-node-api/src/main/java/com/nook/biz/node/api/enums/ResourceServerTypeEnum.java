@@ -3,8 +3,6 @@ package com.nook.biz.node.api.enums;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import java.util.Arrays;
-
 /**
  * 服务器角色
  *
@@ -17,9 +15,6 @@ public enum ResourceServerTypeEnum {
     FRONTLINE("frontline", "线路机"),
     LANDING("landing", "落地机"),
     ;
-
-    public static final String[] ARRAYS = Arrays.stream(values())
-            .map(ResourceServerTypeEnum::getState).toArray(String[]::new);
 
     private final String state;
     private final String label;

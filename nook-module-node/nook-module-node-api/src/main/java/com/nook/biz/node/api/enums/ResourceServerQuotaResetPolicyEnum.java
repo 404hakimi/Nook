@@ -19,13 +19,5 @@ public enum ResourceServerQuotaResetPolicyEnum {
     private final String state;
     private final String label;
 
-    public static ResourceServerQuotaResetPolicyEnum fromState(String state) {
-        if (state == null) return null;
-        for (ResourceServerQuotaResetPolicyEnum e : values()) {
-            if (e.state.equals(state)) return e;
-        }
-        return null;
-    }
-
     public boolean matches(String state) { return this.state.equals(state); }
 }

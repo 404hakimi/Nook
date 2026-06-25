@@ -14,14 +14,6 @@ import java.util.Map;
 public interface ResourceServerRuntimeApi {
 
     /**
-     * 取单台服务器运行时
-     *
-     * @param serverId 服务器ID
-     * @return 运行时 DTO; 装机未完成时返 null
-     */
-    ResourceServerRuntimeRespDTO getByServerId(String serverId);
-
-    /**
      * 批量取服务器运行时
      *
      * @param serverIds 服务器ID集合

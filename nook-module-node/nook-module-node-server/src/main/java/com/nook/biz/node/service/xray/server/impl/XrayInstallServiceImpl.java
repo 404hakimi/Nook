@@ -58,15 +58,6 @@ public class XrayInstallServiceImpl implements XrayInstallService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void markReplayDone(String serverId, LocalDateTime xrayUptime) {
-        int affected = xrayInstallMapper.updateXrayUptime(serverId, xrayUptime);
-        if (affected == 0) {
-            log.warn("[xray-install] markReplayDone 没匹配到行 server={} (xray_install 缺失?)", serverId);
-        }
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
     public void markInstallStatus(String serverId, XrayInstallStatusEnum status) {
         // 定向更新 install_status (OK 时同步置 installedAt), 避免 updateById 把其它列覆成 null
         int affected = xrayInstallMapper.update(null, new LambdaUpdateWrapper<XrayInstallDO>()

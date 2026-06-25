@@ -1,18 +1,13 @@
 package com.nook.biz.node.service.xray.config.impl;
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.entity.XrayInboundDO;
 import com.nook.biz.node.mapper.XrayInboundMapper;
 import com.nook.biz.node.service.xray.config.XrayInboundService;
-import com.nook.common.utils.collection.CollectionUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Collection;
-import java.util.Map;
 
 /**
  * Xray inbound 共享配置 Service 实现类
@@ -42,14 +37,5 @@ public class XrayInboundServiceImpl implements XrayInboundService {
     @Override
     public XrayInboundDO get(String serverId) {
         return xrayInboundMapper.selectById(serverId);
-    }
-
-    @Override
-    public Map<String, XrayInboundDO> listByServerIds(Collection<String> serverIds) {
-        if (CollUtil.isEmpty(serverIds)) {
-            return Map.of();
-        }
-        return CollectionUtils.convertMap(
-                xrayInboundMapper.selectBatchIds(serverIds), XrayInboundDO::getServerId);
     }
 }

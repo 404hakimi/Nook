@@ -1,7 +1,6 @@
 package com.nook.biz.node.api.resource;
 
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
 import com.nook.biz.node.convert.resource.ResourceServerRuntimeConvert;
 import com.nook.biz.node.entity.ResourceServerRuntimeDO;
@@ -24,12 +23,6 @@ public class ResourceServerRuntimeApiImpl implements ResourceServerRuntimeApi {
 
     @Resource
     private ResourceServerRuntimeMapper resourceServerRuntimeMapper;
-
-    @Override
-    public ResourceServerRuntimeRespDTO getByServerId(String serverId) {
-        ResourceServerRuntimeDO row = resourceServerRuntimeMapper.selectById(serverId);
-        return ObjectUtil.isNull(row) ? null : ResourceServerRuntimeConvert.INSTANCE.toRespDTO(row);
-    }
 
     @Override
     public Map<String, ResourceServerRuntimeRespDTO> listByServerIds(Collection<String> serverIds) {

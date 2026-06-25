@@ -3,7 +3,6 @@ package com.nook.biz.node.api.enums;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
@@ -22,9 +21,6 @@ public enum ResourceServerLifecycleEnum {
     LIVE("LIVE", "运行中"),
     RETIRED("RETIRED", "已退役"),
     ;
-
-    public static final String[] ARRAYS = Arrays.stream(values())
-            .map(ResourceServerLifecycleEnum::getState).toArray(String[]::new);
 
     private final String state;
     private final String label;

@@ -29,16 +29,4 @@ public enum RealityDestPreset {
     public String getDest() {
         return serverName + ":443";
     }
-
-    public static RealityDestPreset fromName(String name) {
-        if (name == null) {
-            return null;
-        }
-        for (RealityDestPreset p : values()) {
-            if (p.name().equalsIgnoreCase(name)) {
-                return p;
-            }
-        }
-        return null;
-    }
 }

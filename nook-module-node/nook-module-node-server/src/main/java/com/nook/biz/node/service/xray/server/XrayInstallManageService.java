@@ -7,7 +7,6 @@ import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Xray 线路服务器管理 Service 接口
@@ -15,15 +14,6 @@ import java.util.function.Consumer;
  * @author nook
  */
 public interface XrayInstallManageService {
-
-    /**
-     * 流式装机 / 重装 xray
-     *
-     * @param serverId 服务器编号
-     * @param reqVO    装机入参
-     * @param lineSink 每行 stdout 的消费回调
-     */
-    void installStreaming(String serverId, XrayInstallReqVO reqVO, Consumer<String> lineSink);
 
     /**
      * 重启 xray 服务

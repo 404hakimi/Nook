@@ -172,11 +172,6 @@ public class ResourceServerServiceImpl implements ResourceServerService {
     }
 
     @Override
-    public ResourceServerDO getServer(String id) {
-        return resourceServerMapper.selectById(id);
-    }
-
-    @Override
     public ResourceServerDO requireServer(String id) {
         return resourceServerValidator.validateExists(id);
     }
@@ -186,15 +181,6 @@ public class ResourceServerServiceImpl implements ResourceServerService {
         if (CollUtil.isEmpty(ids)) return Map.of();
         return CollectionUtils.convertMap(
                 resourceServerMapper.selectBatchIds(ids), ResourceServerDO::getId);
-    }
-
-    @Override
-    public Map<String, String> getServerNameMap(Collection<String> ids) {
-        if (CollUtil.isEmpty(ids)) return Map.of();
-        return CollectionUtils.convertMap(
-                resourceServerMapper.selectBatchIds(ids),
-                ResourceServerDO::getId,
-                ResourceServerDO::getName);
     }
 
     @Override

@@ -31,14 +31,6 @@ public interface ResourceServerApi {
     ResourceServerRespDTO getServer(String serverId);
 
     /**
-     * 按 agent token 查服务器
-     *
-     * @param agentToken agent 鉴权 token
-     * @return 服务器视图; 未匹配返 null
-     */
-    ResourceServerRespDTO getByAgentToken(String agentToken);
-
-    /**
      * 校验 agent 上行鉴权证明并返回服务器 (token 不过线: 按明文 serverId 找 token, 用 token 解密证明, 成功即鉴权)
      *
      * @param serverId  agent 明文上报的 serverId (X-Agent-Server 头)
@@ -46,22 +38,6 @@ public interface ResourceServerApi {
      * @return 服务器视图; 校验失败抛 UNAUTHORIZED
      */
     ResourceServerRespDTO verifyAgentAuth(String serverId, String authProof);
-
-    /**
-     * 批量获得服务器名称
-     *
-     * @param serverIds 服务器ID集合
-     * @return 服务器ID → 服务器名称
-     */
-    Map<String, String> getServerNameMap(Collection<String> serverIds);
-
-    /**
-     * 批量查服务器概要
-     *
-     * @param serverIds 服务器ID集合
-     * @return 服务器视图列表 (不存在的跳过)
-     */
-    List<ResourceServerRespDTO> listByServerIds(Collection<String> serverIds);
 
     /**
      * 查某区域运行中的线路机
