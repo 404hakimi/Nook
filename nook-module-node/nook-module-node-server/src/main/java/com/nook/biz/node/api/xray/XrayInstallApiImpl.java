@@ -3,7 +3,6 @@ package com.nook.biz.node.api.xray;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.enums.XrayInstallStatusEnum;
 import com.nook.biz.node.api.xray.dto.XrayInstallRespDTO;
-import com.nook.biz.node.convert.xray.XrayInstallConvert;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.nook.biz.node.entity.XrayInstallDO;
@@ -27,7 +26,7 @@ public class XrayInstallApiImpl implements XrayInstallApi {
     @Override
     public XrayInstallRespDTO getXrayInstall(String serverId) {
         XrayInstallDO bean = xrayInstallMapper.selectById(serverId);
-        return ObjectUtil.isNull(bean) ? null : XrayInstallConvert.INSTANCE.toRespDTO(bean);
+        return ObjectUtil.isNull(bean) ? null : XrayInstallApiConvert.INSTANCE.toRespDTO(bean);
     }
 
     @Override

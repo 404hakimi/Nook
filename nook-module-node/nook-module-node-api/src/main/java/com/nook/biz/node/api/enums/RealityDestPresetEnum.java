@@ -10,7 +10,7 @@ import lombok.Getter;
  */
 @Getter
 @AllArgsConstructor
-public enum RealityDestPreset {
+public enum RealityDestPresetEnum {
 
     MICROSOFT("www.microsoft.com", "微软"),
     APPLE("www.apple.com", "苹果"),

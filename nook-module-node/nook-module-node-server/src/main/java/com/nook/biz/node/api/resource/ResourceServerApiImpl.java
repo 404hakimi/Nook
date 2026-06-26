@@ -4,7 +4,6 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.resource.dto.ResourceServerRespDTO;
-import com.nook.biz.node.convert.resource.ResourceServerConvert;
 import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.framework.agent.AgentControlCrypto;
 import com.nook.biz.node.mapper.ResourceServerMapper;
@@ -39,13 +38,13 @@ public class ResourceServerApiImpl implements ResourceServerApi {
 
     @Override
     public ResourceServerRespDTO validateExists(String serverId) {
-        return ResourceServerConvert.INSTANCE.toRespDTO(resourceServerValidator.validateExists(serverId));
+        return ResourceServerApiConvert.INSTANCE.toRespDTO(resourceServerValidator.validateExists(serverId));
     }
 
     @Override
     public ResourceServerRespDTO getServer(String serverId) {
         ResourceServerDO srv = resourceServerMapper.selectById(serverId);
-        return ObjectUtil.isNull(srv) ? null : ResourceServerConvert.INSTANCE.toRespDTO(srv);
+        return ObjectUtil.isNull(srv) ? null : ResourceServerApiConvert.INSTANCE.toRespDTO(srv);
     }
 
     @Override
@@ -68,7 +67,7 @@ public class ResourceServerApiImpl implements ResourceServerApi {
             log.warn("[verifyAgentAuth] 鉴权失败 server={}: {}", serverId, e.getMessage());
             throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
         }
-        return ResourceServerConvert.INSTANCE.toRespDTO(srv);
+        return ResourceServerApiConvert.INSTANCE.toRespDTO(srv);
     }
 
     @Override
@@ -76,7 +75,7 @@ public class ResourceServerApiImpl implements ResourceServerApi {
         if (StrUtil.isBlank(region)) {
             return List.of();
         }
-        return ResourceServerConvert.INSTANCE.toRespDTOList(
+        return ResourceServerApiConvert.INSTANCE.toRespDTOList(
                 resourceServerMapper.selectLiveFrontlinesByRegion(region));
     }
 
@@ -92,7 +91,7 @@ public class ResourceServerApiImpl implements ResourceServerApi {
 
     @Override
     public List<ResourceServerRespDTO> listLive() {
-        return ResourceServerConvert.INSTANCE.toRespDTOList(
+        return ResourceServerApiConvert.INSTANCE.toRespDTOList(
                 resourceServerMapper.selectByLifecycleState(ResourceServerLifecycleEnum.LIVE.getState()));
     }
 }

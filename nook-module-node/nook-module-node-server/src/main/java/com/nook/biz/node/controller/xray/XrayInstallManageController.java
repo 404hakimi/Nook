@@ -1,6 +1,6 @@
 package com.nook.biz.node.controller.xray;
 
-import com.nook.biz.node.api.enums.RealityDestPreset;
+import com.nook.biz.node.api.enums.RealityDestPresetEnum;
 import com.nook.biz.node.controller.resource.vo.ServiceLogRespVO;
 import com.nook.biz.node.controller.xray.vo.ProtocolSchemaRespVO;
 import com.nook.biz.node.controller.xray.vo.RealityDestSimpleRespVO;
@@ -96,7 +96,7 @@ public class XrayInstallManageController {
     @GetMapping("/list-reality-dest")
     public Result<List<RealityDestSimpleRespVO>> listRealityDest() {
         List<RealityDestSimpleRespVO> list = CollectionUtils.convertList(
-                List.of(RealityDestPreset.values()),
+                List.of(RealityDestPresetEnum.values()),
                 p -> new RealityDestSimpleRespVO(p.getServerName(), p.getLabel() + " (" + p.getServerName() + ")"));
         return Result.ok(list);
     }

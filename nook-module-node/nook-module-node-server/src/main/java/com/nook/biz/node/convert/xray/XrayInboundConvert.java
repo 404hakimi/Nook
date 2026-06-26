@@ -16,7 +16,7 @@ public interface XrayInboundConvert {
     @Mapping(target = "formValues", ignore = true)
     XrayInboundRespVO toBase(XrayInboundDO entity);
 
-    /** 协议判别键由 protocol_key 解出; 协议字段值 (formValues) 由 controller 用 formPrefill 填 (需 install 的域名绑定 + params). */
+    // 协议判别键由 protocol_key 解出; formValues 由 caller 经 formPrefill 填 (需 install 域名绑定 + params)
     default XrayInboundRespVO convert(XrayInboundDO entity) {
         XrayInboundRespVO vo = this.toBase(entity);
         XrayInboundProtocolEnum proto = XrayInboundProtocolEnum.fromKey(entity.getProtocolKey());

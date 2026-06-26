@@ -2,7 +2,6 @@ package com.nook.biz.node.api.resource;
 
 import cn.hutool.core.collection.CollUtil;
 import com.nook.biz.node.api.resource.dto.ResourceServerRuntimeRespDTO;
-import com.nook.biz.node.convert.resource.ResourceServerRuntimeConvert;
 import com.nook.biz.node.entity.ResourceServerRuntimeDO;
 import com.nook.biz.node.mapper.ResourceServerRuntimeMapper;
 import com.nook.common.utils.collection.CollectionUtils;
@@ -32,7 +31,7 @@ public class ResourceServerRuntimeApiImpl implements ResourceServerRuntimeApi {
         return CollectionUtils.convertMap(
                 resourceServerRuntimeMapper.selectBatchIds(serverIds),
                 ResourceServerRuntimeDO::getServerId,
-                ResourceServerRuntimeConvert.INSTANCE::toRespDTO);
+                ResourceServerRuntimeApiConvert.INSTANCE::toRespDTO);
     }
 
     @Override

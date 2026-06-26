@@ -1,7 +1,6 @@
 package com.nook.biz.node.convert.xray;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.nook.biz.node.api.xray.dto.XrayInstallRespDTO;
 import com.nook.biz.node.controller.xray.vo.XrayInboundConfigVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallReqVO;
 import com.nook.biz.node.controller.xray.vo.XrayInstallRespVO;
@@ -23,8 +22,6 @@ public interface XrayInstallConvert {
     XrayInstallConvert INSTANCE = Mappers.getMapper(XrayInstallConvert.class);
 
     XrayInstallRespVO convert(XrayInstallDO entity);
-
-    XrayInstallRespDTO toRespDTO(XrayInstallDO entity);
 
     InboundSetupSpec toSetupSpec(XrayInboundConfigVO vo);
 

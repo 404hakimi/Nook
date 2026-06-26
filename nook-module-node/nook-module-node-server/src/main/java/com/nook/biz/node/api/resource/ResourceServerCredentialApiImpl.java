@@ -3,7 +3,6 @@ package com.nook.biz.node.api.resource;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.resource.dto.ResourceServerCredentialRespDTO;
-import com.nook.biz.node.convert.resource.ResourceServerCredentialConvert;
 import com.nook.biz.node.entity.ResourceServerCredentialDO;
 import com.nook.biz.node.mapper.ResourceServerCredentialMapper;
 import com.nook.biz.node.service.resource.ResourceServerCredentialService;
@@ -30,12 +29,12 @@ public class ResourceServerCredentialApiImpl implements ResourceServerCredential
     @Override
     public ResourceServerCredentialRespDTO getByServerId(String serverId) {
         ResourceServerCredentialDO row = resourceServerCredentialService.getServerCredential(serverId);
-        return ObjectUtil.isNull(row) ? null : ResourceServerCredentialConvert.INSTANCE.toRespDTO(row);
+        return ObjectUtil.isNull(row) ? null : ResourceServerCredentialApiConvert.INSTANCE.toRespDTO(row);
     }
 
     @Override
     public ResourceServerCredentialRespDTO requireByServerId(String serverId) {
-        return ResourceServerCredentialConvert.INSTANCE.toRespDTO(
+        return ResourceServerCredentialApiConvert.INSTANCE.toRespDTO(
                 resourceServerCredentialService.requireByServerId(serverId));
     }
 
@@ -47,6 +46,6 @@ public class ResourceServerCredentialApiImpl implements ResourceServerCredential
         return CollectionUtils.convertMap(
                 resourceServerCredentialMapper.selectBatchIds(serverIds),
                 ResourceServerCredentialDO::getServerId,
-                ResourceServerCredentialConvert.INSTANCE::toRespDTO);
+                ResourceServerCredentialApiConvert.INSTANCE::toRespDTO);
     }
 }

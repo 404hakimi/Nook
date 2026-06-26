@@ -196,6 +196,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         Map<String, Long> result = new HashMap<>();
         long installing = 0, ready = 0, live = 0, retired = 0;
 
+        // 查全部落地机, 按生命周期分桶计数
         List<ResourceServerDO> servers = resourceServerMapper.selectByServerType(ResourceServerTypeEnum.LANDING.getState());
         long total = servers.size();
         for (ResourceServerDO s : servers) {
@@ -208,6 +209,7 @@ public class ResourceServerLandingServiceImpl implements ResourceServerLandingSe
         // 占用由 cert.ip_id 派生 (含 ACTIVE/SUSPENDED); 可用 = 总数 - 占用
         long occupied = subscriptionCertApi.filterBoundIpIds(
                 CollectionUtils.convertList(servers, ResourceServerDO::getId)).size();
+        // 组装汇总结果 (生命周期分桶 + 占用/可用)
         result.put("total", total);
         result.put("lifecycle_INSTALLING", installing);
         result.put("lifecycle_READY", ready);

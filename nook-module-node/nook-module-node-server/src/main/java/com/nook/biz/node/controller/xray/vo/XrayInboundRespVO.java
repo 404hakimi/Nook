@@ -7,10 +7,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * 管理后台 - Xray inbound 共享配置 Resp VO (业务可热改)。
- *
- * <p>协议特定字段不再平铺: 改为 {@code formValues} (key = 协议 formSchema 字段 name), 由协议 formPrefill 投影,
- * 前端动态表单重装预填直接用。
+ * 管理后台 - Xray inbound 共享配置 Response VO
  *
  * @author nook
  */

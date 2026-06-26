@@ -4,7 +4,6 @@ import cn.hutool.core.util.ObjectUtil;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
-import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
 import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.entity.Socks5InstallDO;
 import com.nook.biz.node.service.resource.ResourceServerAdmission;
@@ -34,7 +33,7 @@ public class ResourceServerLandingApiImpl implements ResourceServerLandingApi {
         // 跨模块边界: 调 Service 拿 DO, 由 Convert 拼概要 DTO
         Map<String, ResourceServerDO> serverMap = resourceServerLandingService.getServerMap(serverIds);
         Map<String, Socks5InstallDO> landingMap = resourceServerLandingService.getLandingMap(serverIds);
-        return ResourceServerLandingConvert.INSTANCE.toSummaries(serverIds, serverMap, landingMap);
+        return ResourceServerLandingApiConvert.INSTANCE.toSummaries(serverIds, serverMap, landingMap);
     }
 
     @Override

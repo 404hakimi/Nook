@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * Xray 线路服务器一键安装入参; 基础设施 (端口/路径/日志/重启) 由后端 XrayInstallDefaults 固定, 前端传版本 + 行为开关 + inbound 配置.
+ * 管理后台 - Xray 线路服务器安装 Request VO
  *
  * @author nook
  */

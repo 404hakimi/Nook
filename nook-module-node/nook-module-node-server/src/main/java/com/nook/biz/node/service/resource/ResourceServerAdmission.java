@@ -9,8 +9,8 @@ import com.nook.biz.node.api.enums.ResourceServerLifecycleEnum;
 import com.nook.biz.node.api.enums.ResourceServerThrottleStateEnum;
 import com.nook.biz.node.api.resource.dto.LandingSummaryDTO;
 import com.nook.biz.node.api.resource.dto.PlanCapacityDTO;
+import com.nook.biz.node.api.resource.ResourceServerLandingApiConvert;
 import com.nook.biz.node.api.resource.dto.PlanSpecDTO;
-import com.nook.biz.node.convert.resource.ResourceServerLandingConvert;
 import com.nook.biz.node.entity.ResourceServerDO;
 import com.nook.biz.node.entity.Socks5InstallDO;
 import com.nook.biz.node.entity.ResourceServerQuotaDO;
@@ -165,7 +165,7 @@ public class ResourceServerAdmission {
                             minTrafficGb, minBandwidthMbps)) {
                 continue;
             }
-            matched.add(ResourceServerLandingConvert.INSTANCE.toSummary(serverMap.get(landing.getServerId()), landing));
+            matched.add(ResourceServerLandingApiConvert.INSTANCE.toSummary(serverMap.get(landing.getServerId()), landing));
         }
         return matched;
     }
