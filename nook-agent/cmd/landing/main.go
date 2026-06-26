@@ -8,12 +8,14 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"strconv"
 	"time"
 
 	"nook-agent/internal/agentcore"
 	"nook-agent/internal/landing/meter"
+	"nook-agent/internal/landing/socks5deploy"
 	"nook-agent/internal/landing/tc"
 	"nook-agent/internal/shared/client"
 	"nook-agent/internal/shared/config"
@@ -60,6 +62,10 @@ func registerLanding(cfg *config.Config, cli *client.Client) agentcore.RoleCompo
 	return agentcore.RoleComponents{
 		Goroutines:    []agentcore.Goroutine{loop},
 		NicBizSampler: m.SampleUpDown,
+		// 控制接口 /socks5/deploy: 后台下发 dante 期望态, agent 本地装机 (取代后台 SSH 推 bash)
+		Socks5Deploy: func(ctx context.Context, body []byte, out io.Writer) error {
+			return socks5deploy.Deploy(ctx, body, out)
+		},
 	}
 }
 

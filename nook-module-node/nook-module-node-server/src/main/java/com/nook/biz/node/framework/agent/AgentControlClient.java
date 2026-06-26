@@ -3,6 +3,7 @@ package com.nook.biz.node.framework.agent;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.nook.biz.node.api.enums.XrayErrorCode;
+import com.nook.biz.node.framework.socks5.install.Socks5DeployRequest;
 import com.nook.biz.node.framework.xray.install.XrayCertPushRequest;
 import com.nook.biz.node.framework.xray.install.XrayDeployRequest;
 import com.nook.common.web.exception.BusinessException;
@@ -61,6 +62,18 @@ public class AgentControlClient {
      */
     public void pushCert(String agentHost, String token, XrayCertPushRequest req, Consumer<String> lineSink) {
         this.postStreaming(agentHost, "/xray/cert", token, JSON.toJSONString(req), req.getTimeoutSeconds(), lineSink);
+    }
+
+    /**
+     * 通知 landing agent 用内置逻辑本地装 dante; 下发结构化期望态 (非脚本), 流式回传安装日志, 未见成功标记则抛错
+     *
+     * @param agentHost agent 主机 (落地机出网 IP)
+     * @param token     agent 鉴权 token (resource_server.agent_token)
+     * @param req       SOCKS5 装机请求 (端口/账密/路径/开关; 内含超时)
+     * @param lineSink  安装日志行回调 (转发给前端流式)
+     */
+    public void deploySocks5(String agentHost, String token, Socks5DeployRequest req, Consumer<String> lineSink) {
+        this.postStreaming(agentHost, "/socks5/deploy", token, JSON.toJSONString(req), req.getTimeoutSeconds(), lineSink);
     }
 
     /** POST agent 控制接口 + 流式读回 stdout; 非 200 / 无成功标记 / IO 中断均抛 BusinessException. */

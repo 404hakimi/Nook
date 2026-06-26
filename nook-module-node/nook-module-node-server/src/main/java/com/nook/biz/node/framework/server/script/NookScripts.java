@@ -20,15 +20,7 @@ import java.util.Set;
 @Component
 public class NookScripts {
 
-    public static final ScriptModule SOCKS5_INSTALL = new ScriptModule(
-            "socks5-dante-install",
-            ScriptCategory.INSTALL,
-            "scripts/install/socks5-dante.sh.tmpl",
-            "nook-install-socks5",
-            "SOCKS5 落地节点 (dante-server + PAM)",
-            Set.of());
-
-    // xray 装机已改为"配置 + 通知 agent"(agent 内置 Go 装机), 原 prepare-env/ufw/acme/xray 等模块退场;
+    // xray 与 socks5(dante) 装机均已改为"配置 + 通知 agent"(agent 内置 Go 装机), 原 install 脚本退场;
     // swap / bbr 仍由 ServerOsOp 运维调优单独使用, 保留.
     public static final ScriptModule MODULE_SWAP = m("module-swap",
             "scripts/modules/20-swap.sh.tmpl", "swap 文件创建/扩容");
@@ -42,7 +34,7 @@ public class NookScripts {
     public static final String OPS_TMP_PREFIX = "nook-server-ops";
 
     private static final List<ScriptModule> ALL = List.of(
-            SOCKS5_INSTALL, MODULE_SWAP, MODULE_BBR);
+            MODULE_SWAP, MODULE_BBR);
 
     @Resource
     private ScriptCatalog scriptCatalog;

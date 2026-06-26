@@ -1,5 +1,5 @@
-// Package control 暴露 agent 控制接口 (:44844): 后台 POST /xray/deploy 下发装机配置 / /xray/cert 下发续期证书,
-// agent 内置 Go 执行 + chunked 流式回 stdout.
+// Package control 暴露 agent 控制接口 (:44844): 后台 POST 下发结构化配置, agent 内置 Go 执行 + chunked 流式回 stdout.
+// frontline: /xray/deploy 装机 + /xray/cert 续期证书; landing: /socks5/deploy 装 dante. 按角色提供的 func 是否非 nil 决定暴露哪些.
 //
 // 安全: 通道是明文 HTTP, 但 body 经后台 AES-256-GCM 加密 (key 由 agent_token 本地派生, token 不过线),
 // agent「能成功解密」即鉴权 (见 crypto.go). agent 纯出站之外仅此一个入站口, 装机时 UFW 应只放行后台出口 IP.
@@ -23,16 +23,20 @@ type XrayDeployFunc func(ctx context.Context, body []byte, out io.Writer) error
 // XrayCertFunc 由 frontline 角色提供: 写后台续期下发的 cert/key + reload xray + 流式写 out; nil = 不暴露 /xray/cert.
 type XrayCertFunc func(ctx context.Context, body []byte, out io.Writer) error
 
+// Socks5DeployFunc 由 landing 角色提供: 解析下发配置 + 本地装 dante + 流式写 out; nil = 不暴露 /socks5/deploy.
+type Socks5DeployFunc func(ctx context.Context, body []byte, out io.Writer) error
+
 // Server 控制接口 HTTP server; 无状态.
 type Server struct {
-	port       int
-	token      string
-	xrayDeploy XrayDeployFunc
-	xrayCert   XrayCertFunc
+	port         int
+	token        string
+	xrayDeploy   XrayDeployFunc
+	xrayCert     XrayCertFunc
+	socks5Deploy Socks5DeployFunc
 }
 
-func New(port int, token string, xrayDeploy XrayDeployFunc, xrayCert XrayCertFunc) *Server {
-	return &Server{port: port, token: token, xrayDeploy: xrayDeploy, xrayCert: xrayCert}
+func New(port int, token string, xrayDeploy XrayDeployFunc, xrayCert XrayCertFunc, socks5Deploy Socks5DeployFunc) *Server {
+	return &Server{port: port, token: token, xrayDeploy: xrayDeploy, xrayCert: xrayCert, socks5Deploy: socks5Deploy}
 }
 
 // Run 启动控制接口; ctx 取消时优雅关闭.
@@ -43,6 +47,9 @@ func (s *Server) Run(ctx context.Context) {
 	}
 	if s.xrayCert != nil {
 		mux.HandleFunc("/xray/cert", s.handleXrayCert)
+	}
+	if s.socks5Deploy != nil {
+		mux.HandleFunc("/socks5/deploy", s.handleSocks5Deploy)
 	}
 	srv := &http.Server{Addr: fmt.Sprintf(":%d", s.port), Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
@@ -68,6 +75,11 @@ func (s *Server) handleXrayDeploy(w http.ResponseWriter, r *http.Request) {
 // handleXrayCert 后台续期: 推新 cert/key, agent 写盘 + reload xray → 流式回日志 + NOOK_RESULT.
 func (s *Server) handleXrayCert(w http.ResponseWriter, r *http.Request) {
 	s.handleStreamingJob(w, r, "/xray/cert", s.xrayCert)
+}
+
+// handleSocks5Deploy 后台通知 landing agent 本地装 dante: 解析下发配置 → 内置 Go 装机 → 流式回日志 + NOOK_RESULT.
+func (s *Server) handleSocks5Deploy(w http.ResponseWriter, r *http.Request) {
+	s.handleStreamingJob(w, r, "/socks5/deploy", s.socks5Deploy)
 }
 
 // handleStreamingJob 公共骨架: 强制加密载荷 → 解密(即鉴权) → chunked 流式跑 job → 行尾 NOOK_RESULT marker 判成败.
