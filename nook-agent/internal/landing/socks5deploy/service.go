@@ -37,23 +37,25 @@ func installPackages(ctx context.Context, out io.Writer) error {
 	return nil
 }
 
-// detectExtIface 从 /proc/net/route 取默认路由出口网卡 (danted external); 探不到兜底环回防 conf 语法挂.
-func detectExtIface(out io.Writer) string {
-	if data, err := os.ReadFile("/proc/net/route"); err == nil {
-		sc := bufio.NewScanner(strings.NewReader(string(data)))
-		for first := true; sc.Scan(); first = false {
-			if first {
-				continue // 跳表头
-			}
-			f := strings.Fields(sc.Text())
-			if len(f) >= 2 && f[1] == "00000000" {
-				logf(out, "出网网卡: %s", f[0])
-				return f[0]
-			}
+// detectExtIface 从 /proc/net/route 取默认路由出口网卡 (danted external); 探不到直接报错.
+func detectExtIface(out io.Writer) (string, error) {
+	data, err := os.ReadFile("/proc/net/route")
+	if err != nil {
+		return "", fmt.Errorf("读 /proc/net/route 失败: %w", err)
+	}
+	sc := bufio.NewScanner(strings.NewReader(string(data)))
+	for first := true; sc.Scan(); first = false {
+		if first {
+			continue // 跳表头
+		}
+		f := strings.Fields(sc.Text())
+		if len(f) >= 2 && f[1] == "00000000" {
+			logf(out, "出网网卡: %s", f[0])
+			return f[0], nil
 		}
 	}
-	logf(out, "⚠ 未探到默认路由网卡, 兜底 lo")
-	return "lo"
+	// 探不到默认路由 = 没出网; 兜底 lo 会装出 external=lo 的"连得上转不出"废代理还报成功, 故直接失败
+	return "", fmt.Errorf("未探到默认路由出网网卡 (落地机须有默认路由才能转发)")
 }
 
 // writeCredential 用 htpasswd 写 bcrypt 凭据; 密码经 stdin 传入 (不进 argv, 避免 ps 泄露).
@@ -83,7 +85,7 @@ func startDante(ctx context.Context, out io.Writer, req *Request) error {
 	if err := sh(ctx, out, "systemctl", "restart", unit); err != nil {
 		return fmt.Errorf("启动 %s 失败: %w", unit, err)
 	}
-	time.Sleep(time.Second)
+	time.Sleep(2 * time.Second) // 跟 xray 同口径; 给慢机留足起服时间再校验端口监听
 	if err := exec.CommandContext(ctx, "systemctl", "is-active", "--quiet", unit).Run(); err != nil {
 		dumpJournal(ctx, out, unit)
 		return fmt.Errorf("%s 未处于 active", unit)
@@ -125,9 +127,11 @@ func ensureUfw(ctx context.Context, out io.Writer, req *Request) error {
 // selfTestDial 本机经 SOCKS5 拨号自检 (best-effort, 失败不阻断装机).
 func selfTestDial(ctx context.Context, out io.Writer, req *Request) {
 	logf(out, "→ 自检 SOCKS5 拨号 (best-effort)...")
-	// 代理凭据经 -K - 从 stdin 传 (不进 argv/ps, 与 htpasswd 同口径); -s/--max-time 非敏感留 argv
+	// 代理凭据经 -K - 从 stdin 传 (不进 argv/ps, 与 htpasswd 同口径); -s/--max-time 非敏感留 argv.
+	// 转义 config 双引号值里的 \ 和 " (否则含特殊字符的密码会破坏解析致自检误判失败)
+	esc := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 	config := fmt.Sprintf("socks5 = \"127.0.0.1:%d\"\nproxy-user = \"%s:%s\"\nurl = \"https://ipinfo.io/ip\"\n",
-		req.Socks5Port, req.Socks5Username, req.Socks5Password)
+		req.Socks5Port, esc.Replace(req.Socks5Username), esc.Replace(req.Socks5Password))
 	cmd := exec.CommandContext(ctx, "curl", "-s", "--max-time", "10", "-K", "-")
 	cmd.Stdin = strings.NewReader(config)
 	o, err := cmd.Output()

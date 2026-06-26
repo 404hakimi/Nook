@@ -159,6 +159,12 @@ function startDeploy() {
 }
 
 async function actuallyDeploy() {
+  // backendUrl 后端未配 backend-public-url 时回填为空; 提交前拦住 (否则后端 @NotBlank 裸 400 + 字段折叠不可见)
+  if (!form.backendUrl?.trim()) {
+    deployInfoOpen.value = true
+    message.error('Backend URL 为空 (后端未配 backend-public-url), 请在「部署信息」里手动填')
+    return
+  }
   deployLog.value = ''
   deploying.value = true
   deployAbort = new AbortController()

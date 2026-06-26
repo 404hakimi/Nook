@@ -75,7 +75,10 @@ func Deploy(ctx context.Context, body []byte, out io.Writer) error {
 	if err := installPackages(ctx, out); err != nil {
 		return err
 	}
-	extIf := detectExtIface(out)
+	extIf, err := detectExtIface(out)
+	if err != nil {
+		return err
+	}
 	if err := writePamFile(out, &req); err != nil {
 		return err
 	}

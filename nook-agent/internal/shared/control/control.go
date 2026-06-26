@@ -94,7 +94,8 @@ func (s *Server) handleStreamingJob(w http.ResponseWriter, r *http.Request, name
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	if err != nil {
-		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+		// 读失败/超限也伪装 404, 与非控制口/鉴权失败一致, 不向扫描器暴露这是控制口
+		http.NotFound(w, r)
 		return
 	}
 	// 解密成功即鉴权; 失败 = token 不符 / 篡改 / 重放 → 同样伪装成 404, 不泄露.

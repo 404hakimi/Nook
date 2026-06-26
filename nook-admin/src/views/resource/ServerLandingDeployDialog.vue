@@ -208,7 +208,7 @@ async function onStartInstall() {
     title: isReinstall.value ? '重装 SOCKS5?' : '开始装机 SOCKS5?',
     message: isReinstall.value
       ? `落地机 ${detail.value.ipAddress} 当前已 LIVE; 重装会重新跑 install 脚本, 期间客户端会断流几秒.`
-      : `在 ${detail.value.ipAddress}:${detail.value.sshPort} 跑 dante 装机脚本; 成功后 lifecycle 切到 LIVE.`,
+      : `在 ${detail.value.ipAddress} 通知 agent 装 dante; 成功后 lifecycle 切到 LIVE.`,
     type: isReinstall.value ? 'warning' : 'info',
     confirmText: isReinstall.value ? '继续重装' : '开始装机'
   })

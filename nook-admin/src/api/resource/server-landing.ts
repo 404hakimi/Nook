@@ -46,13 +46,7 @@ export interface ServerLanding {
   danteVersion?: string
   /** landing agent 鉴权 token (装机时自动生成; mask 展示) */
   agentToken?: string
-  // SSH 主机 = ipAddress (canonical); 不再单独维护 sshHost
-  /** SSH 端口 (默认 22). */
-  sshPort?: number
-  /** SSH 用户. */
-  sshUser?: string
-  /** 明文 SSH 密码; 后台受信网络场景下发. */
-  sshPassword?: string
+  // SSH 凭据 (sshPort/sshUser/sshPassword) 不在 get-landing/page-landing 返回, 单独走 /get-credential (ServerCredential)
   /** 月成本 CNY. */
   costMonthly?: number
   /** 账单日 1-28. */
