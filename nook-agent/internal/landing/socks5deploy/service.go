@@ -130,13 +130,17 @@ func ensureUfw(ctx context.Context, out io.Writer, req *Request) error {
 // selfTestDial 本机经 SOCKS5 拨号自检 (best-effort, 失败不阻断装机).
 func selfTestDial(ctx context.Context, out io.Writer, req *Request) {
 	logf(out, "→ 自检 SOCKS5 拨号 (best-effort)...")
-	proxy := fmt.Sprintf("%s:%s@127.0.0.1:%d", req.Socks5Username, req.Socks5Password, req.Socks5Port)
-	o, err := capture(ctx, "curl", "-s", "--max-time", "10", "--socks5", proxy, "https://ipinfo.io/ip")
-	if err != nil || strings.TrimSpace(o) == "" {
+	// 代理凭据经 -K - 从 stdin 传 (不进 argv/ps, 与 htpasswd 同口径); -s/--max-time 非敏感留 argv
+	config := fmt.Sprintf("socks5 = \"127.0.0.1:%d\"\nproxy-user = \"%s:%s\"\nurl = \"https://ipinfo.io/ip\"\n",
+		req.Socks5Port, req.Socks5Username, req.Socks5Password)
+	cmd := exec.CommandContext(ctx, "curl", "-s", "--max-time", "10", "-K", "-")
+	cmd.Stdin = strings.NewReader(config)
+	o, err := cmd.Output()
+	if err != nil || strings.TrimSpace(string(o)) == "" {
 		logf(out, "⚠ 本地 SOCKS5 自检未通过 (服务已起, journalctl -u %s 查原因)", req.unit())
 		return
 	}
-	logf(out, "✔ SOCKS5 自检通过, 出网 IP=%s", strings.TrimSpace(o))
+	logf(out, "✔ SOCKS5 自检通过, 出网 IP=%s", strings.TrimSpace(string(o)))
 }
 
 // ensureLogrotate 配 dante 日志轮转 (size 触发 + gzip + copytruncate, 0 中断, 适合低配机).

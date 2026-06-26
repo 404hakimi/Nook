@@ -2,7 +2,8 @@
 // frontline: /xray/deploy 装机 + /xray/cert 续期证书; landing: /socks5/deploy 装 dante. 按角色提供的 func 是否非 nil 决定暴露哪些.
 //
 // 安全: 通道是明文 HTTP, 但 body 经后台 AES-256-GCM 加密 (key 由 agent_token 本地派生, token 不过线),
-// agent「能成功解密」即鉴权 (见 crypto.go). agent 纯出站之外仅此一个入站口, 装机时 UFW 应只放行后台出口 IP.
+// agent「能成功解密」即鉴权 (见 crypto.go); 解密失败伪装 404, 不向扫描器暴露此口. 控制口 (44844) 对外开放,
+// 安全靠"解密即鉴权 + 时间戳防重放"兜底; 如需进一步收紧可在 UFW 限源到后台固定出口 IP (当前未限).
 package control
 
 import (
