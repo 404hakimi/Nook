@@ -126,7 +126,6 @@ function fillFromDetail(d: ServerLanding) {
   form.pamFile = LANDING_DEPLOY_DEFAULTS.pamFile
   form.pwdFile = LANDING_DEPLOY_DEFAULTS.pwdFile
   form.systemdUnit = LANDING_DEPLOY_DEFAULTS.systemdUnit
-  form.autostartEnabled = d.autostartEnabled ?? LANDING_DEPLOY_DEFAULTS.autostartEnabled
   form.firewallEnabled = d.firewallEnabled ?? LANDING_DEPLOY_DEFAULTS.firewallEnabled
   form.logRotateEnabled = LANDING_DEPLOY_DEFAULTS.logRotateEnabled
 }
@@ -185,17 +184,15 @@ function appendOutput(chunk: string) {
   })
 }
 
-/** 3 个部署开关合并为 checkbox group 值; getter/setter 在 number(0/1) 与 string[] 之间映射 */
+/** 2 个部署开关合并为 checkbox group 值; getter/setter 在 number(0/1) 与 string[] 之间映射 */
 const switchValues = computed<string[]>({
   get: () => {
     const arr: string[] = []
-    if (form.autostartEnabled === 1) arr.push('autostart')
     if (form.firewallEnabled === 1) arr.push('firewall')
     if (form.logRotateEnabled === 1) arr.push('logrotate')
     return arr
   },
   set: (v) => {
-    form.autostartEnabled = v.includes('autostart') ? 1 : 0
     form.firewallEnabled = v.includes('firewall') ? 1 : 0
     form.logRotateEnabled = v.includes('logrotate') ? 1 : 0
   }
@@ -368,7 +365,6 @@ function close() {
           <NFormItem label="部署开关">
             <NCheckboxGroup v-model:value="switchValues">
               <NSpace :size="20">
-                <NCheckbox value="autostart">systemd 开机自启</NCheckbox>
                 <NCheckbox value="firewall">UFW 防火墙</NCheckbox>
                 <NCheckbox value="logrotate">logrotate</NCheckbox>
               </NSpace>

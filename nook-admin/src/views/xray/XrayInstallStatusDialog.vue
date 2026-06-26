@@ -8,13 +8,11 @@ import {
   NModal,
   NSpace,
   NSpin,
-  NSwitch,
   NTag,
   useMessage
 } from 'naive-ui'
-import { useConfirm } from '@/composables/useConfirm'
 import { getServerSystemdStatus, type SystemdStatus } from '@/api/resource/server-ops'
-import { xrayAutostart, type XrayInstall } from '@/api/xray/xray-install'
+import { type XrayInstall } from '@/api/xray/xray-install'
 
 /** Xray 走公共 systemd 接口的固定 unit 名. */
 const XRAY_UNIT = 'xray'
@@ -29,10 +27,8 @@ const emit = defineEmits<{
 }>()
 
 const message = useMessage()
-const { confirm } = useConfirm()
 
 const statusLoading = ref(false)
-const autostartLoading = ref(false)
 const serviceStatus = ref<SystemdStatus | null>(null)
 
 watch(
@@ -72,66 +68,6 @@ const activeBadge = computed<{ text: string; type: 'success' | 'error' | 'warnin
     return { text: a, type: 'warning' }
   }
 )
-
-/** 当前是否已开机自启 (基于 systemctl is-enabled 结果). serviceStatus 没拿到时返 null = 未知 */
-const isAutostartEnabled = computed<boolean | null>(() => {
-  const e = serviceStatus.value?.enabled?.trim() ?? ''
-  if (!e) return null
-  return e === 'enabled'
-})
-
-const autostartHint = computed(() => {
-  const e = serviceStatus.value?.enabled?.trim() ?? ''
-  if (e === 'static') return 'static (单元文件本身没 [Install] 段, 无法 enable/disable)'
-  if (e === 'masked') return 'masked (被 mask, 需手动 unmask 后才能 enable)'
-  if (e === 'enabled') return '开机会自动拉起'
-  if (e === 'disabled') return '系统重启后 xray 不会自动起'
-  return '未知'
-})
-
-/**
- * 切换自启: 走 confirm → API → 刷 status. NSwitch :value 受控, 拒绝时不动开关位置.
- * static / masked 不应该弹切换, NSwitch 在这种情况直接 disabled.
- */
-async function onAutostartToggle(target: boolean) {
-  if (!props.server || autostartLoading.value) return
-  const label = props.server.serverName || props.server.serverId.slice(0, 12)
-  const ok = await confirm({
-    title: target ? '开启开机自启' : '关闭开机自启',
-    message: target
-      ? `开启 "${label}" 的 Xray 开机自启?`
-      : `关闭 "${label}" 的 Xray 开机自启? 系统重启后 xray 将不会自动起`,
-    type: target ? 'info' : 'warning',
-    confirmText: target ? '开启' : '关闭'
-  })
-  if (!ok) return
-  autostartLoading.value = true
-  try {
-    await xrayAutostart(props.server.serverId, target)
-    message.success(`${label}: ${target ? '已开启自启' : '已关闭自启'}`)
-    // 后端切完成后立即重拉 service status, 让 NSwitch 反映新状态
-    await runStatus()
-  } catch (e) {
-    message.error('切换自启失败: ' + ((e as Error).message ?? ''))
-  } finally {
-    autostartLoading.value = false
-  }
-}
-
-/** static / masked / 未拿到 status 时 NSwitch 禁用 */
-const autostartSwitchDisabled = computed(() => {
-  if (autostartLoading.value || statusLoading.value) return true
-  if (!serviceStatus.value) return true
-  const e = serviceStatus.value.enabled?.trim() ?? ''
-  return e !== 'enabled' && e !== 'disabled'
-})
-
-/** NSwitch 自定义轨道色: 开 = 绿色 (success), 关 = 浅灰 (default-disabled 风格) */
-function autostartRailStyle({ checked }: { checked: boolean }) {
-  return {
-    background: checked ? 'var(--n-success-color, #18a058)' : '#d0d0d6'
-  }
-}
 </script>
 
 <template>
@@ -169,20 +105,6 @@ function autostartRailStyle({ checked }: { checked: boolean }) {
           <div>
             <div class="text-xs text-zinc-500">运行状态</div>
             <NTag size="small" :type="activeBadge.type">{{ activeBadge.text }}</NTag>
-          </div>
-          <div>
-            <div class="text-xs text-zinc-500 mb-1">开机自启</div>
-            <div class="flex items-center gap-3">
-              <NSwitch
-                :value="isAutostartEnabled === true"
-                :loading="autostartLoading"
-                :disabled="autostartSwitchDisabled"
-                size="small"
-                :rail-style="autostartRailStyle"
-                @update:value="onAutostartToggle"
-              />
-              <span class="text-xs text-zinc-500">{{ autostartHint }}</span>
-            </div>
           </div>
           <div>
             <div class="text-xs text-zinc-500">Xray 版本</div>

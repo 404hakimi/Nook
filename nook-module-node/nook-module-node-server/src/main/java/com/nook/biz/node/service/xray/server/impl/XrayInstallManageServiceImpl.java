@@ -213,13 +213,6 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
     }
 
     @Override
-    public String setAutostart(String serverId, boolean enabled) {
-        // 直接 SSH 下发 systemctl enable/disable + is-enabled 回 stdout (脱离 op 队列)
-        SshSession session = SshSessions.acquire(serverId, SshSessionScope.SHARED);
-        return xrayDaemonControl.setAutostart(session, enabled);
-    }
-
-    @Override
     public XrayInstallRespVO getXrayInstallDetail(String serverId) {
         XrayInstallDO entity = xrayInstallValidator.validateExists(serverId);
         XrayInstallRespVO vo = XrayInstallConvert.INSTANCE.convert(entity);

@@ -23,9 +23,6 @@ public class XrayDeployRequest {
     /** 强制重装 (即使版本一致也重新下载). */
     private boolean forceReinstall;
 
-    /** systemctl enable xray (开机自起). */
-    private boolean enableOnBoot;
-
     /** 装 / 启用 UFW 防火墙. */
     private boolean installUfw;
 

@@ -243,18 +243,6 @@ public class ResourceServerLandingController {
         return Result.ok();
     }
 
-    /**
-     * 切 SOCKS5 开机自启
-     *
-     * @param id      落地节点编号
-     * @param enabled 是否启用
-     */
-    @PostMapping("/set-socks5-autostart")
-    public Result<Void> setSocks5Autostart(@RequestParam("id") String id,
-                                           @RequestParam("enabled") boolean enabled) {
-        resourceServerLandingSocksOpsService.setAutostart(id, enabled);
-        return Result.ok();
-    }
 
     /**
      * 获得 SOCKS5 journal 日志

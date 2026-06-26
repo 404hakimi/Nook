@@ -70,21 +70,16 @@ func writeCredential(ctx context.Context, out io.Writer, req *Request) error {
 	return nil
 }
 
-// startDante daemon-reload + 按 autostart 设开机自启 + restart, 校验 active + 端口监听.
+// startDante daemon-reload + 开机自启 + restart, 校验 active + 端口监听.
 func startDante(ctx context.Context, out io.Writer, req *Request) error {
 	unit := req.unit()
-	logf(out, "→ 起服 (autostart=%v unit=%s)", req.AutostartEnabled, unit)
+	logf(out, "→ 起服 (unit=%s)", unit)
 	_ = shAllowFail(ctx, out, "systemctl", "stop", unit)
 	if err := sh(ctx, out, "systemctl", "daemon-reload"); err != nil {
 		return fmt.Errorf("daemon-reload 失败: %w", err)
 	}
-	if req.AutostartEnabled {
-		_ = shAllowFail(ctx, out, "systemctl", "enable", unit)
-		logf(out, "✔ 开机自启已启用")
-	} else {
-		_ = shAllowFail(ctx, out, "systemctl", "disable", unit)
-		logf(out, "  开机自启未启用 (按下发)")
-	}
+	// 数据面服务一律开机自启 (systemd 守护, 不依赖 agent 拉起)
+	_ = shAllowFail(ctx, out, "systemctl", "enable", unit)
 	if err := sh(ctx, out, "systemctl", "restart", unit); err != nil {
 		return fmt.Errorf("启动 %s 失败: %w", unit, err)
 	}

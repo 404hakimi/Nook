@@ -32,18 +32,13 @@ func validateConfig(ctx context.Context, out io.Writer, p paths) error {
 	return nil
 }
 
-// startXray daemon-reload + 按 enableOnBoot 设开机自启 + restart.
-func startXray(ctx context.Context, out io.Writer, enableOnBoot bool) error {
+// startXray daemon-reload + 开机自启 + restart (数据面一律自启).
+func startXray(ctx context.Context, out io.Writer) error {
 	if err := sh(ctx, out, "systemctl", "daemon-reload"); err != nil {
 		return fmt.Errorf("daemon-reload 失败: %w", err)
 	}
-	if enableOnBoot {
-		_ = shAllowFail(ctx, out, "systemctl", "enable", "xray")
-		logf(out, "✔ 开机自启已启用")
-	} else {
-		_ = shAllowFail(ctx, out, "systemctl", "disable", "xray")
-		logf(out, "  开机自启未启用 (按下发)")
-	}
+	// 数据面服务一律开机自启 (systemd 守护, 不依赖 agent 拉起)
+	_ = shAllowFail(ctx, out, "systemctl", "enable", "xray")
 	if err := sh(ctx, out, "systemctl", "restart", "xray"); err != nil {
 		return fmt.Errorf("启动 xray 失败: %w", err)
 	}

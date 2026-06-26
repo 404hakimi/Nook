@@ -119,7 +119,6 @@ public interface ResourceServerLandingConvert {
         vo.setProvisionMode(landing.getProvisionMode());
         vo.setLogLevel(landing.getLogLevel());
         vo.setLogPath(landing.getLogPath());
-        vo.setAutostartEnabled(landing.getAutostartEnabled());
         vo.setFirewallEnabled(landing.getFirewallEnabled());
         vo.setInstallDir(landing.getInstallDir());
         vo.setInstalledAt(landing.getInstalledAt());

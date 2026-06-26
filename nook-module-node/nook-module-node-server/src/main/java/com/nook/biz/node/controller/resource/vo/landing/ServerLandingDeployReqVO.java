@@ -65,11 +65,6 @@ public class ServerLandingDeployReqVO {
     @Size(max = 64)
     private String systemdUnit;
 
-    /** systemd 开机自启 (1/0). */
-    @NotNull(message = "autostartEnabled 不能为空")
-    @Min(value = 0) @Max(value = 1)
-    private Integer autostartEnabled;
-
     /** 部署时是否配 UFW (1/0). */
     @NotNull(message = "firewallEnabled 不能为空")
     @Min(value = 0) @Max(value = 1)

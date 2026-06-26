@@ -36,8 +36,6 @@ export interface ServerLanding {
   logLevel?: string
   /** dante logoutput 路径; 例 /var/log/sockd.log. */
   logPath?: string
-  /** systemd 开机自启 (1=enable 0=disable). */
-  autostartEnabled?: number
   /** 部署时是否配 UFW (1=配 0=跳过). */
   firewallEnabled?: number
   /** SOCKS5 安装目录; 默认 /home/socks5; logs/info.txt 等运维资产放这里. */
@@ -102,7 +100,6 @@ export interface ServerLandingSocks5 {
   socks5Password?: string
   logLevel?: string
   logPath?: string
-  autostartEnabled?: number
   firewallEnabled?: number
   installDir?: string
 }
@@ -124,8 +121,6 @@ export interface ServerLandingInstall {
   pwdFile?: string
   /** systemd 服务名. */
   systemdUnit?: string
-  /** systemd 开机自启 1/0. */
-  autostartEnabled?: number
   /** 装机时是否配过 UFW. */
   firewallEnabled?: number
   /** 是否配过 logrotate. */
@@ -327,12 +322,6 @@ export interface Socks5Log {
   log?: string
 }
 
-/** 切 SOCKS5 开机自启 (systemctl enable/disable + DB.autostart_enabled 同步). */
-export function setSocks5Autostart(id: string, enabled: boolean) {
-  return request.post<unknown, void>(
-    '/admin/resource/server-landing/set-socks5-autostart', null, { params: { id, enabled } })
-}
-
 /** 拉 SOCKS5 (dante) journalctl 日志. */
 export function getSocks5Log(
   id: string,
@@ -425,8 +414,6 @@ export interface ServerLandingDeployDTO {
   pamFile: string
   pwdFile: string
   systemdUnit: string
-  /** 1=enable 0=disable */
-  autostartEnabled: number
   /** 1=配 UFW 0=跳过 */
   firewallEnabled: number
   /** 1=配 logrotate 0=跳过 */
@@ -442,7 +429,6 @@ export const LANDING_DEPLOY_DEFAULTS = Object.freeze({
   pamFile: '/etc/pam.d/sockd',
   pwdFile: '/home/socks5/etc/sockd.passwd',
   systemdUnit: 'danted',
-  autostartEnabled: 1,
   firewallEnabled: 1,
   logRotateEnabled: 1
 })

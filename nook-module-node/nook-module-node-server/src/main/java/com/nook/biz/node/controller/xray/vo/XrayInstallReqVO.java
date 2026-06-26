@@ -19,10 +19,6 @@ public class XrayInstallReqVO {
     @Size(max = 32)
     private String xrayVersion;
 
-    /** 是否 systemctl enable xray (机器重启后自动起 xray). */
-    @NotNull(message = "enableOnBoot 必填")
-    private Boolean enableOnBoot;
-
     /** 强制重装; 即使已装版本与目标一致也走下载流程, 用于自编译版本 / build 后缀差异等场景. */
     @NotNull(message = "forceReinstall 必填")
     private Boolean forceReinstall;

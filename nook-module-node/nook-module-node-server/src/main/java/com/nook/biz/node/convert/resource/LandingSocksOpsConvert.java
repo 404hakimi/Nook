@@ -34,7 +34,6 @@ public interface LandingSocksOpsConvert {
                 .pamFile(l.getPamFile())
                 .pwdFile(l.getPwdFile())
                 .systemdUnit(l.getSystemdUnit())
-                .autostartEnabled(isOn(l.getAutostartEnabled()))
                 .firewallEnabled(isOn(l.getFirewallEnabled()))
                 .logRotateEnabled(isOn(l.getLogRotateEnabled()))
                 .sshPort(sshPort)

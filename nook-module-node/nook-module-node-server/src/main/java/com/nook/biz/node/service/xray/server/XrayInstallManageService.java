@@ -24,15 +24,6 @@ public interface XrayInstallManageService {
     String restart(String serverId);
 
     /**
-     * 切换 xray 开机自启
-     *
-     * @param serverId 服务器编号
-     * @param enabled  是否开机自启
-     * @return 远端 stdout
-     */
-    String setAutostart(String serverId, boolean enabled);
-
-    /**
      * 获得 xray 日志文件内容
      *
      * @param serverId 服务器编号

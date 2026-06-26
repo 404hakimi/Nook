@@ -48,9 +48,6 @@ public class Socks5DeployRequest {
     /** systemd 服务名 (dante apt 包默认 danted; 空则 agent 兜底 danted). */
     private String systemdUnit;
 
-    /** 开机自启. */
-    private boolean autostartEnabled;
-
     /** 部署时配 UFW (会放行 SSH + 控制口 44844 + SOCKS5; 不放控制口会自锁). */
     private boolean firewallEnabled;
 

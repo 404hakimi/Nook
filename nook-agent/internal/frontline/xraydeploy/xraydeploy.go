@@ -40,7 +40,6 @@ type Request struct {
 	ServerID          string `json:"serverId"`
 	XrayVersion       string `json:"xrayVersion"`
 	ForceReinstall    bool   `json:"forceReinstall"`
-	EnableOnBoot      bool   `json:"enableOnBoot"`
 	InstallUfw        bool   `json:"installUfw"`
 	SetTimezone       bool   `json:"setTimezone"`
 	LogRotate         bool   `json:"logRotate"`
@@ -114,7 +113,7 @@ func Deploy(ctx context.Context, xrayBin string, apiPort int, body []byte, out i
 	if err := validateConfig(ctx, out, p); err != nil {
 		return err
 	}
-	if err := startXray(ctx, out, req.EnableOnBoot); err != nil {
+	if err := startXray(ctx, out); err != nil {
 		return err
 	}
 	if err := verify(ctx, out, apiPort); err != nil {

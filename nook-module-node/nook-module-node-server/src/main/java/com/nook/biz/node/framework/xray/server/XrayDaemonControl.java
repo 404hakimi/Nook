@@ -27,20 +27,4 @@ public class XrayDaemonControl {
                         + " && " + xrayBin + " version | head -1"
         ).getStdout();
     }
-
-    /**
-     * 切换 xray.service 开机自启; 已 enabled/disabled 也算正常 (退出非 0 用 || true 兜底).
-     * 末尾跑 is-enabled 给前端确认最终状态.
-     *
-     * @param session caller 已 acquire 的 SSH 会话
-     * @param enabled true=enable, false=disable
-     * @return 远端 stdout (末行 is-enabled 结果)
-     */
-    public String setAutostart(SshSession session, boolean enabled) {
-        String op = enabled ? "enable" : "disable";
-        return session.ssh().exec(
-                "systemctl " + op + " " + XrayConstants.SYSTEMD_UNIT + " 2>&1 || true; "
-                        + "systemctl is-enabled " + XrayConstants.SYSTEMD_UNIT + " 2>/dev/null || true"
-        ).getStdout();
-    }
 }

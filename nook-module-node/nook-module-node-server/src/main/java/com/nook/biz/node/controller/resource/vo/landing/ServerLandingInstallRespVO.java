@@ -37,9 +37,6 @@ public class ServerLandingInstallRespVO {
     /** systemd 服务名. */
     private String systemdUnit;
 
-    /** systemd 开机自启 1/0. */
-    private Integer autostartEnabled;
-
     /** 装机时是否配过 UFW. */
     private Integer firewallEnabled;
 

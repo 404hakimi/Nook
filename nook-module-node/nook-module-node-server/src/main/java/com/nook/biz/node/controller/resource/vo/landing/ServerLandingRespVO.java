@@ -49,9 +49,6 @@ public class ServerLandingRespVO {
     /** dante logoutput 路径. */
     private String logPath;
 
-    /** systemd 开机自启 1/0. */
-    private Integer autostartEnabled;
-
     /** 部署时是否配 UFW 1/0. */
     private Integer firewallEnabled;
 

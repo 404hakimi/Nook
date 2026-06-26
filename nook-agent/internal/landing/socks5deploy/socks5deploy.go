@@ -37,7 +37,6 @@ type Request struct {
 	PamFile          string `json:"pamFile"`
 	PwdFile          string `json:"pwdFile"`
 	SystemdUnit      string `json:"systemdUnit"`
-	AutostartEnabled bool   `json:"autostartEnabled"`
 	FirewallEnabled  bool   `json:"firewallEnabled"`
 	LogRotateEnabled bool   `json:"logRotateEnabled"`
 	SshPort          int    `json:"sshPort"`

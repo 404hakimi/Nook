@@ -59,19 +59,6 @@ public class XrayInstallManageController {
     }
 
     /**
-     * 切换 xray 开机自启
-     *
-     * @param id      服务器编号
-     * @param enabled 是否开机自启
-     * @return systemd 输出
-     */
-    @PostMapping("/set-xray-autostart")
-    public Result<String> setAutostart(@RequestParam("id") String id,
-                                       @RequestParam("enabled") boolean enabled) {
-        return Result.ok(xrayInstallManageService.setAutostart(id, enabled));
-    }
-
-    /**
      * 获得 xray 日志文件内容
      *
      * @param id      服务器编号

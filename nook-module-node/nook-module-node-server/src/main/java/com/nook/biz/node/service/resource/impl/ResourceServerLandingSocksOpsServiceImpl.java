@@ -109,24 +109,6 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
     }
 
     @Override
-    public void setAutostart(String serverId, boolean enabled) {
-        // 自启切换是一次性命令式运维 (非装机), 仍走 SSH ad-hoc; 同步回写期望态
-        ResourceServerDO server = resourceServerValidator.validateExists(serverId);
-        resourceServerLandingValidator.validateExists(serverId);
-        SessionCredential cred = buildOpsSshCred(server);
-        SshSessions.runAdHocVoid(cred, session -> {
-            String cmd = (enabled ? "systemctl enable " : "systemctl disable ") + DANTE_UNIT + " 2>&1 || true";
-            session.ssh().exec(cmd);
-        });
-
-        Socks5InstallDO patch = new Socks5InstallDO();
-        patch.setServerId(serverId);
-        patch.setAutostartEnabled(enabled ? 1 : 0);
-        socks5InstallMapper.updateBySelective(patch);
-        log.info("[setAutostart] serverId={} ip={} enabled={}", serverId, server.getIpAddress(), enabled);
-    }
-
-    @Override
     public ServiceLogRespVO getJournalLog(String serverId, Integer lines, String level, String keyword) {
         ResourceServerDO server = resourceServerValidator.validateExists(serverId);
         resourceServerLandingValidator.validateExists(serverId);
@@ -165,7 +147,6 @@ public class ResourceServerLandingSocksOpsServiceImpl implements ResourceServerL
         patch.setPamFile(reqVO.getPamFile());
         patch.setPwdFile(reqVO.getPwdFile());
         patch.setSystemdUnit(reqVO.getSystemdUnit());
-        patch.setAutostartEnabled(reqVO.getAutostartEnabled());
         patch.setFirewallEnabled(reqVO.getFirewallEnabled());
         patch.setLogRotateEnabled(reqVO.getLogRotateEnabled());
         socks5InstallMapper.updateBySelective(patch);

@@ -32,13 +32,6 @@ public interface ResourceServerLandingSocksOpsService {
      */
     Socks5TestRespVO testSocks5(String serverId, String echoUrl, int connectTimeoutMs, int readTimeoutMs);
 
-    /**
-     * 切 SOCKS5 开机自启
-     *
-     * @param serverId 落地节点编号
-     * @param enabled  是否启用
-     */
-    void setAutostart(String serverId, boolean enabled);
 
     /**
      * 获得 SOCKS5 journal 日志

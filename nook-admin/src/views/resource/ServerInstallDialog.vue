@@ -135,7 +135,6 @@ const XRAY_VERSION_OPTIONS = [
 /** 弹框表单态: 通用字段 (版本/开关/端口/协议); 协议特定字段在 paramsForm (schema 驱动). */
 interface InstallFormState {
   xrayVersion: string
-  enableOnBoot: boolean
   forceReinstall: boolean
   installUfw: boolean
   setTimezone: boolean
@@ -146,7 +145,6 @@ interface InstallFormState {
 
 const form = reactive<InstallFormState>({
   xrayVersion: XRAY_DEFAULT_VERSION,
-  enableOnBoot: true,
   forceReinstall: false,
   installUfw: true,
   setTimezone: true,
@@ -254,7 +252,6 @@ async function onSubmit() {
     })
     const dto: LineServerInstallDTO = {
       xrayVersion: form.xrayVersion,
-      enableOnBoot: form.enableOnBoot,
       forceReinstall: form.forceReinstall,
       installUfw: form.installUfw,
       setTimezone: form.setTimezone,
@@ -470,9 +467,6 @@ function fieldSelectProps(f: InboundFieldSchema) {
 
         <div v-if="advancedOpen" class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
           <div class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mt-1">
-            <NCheckbox v-model:checked="form.enableOnBoot" :disabled="installing">
-              开机自启 Xray
-            </NCheckbox>
             <NCheckbox v-model:checked="form.forceReinstall" :disabled="installing">
               强制重装
             </NCheckbox>

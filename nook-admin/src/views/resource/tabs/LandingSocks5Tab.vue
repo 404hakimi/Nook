@@ -163,11 +163,6 @@ async function copyToClipboard(value: string | undefined, label: string) {
           <NDescriptionsItem label="systemd 服务名">
             <code class="kbd">{{ installInfo?.systemdUnit || '—' }}</code>
           </NDescriptionsItem>
-          <NDescriptionsItem label="systemd 自启">
-            <NTag size="tiny" :type="(installInfo?.autostartEnabled ?? detail.autostartEnabled) ? 'success' : 'default'">
-              {{ (installInfo?.autostartEnabled ?? detail.autostartEnabled) ? '已启用' : '未启用' }}
-            </NTag>
-          </NDescriptionsItem>
           <NDescriptionsItem label="UFW 防火墙">
             <NTag size="tiny" :type="(installInfo?.firewallEnabled ?? detail.firewallEnabled) ? 'success' : 'default'">
               {{ (installInfo?.firewallEnabled ?? detail.firewallEnabled) ? '已配置' : '未配置' }}

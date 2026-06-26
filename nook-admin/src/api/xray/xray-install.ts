@@ -66,11 +66,6 @@ export function xrayRestart(serverId: string) {
   return request.post<unknown, string>('/admin/xray/install/restart-xray', null, { params: { id: serverId } })
 }
 
-/** 开/关 Xray 开机自启 (systemctl enable/disable); 末尾返回 is-enabled 结果给前端确认. */
-export function xrayAutostart(serverId: string, enabled: boolean) {
-  return request.post<unknown, string>('/admin/xray/install/set-xray-autostart', null, { params: { id: serverId, enabled } })
-}
-
 /**
  * 共享 inbound 配置 (协议形态键 + 监听 + 协议特定参数 params)。
  * 协议特定字段收进 params (key = 协议 formSchema 字段 name), 由后端按 protocol 多态绑定; 前端 schema 驱动, 故 params 泛型。
@@ -95,8 +90,6 @@ export interface XrayInboundConfig {
 export interface LineServerInstallDTO {
   /** Xray 版本; "v26.3.27" 这种或 "latest". */
   xrayVersion: string
-  /** 是否 systemctl enable xray (机器重启后自动起 xray). */
-  enableOnBoot: boolean
   /** 强制重装; 即使版本号一致也走下载流程, 用于自编译 / build 后缀差异. */
   forceReinstall: boolean
   installUfw: boolean

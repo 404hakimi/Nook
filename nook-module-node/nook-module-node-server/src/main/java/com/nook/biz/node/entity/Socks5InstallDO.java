@@ -43,9 +43,6 @@ public class Socks5InstallDO {
     /** dante 日志文件路径. */
     private String logPath;
 
-    /** 是否随系统自启: 1=是 0=否. */
-    private Integer autostartEnabled;
-
     /** 是否启用防火墙规则: 1=是 0=否. */
     private Integer firewallEnabled;
 

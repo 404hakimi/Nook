@@ -35,10 +35,6 @@ public class ServerLandingSocks5UpdateReqVO {
     @Size(max = 255)
     private String logPath;
 
-    /** 是否开机自启: 1=是 0=否. */
-    @Min(value = 0) @Max(value = 1)
-    private Integer autostartEnabled;
-
     /** 是否启用防火墙: 1=是 0=否. */
     @Min(value = 0) @Max(value = 1)
     private Integer firewallEnabled;
