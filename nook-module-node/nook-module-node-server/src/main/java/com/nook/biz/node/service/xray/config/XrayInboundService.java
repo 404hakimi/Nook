@@ -1,5 +1,6 @@
 package com.nook.biz.node.service.xray.config;
 
+import com.nook.biz.node.controller.xray.vo.XrayInboundRespVO;
 import com.nook.biz.node.entity.XrayInboundDO;
 
 /**
@@ -23,4 +24,12 @@ public interface XrayInboundService {
      * @return inbound 配置
      */
     XrayInboundDO get(String serverId);
+
+    /**
+     * 获得 inbound 共享配置详情 (协议字段经 formPrefill 投影成 formValues 供前端预填); 未装机返 null
+     *
+     * @param serverId 服务器编号
+     * @return inbound 详情 VO
+     */
+    XrayInboundRespVO getInboundDetail(String serverId);
 }

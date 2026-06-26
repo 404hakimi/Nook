@@ -245,7 +245,8 @@ public class XrayInstallManageServiceImpl implements XrayInstallManageService {
         return inboundProtocolFactory.all().stream().map(p -> {
             ProtocolSchemaRespVO vo = new ProtocolSchemaRespVO();
             // 协议判别键: 该实现支持形态的 protocol (vmess 两形态 protocol 同为 vmess)
-            vo.setProtocol(p.supportedForms().iterator().next().getProtocol());
+            String protocol = p.supportedForms().iterator().next().getProtocol();
+            vo.setProtocol(protocol);
             vo.setLabel(p.displayName());
             vo.setFields(p.formSchema());
             return vo;

@@ -1,8 +1,6 @@
 package com.nook.biz.node.service.xray.server.impl;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.nook.biz.node.api.enums.XrayInstallStatusEnum;
 import com.nook.biz.node.entity.XrayInstallDO;
 import com.nook.biz.node.mapper.XrayInstallMapper;
@@ -11,8 +9,6 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
 
 /**
  * Xray 实例元数据 Service 实现类
@@ -50,20 +46,15 @@ public class XrayInstallServiceImpl implements XrayInstallService {
 
     @Override
     public boolean isSubdomainTaken(String domainId, String subdomain, String excludeServerId) {
-        return xrayInstallMapper.selectCount(new LambdaQueryWrapper<XrayInstallDO>()
-                .eq(XrayInstallDO::getDomainId, domainId)
-                .eq(XrayInstallDO::getSubdomain, subdomain)
-                .ne(XrayInstallDO::getServerId, excludeServerId)) > 0;
+        return xrayInstallMapper.existsBySubdomain(domainId, subdomain, excludeServerId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void markInstallStatus(String serverId, XrayInstallStatusEnum status) {
         // 定向更新 install_status (OK 时同步置 installedAt), 避免 updateById 把其它列覆成 null
-        int affected = xrayInstallMapper.update(null, new LambdaUpdateWrapper<XrayInstallDO>()
-                .eq(XrayInstallDO::getServerId, serverId)
-                .set(XrayInstallDO::getInstallStatus, status.getCode())
-                .set(status == XrayInstallStatusEnum.OK, XrayInstallDO::getInstalledAt, LocalDateTime.now()));
+        int affected = xrayInstallMapper.updateInstallStatus(
+                serverId, status.getCode(), status == XrayInstallStatusEnum.OK);
         if (affected == 0) {
             log.warn("[xray-install] markInstallStatus 没匹配到行 server={} status={}", serverId, status.getCode());
         }
@@ -72,10 +63,7 @@ public class XrayInstallServiceImpl implements XrayInstallService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void clearTlsBinding(String serverId) {
-        // 显式 set null (wrapper.set 不受全局 NOT_NULL 策略约束, 区别于 updateById); 证书清理走 XrayTlsCertService.clear
-        xrayInstallMapper.update(null, new LambdaUpdateWrapper<XrayInstallDO>()
-                .eq(XrayInstallDO::getServerId, serverId)
-                .set(XrayInstallDO::getDomainId, null)
-                .set(XrayInstallDO::getSubdomain, null));
+        // 证书清理走 XrayTlsCertService.clear; 此处只清域名绑定 (mapper 内显式 set null, 不受全局 NOT_NULL 策略约束)
+        xrayInstallMapper.clearTlsBinding(serverId);
     }
 }

@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 启用 swap 入参.
+ * 管理后台 - 启用 swap Request VO
  *
  * @author nook
  */

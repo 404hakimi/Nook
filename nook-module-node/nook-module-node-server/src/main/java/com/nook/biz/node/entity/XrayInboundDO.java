@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.nook.biz.node.api.enums.XrayInboundProtocolEnum;
 import lombok.Data;
 
 import java.io.Serial;
@@ -27,7 +28,7 @@ public class XrayInboundDO implements Serializable {
     @TableId(value = "server_id", type = IdType.INPUT)
     private String serverId;
 
-    /** 协议形态 key {@link com.nook.biz.node.api.enums.XrayInboundProtocolEnum}; protocol/transport/security 由它解出. */
+    /** 协议形态 key {@link XrayInboundProtocolEnum}; protocol/transport/security 由它解出. */
     private String protocolKey;
 
     /** 共享 inbound 监听端口. */

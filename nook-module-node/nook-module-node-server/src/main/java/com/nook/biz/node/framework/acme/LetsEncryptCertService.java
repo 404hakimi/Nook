@@ -18,6 +18,7 @@ import org.shredzone.acme4j.util.KeyPairUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
@@ -201,7 +202,7 @@ public class LetsEncryptCertService {
         try {
             Files.setPosixFilePermissions(path,
                     EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
-        } catch (UnsupportedOperationException | java.io.IOException e) {
+        } catch (UnsupportedOperationException | IOException e) {
             log.debug("[acme] 设私钥权限失败 (非 POSIX?), 跳过: {}", e.getMessage());
         }
     }
@@ -213,7 +214,7 @@ public class LetsEncryptCertService {
     }
 
     /** 把 acme4j 的 PEM 写入收敛成 String. */
-    private String writePem(PemSink sink) throws java.io.IOException {
+    private String writePem(PemSink sink) throws IOException {
         StringWriter sw = new StringWriter();
         sink.writeTo(sw);
         return sw.toString();
@@ -221,7 +222,7 @@ public class LetsEncryptCertService {
 
     @FunctionalInterface
     private interface PemSink {
-        void writeTo(Writer writer) throws java.io.IOException;
+        void writeTo(Writer writer) throws IOException;
     }
 
     /** acme4j 的 fetch() 之类: 刷新远端状态, 可能抛 AcmeException; 返回值 (retry-after) 忽略. */

@@ -6,9 +6,9 @@ import com.nook.biz.node.service.resource.ResourceServerFrontlineService;
 import com.nook.common.web.response.PageResult;
 import com.nook.common.web.response.Result;
 import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -34,7 +34,7 @@ public class ResourceServerFrontlineController {
      * @return 线路机列表项分页
      */
     @GetMapping("/page-frontline")
-    public Result<PageResult<ServerFrontlineListItemRespVO>> getPage(@ModelAttribute ResourceServerPageReqVO reqVO) {
+    public Result<PageResult<ServerFrontlineListItemRespVO>> getPage(@Valid ResourceServerPageReqVO reqVO) {
         return Result.ok(resourceServerFrontlineService.getFrontlinePage(reqVO));
     }
 

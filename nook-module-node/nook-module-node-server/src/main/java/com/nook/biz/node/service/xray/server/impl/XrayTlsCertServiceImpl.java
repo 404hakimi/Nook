@@ -1,7 +1,6 @@
 package com.nook.biz.node.service.xray.server.impl;
 
 import cn.hutool.core.util.ObjectUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.nook.biz.node.entity.XrayTlsCertDO;
 import com.nook.biz.node.mapper.XrayTlsCertMapper;
 import com.nook.biz.node.service.xray.server.XrayTlsCertService;
@@ -54,8 +53,6 @@ public class XrayTlsCertServiceImpl implements XrayTlsCertService {
 
     @Override
     public List<XrayTlsCertDO> listExpiring(LocalDateTime before) {
-        return xrayTlsCertMapper.selectList(new LambdaQueryWrapper<XrayTlsCertDO>()
-                .isNotNull(XrayTlsCertDO::getNotAfter)
-                .lt(XrayTlsCertDO::getNotAfter, before));
+        return xrayTlsCertMapper.selectExpiringBefore(before);
     }
 }

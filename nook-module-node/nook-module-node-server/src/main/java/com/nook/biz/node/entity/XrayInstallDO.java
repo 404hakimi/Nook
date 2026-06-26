@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.nook.biz.node.api.enums.XrayInstallStatusEnum;
 import lombok.Data;
 
 import java.io.Serial;
@@ -57,7 +58,7 @@ public class XrayInstallDO implements Serializable {
     /** 二级域名标签 (如 frontline-jp-1); 完整 FQDN = subdomain + "." + system_domain.domain(根域). */
     private String subdomain;
 
-    /** 装机状态 {@link com.nook.biz.node.api.enums.XrayInstallStatusEnum}; 配置落库=deploying, agent 回报后 ok/failed. */
+    /** 装机状态 {@link XrayInstallStatusEnum}; 配置落库=deploying, agent 回报后 ok/failed. */
     private String installStatus;
 
     /** 最近一次部署成功时间; agent 回报成功才置 (deploying/failed 时为旧值或空). */
